@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Okul Dekont Sistemi - Hüsniye Özdilek MTAL</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <i data-lucide="school" class="h-8 w-8 text-blue-600"></i>
+                    <div class="ml-3">
+                        <h1 class="text-xl font-bold text-gray-900">
+                            Hüsniye Özdilek MTAL
+                        </h1>
+                        <p class="text-sm text-gray-600">Staj Dekont Sistemi</p>
+                    </div>
+                </div>
+                <div class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                    2023-2024 Eğitim Yılı
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Welcome Section -->
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold text-gray-900 mb-2">
+                Hoş Geldiniz
+            </h2>
+            <p class="text-lg text-gray-600">
+                12. sınıf öğrencilerinin mesleki eğitim stajlarını ve dekont işlemlerini kolayca yönetin
+            </p>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex items-center">
+                    <div class="bg-blue-100 rounded-lg p-3">
+                        <i data-lucide="trending-up" class="h-6 w-6 text-blue-600"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Bu Ay Ödenen</p>
+                        <p class="text-2xl font-bold text-gray-900">₺127,500</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex items-center">
+                    <div class="bg-green-100 rounded-lg p-3">
+                        <i data-lucide="users" class="h-6 w-6 text-green-600"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Aktif Stajyer</p>
+                        <p class="text-2xl font-bold text-gray-900">89</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex items-center">
+                    <div class="bg-purple-100 rounded-lg p-3">
+                        <i data-lucide="file-text" class="h-6 w-6 text-purple-600"></i>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Bekleyen Dekont</p>
+                        <p class="text-2xl font-bold text-gray-900">7</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Demo Info -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
+            <div class="flex items-center mb-4">
+                <i data-lucide="info" class="h-6 w-6 text-blue-600 mr-3"></i>
+                <h3 class="text-lg font-semibold text-blue-900">🚀 Demo Çalışıyor!</h3>
+            </div>
+            <p class="text-blue-800 mb-4">
+                Sistem başarıyla oluşturuldu! Bu demo sürümü hemen kullanabilirsiniz. 
+                Tam özellikli sürüm için Node.js kurulumunu tamamlayın.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                    <p class="font-semibold text-blue-900 mb-2">✅ Hazır Özellikler:</p>
+                    <ul class="text-blue-700 space-y-1">
+                        <li>• Modern responsive tasarım</li>
+                        <li>• Ana dashboard</li>
+                        <li>• İstatistik kartları</li>
+                        <li>• 6 modül yapısı</li>
+                    </ul>
+                </div>
+                <div>
+                    <p class="font-semibold text-blue-900 mb-2">🔄 Tam Sürümde:</p>
+                    <ul class="text-blue-700 space-y-1">
+                        <li>• Supabase veritabanı</li>
+                        <li>• CRUD işlemleri</li>
+                        <li>• Dosya yükleme</li>
+                        <li>• Admin paneli</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Start -->
+        <div class="bg-green-50 border border-green-200 rounded-lg p-6 mb-8">
+            <h3 class="text-lg font-semibold text-green-900 mb-4">⚡ Hızlı Başlangıç</h3>
+            <div class="space-y-3 text-green-800">
+                <p><strong>1.</strong> Node.js indirin: <a href="https://nodejs.org" class="text-green-600 underline" target="_blank">nodejs.org</a></p>
+                <p><strong>2.</strong> Terminal açıp şu komutları çalıştırın:</p>
+                <div class="bg-green-100 p-3 rounded font-mono text-sm">
+                    cd "C:\Users\Engin\Documents\cursor projects\okul dekont"<br>
+                    npm install<br>
+                    npm run dev
+                </div>
+                <p><strong>3.</strong> Tarayıcıda açın: <code class="bg-green-100 px-2 py-1 rounded">http://localhost:3000</code></p>
+            </div>
+        </div>
+
+        <!-- Menu Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Alanlar -->
+            <div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2">
+                <div class="p-6">
+                    <div class="flex items-center mb-4">
+                        <div class="bg-blue-500 rounded-lg p-3 text-white">
+                            <i data-lucide="school" class="h-6 w-6"></i>
+                        </div>
+                        <div class="ml-4 flex-1">
+                            <h3 class="text-lg font-semibold text-gray-900">Alanlar</h3>
+                            <p class="text-sm text-gray-500">6 Alan</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-4">Mesleki eğitim alanlarını yönet</p>
+                    <button class="w-full bg-gray-50 hover:bg-gray-100 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors" onclick="showModule('Alanlar')">
+                        Yönet
+                    </button>
+                </div>
+            </div>
+
+            <!-- Öğretmenler -->
+            <div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2">
+                <div class="p-6">
+                    <div class="flex items-center mb-4">
+                        <div class="bg-green-500 rounded-lg p-3 text-white">
+                            <i data-lucide="users" class="h-6 w-6"></i>
+                        </div>
+                        <div class="ml-4 flex-1">
+                            <h3 class="text-lg font-semibold text-gray-900">Öğretmenler</h3>
+                            <p class="text-sm text-gray-500">12 Öğretmen</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-4">Alan öğretmenlerini yönet</p>
+                    <button class="w-full bg-gray-50 hover:bg-gray-100 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors" onclick="showModule('Öğretmenler')">
+                        Yönet
+                    </button>
+                </div>
+            </div>
+
+            <!-- İşletmeler -->
+            <div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2">
+                <div class="p-6">
+                    <div class="flex items-center mb-4">
+                        <div class="bg-purple-500 rounded-lg p-3 text-white">
+                            <i data-lucide="building-2" class="h-6 w-6"></i>
+                        </div>
+                        <div class="ml-4 flex-1">
+                            <h3 class="text-lg font-semibold text-gray-900">İşletmeler</h3>
+                            <p class="text-sm text-gray-500">24 İşletme</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-4">Staj yapılan işletmeleri yönet</p>
+                    <button class="w-full bg-gray-50 hover:bg-gray-100 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors" onclick="showModule('İşletmeler')">
+                        Yönet
+                    </button>
+                </div>
+            </div>
+
+            <!-- Öğrenciler -->
+            <div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2">
+                <div class="p-6">
+                    <div class="flex items-center mb-4">
+                        <div class="bg-orange-500 rounded-lg p-3 text-white">
+                            <i data-lucide="users" class="h-6 w-6"></i>
+                        </div>
+                        <div class="ml-4 flex-1">
+                            <h3 class="text-lg font-semibold text-gray-900">Öğrenciler</h3>
+                            <p class="text-sm text-gray-500">156 Öğrenci</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-4">12. sınıf öğrencilerini yönet</p>
+                    <button class="w-full bg-gray-50 hover:bg-gray-100 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors" onclick="showModule('Öğrenciler')">
+                        Yönet
+                    </button>
+                </div>
+            </div>
+
+            <!-- Staj Takibi -->
+            <div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2">
+                <div class="p-6">
+                    <div class="flex items-center mb-4">
+                        <div class="bg-red-500 rounded-lg p-3 text-white">
+                            <i data-lucide="calendar" class="h-6 w-6"></i>
+                        </div>
+                        <div class="ml-4 flex-1">
+                            <h3 class="text-lg font-semibold text-gray-900">Staj Takibi</h3>
+                            <p class="text-sm text-gray-500">89 Aktif Staj</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-4">Öğrenci-işletme eşleştirmeleri</p>
+                    <button class="w-full bg-gray-50 hover:bg-gray-100 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors" onclick="showModule('Staj Takibi')">
+                        Yönet
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dekont Yönetimi -->
+            <div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2">
+                <div class="p-6">
+                    <div class="flex items-center mb-4">
+                        <div class="bg-teal-500 rounded-lg p-3 text-white">
+                            <i data-lucide="file-text" class="h-6 w-6"></i>
+                        </div>
+                        <div class="ml-4 flex-1">
+                            <h3 class="text-lg font-semibold text-gray-900">Dekont Yönetimi</h3>
+                            <p class="text-sm text-gray-500">42 Dekont</p>
+                        </div>
+                    </div>
+                    <p class="text-gray-600 text-sm mb-4">Maaş dekontlarını yönet</p>
+                    <button class="w-full bg-teal-600 hover:bg-teal-700 text-white font-medium py-2 px-4 rounded-lg transition-colors" onclick="showDekontDemo()">
+                        Demo Dene
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Dekont Demo Modal -->
+    <div id="dekontModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-lg max-w-md w-full p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">🚀 Dekont Demo</h3>
+                <button onclick="hideDekontDemo()" class="text-gray-400 hover:text-gray-600">
+                    <i data-lucide="x" class="h-5 w-5"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Öğrenci Seç</label>
+                    <select class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        <option>Ahmet Yılmaz - Bilişim Teknolojileri</option>
+                        <option>Fatma Demir - Muhasebe ve Finans</option>
+                        <option>Mehmet Kaya - Elektrik-Elektronik</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Ödeme Miktarı (₺)</label>
+                    <input type="number" placeholder="2500" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="2500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Ödeme Tarihi</label>
+                    <input type="date" class="w-full border border-gray-300 rounded-lg px-3 py-2" value="2024-01-15">
+                </div>
+                
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <i data-lucide="upload" class="h-8 w-8 text-gray-400 mx-auto mb-2"></i>
+                    <p class="text-sm text-gray-600">Dekont dosyası yükle</p>
+                    <p class="text-xs text-gray-500">PDF, JPG, PNG (Demo)</p>
+                </div>
+            </div>
+
+            <div class="flex space-x-3 mt-6">
+                <button onclick="simulateSubmit()" class="flex-1 bg-teal-600 text-white py-2 px-4 rounded-lg hover:bg-teal-700">
+                    ✅ Gönder (Demo)
+                </button>
+                <button onclick="hideDekontDemo()" class="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400">
+                    İptal
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        function showModule(module) {
+            alert(`🎯 ${module} Modülü\n\nTam sürümde bu modül ile:\n• Veri ekleme/düzenleme\n• Listeleme ve arama\n• Raporlama\n\nNode.js kurulumu tamamlayıp "npm run dev" çalıştırın!`);
+        }
+
+        function showDekontDemo() {
+            document.getElementById('dekontModal').classList.remove('hidden');
+        }
+
+        function hideDekontDemo() {
+            document.getElementById('dekontModal').classList.add('hidden');
+        }
+
+        function simulateSubmit() {
+            // Simulate loading
+            const button = event.target;
+            button.innerHTML = '⏳ Gönderiliyor...';
+            button.disabled = true;
+            
+            setTimeout(() => {
+                alert('🎉 Demo Başarılı!\n\n✅ Dekont sisteme gönderildi\n✅ Okul yönetimi bilgilendirildi\n✅ E-posta bildirimi gönderildi\n\nTam sürümde Supabase veritabanına kaydedilecek!');
+                hideDekontDemo();
+                button.innerHTML = '✅ Gönder (Demo)';
+                button.disabled = false;
+            }, 2000);
+        }
+
+        // Welcome animation
+        setTimeout(() => {
+            console.log('🎓 Hüsniye Özdilek MTAL Staj Dekont Sistemi');
+            console.log('✅ Demo sürümü başarıyla yüklendi!');
+            console.log('🚀 Tam sürüm için: npm install && npm run dev');
+        }, 1000);
+    </script>
+</body>
+</html> 
