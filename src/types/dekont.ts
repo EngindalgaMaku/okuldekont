@@ -25,11 +25,13 @@ export type Dekont = {
 
 export interface DekontFormData {
   staj_id: number
-  tutar: number
+  tutar?: number
   dosya?: File
   aciklama?: string
-  ay: number
-  yil: number
+  ay: string
+  yil: string
+  odeme_tarihi?: string
+  isletme_id?: string
 }
 
 export interface DekontModalProps {

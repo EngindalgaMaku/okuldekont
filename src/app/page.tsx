@@ -124,124 +124,73 @@ export default function LoginPage() {
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setPinError('')
-    
+
+    const isIsletme = loginType === 'isletme'
+    const selectedEntity = isIsletme ? selectedIsletme : selectedOgretmen
+
+    if (!selectedEntity) {
+      setPinError('Bir seçim yapılmamış. Lütfen geri dönüp tekrar deneyin.')
+      return
+    }
+
+    const rpcName = isIsletme ? 'check_isletme_pin_giris' : 'check_ogretmen_pin_giris'
+    const rpcParams = {
+      ...(isIsletme ? { p_isletme_id: selectedEntity.id } : { p_ogretmen_id: selectedEntity.id }),
+      p_girilen_pin: pinInput,
+      // GÜVENLİK UYARISI: IP adresi sunucu tarafında alınmalıdır.
+      // Bu, istemci tarafında güvenli bir şekilde yapılamaz.
+      p_ip_adresi: '127.0.0.1', 
+      p_user_agent: navigator.userAgent
+    }
+
     try {
-      if (loginType === 'isletme' && selectedIsletme) {
-        // İşletme pin kontrolü
-        const { data: pinResult, error: pinError } = await supabase
-          .rpc('check_isletme_pin_giris', {
-            p_isletme_id: selectedIsletme.id,
-            p_girilen_pin: pinInput,
-            p_ip_adresi: '127.0.0.1',
-            p_user_agent: navigator.userAgent
-          })
+      // 1. PIN Kontrolü
+      const { data: pinResult, error: pinError } = await supabase.rpc(rpcName, rpcParams)
 
-        if (pinError) {
-          setPinError('Sistem hatası: ' + pinError.message)
-          return
-        }
-
-        if (!pinResult) {
-          setPinError('PIN kontrol fonksiyonu yanıt vermedi. Lütfen sistemi kontrol edin.')
-          return
-        }
-
-        if (!pinResult.basarili) {
-          if (pinResult.kilitli) {
-            setPinError(pinResult.mesaj + (pinResult.kilitlenme_tarihi ? 
-              ` (${new Date(pinResult.kilitlenme_tarihi).toLocaleString('tr-TR')})` : ''))
-          } else {
-            setPinError(pinResult.mesaj)
-          }
-          return
-        }
-
-        // Başarılı giriş
-        try {
-          // Önce anonim bir oturum aç
-          const { data: { session }, error: sessionError } = await supabase.auth.signInAnonymously()
-          if (sessionError) {
-            setPinError('Oturum başlatılamadı: ' + sessionError.message)
-            return
-          }
-          if (!session) {
-            setPinError('Geçici oturum oluşturulamadı.')
-            return
-          }
-          
-          // Metadata'yı güncelle
-          const { error: updateError } = await supabase.auth.updateUser({
-            data: {
-              isletme_id: selectedIsletme.id,
-              role: 'isletme'
-            }
-          })
-
-          if (updateError) {
-            setPinError('Kullanıcı bilgileri güncellenemedi: ' + updateError.message)
-            return
-          }
-          
-          localStorage.setItem('isletme', JSON.stringify(selectedIsletme))
-          router.push('/isletme')
-
-        } catch (sessionError) {
-            setPinError('Oturum başlatılırken bir hata oluştu.')
-            return
-        }
-
-      } else if (loginType === 'ogretmen' && selectedOgretmen) {
-        // Öğretmen pin kontrolü
-        const { data: pinResult, error: pinError } = await supabase
-          .rpc('check_ogretmen_pin_giris', {
-            p_ogretmen_id: selectedOgretmen.id,
-            p_girilen_pin: pinInput,
-            p_ip_adresi: '127.0.0.1',
-            p_user_agent: navigator.userAgent
-          })
-
-        if (pinError) {
-          setPinError('Sistem hatası: ' + pinError.message)
-          return
-        }
-
-        if (!pinResult) {
-          setPinError('PIN kontrol fonksiyonu yanıt vermedi. Lütfen sistemi kontrol edin.')
-          return
-        }
-
-        if (!pinResult.basarili) {
-          if (pinResult.kilitli) {
-            setPinError(pinResult.mesaj + (pinResult.kilitlenme_tarihi ? 
-              ` (${new Date(pinResult.kilitlenme_tarihi).toLocaleString('tr-TR')})` : ''))
-          } else {
-            setPinError(pinResult.mesaj)
-          }
-          return
-        }
-
-        // Başarılı giriş
-        try {
-          // Önce anonim bir oturum aç
-          const { data: { session }, error: sessionError } = await supabase.auth.signInAnonymously()
-          if (sessionError) {
-            setPinError('Oturum başlatılamadı: ' + sessionError.message)
-            return
-          }
-          if (!session) {
-            setPinError('Geçici oturum oluşturulamadı.')
-            return
-          }
-
-          localStorage.setItem('ogretmen', JSON.stringify(selectedOgretmen))
-          router.push('/ogretmen/panel')
-        } catch (sessionError) {
-          setPinError('Oturum başlatılırken bir hata oluştu.')
-          return
-        }
+      if (pinError) {
+        setPinError(`Sistem hatası: ${pinError.message}`)
+        return
       }
+      if (!pinResult) {
+        setPinError('PIN kontrol fonksiyonu yanıt vermedi. Lütfen sistemi kontrol edin.')
+        return
+      }
+      if (!pinResult.basarili) {
+        let errorMessage = pinResult.mesaj
+        if (pinResult.kilitli && pinResult.kilitlenme_tarihi) {
+          errorMessage += ` (${new Date(pinResult.kilitlenme_tarihi).toLocaleString('tr-TR')})`
+        }
+        setPinError(errorMessage)
+        return
+      }
+
+      // 2. Başarılı Giriş -> Oturum Yönetimi
+      const { data: { session }, error: sessionError } = await supabase.auth.signInAnonymously()
+      if (sessionError || !session) {
+        setPinError(`Oturum başlatılamadı: ${sessionError?.message || 'Geçici oturum oluşturulamadı.'}`)
+        return
+      }
+
+      // 3. Kullanıcı Metadatasını Güncelle (RLS için önemli)
+      const updateUserPayload = {
+        data: isIsletme
+          ? { isletme_id: selectedEntity.id, role: 'isletme' }
+          : { ogretmen_id: selectedEntity.id, role: 'ogretmen' }
+      }
+      const { error: updateError } = await supabase.auth.updateUser(updateUserPayload)
+      if (updateError) {
+        setPinError(`Kullanıcı bilgileri güncellenemedi: ${updateError.message}`)
+        return
+      }
+
+      // 4. Yönlendirme
+      const localStorageKey = isIsletme ? 'isletme' : 'ogretmen'
+      const redirectPath = isIsletme ? '/isletme' : '/ogretmen/panel'
+
+      localStorage.setItem(localStorageKey, JSON.stringify(selectedEntity))
+      router.push(redirectPath)
     } catch (error) {
-      setPinError('Beklenmeyen bir hata oluştu: ' + (error as Error).message)
+      setPinError(`Beklenmeyen bir hata oluştu: ${(error as Error).message}`)
     }
   }
 

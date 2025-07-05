@@ -8,7 +8,8 @@ import { useEgitimYili } from '@/lib/context/EgitimYiliContext'
 import { uploadFile, validateFile } from '@/lib/storage'
 
 interface Stajyer {
-  id: number
+  id: number // staj kaydı id'si
+  ogrenci_id: number // öğrenci id'si
   ad: string
   soyad: string
   sinif: string
@@ -69,7 +70,8 @@ export default function YeniDekontPage() {
 
     if (data) {
       const formattedStajyerler = data.map((staj: any) => ({
-        id: staj.id,
+        id: staj.id, // staj kaydı id'si
+        ogrenci_id: staj.ogrenciler.id, // öğrenci id'si
         ad: staj.ogrenciler.ad,
         soyad: staj.ogrenciler.soyad,
         sinif: staj.ogrenciler.sinif
@@ -108,16 +110,24 @@ export default function YeniDekontPage() {
         dosyaPath = uploadResult.path
       }
 
+      // Panel ile uyumlu alanlar: ogrenci_id, dosya_url, ay formatı
+      // Stajyer objesini bul
+      const staj = stajyerler.find(s => s.id === parseInt(selectedStajyer))
+      // Ay adını paneldeki gibi kaydet
+      const aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık']
+      const ayAdi = aylar[parseInt(ay, 10) - 1]
+
       const { error } = await supabase
         .from('dekontlar')
         .insert({
-          staj_id: parseInt(selectedStajyer),
+          staj_id: staj?.id,
+          ogrenci_id: staj?.ogrenci_id || null, // panel ile uyumlu
           miktar: miktar ? parseFloat(miktar) : null,
           odeme_tarihi: odemeTarihi,
-          dekont_dosyasi: dosyaUrl,
+          dosya_url: dosyaUrl, // panel ile uyumlu
           dekont_dosya_path: dosyaPath,
           onay_durumu: 'bekliyor',
-          ay: ay.toString().padStart(2, '0'),
+          ay: ayAdi, // panel ile uyumlu
           yil: yil.toString()
         })
 

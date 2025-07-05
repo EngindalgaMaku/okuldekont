@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, FileText, LogOut, Loader, User, Receipt, GraduationCap, CheckCircle, Clock, XCircle, Download, Plus, Upload, Trash2, Calendar, Loader2 } from 'lucide-react'
+import { Building2, FileText, LogOut, Loader, User, Receipt, GraduationCap, CheckCircle, Clock, XCircle, Download, Plus, Upload, Trash2, Calendar, Loader2, AlertTriangle, Search, Filter } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/ui/Modal'
 import DekontUploadForm from '@/components/ui/DekontUpload'
@@ -39,6 +39,7 @@ interface Dekont {
   aciklama?: string;
   red_nedeni?: string;
   yukleyen_kisi: string;
+  created_at?: string;
 }
 
 interface Belge {
@@ -47,25 +48,31 @@ interface Belge {
   dosya_adi: string;
   dosya_url: string;
   belge_turu: string;
+  yukleme_tarihi: string;
 }
 
-// Bileşenler
 const TeacherPanel = () => {
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [selectedDekont, setSelectedDekont] = useState<Dekont | null>(null);
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [teacher, setTeacher] = useState<{ id: string; ad: string; soyad: string; } | null>(null);
   const [isletmeler, setIsletmeler] = useState<Isletme[]>([]);
   const [dekontlar, setDekontlar] = useState<Dekont[]>([]);
-  const [activeTab, setActiveTab] = useState<'isletmeler' | 'dekontlar'>('isletmeler');
-
+  const [activeTab, setActiveTab] = useState<'isletmeler' | 'dekontlar' | 'belgeler'>('isletmeler');
+  const [dekontPage, setDekontPage] = useState(1);
+  const DEKONTLAR_PER_PAGE = 5;
   const [isDekontUploadModalOpen, setDekontUploadModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Ogrenci | null>(null);
   const [selectedIsletme, setSelectedIsletme] = useState<Isletme | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
   const [isBelgeUploadModalOpen, setBelgeUploadModalOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [belgeler, setBelgeler] = useState<Belge[]>([]);
+  const [filteredBelgeler, setFilteredBelgeler] = useState<Belge[]>([]);
+  const [belgeSearchTerm, setBelgeSearchTerm] = useState('');
+  const [belgeTurFilter, setBelgeTurFilter] = useState<string>('all');
 
   useEffect(() => {
     const checkLocalStorage = () => {
@@ -74,7 +81,6 @@ const TeacherPanel = () => {
         router.push('/');
         return;
       }
-
       try {
         const teacherData = JSON.parse(storedOgretmen);
         setTeacher(teacherData);
@@ -85,9 +91,31 @@ const TeacherPanel = () => {
         router.push('/');
       }
     };
-
     checkLocalStorage();
   }, [router]);
+
+  useEffect(() => {
+    if (activeTab === 'dekontlar') setDekontPage(1);
+  }, [activeTab]);
+
+  // Belge filtreleme
+  useEffect(() => {
+    let filtered = belgeler;
+
+    if (belgeSearchTerm) {
+      filtered = filtered.filter(belge =>
+        belge.dosya_adi?.toLowerCase().includes(belgeSearchTerm.toLowerCase()) ||
+        belge.belge_turu?.toLowerCase().includes(belgeSearchTerm.toLowerCase()) ||
+        belge.isletme_ad?.toLowerCase().includes(belgeSearchTerm.toLowerCase())
+      );
+    }
+
+    if (belgeTurFilter !== 'all') {
+      filtered = filtered.filter(belge => belge.belge_turu === belgeTurFilter);
+    }
+
+    setFilteredBelgeler(filtered);
+  }, [belgeler, belgeSearchTerm, belgeTurFilter]);
 
   const fetchOgretmenData = async (teacherId: string) => {
     setLoading(true);
@@ -170,9 +198,37 @@ const TeacherPanel = () => {
             aciklama: d.aciklama,
             red_nedeni: d.red_nedeni,
             yukleyen_kisi: yukleyenKisi,
+            created_at: d.created_at,
           };
         });
         setDekontlar(formattedDekontlar);
+      }
+
+      // Öğretmenin sorumlu olduğu işletmelerin belgelerini getir
+      if (isletmeIds.length > 0) {
+        const { data: belgeData, error: belgeError } = await supabase
+          .from('belgeler')
+          .select(`
+            *,
+            isletmeler (ad)
+          `)
+          .in('isletme_id', isletmeIds)
+          .order('created_at', { ascending: false });
+
+        if (belgeError) {
+          console.error('Belgeleri getirme hatası:', belgeError);
+        } else if (belgeData) {
+          const formattedBelgeler = belgeData.map((belge: any) => ({
+            id: belge.id,
+            isletme_ad: belge.isletmeler?.ad || 'Bilinmeyen İşletme',
+            dosya_adi: belge.dosya_adi || belge.ad,
+            dosya_url: belge.dosya_url,
+            belge_turu: belge.belge_turu || belge.tur,
+            yukleme_tarihi: belge.created_at
+          }));
+          setBelgeler(formattedBelgeler);
+          setFilteredBelgeler(formattedBelgeler);
+        }
       }
 
       setLoading(false);
@@ -305,7 +361,8 @@ const TeacherPanel = () => {
         isletme_ad: selectedIsletme.ad,
         ogrenci_ad: `${selectedStudent.ad} ${selectedStudent.soyad}`,
         miktar: data.tutar,
-        yukleyen_kisi: `${teacher.ad} ${teacher.soyad} (Öğretmen)`
+        yukleyen_kisi: `${teacher.ad} ${teacher.soyad} (Öğretmen)`,
+        created_at: data.created_at
       };
 
       setDekontlar(prev => [yeniDekont, ...prev]);
@@ -354,6 +411,11 @@ const TeacherPanel = () => {
 
       alert('Belge başarıyla yüklendi.');
       setBelgeUploadModalOpen(false);
+      
+      // Belge listesini yeniden yükle
+      if (teacher) {
+        fetchOgretmenData(teacher.id);
+      }
     } catch (error) {
       console.error('Belge yükleme hatası:', error);
       alert('Belge yüklenirken bir hata oluştu.');
@@ -389,6 +451,24 @@ const TeacherPanel = () => {
     );
   }
 
+  // Belge türü formatlama fonksiyonu
+  const formatBelgeTur = (tur: string) => {
+    switch (tur) {
+      case 'Sözleşme':
+      case 'sozlesme':
+        return 'Sözleşme'
+      case 'Fesih Belgesi':
+      case 'fesih_belgesi':
+        return 'Fesih Belgesi'
+      case 'Usta Öğreticilik Belgesi':
+      case 'usta_ogretici_belgesi':
+        return 'Usta Öğretici Belgesi'
+      default:
+        return tur
+    }
+  }
+
+  // Onay durumu için yardımcı fonksiyon
   const getDurum = (durum: Dekont['onay_durumu']) => {
     switch (durum) {
       case 'onaylandi':
@@ -401,181 +481,470 @@ const TeacherPanel = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white shadow-sm sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center gap-4">
-              <GraduationCap className="h-8 w-8 text-indigo-600" />
-              <h1 className="text-xl font-bold text-gray-800">Öğretmen Paneli</h1>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-medium text-gray-600 hidden sm:block">
-                Hoş geldiniz, {teacher?.ad} {teacher?.soyad}
-              </span>
-              <button
-                onClick={handleLogout}
-                className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-                title="Çıkış Yap"
-              >
-                <LogOut className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+  // Pagination logic for dekontlar
+  const totalDekontPages = Math.ceil(dekontlar.length / DEKONTLAR_PER_PAGE);
+  const paginatedDekontlar = dekontlar.slice(
+    (dekontPage - 1) * DEKONTLAR_PER_PAGE,
+    dekontPage * DEKONTLAR_PER_PAGE
+  );
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 sm:px-0">
-          <div className="border-b border-gray-200 overflow-x-auto">
-            <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-              <button
-                onClick={() => setActiveTab('isletmeler')}
-                className={`${activeTab === 'isletmeler' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm flex items-center transition-colors min-w-[120px]`}
-              >
-                <Building2 className="h-5 w-5 mr-2 flex-shrink-0" />
-                <span>İşletmeler ({isletmeler.length})</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('dekontlar')}
-                className={`${activeTab === 'dekontlar' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm flex items-center transition-colors min-w-[120px]`}
-              >
-                <Receipt className="h-5 w-5 mr-2 flex-shrink-0" />
-                <span>Dekontlar ({dekontlar.length})</span>
-              </button>
+  return (
+    <div className="min-h-screen flex flex-col pb-16">
+      {/* Header */}
+      <div className="relative bg-gradient-to-b from-indigo-600 to-indigo-800 pb-32">
+        {/* Pattern Background */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0" style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            backgroundSize: '30px 30px'
+          }} />
+        </div>
+
+        <div className="relative max-w-7xl mx-auto pt-6 px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-white rounded-2xl transform rotate-6 scale-105 opacity-20" />
+                  <div className="relative p-3 bg-white bg-opacity-20 backdrop-blur-lg rounded-2xl">
+                    <GraduationCap className="h-8 w-8 text-white" />
+                  </div>
+                </div>
+              </div>
+              <div className="ml-6">
+                <h1 className="text-2xl font-bold text-white">
+                  Öğretmen Paneli
+                </h1>
+                <p className="text-indigo-200 text-sm">Staj Takip Sistemi</p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
+              title="Çıkış Yap"
+            >
+              <LogOut className="h-5 w-5 text-white" />
+              <span className="sr-only">Çıkış Yap</span>
+            </button>
+          </div>
+
+          {/* Tabs */}
+          <div className="mt-8">
+            <nav className="-mb-px flex space-x-4" aria-label="Tabs">
+              {[
+                { id: 'isletmeler', icon: Building2, label: 'İşletmeler', count: isletmeler.length },
+                { id: 'dekontlar', icon: Receipt, label: 'Dekont Listesi', count: dekontlar.length },
+                { id: 'belgeler', icon: FileText, label: 'Belgeler', count: belgeler.length }
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as 'isletmeler' | 'dekontlar' | 'belgeler')}
+                    className={`
+                      group relative min-w-0 flex-1 overflow-hidden py-3 px-6 rounded-t-xl text-sm font-medium text-center hover:bg-white hover:bg-opacity-10 transition-all duration-200
+                      ${isActive
+                        ? 'bg-white text-indigo-700'
+                        : 'text-indigo-100 hover:text-white'}
+                    `}
+                  >
+                    <div className="flex items-center justify-center">
+                      <Icon className={`h-5 w-5 ${isActive ? 'text-indigo-700' : 'text-indigo-300 group-hover:text-white'} mr-2`} />
+                      {tab.label} ({tab.count})
+                    </div>
+                    {isActive && (
+                      <span className="absolute inset-x-0 bottom-0 h-0.5 bg-indigo-700" />
+                    )}
+                  </button>
+                );
+              })}
             </nav>
           </div>
         </div>
+      </div>
 
-        <div className="mt-6">
+      {/* Main Content */}
+      <main className="relative -mt-32 pb-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black ring-opacity-5 p-6 divide-y divide-gray-200">
           {activeTab === 'isletmeler' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="space-y-6">
               {isletmeler.map(isletme => (
-                <div key={isletme.id} className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
-                  <div className="p-5">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                        <Building2 className="h-5 w-5 mr-3 text-indigo-500" />
-                        {isletme.ad}
-                      </h3>
-                      <button
-                        onClick={() => handleBelgeYukle(isletme)}
-                        title="Belge Yükle"
-                        className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-                      >
-                        <FileText className="h-5 w-5" />
-                      </button>
+                <div key={isletme.id} className="pt-6 first:pt-0">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center">
+                      <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center">
+                        <Building2 className="h-6 w-6 text-indigo-600" />
+                      </div>
+                      <div className="ml-4">
+                        <h3 className="text-lg font-medium text-gray-900">
+                          {isletme.ad}
+                        </h3>
+                        <p className="text-sm text-gray-500">Yetkili: {isletme.yukleyen_kisi}</p>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => handleBelgeYukle(isletme)}
+                      className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                      title="Belgeler"
+                    >
+                      <FileText className="h-4 w-4 mr-1.5" />
+                      Belgeler
+                    </button>
                   </div>
-                  <div className="bg-gray-50/70 px-5 py-2">
-                     <h4 className="text-sm font-medium text-gray-600 mb-2">Staj Yapan Öğrenciler</h4>
-                  </div>
-                   <div className="p-5 pt-3">
-                     <div className="space-y-3">
-                      {isletme.ogrenciler.map(ogrenci => (
-                        <div key={ogrenci.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 border border-gray-100">
-                           <div className="flex items-center gap-3">
-                             <div className="flex-shrink-0">
-                               <User className="h-8 w-8 text-gray-400" />
-                             </div>
-                             <div>
-                               <p className="font-semibold text-gray-900">{ogrenci.ad} {ogrenci.soyad}</p>
-                               <p className="text-xs text-gray-500">{ogrenci.alan} - {ogrenci.sinif} / {ogrenci.no}</p>
-                             </div>
-                           </div>
-                           <button
-                            onClick={(e) => { e.stopPropagation(); handleOpenDekontUpload(ogrenci, isletme); }}
-                            title="Dekont Yükle"
-                            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-                          >
-                            <Upload className="h-5 w-5" />
-                          </button>
+                  
+                  <div className="mt-4 space-y-3">
+                    <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <GraduationCap className="h-4 w-4 text-gray-400" />
+                      Öğrenciler ({isletme.ogrenciler.length})
+                    </h4>
+                    
+                    {isletme.ogrenciler.map(ogrenci => (
+                      <div key={ogrenci.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
+                        <div className="flex items-center">
+                          <div className="h-10 w-10 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg flex items-center justify-center">
+                            <User className="h-5 w-5 text-indigo-600" />
+                          </div>
+                          <div className="ml-3">
+                            <p className="text-sm font-medium text-gray-900">{ogrenci.ad} {ogrenci.soyad}</p>
+                            <div className="flex items-center space-x-3 mt-1 text-xs">
+                              <div className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-md font-medium">
+                                {ogrenci.sinif}
+                              </div>
+                              <div className="px-2 py-1 bg-purple-50 text-purple-700 rounded-md font-medium">
+                                No: {ogrenci.no}
+                              </div>
+                              <div className="flex items-center gap-1 text-gray-500">
+                                <GraduationCap className="h-3 w-3" />
+                                <span>{ogrenci.alan}</span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                   </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleOpenDekontUpload(ogrenci, isletme); }}
+                          className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                          title="Dekont Yükle"
+                        >
+                          <Upload className="h-4 w-4 mr-1.5" />
+                          Dekont Yükle
+                        </button>
+                      </div>
+                    ))}
+                    
+                    {isletme.ogrenciler.length === 0 && (
+                      <div className="text-center py-8">
+                        <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                          <User className="h-8 w-8 text-gray-400" />
+                        </div>
+                        <h3 className="mt-4 text-sm font-medium text-gray-900">Öğrenci Bulunamadı</h3>
+                        <p className="mt-2 text-xs text-gray-500">Henüz bu işletmeye öğrenci atanmamış.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           )}
-
           {activeTab === 'dekontlar' && (
-            <>
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row gap-4 items-center justify-between mb-6">
+                <h2 className="text-2xl font-semibold text-gray-900">Dekontlar</h2>
+              </div>
+
               {dekontlar.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-lg">
-                  <Receipt className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">Henüz dekont bulunmuyor</h3>
-                  <p className="mt-1 text-sm text-gray-500">
-                    İşletmeler sekmesinden öğrenci seçerek dekont yükleyebilirsiniz.
-                  </p>
+                <div className="text-center py-12">
+                  <div className="mx-auto w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
+                    <FileText className="h-10 w-10 text-gray-400" />
+                  </div>
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">Dekont Bulunamadı</h3>
+                  <p className="mt-2 text-sm text-gray-500">Henüz dekont yüklenmemiş.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {dekontlar.map((dekont) => (
-                    <div key={dekont.id} className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
-                      <div className="p-5">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                            <Receipt className="h-5 w-5 mr-3 text-indigo-500" />
-                            {dekont.ogrenci_ad}
-                          </h3>
-                          <button
-                            onClick={() => window.open(dekont.dosya_url, '_blank')}
-                            title="Dekont İndir"
-                            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-                          >
-                            <Download className="h-5 w-5" />
-                          </button>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4">
+                    {paginatedDekontlar.map((dekont, index) => (
+                      <div
+                        key={dekont.id}
+                        className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow border border-gray-100`}
+                      >
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-lg font-medium text-gray-900">
+                                {dekont.ogrenci_ad}
+                              </h3>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDurum(dekont.onay_durumu).bg} ${getDurum(dekont.onay_durumu).color}`}>
+                                {getDurum(dekont.onay_durumu).text}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-sm text-gray-500">
+                              <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                                {dekont.isletme_ad}
+                              </span>
+                              <span>{
+                                (() => {
+                                  // Aynı öğrenci, ay ve yıl için kaçıncı ek olduğunu bul
+                                  const sameDekonts = dekontlar.filter(d =>
+                                    d.ogrenci_ad === dekont.ogrenci_ad &&
+                                    d.ay === dekont.ay &&
+                                    String(d.yil) === String(dekont.yil)
+                                  );
+                                  // Yüklenme tarihine göre sırala (en eski ilk)
+                                  const sorted = [...sameDekonts].sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
+                                  const ekIndex = sorted.findIndex(d => d.id === dekont.id);
+                                  return dekont.ay + (ekIndex > 0 ? ` (ek-${ekIndex+1})` : '') + ' ' + dekont.yil;
+                                })()
+                              }</span>
+                              {dekont.miktar && (
+                                <span className="text-green-600 font-medium">
+                                  {dekont.miktar} TL
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 self-end sm:self-auto">
+                            {dekont.dosya_url && (
+                              <a
+                                href={dekont.dosya_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download
+                                className="p-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                                title="Dekontu İndir"
+                              >
+                                <Download className="h-5 w-5" />
+                              </a>
+                            )}
+                            {dekont.onay_durumu === 'bekliyor' && (
+                              <button
+                                onClick={() => {
+                                  setSelectedDekont(dekont);
+                                  setDeleteConfirmOpen(true);
+                                }}
+                                className="p-2 text-red-600 hover:text-white bg-red-50 hover:bg-red-600 rounded-lg transition-colors"
+                                title="Dekontu Sil"
+                              >
+                                <Trash2 className="h-5 w-5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {/* Alt köşeler: miktar (sol), yüklenme tarihi (sağ) */}
+                        <div className="flex justify-between items-end mt-2">
+                          {/* Sol alt: Miktar */}
+                          {dekont.miktar && (
+                            <span className="text-xs font-bold text-green-600">
+                              Miktar: {dekont.miktar.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
+                            </span>
+                          )}
+                          {/* Sağ alt: Yüklenme tarihi */}
+                          {dekont.created_at && (
+                            <span className="text-xs text-gray-400">
+                              {new Date(dekont.created_at).toLocaleString('tr-TR', {
+                                day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                              })}
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <div className="bg-gray-50/70 px-5 py-2">
-                        <h4 className="text-sm font-medium text-gray-600 mb-2">Dekont Bilgileri</h4>
-                      </div>
-                      <div className="p-5 pt-3">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-gray-600">Miktar</span>
-                            <span className="text-sm font-medium text-gray-900">{dekont.miktar}</span>
+                    ))}
+                  </div>
+                  
+                  {/* Pagination Controls */}
+                  {totalDekontPages > 1 && (
+                    <div className="flex justify-center items-center gap-2 mt-6">
+                      <button
+                        className="px-3 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50"
+                        onClick={() => setDekontPage((p) => Math.max(1, p - 1))}
+                        disabled={dekontPage === 1}
+                      >
+                        Önceki
+                      </button>
+                      <span className="text-sm text-gray-700">
+                        Sayfa {dekontPage} / {totalDekontPages}
+                      </span>
+                      <button
+                        className="px-3 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50"
+                        onClick={() => setDekontPage((p) => Math.min(totalDekontPages, p + 1))}
+                        disabled={dekontPage === totalDekontPages}
+                      >
+                        Sonraki
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'belgeler' && (
+            <div>
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+                <h2 className="text-lg font-medium text-gray-900">
+                  Tüm İşletme Belgeleri ({filteredBelgeler.length})
+                </h2>
+                <button
+                  onClick={() => setBelgeUploadModalOpen(true)}
+                  className="flex items-center px-4 py-2 text-sm text-white bg-gradient-to-r from-indigo-600 to-blue-600 rounded-lg hover:from-indigo-700 hover:to-blue-700 transition-colors shadow-sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Yeni Belge Ekle
+                </button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <div className="relative flex-grow">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Belgelerde ara..."
+                    value={belgeSearchTerm}
+                    onChange={(e) => setBelgeSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <div className="relative w-full sm:w-48">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <select
+                    value={belgeTurFilter}
+                    onChange={(e) => setBelgeTurFilter(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
+                  >
+                    <option value="all">Tüm Türler</option>
+                    <option value="Sözleşme">Sözleşme</option>
+                    <option value="Fesih Belgesi">Fesih Belgesi</option>
+                    <option value="Usta Öğreticilik Belgesi">Usta Öğretici Belgesi</option>
+                    <option value="Diğer">Diğer</option>
+                  </select>
+                </div>
+              </div>
+
+              {filteredBelgeler.length > 0 ? (
+                <div className="space-y-6">
+                  {filteredBelgeler.map((belge) => (
+                    <div key={belge.id} className="pt-6 first:pt-0">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center">
+                          <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center">
+                            <FileText className="h-6 w-6 text-indigo-600" />
                           </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-gray-600">Ödeme Tarihi</span>
-                            <span className="text-sm font-medium text-gray-900">{dekont.odeme_tarihi}</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-gray-600">Onay Durumu</span>
-                            <span className="text-sm font-medium text-gray-900">{getDurum(dekont.onay_durumu).text}</span>
+                          <div className="ml-4">
+                            <h3 className="text-lg font-medium text-gray-900">
+                              {belge.dosya_adi}
+                            </h3>
+                            <div className="flex items-center space-x-3 mt-2 text-sm">
+                              <div className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg font-medium">
+                                {belge.isletme_ad}
+                              </div>
+                              <div className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg font-medium">
+                                {formatBelgeTur(belge.belge_turu)}
+                              </div>
+                            </div>
                           </div>
                         </div>
+                        <div className="flex items-center space-x-2">
+                          {belge.dosya_url && (
+                            <button
+                              onClick={() => window.open(belge.dosya_url, '_blank')}
+                              className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                            >
+                              <Download className="h-4 w-4 mr-1.5" />
+                              İndir
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <p className="text-sm text-gray-500">
+                          Yüklenme Tarihi: {new Date(belge.yukleme_tarihi).toLocaleDateString('tr-TR')}
+                        </p>
                       </div>
                     </div>
                   ))}
                 </div>
+              ) : (
+                <div className="text-center py-12">
+                  <FileText className="mx-auto h-12 w-12 text-gray-400" />
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">Belge Bulunamadı</h3>
+                  <p className="mt-2 text-sm text-gray-500">
+                    {belgeSearchTerm || belgeTurFilter !== 'all'
+                      ? 'Arama kriterlerinize uygun belge bulunamadı.'
+                      : 'Henüz hiç belge yüklenmemiş.'}
+                  </p>
+                </div>
               )}
-            </>
+            </div>
           )}
+          </div>
         </div>
       </main>
+      {/* Silme Onay Modali */}
+      <Modal isOpen={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Dekontu Sil">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded text-yellow-900 text-sm">
+            <AlertTriangle className="h-5 w-5 text-yellow-500" />
+            <span>Bu dekontu silmek istediğinize emin misiniz? <b>Onaylanmış dekontlar silinemez.</b></span>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              onClick={() => setDeleteConfirmOpen(false)}
+            >
+              Vazgeç
+            </button>
+            <button
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              onClick={async () => {
+                if (!selectedDekont) return;
+                // Dosya varsa storage'dan sil
+                if (selectedDekont.dosya_url) {
+                  const urlParts = selectedDekont.dosya_url.split('/dekontlar/');
+                  if (urlParts.length === 2) {
+                    const filePath = urlParts[1];
+                    await supabase.storage.from('dekontlar').remove([filePath]);
+                  }
+                }
+                // Veritabanından sil
+                await supabase.from('dekontlar').delete().eq('id', selectedDekont.id);
+                setDekontlar(prev => prev.filter(d => d.id !== selectedDekont.id));
+                setDeleteConfirmOpen(false);
+                setSelectedDekont(null);
+              }}
+            >
+              Evet, Sil
+            </button>
+          </div>
+        </div>
+      </Modal>
 
-      <footer className="bg-white border-t mt-auto py-4">
+      <footer className="w-full bg-gradient-to-br from-indigo-900 to-indigo-800 text-white py-4 fixed bottom-0 left-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm text-gray-500">
-            © {new Date().getFullYear()} Staj Takip Sistemi
-          </p>
+          <div className="flex items-center justify-center">
+            <div className="flex items-center space-x-2">
+              <div className="font-bold bg-white text-indigo-900 w-6 h-6 flex items-center justify-center rounded-md">
+                H
+              </div>
+              <span className="text-sm">&copy; {new Date().getFullYear()} Hüsniye Özdilek MTAL</span>
+            </div>
+          </div>
         </div>
       </footer>
 
       {/* Dekont Yükleme Modal'ı */}
-      {isDekontUploadModalOpen && selectedStudent && selectedIsletme && selectedStudent.staj_id && (
+      {isDekontUploadModalOpen && selectedStudent && selectedIsletme && typeof selectedStudent.staj_id === 'number' && (
         <Modal 
           isOpen={isDekontUploadModalOpen} 
           onClose={() => setDekontUploadModalOpen(false)}
           title={`Dekont Yükle: ${selectedStudent.ad} ${selectedStudent.soyad}`}
         >
           <DekontUploadForm
-            stajId={selectedStudent.staj_id}
+            stajId={selectedStudent.staj_id as number}
             onSubmit={handleDekontSubmit}
             isLoading={isSubmitting}
+            isletmeler={isletmeler.map(i => ({ id: i.id, ad: i.ad }))}
+            selectedIsletmeId={selectedIsletme.id}
           />
         </Modal>
       )}
@@ -591,9 +960,18 @@ const TeacherPanel = () => {
       />
     </div>
   );
-};
+}
 
 // Belge Yükleme için ayrı bir modal bileşeni
+interface BelgeUploadModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  isletmeler: Isletme[];
+  onSubmit: (formData: { isletmeId: string; dosyaAdi: string; dosya: File; belgeTuru: string; }) => Promise<void>;
+  isLoading: boolean;
+  selectedIsletmeId?: string;
+}
+
 const BelgeUploadModal = ({
   isOpen,
   onClose,
@@ -601,14 +979,7 @@ const BelgeUploadModal = ({
   onSubmit,
   isLoading,
   selectedIsletmeId = '',
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  isletmeler: Isletme[];
-  onSubmit: (formData: { isletmeId: string; dosyaAdi: string; dosya: File; belgeTuru: string; }) => Promise<void>;
-  isLoading: boolean;
-  selectedIsletmeId?: string;
-}) => {
+}: BelgeUploadModalProps) => {
   const [selectedIsletme, setSelectedIsletme] = useState<string>(selectedIsletmeId);
   const [belgeTuru, setBelgeTuru] = useState('');
   const [digerBelgeTuru, setDigerBelgeTuru] = useState('');
@@ -846,5 +1217,4 @@ const BelgeUploadModal = ({
     </Modal>
   );
 };
-
-export default TeacherPanel; 
+export default TeacherPanel;

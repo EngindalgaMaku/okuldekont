@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, Users, FileText, LogOut, User, Upload, Plus, Download, Eye, Search, Filter, Receipt, Loader, GraduationCap, Calendar, CheckCircle, Clock, XCircle } from 'lucide-react'
+import { Building2, Users, FileText, LogOut, User, Upload, Plus, Download, Eye, Search, Filter, Receipt, Loader, GraduationCap, Calendar, CheckCircle, Clock, XCircle, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useEgitimYili } from '@/lib/context/EgitimYiliContext'
 import Modal from '@/components/ui/Modal'
@@ -31,7 +31,7 @@ interface Ogrenci {
 }
 
 interface Dekont {
-  id: number
+  id: number | string
   ogrenci_adi: string
   miktar: number | null
   odeme_tarihi?: string
@@ -40,6 +40,7 @@ interface Dekont {
   dosya_url?: string
   ay: string
   yil: number | string
+  staj_id: string | number
   stajlar?: {
     ogrenciler?: {
       ad: string
@@ -99,6 +100,9 @@ export default function PanelPage() {
 
   // Dekont yönetimi için state'ler
   const [dekontModalOpen, setDekontModalOpen] = useState(false)
+  // Silme onay modalı için
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [pendingDeleteDekont, setPendingDeleteDekont] = useState<Dekont | null>(null);
 
   // Belge form verileri
   const [belgeFormData, setBelgeFormData] = useState({
@@ -439,53 +443,93 @@ export default function PanelPage() {
         return
       }
 
-      let dosyaUrl = null
+
+      let dosyaUrl = null;
+
+      // Dosya seçilmediyse uyarı ver ve gönderme
+      if (!dekontFormData.dosya) {
+        alert('Lütfen bir dekont dosyası seçiniz!');
+        return;
+      }
+
+      // Ay adları ve ay adı değişkenini fonksiyon başına taşı
+      const aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+      const ayAdi = aylar[dekontFormData.ay - 1];
+      // Aynı öğrenci ve ay için daha önce dekont var mı kontrolü
+      const mevcutDekontlar = dekontlar.filter(d => {
+        // d.staj_id hem string hem number olabilir, hepsini stringe çevir
+        return String(d.staj_id) === String(selectedOgrenci?.staj_id) && d.ay === ayAdi && String(d.yil) === String(dekontFormData.yil);
+      });
+      let ekDekontIndex = 0;
+      if (mevcutDekontlar.length > 0) {
+        ekDekontIndex = mevcutDekontlar.length;
+        alert(`Seçili öğrenci için ${ayAdi} ${dekontFormData.yil} döneminde zaten dekont var. Yüklediğiniz dosya ek dekont olarak kaydedilecektir.`);
+      }
 
       // Dosya yükleme işlemi
       if (dekontFormData.dosya) {
-        const file = dekontFormData.dosya
-        const fileExt = file.name.split('.').pop()
-        const fileName = `${Date.now()}-${selectedOgrenci.id}.${fileExt}`
-        const filePath = fileName
+        const file = dekontFormData.dosya;
+        const fileExt = file.name.split('.').pop();
+        // Dosya ismi: ayAdi-(ekN)-ogrenciId-timestamp.ext
+        let fileName = `${ayAdi.toLowerCase()}`;
+        if (ekDekontIndex > 0) {
+          fileName += `-ek${ekDekontIndex+1}`;
+        }
+        fileName += `-${selectedOgrenci.id}-${Date.now()}.${fileExt}`;
+        const filePath = fileName;
 
         // Dosyayı yükle
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('dekontlar')
-          .upload(filePath, file)
+          .upload(filePath, file);
+
+        // Hata veya uploadData'nın durumu detaylı loglansın
+        console.log('Supabase uploadData:', uploadData);
+        console.log('Supabase uploadError:', uploadError);
 
         if (uploadError) {
-          console.error('Dosya yükleme hatası:', uploadError)
-          alert('Dekont dosyası yüklenirken bir hata oluştu. Lütfen tekrar deneyiniz.')
-          return
+          alert(`Dekont dosyası yüklenirken bir hata oluştu!\n\nHata: ${uploadError.message}`);
+          return;
         }
 
         if (!uploadData?.path) {
-          console.error('Dosya yolu alınamadı')
-          alert('Dekont dosyası yüklenemedi. Lütfen tekrar deneyiniz.')
-          return
+          alert('Dekont dosyası yüklenemedi. uploadData.path boş döndü. Supabase Storage policy ayarlarını ve kota durumunu kontrol edin.');
+          return;
         }
 
-        // Public URL al
-        const { data: urlData } = supabase.storage
-          .from('dekontlar')
-          .getPublicUrl(uploadData.path)
+      // Public URL almayı dene (bucket public ise)
+      const { data: urlData } = supabase.storage
+        .from('dekontlar')
+        .getPublicUrl(uploadData.path);
 
-        if (!urlData?.publicUrl) {
-          console.error('Public URL alınamadı')
+      // Eğer public URL yoksa, signed URL oluştur
+      let signedUrl = null;
+      if (!urlData?.publicUrl) {
+        // 1 saatlik signed URL oluştur
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from('dekontlar')
+          .createSignedUrl(uploadData.path, 60 * 60);
+        if (signedError || !signedData?.signedUrl) {
+          console.error('Signed URL alınamadı:', signedError);
           // Yüklenen dosyayı sil
           await supabase.storage
-            .from('dekonlar')
-            .remove([uploadData.path])
-          alert('Dekont dosyası için URL oluşturulamadı. Lütfen tekrar deneyiniz.')
-          return
+            .from('dekontlar')
+            .remove([uploadData.path]);
+          alert('Dekont dosyası için erişim linki oluşturulamadı. Lütfen tekrar deneyiniz.');
+          return;
         }
-
-        dosyaUrl = urlData.publicUrl
+        signedUrl = signedData.signedUrl;
+        dosyaUrl = signedUrl;
+        console.log('Signed URL:', signedUrl);
+        alert(`Yüklenen dosya path: ${uploadData.path}\nSigned URL: ${signedUrl}\n\nNot: Bu link süreli ve gizlidir. Bucket public değilse sadece bu link ile erişim olur.`);
+      } else {
+        dosyaUrl = urlData.publicUrl;
+        console.log('Public URL:', urlData.publicUrl);
+      }
       }
 
       // Ay adını al
-      const aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık']
-      const ayAdi = aylar[dekontFormData.ay - 1]
+      // aylar ve ayAdi yukarıda tanımlı, tekrar tanımlama
 
       try {
         // Dekontlar tablosuna kaydet
@@ -509,11 +553,12 @@ export default function PanelPage() {
         if (dbError) {
           // Veritabanı hatası durumunda yüklenen dosyayı sil
           if (dosyaUrl) {
-            const filePath = dosyaUrl.split('/').pop()
-            if (filePath) {
+            const urlParts = dosyaUrl.split('/dekontlar/');
+            if (urlParts.length === 2) {
+              const filePath = urlParts[1];
               await supabase.storage
                 .from('dekontlar')
-                .remove([`dekontlar/${filePath}`])
+                .remove([filePath]); // Doğru: sadece path
             }
           }
           
@@ -523,6 +568,37 @@ export default function PanelPage() {
         }
 
         alert('Dekont başarıyla eklendi!')
+        // Yeni dekontu state'e ekle (fetchData çağırmadan)
+        if (dekontData) {
+          setDekontlar(prev => [
+            {
+              id: dekontData.id.toString(),
+              staj_id: dekontData.staj_id.toString(),
+              miktar: dekontData.miktar ? parseFloat(dekontData.miktar) : null,
+              onay_durumu: dekontData.onay_durumu || 'bekliyor',
+              aciklama: dekontData.aciklama || '',
+              dosya_url: dekontData.dekont_dosyasi || dekontData.dosya_url || dekontData.file_url || null,
+              ay: dekontData.ay?.toString() || '',
+              yil: dekontData.yil?.toString() || '',
+              gonderen: dekontData.gonderen || 'isletme',
+              odeme_tarihi: dekontData.odeme_tarihi || null,
+              ogrenci_adi: selectedOgrenci ? `${selectedOgrenci.ad} ${selectedOgrenci.soyad}` : '',
+              stajlar: dekontData.stajlar ? {
+                ogrenciler: dekontData.stajlar.ogrenciler ? {
+                  ad: dekontData.stajlar.ogrenciler.ad || '',
+                  soyad: dekontData.stajlar.ogrenciler.soyad || '',
+                  sinif: dekontData.stajlar.ogrenciler.sinif?.toString() || '',
+                  no: dekontData.stajlar.ogrenciler.no?.toString() || '',
+                  alanlar: dekontData.stajlar.ogrenciler.alanlar ? {
+                    ad: dekontData.stajlar.ogrenciler.alanlar.ad || ''
+                  } : undefined
+                } : undefined
+              } : undefined,
+              created_at: dekontData.created_at
+            },
+            ...prev
+          ])
+        }
         setDekontModalOpen(false)
         setSelectedOgrenci(null)
         setDekontFormData({ 
@@ -533,15 +609,16 @@ export default function PanelPage() {
           dosya: null 
         })
         setActiveTab('dekontlar')
-        if(isletme) fetchData()
+        // fetchData() çağrısı kaldırıldı, performans için sadece state güncelleniyor
       } catch (error) {
         // Hata durumunda dosyayı temizle
         if (dosyaUrl) {
-          const filePath = dosyaUrl.split('/').pop()
-          if (filePath) {
+          const urlParts = dosyaUrl.split('/dekontlar/');
+          if (urlParts.length === 2) {
+            const filePath = urlParts[1];
             await supabase.storage
               .from('dekontlar')
-              .remove([`dekontlar/${filePath}`])
+              .remove([filePath]); // Doğru: sadece path
           }
         }
         console.error('Beklenmeyen hata:', error)
@@ -834,6 +911,10 @@ export default function PanelPage() {
 
             {activeTab === 'dekontlar' && (
               <div className="space-y-4">
+                {/* Silme uyarısı (sadece bir kez) */}
+                <div className="mb-4 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded text-yellow-900 text-sm">
+                  <span className="font-semibold">Dekontu yanlış yüklediyseniz silebilirsiniz.</span> Uyarı: Onaylanmış dekontlarda silme işlemi yoktur.
+                </div>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                   <h2 className="text-2xl font-semibold text-gray-900">Dekontlar</h2>
                   <button
@@ -886,23 +967,47 @@ export default function PanelPage() {
                                     {dekont.stajlar.ogrenciler.alanlar.ad}
                                   </span>
                                 )}
-                                <span>{dekont.ay} {dekont.yil}</span>
+                                <span>{
+                                  (() => {
+                                    // Aynı öğrenci, ay ve yıl için kaçıncı ek olduğunu bul
+                                    const sameDekonts = dekontlar.filter(d =>
+                                      String(d.staj_id) === String(dekont.staj_id) &&
+                                      d.ay === dekont.ay &&
+                                      String(d.yil) === String(dekont.yil)
+                                    );
+                                    // Yüklenme tarihine göre sırala (en eski ilk)
+                                    const sorted = [...sameDekonts].sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
+                                    const ekIndex = sorted.findIndex(d => d.id == dekont.id);
+                                    return dekont.ay + (ekIndex > 0 ? ` (ek-${ekIndex+1})` : '') + ' ' + dekont.yil;
+                                  })()
+                                }</span>
                               </div>
                             </div>
                             <div className="flex items-center gap-2 self-end sm:self-auto">
                               {dekont.dosya_url && (
-                                <>
-                                  <a
-                                    href={dekont.dosya_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    download
-                                    className="p-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                                    title="Dekontu İndir"
-                                  >
-                                    <Download className="h-5 w-5" />
-                                  </a>
-                                </>
+                                <a
+                                  href={dekont.dosya_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  download
+                                  className="p-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                                  title="Dekontu İndir"
+                                >
+                                  <Download className="h-5 w-5" />
+                                </a>
+                              )}
+                              {/* Sadece bekliyor ise sil */}
+                              {dekont.onay_durumu === 'bekliyor' && (
+                                <button
+                                  title="Dekontu Sil"
+                                  className="p-2 text-red-600 hover:text-white bg-red-50 hover:bg-red-600 rounded-lg transition-colors"
+                                  onClick={() => {
+                                    setPendingDeleteDekont(dekont);
+                                    setDeleteConfirmOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="h-5 w-5" />
+                                </button>
                               )}
                             </div>
                           </div>
@@ -1040,6 +1145,42 @@ export default function PanelPage() {
           </div>
         </div>
       </main>
+
+      {/* Silme Onay Modali */}
+      <Modal isOpen={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Dekontu Sil">
+        <div className="space-y-4">
+          <p className="text-gray-800 text-base">Bu dekontu silmek istediğinize emin misiniz?</p>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              onClick={() => setDeleteConfirmOpen(false)}
+            >
+              Vazgeç
+            </button>
+            <button
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              onClick={async () => {
+                if (!pendingDeleteDekont) return;
+                // Dosya varsa storage'dan sil
+                if (pendingDeleteDekont.dosya_url) {
+                  const urlParts = pendingDeleteDekont.dosya_url.split('/dekontlar/');
+                  if (urlParts.length === 2) {
+                    const filePath = urlParts[1];
+                    await supabase.storage.from('dekontlar').remove([filePath]);
+                  }
+                }
+                // Veritabanından sil
+                await supabase.from('dekontlar').delete().eq('id', pendingDeleteDekont.id);
+                setDekontlar(prev => prev.filter(d => d.id !== pendingDeleteDekont.id));
+                setDeleteConfirmOpen(false);
+                setPendingDeleteDekont(null);
+              }}
+            >
+              Evet, Sil
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Modals */}
       <Modal isOpen={dekontModalOpen} onClose={() => setDekontModalOpen(false)} title="Yeni Dekont Ekle">
@@ -1420,7 +1561,30 @@ export default function PanelPage() {
               </div>
             </div>
 
-            <div className="flex justify-end pt-4">
+            <div className="flex justify-end pt-4 gap-2">
+              {selectedDekont.onay_durumu === 'bekliyor' && (
+                <button
+                  onClick={async () => {
+                    if (!window.confirm('Bu dekontu silmek istediğinize emin misiniz?')) return;
+                    // Dosya varsa storage'dan sil
+                    if (selectedDekont.dosya_url) {
+                      const urlParts = selectedDekont.dosya_url.split('/dekontlar/');
+                      if (urlParts.length === 2) {
+                        const filePath = urlParts[1];
+                        await supabase.storage.from('dekontlar').remove([filePath]);
+                      }
+                    }
+                    // Veritabanından sil
+                    await supabase.from('dekontlar').delete().eq('id', selectedDekont.id);
+                    setDekontlar(prev => prev.filter(d => d.id !== selectedDekont.id));
+                    setDekontDetailModalOpen(false);
+                    setSelectedDekont(null);
+                  }}
+                  className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Sil
+                </button>
+              )}
               <button
                 onClick={() => {
                   setDekontDetailModalOpen(false)
