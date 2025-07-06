@@ -1,27 +1,67 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Shield, Mail, Lock, LogIn } from 'lucide-react'
+import { Shield, Mail, Lock, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 
 export default function AdminLoginPage() {
   const router = useRouter()
+  const { signIn, user, loading, isAdmin } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (user && isAdmin) {
+      router.push('/admin')
+    }
+  }, [user, isAdmin, router])
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setIsSubmitting(true)
 
-    // Geçici giriş kontrolü - Gerçek uygulamada API çağrısı yapılmalı
-    if (email === 'admin@email.com' && password === 'admin') {
-      // Giriş başarılı olursa, bir session bilgisi oluştur
-      sessionStorage.setItem('admin-auth', 'true')
-      router.push('/admin')
-    } else {
-      setError('Geçersiz e-posta veya şifre.')
+    try {
+      const { data, error: authError } = await signIn(email, password)
+      
+      if (authError) {
+        throw authError
+      }
+
+      if (data?.user) {
+        // Redirect will happen via useEffect when auth state updates
+        router.push('/admin')
+      }
+    } catch (error: any) {
+      console.error('Login error:', error)
+      setError(error.message || 'Giriş sırasında bir hata oluştu.')
+    } finally {
+      setIsSubmitting(false)
     }
+  }
+
+  // Show loading state while checking auth
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
+          <div className="text-center">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
+              <Shield className="h-8 w-8 text-white animate-pulse" />
+            </div>
+            <div className="space-y-2">
+              <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4 mx-auto"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -34,21 +74,9 @@ export default function AdminLoginPage() {
           <h1 className="text-2xl font-bold text-gray-900">
             Admin Paneli
           </h1>
-          <p className="text-gray-600 mt-1">Yönetici girişi yapın</p>
+          <p className="text-gray-600 mt-1">Güvenli yönetici girişi</p>
         </div>
         
-        <div className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl">
-          <div className="flex items-start">
-            <div className="p-2 bg-indigo-100 rounded-lg mr-3">
-              <LogIn className="h-5 w-5 text-indigo-600" />
-            </div>
-            <div>
-              <p className="font-semibold text-indigo-800 mb-1">Demo Giriş Bilgileri:</p>
-              <p className="text-sm text-indigo-700"><strong>E-posta:</strong> admin@email.com</p>
-              <p className="text-sm text-indigo-700"><strong>Şifre:</strong> admin</p>
-            </div>
-          </div>
-        </div>
 
         <form className="space-y-6" onSubmit={handleLogin}>
           <div>
@@ -56,7 +84,7 @@ export default function AdminLoginPage() {
               htmlFor="email"
               className="text-sm font-medium text-gray-700 mb-2 block"
             >
-              E-posta
+              E-posta Adresi
             </label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -68,8 +96,9 @@ export default function AdminLoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                placeholder="admin@email.com"
+                disabled={isSubmitting}
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                placeholder="admin@okul.com"
               />
             </div>
           </div>
@@ -86,32 +115,65 @@ export default function AdminLoginPage() {
               <input
                 id="password"
                 name="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                placeholder="Şifrenizi girin"
+                disabled={isSubmitting}
+                className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                placeholder="Güvenli şifrenizi girin"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
             </div>
           </div>
           
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600 text-center">{error}</p>
+            <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+              <div className="flex items-center">
+                <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
             </div>
           )}
           
           <button
             type="submit"
-            className="w-full flex justify-center items-center py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl font-medium"
+            disabled={isSubmitting || !email || !password}
+            className="w-full flex justify-center items-center py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
-            <LogIn className="w-5 h-5 mr-2" />
-            Giriş Yap
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                Giriş Yapılıyor...
+              </>
+            ) : (
+              <>
+                <LogIn className="w-5 h-5 mr-2" />
+                Güvenli Giriş
+              </>
+            )}
           </button>
         </form>
+        
+        <div className="text-center">
+          <p className="text-xs text-gray-500">
+            Bu sistem Supabase Auth ile korunmaktadır.
+            <br />
+            Tüm giriş denemeleri güvenlik amaçlı kayıt altına alınır.
+          </p>
+        </div>
       </div>
     </div>
   )
-} 
+}

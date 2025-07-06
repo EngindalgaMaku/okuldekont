@@ -3,7 +3,7 @@ export interface Dekont {
   isletme_id: number
   staj_id: number
   odeme_tarihi: string
-  tutar: number
+  miktar: number
   dosya_url?: string
   aciklama?: string
   ay: string
@@ -26,7 +26,7 @@ export interface Dekont {
   yukleyen_adi?: string
   // Eski kodla uyumluluk için
   tarih?: string
-  miktar?: number
+  tutar?: number
   ogrenci_adi?: string
   odeme_son_tarihi?: string
   dekont_dosyasi?: string

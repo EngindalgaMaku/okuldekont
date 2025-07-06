@@ -19,6 +19,7 @@ export default function OgretmenLoginPage() {
   const [pinError, setPinError] = useState('')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
     fetchOgretmenler()
@@ -56,6 +57,12 @@ export default function OgretmenLoginPage() {
       setLoading(false)
     }
   }
+
+  // Arama fonksiyonu - öğretmen adı ve soyadında arama yapar
+  const filteredOgretmenler = ogretmenler.filter(ogretmen => {
+    const fullName = `${ogretmen.ad} ${ogretmen.soyad}`.toLowerCase()
+    return fullName.includes(searchTerm.toLowerCase())
+  })
 
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -134,39 +141,65 @@ export default function OgretmenLoginPage() {
           </div>
 
           <form onSubmit={handlePinSubmit} className="space-y-6">
-            {/* Öğretmen Seçimi */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Öğretmen Seçin
-              </label>
+          {/* Öğretmen Seçimi */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Öğretmen Seçin
+            </label>
+            <div className="relative">
+              {/* Arama input'u */}
               <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="w-full px-4 py-3 text-left bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between"
-                >
-                  {selectedOgretmen ? (
-                    <span className="flex items-center gap-2">
-                      <User className="h-5 w-5 text-gray-400" />
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    setIsDropdownOpen(true)
+                    if (e.target.value === '') {
+                      setSelectedOgretmen(null)
+                    }
+                  }}
+                  onFocus={() => setIsDropdownOpen(true)}
+                  placeholder="Öğretmen adı yazın..."
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              {/* Seçilen öğretmen gösterimi */}
+              {selectedOgretmen && (
+                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-blue-700">
+                      <User className="h-4 w-4" />
                       {selectedOgretmen.ad} {selectedOgretmen.soyad}
                     </span>
-                  ) : (
-                    <span className="flex items-center gap-2 text-gray-400">
-                      <User className="h-5 w-5" />
-                      Öğretmen seçin...
-                    </span>
-                  )}
-                  <ChevronDown className={`h-5 w-5 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedOgretmen(null)
+                        setSearchTerm('')
+                        setPinError('')
+                      }}
+                      className="text-blue-600 hover:text-blue-800 text-sm"
+                    >
+                      Değiştir
+                    </button>
+                  </div>
+                </div>
+              )}
 
-                {isDropdownOpen && (
-                  <div className="absolute z-10 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {ogretmenler.map((ogretmen) => (
+              {/* Arama sonuçları */}
+              {isDropdownOpen && searchTerm && !selectedOgretmen && (
+                <div className="absolute z-10 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {filteredOgretmenler.length > 0 ? (
+                    filteredOgretmenler.map((ogretmen) => (
                       <button
                         key={ogretmen.id}
                         type="button"
                         onClick={() => {
                           setSelectedOgretmen(ogretmen)
+                          setSearchTerm(`${ogretmen.ad} ${ogretmen.soyad}`)
                           setIsDropdownOpen(false)
                           setPinError('')
                         }}
@@ -175,11 +208,16 @@ export default function OgretmenLoginPage() {
                         <User className="h-4 w-4 text-gray-400" />
                         {ogretmen.ad} {ogretmen.soyad}
                       </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+                    ))
+                  ) : (
+                    <div className="px-4 py-3 text-gray-500 text-center">
+                      Arama sonucu bulunamadı
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+          </div>
 
             {/* PIN Girişi */}
             <div>

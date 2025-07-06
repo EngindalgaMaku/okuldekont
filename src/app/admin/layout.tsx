@@ -17,115 +17,37 @@ import {
   Shield,
   Settings,
   GraduationCap,
-  Receipt
+  Receipt,
+  AlertTriangle,
+  BarChart3,
+  BookOpen
 } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 
 const menuItems = [
   {
-    title: 'Genel Bakış',
+    title: 'Dashboard',
     icon: Home,
     href: '/admin',
-    description: 'Sistem özeti ve istatistikler'
+    description: 'Genel bakış ve istatistikler'
   },
   {
-    title: 'Meslek Alanları',
-    icon: Briefcase,
+    title: 'Alanlar',
+    icon: BookOpen,
     href: '/admin/alanlar',
-    description: 'Alan bazlı öğrenci, öğretmen ve staj yönetimi',
-    subItems: [
-      {
-        title: 'Öğrenci İşlemleri',
-        description: 'Alan bazlı öğrenci kayıt ve takibi'
-      },
-      {
-        title: 'Öğretmen Atamaları',
-        description: 'Alan öğretmenleri ve koordinatör atama'
-      },
-      {
-        title: 'Staj Takibi',
-        description: 'Alan bazlı staj süreç yönetimi'
-      }
-    ]
+    description: 'Alan seçimi ve kademeli yönetim'
   },
   {
-    title: 'İşletme Portalı',
-    icon: Building,
-    href: '/admin/isletmeler',
-    description: 'İşletme kayıt ve staj yönetimi',
-    subItems: [
-      {
-        title: 'İşletme Kaydı',
-        description: 'Yeni işletme ekleme ve düzenleme'
-      },
-      {
-        title: 'Stajyer Yönetimi',
-        description: 'İşletme bazlı stajyer işlemleri'
-      },
-      {
-        title: 'Koordinatör Eşleştirme',
-        description: 'İşletme-öğretmen eşleştirmeleri'
-      }
-    ]
-  },
-  {
-    title: 'Öğretmen Portalı',
-    icon: GraduationCap,
-    href: '/admin/ogretmenler',
-    description: 'Öğretmen yetkilendirme ve görev takibi',
-    subItems: [
-      {
-        title: 'Öğretmen Kaydı',
-        description: 'Yeni öğretmen ekleme ve düzenleme'
-      },
-      {
-        title: 'Koordinatörlük İşlemleri',
-        description: 'Koordinatör atama ve takip'
-      },
-      {
-        title: 'Staj Denetimi',
-        description: 'Öğrenci staj takip ve onay'
-      }
-    ]
-  },
-  {
-    title: 'Dekont Merkezi',
+    title: 'Dekontlar',
     icon: Receipt,
     href: '/admin/dekontlar',
-    description: 'Staj ücret ve dekont yönetimi',
-    subItems: [
-      {
-        title: 'Dekont Girişi',
-        description: 'Yeni dekont ekleme'
-      },
-      {
-        title: 'Ödeme Takibi',
-        description: 'Ödemeler ve vadeler'
-      },
-      {
-        title: 'Raporlama',
-        description: 'Dekont ve ödeme raporları'
-      }
-    ]
+    description: 'Ödeme ve dekont yönetimi'
   },
   {
-    title: 'Sistem Ayarları',
-    icon: Settings,
-    href: '/admin/ayarlar',
-    description: 'Genel sistem yapılandırması',
-    subItems: [
-      {
-        title: 'Eğitim Yılı',
-        description: 'Aktif dönem yönetimi'
-      },
-      {
-        title: 'Kullanıcı Yetkileri',
-        description: 'Yetki ve rol tanımları'
-      },
-      {
-        title: 'Sistem Parametreleri',
-        description: 'Genel ayarlar ve limitler'
-      }
-    ]
+    title: 'Raporlar',
+    icon: BarChart3,
+    href: '/admin/raporlar',
+    description: 'Analiz ve raporlama'
   }
 ]
 
@@ -152,9 +74,10 @@ function useMediaQuery(query: string) {
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [isAuth, setIsAuth] = useState(false)
+  const { user, loading, isAdmin, signOut } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true)
+  const [isSigningOut, setIsSigningOut] = useState(false)
   
   // Tablet ve daha küçük ekranlar için media query
   const isTabletOrSmaller = useMediaQuery('(max-width: 1279px)')
@@ -168,28 +91,75 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     }
   }, [isTabletOrSmaller])
 
+  // Auth check and redirect logic
   useEffect(() => {
-    const authStatus = sessionStorage.getItem('admin-auth')
-    if (authStatus === 'true') {
-      setIsAuth(true)
-    } else {
-      if (pathname !== '/admin/login') {
-        router.push('/admin/login')
+    if (!loading) {
+      if (!user || !isAdmin) {
+        if (pathname !== '/admin/login') {
+          router.push('/admin/login')
+        }
       }
     }
-  }, [pathname, router])
+  }, [user, isAdmin, loading, pathname, router])
   
-  const handleLogout = () => {
-    sessionStorage.removeItem('admin-auth');
-    router.push('/admin/login');
+  const handleLogout = async () => {
+    setIsSigningOut(true)
+    try {
+      const { error } = await signOut()
+      if (error) {
+        console.error('Logout error:', error)
+        // Still redirect to login even if there's an error
+      }
+      router.push('/admin/login')
+    } catch (error) {
+      console.error('Logout error:', error)
+      router.push('/admin/login')
+    } finally {
+      setIsSigningOut(false)
+    }
   }
 
+  // Always render login page
   if (pathname === '/admin/login') {
     return <>{children}</>
   }
 
-  if (!isAuth) {
-    return null
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
+            <Shield className="h-8 w-8 text-white animate-pulse" />
+          </div>
+          <div className="space-y-2">
+            <div className="h-6 bg-gray-200 rounded animate-pulse w-48 mx-auto"></div>
+            <div className="h-4 bg-gray-200 rounded animate-pulse w-32 mx-auto"></div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show unauthorized access
+  if (!user || !isAdmin) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-100 p-8 text-center">
+          <div className="mx-auto w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mb-4">
+            <AlertTriangle className="h-8 w-8 text-red-600" />
+          </div>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">Yetkisiz Erişim</h1>
+          <p className="text-gray-600 mb-6">Bu sayfaya erişim yetkiniz bulunmamaktadır.</p>
+          <button
+            onClick={() => router.push('/admin/login')}
+            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            Giriş Sayfasına Dön
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -263,16 +233,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                                 <span className="font-medium">{item.title}</span>
                               </Link>
                               
-                              {item.subItems && pathname.startsWith(item.href) && (
-                                <div className="ml-8 pl-3 border-l-2 border-indigo-100 space-y-1">
-                                  {item.subItems.map((subItem) => (
-                                    <div key={subItem.title} className="py-1">
-                                      <div className="text-sm font-medium text-gray-900">{subItem.title}</div>
-                                      <div className="text-xs text-gray-500">{subItem.description}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
                             </div>
                           ))}
                         </ul>
@@ -304,7 +264,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             {desktopSidebarOpen && (
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Admin Paneli</h1>
-                                      <p className="text-sm text-gray-500">Koordinatörlük Yönetimi</p>
+                <p className="text-sm text-gray-500">Koordinatörlük Yönetimi</p>
               </div>
             )}
           </div>
@@ -333,16 +293,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                         {desktopSidebarOpen && <span className="font-medium">{item.title}</span>}
                       </Link>
                       
-                      {desktopSidebarOpen && item.subItems && pathname.startsWith(item.href) && (
-                        <div className="ml-8 pl-3 border-l-2 border-indigo-100 space-y-1">
-                          {item.subItems.map((subItem) => (
-                            <div key={subItem.title} className="py-1">
-                              <div className="text-sm font-medium text-gray-900">{subItem.title}</div>
-                              <div className="text-xs text-gray-500">{subItem.description}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </ul>
@@ -378,13 +328,46 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6 justify-end">
             <div className="flex items-center gap-x-4 lg:gap-x-6">
+              {/* Settings Link */}
+              <Link
+                href="/admin/ayarlar"
+                className="-m-2.5 p-2.5 text-gray-400 hover:text-gray-500 transition-colors"
+                title="Sistem Ayarları"
+              >
+                <span className="sr-only">Ayarlar</span>
+                <Settings className="h-6 w-6" aria-hidden="true" />
+              </Link>
+              
+              {/* User info */}
+              {user && (
+                <div className="hidden sm:flex sm:items-center sm:gap-x-2">
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-gray-900">
+                      {user.user_metadata?.full_name || user.email?.split('@')[0]}
+                    </p>
+                    <p className="text-xs text-gray-500">Admin</p>
+                  </div>
+                  <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+                    <span className="text-sm font-medium text-indigo-600">
+                      {(user.user_metadata?.full_name || user.email || 'A').charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              )}
+              
               <button
                 type="button"
                 onClick={handleLogout}
-                className="-m-2.5 p-2.5 text-gray-400 hover:text-gray-500"
+                disabled={isSigningOut}
+                className="-m-2.5 p-2.5 text-gray-400 hover:text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Güvenli Çıkış"
               >
                 <span className="sr-only">Çıkış Yap</span>
-                <LogOut className="h-6 w-6" aria-hidden="true" />
+                {isSigningOut ? (
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400"></div>
+                ) : (
+                  <LogOut className="h-6 w-6" aria-hidden="true" />
+                )}
               </button>
             </div>
           </div>
@@ -398,4 +381,4 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </div>
     </div>
   )
-} 
+}

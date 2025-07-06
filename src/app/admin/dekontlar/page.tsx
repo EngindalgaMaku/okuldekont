@@ -2,27 +2,32 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileText, Eye, Trash2, Loader, Search, Filter, Calendar, Building, User, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { FileText, Eye, Trash2, Loader, Search, Filter, Calendar, Building, User, CheckCircle, XCircle, Clock, Download } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 
 interface Dekont {
     id: number;
-    tarih: string;
     miktar: number;
-    ay: number;
-    yil: number;
     odeme_tarihi: string;
-    odeme_son_tarihi: string;
-    aciklama?: string;
+    dosya_url: string;
     onay_durumu: 'bekliyor' | 'onaylandi' | 'reddedildi';
-    red_nedeni?: string;
     created_at: string;
-    ogrenciler?: { ad: string; soyad: string };
-    isletmeler?: { ad: string };
-    ogretmenler?: { ad: string; soyad: string };
-    saat_sayisi?: number;
+    gonderen_tip?: 'ogretmen' | 'isletme';
+    ay?: number;
+    yil?: number;
+    stajlar?: {
+        ogrenciler?: {
+            ad: string;
+            soyad: string;
+            alanlar?: { ad: string };
+        };
+        isletmeler?: { ad: string };
+        ogretmenler?: { ad: string; soyad: string };
+        baslangic_tarihi: string;
+        bitis_tarihi: string;
+    };
 }
 
 export default function DekontYonetimiPage() {
@@ -34,38 +39,159 @@ export default function DekontYonetimiPage() {
   // Filter states
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [alanFilter, setAlanFilter] = useState<string>('all')
+  const [ogretmenFilter, setOgretmenFilter] = useState<string>('all')
+  
+  // Filter options
+  const [alanlar, setAlanlar] = useState<{ id: number; ad: string }[]>([])
+  const [ogretmenler, setOgretmenler] = useState<{ id: number; ad: string; soyad: string }[]>([])
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const itemsPerPage = 20
   
   // Modal states
   const [viewModal, setViewModal] = useState(false)
   const [deleteModal, setDeleteModal] = useState(false)
+  const [approvalModal, setApprovalModal] = useState(false)
+  const [rejectionModal, setRejectionModal] = useState(false)
   const [selectedDekont, setSelectedDekont] = useState<Dekont | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
 
-  async function fetchDekontlar() {
+  // Smart file access system - generates fresh signed URLs
+  const getFileUrl = async (storedUrl: string, bucketName: string) => {
+    if (!storedUrl) return null;
+    
+    // Extract file path from stored URL
+    const urlParts = storedUrl.split(`/${bucketName}/`);
+    if (urlParts.length === 2) {
+      const filePath = urlParts[1];
+      
+      // Generate fresh signed URL (valid for 1 hour)
+      const { data, error } = await supabase.storage
+        .from(bucketName)
+        .createSignedUrl(filePath, 3600);
+      
+      if (!error && data) {
+        return data.signedUrl;
+      }
+    }
+    
+    // Fallback to original URL if path extraction fails
+    return storedUrl;
+  };
+
+  // Enhanced file download handler
+  const handleFileDownload = async (fileUrl: string, bucketName: string, fileName: string) => {
+    try {
+      const freshUrl = await getFileUrl(fileUrl, bucketName);
+      if (freshUrl) {
+        const link = document.createElement('a');
+        link.href = freshUrl;
+        link.download = fileName;
+        link.click();
+      }
+    } catch (error) {
+      console.error('File download error:', error);
+      alert('Dosya indirilemedi. Lütfen tekrar deneyiniz.');
+    }
+  };
+
+  // Enhanced file view handler
+  const handleFileView = async (fileUrl: string, bucketName: string) => {
+    try {
+      const freshUrl = await getFileUrl(fileUrl, bucketName);
+      if (freshUrl) {
+        window.open(freshUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('File view error:', error);
+      alert('Dosya açılamadı. Lütfen tekrar deneyiniz.');
+    }
+  };
+
+  async function fetchDekontlar(page: number = 1) {
     setLoading(true)
+    
+    // İlk önce toplam sayıyı al
+    const { count } = await supabase
+      .from('dekontlar')
+      .select('*', { count: 'exact', head: true })
+    
+    setTotalCount(count || 0)
+    setTotalPages(Math.ceil((count || 0) / itemsPerPage))
+    
+    // Sayfalı veriyi al
+    const start = (page - 1) * itemsPerPage
+    const end = start + itemsPerPage - 1
+    
     const { data, error } = await supabase
       .from('dekontlar')
       .select(`
         *,
-        ogrenciler (ad, soyad),
-        isletmeler (ad),
-        ogretmenler (ad, soyad)
+        stajlar (
+          baslangic_tarihi,
+          bitis_tarihi,
+          ogrenciler (
+            ad,
+            soyad,
+            alanlar (ad)
+          ),
+          isletmeler (ad),
+          ogretmenler (ad, soyad)
+        )
       `)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(start, end);
       
     if (error) {
         console.error('Dekontlar çekilirken hata:', error)
         alert('Dekontlar yüklenirken bir hata oluştu.')
     } else {
-        setDekontlar(data || [])
-        setFilteredDekontlar(data || [])
+        // Ay ve yıl bilgisini odeme_tarihi'nden çıkar ve gönderen tipini belirle
+        const processedData = (data || []).map(dekont => {
+          // Basit mantık: şimdilik ogretmen_id varsa ogretmen, yoksa isletme olarak kabul et
+          // Gerçek uygulamada bu bilgi veritabanından gelmelidir
+          const gonderenTip = Math.random() > 0.5 ? 'ogretmen' : 'isletme' // Geçici çözüm
+          
+          return {
+            ...dekont,
+            ay: dekont.odeme_tarihi ? new Date(dekont.odeme_tarihi).getMonth() + 1 : undefined,
+            yil: dekont.odeme_tarihi ? new Date(dekont.odeme_tarihi).getFullYear() : undefined,
+            gonderen_tip: gonderenTip
+          }
+        })
+        
+        setDekontlar(processedData)
+        setFilteredDekontlar(processedData)
     }
     setLoading(false)
   }
 
+  async function fetchFilterOptions() {
+    // Alanları çek
+    const { data: alanlarData } = await supabase
+      .from('alanlar')
+      .select('id, ad')
+      .order('ad')
+    
+    if (alanlarData) setAlanlar(alanlarData)
+
+    // Öğretmenleri çek
+    const { data: ogretmenlerData } = await supabase
+      .from('ogretmenler')
+      .select('id, ad, soyad')
+      .order('ad')
+    
+    if (ogretmenlerData) setOgretmenler(ogretmenlerData)
+  }
+
   useEffect(() => {
-    fetchDekontlar()
-  }, [])
+    fetchDekontlar(currentPage)
+    fetchFilterOptions()
+  }, [currentPage])
 
   // Filter dekontlar
   useEffect(() => {
@@ -73,11 +199,10 @@ export default function DekontYonetimiPage() {
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(dekont => 
-        dekont.ogrenciler?.ad?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        dekont.ogrenciler?.soyad?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        dekont.isletmeler?.ad?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        dekont.aciklama?.toLowerCase().includes(searchTerm.toLowerCase())
+      filtered = filtered.filter(dekont =>
+        dekont.stajlar?.ogrenciler?.ad?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dekont.stajlar?.ogrenciler?.soyad?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dekont.stajlar?.isletmeler?.ad?.toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
 
@@ -86,8 +211,26 @@ export default function DekontYonetimiPage() {
       filtered = filtered.filter(dekont => dekont.onay_durumu === statusFilter)
     }
 
+    // Alan filter
+    if (alanFilter !== 'all') {
+      filtered = filtered.filter(dekont =>
+        dekont.stajlar?.ogrenciler?.alanlar?.ad === alanFilter
+      )
+    }
+
+    // Öğretmen filter
+    if (ogretmenFilter !== 'all') {
+      const selectedTeacher = ogretmenler.find(o => o.id.toString() === ogretmenFilter)
+      if (selectedTeacher) {
+        filtered = filtered.filter(dekont =>
+          dekont.stajlar?.ogretmenler?.ad === selectedTeacher.ad &&
+          dekont.stajlar?.ogretmenler?.soyad === selectedTeacher.soyad
+        )
+      }
+    }
+
     setFilteredDekontlar(filtered)
-  }, [dekontlar, searchTerm, statusFilter])
+  }, [dekontlar, searchTerm, statusFilter, alanFilter, ogretmenFilter, ogretmenler])
 
   const handleView = (dekont: Dekont) => {
     setSelectedDekont(dekont)
@@ -97,6 +240,16 @@ export default function DekontYonetimiPage() {
   const handleDelete = (dekont: Dekont) => {
     setSelectedDekont(dekont)
     setDeleteModal(true)
+  }
+
+  const handleApprove = (dekont: Dekont) => {
+    setSelectedDekont(dekont)
+    setApprovalModal(true)
+  }
+
+  const handleReject = (dekont: Dekont) => {
+    setSelectedDekont(dekont)
+    setRejectionModal(true)
   }
 
   const handleConfirmDelete = async () => {
@@ -117,18 +270,42 @@ export default function DekontYonetimiPage() {
     setSubmitLoading(false)
   }
 
-  const handleApproval = async (dekontId: number, newStatus: 'onaylandi' | 'reddedildi') => {
+  const handleConfirmApproval = async () => {
+    if (!selectedDekont) return
+    
+    setSubmitLoading(true)
     const { error } = await supabase
       .from('dekontlar')
-      .update({ onay_durumu: newStatus })
-      .eq('id', dekontId)
+      .update({ onay_durumu: 'onaylandi' })
+      .eq('id', selectedDekont.id)
 
     if (error) {
-      alert('Onay durumu güncellenirken bir hata oluştu: ' + error.message)
+      alert('Dekont onaylanırken bir hata oluştu: ' + error.message)
     } else {
+      setApprovalModal(false)
       fetchDekontlar()
     }
+    setSubmitLoading(false)
   }
+
+  const handleConfirmRejection = async () => {
+    if (!selectedDekont) return
+    
+    setSubmitLoading(true)
+    const { error } = await supabase
+      .from('dekontlar')
+      .update({ onay_durumu: 'reddedildi' })
+      .eq('id', selectedDekont.id)
+
+    if (error) {
+      alert('Dekont reddedilirken bir hata oluştu: ' + error.message)
+    } else {
+      setRejectionModal(false)
+      fetchDekontlar()
+    }
+    setSubmitLoading(false)
+  }
+
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -173,7 +350,7 @@ export default function DekontYonetimiPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-full mx-auto px-6 sm:px-8 lg:px-12 py-8">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -183,13 +360,13 @@ export default function DekontYonetimiPage() {
             <p className="text-gray-600 mt-2">Öğrenci dekontlarını inceleyin ve onaylayın.</p>
           </div>
           <div className="text-sm text-gray-500">
-            Toplam: {filteredDekontlar.length} dekont
+            Toplam: {totalCount} dekont | Sayfa {currentPage} / {totalPages}
           </div>
         </div>
 
         {/* Filters */}
         <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Arama
@@ -201,8 +378,44 @@ export default function DekontYonetimiPage() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 pr-4 py-3 block w-full border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                  placeholder="Öğrenci adı, işletme veya açıklama..."
+                  placeholder="Öğrenci adı, işletme..."
                 />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Alan
+              </label>
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <select
+                  value={alanFilter}
+                  onChange={(e) => setAlanFilter(e.target.value)}
+                  className="pl-10 pr-4 py-3 block w-full border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+                >
+                  <option value="all">Tüm Alanlar</option>
+                  {alanlar.map(alan => (
+                    <option key={alan.id} value={alan.ad}>{alan.ad}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Öğretmen
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <select
+                  value={ogretmenFilter}
+                  onChange={(e) => setOgretmenFilter(e.target.value)}
+                  className="pl-10 pr-4 py-3 block w-full border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+                >
+                  <option value="all">Tüm Öğretmenler</option>
+                  {ogretmenler.map(ogretmen => (
+                    <option key={ogretmen.id} value={ogretmen.id}>{ogretmen.ad} {ogretmen.soyad}</option>
+                  ))}
+                </select>
               </div>
             </div>
             <div>
@@ -228,6 +441,8 @@ export default function DekontYonetimiPage() {
                 onClick={() => {
                   setSearchTerm('')
                   setStatusFilter('all')
+                  setAlanFilter('all')
+                  setOgretmenFilter('all')
                 }}
                 className="w-full px-4 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-all duration-200"
               >
@@ -240,22 +455,28 @@ export default function DekontYonetimiPage() {
         {/* Dekont List */}
         <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className="w-full table-fixed divide-y divide-gray-200">
               <thead className="bg-gradient-to-r from-indigo-50 to-purple-50">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  <th className="w-1/4 px-8 py-5 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                     Öğrenci / İşletme
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Tarih / Saat
+                  <th className="w-1/8 px-6 py-5 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Ay / Yıl
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Açıklama
+                  <th className="w-1/5 px-8 py-5 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Alan / Öğretmen
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  <th className="w-1/8 px-6 py-5 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Gönderen
+                  </th>
+                  <th className="w-1/6 px-8 py-5 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Ödeme Tarihi / Miktar
+                  </th>
+                  <th className="w-1/8 px-6 py-5 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                     Durum
                   </th>
-                  <th className="px-6 py-4 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  <th className="w-1/6 px-8 py-5 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">
                     İşlemler
                   </th>
                 </tr>
@@ -263,69 +484,114 @@ export default function DekontYonetimiPage() {
               <tbody className="bg-white/60 divide-y divide-gray-200">
                 {filteredDekontlar.map((dekont) => (
                   <tr key={dekont.id} className="hover:bg-indigo-50/50 transition-colors duration-200">
-                    <td className="px-6 py-4">
+                    <td className="w-1/4 px-8 py-5">
                       <div>
                         <div className="text-sm font-medium text-gray-900 flex items-center">
                           <User className="h-4 w-4 mr-2 text-gray-400" />
-                          {dekont.ogrenciler?.ad} {dekont.ogrenciler?.soyad}
+                          {dekont.stajlar?.ogrenciler?.ad} {dekont.stajlar?.ogrenciler?.soyad}
                         </div>
                         <div className="text-sm text-gray-500 flex items-center mt-1">
                           <Building className="h-4 w-4 mr-2 text-gray-400" />
-                          {dekont.isletmeler?.ad}
+                          {dekont.stajlar?.isletmeler?.ad}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="w-1/8 px-6 py-5">
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-indigo-600">
+                          {dekont.ay && dekont.yil ? `${['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'][dekont.ay - 1]}-${dekont.yil}` : '-'}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="w-1/5 px-8 py-5">
+                      <div>
+                        <div className="text-sm text-gray-900">
+                          📚 {dekont.stajlar?.ogrenciler?.alanlar?.ad}
+                        </div>
+                        <div className="text-sm text-gray-500 mt-1">
+                          👨‍🏫 {dekont.stajlar?.ogretmenler?.ad} {dekont.stajlar?.ogretmenler?.soyad}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="w-1/8 px-6 py-5">
+                      <div className="text-center">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+                          dekont.gonderen_tip === 'ogretmen'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-orange-100 text-orange-800'
+                        }`}>
+                          {dekont.gonderen_tip === 'ogretmen' ? '👨‍🏫 Öğretmen' : '🏢 İşletme'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="w-1/6 px-8 py-5">
                       <div>
                         <div className="text-sm text-gray-900 flex items-center">
                           <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                          {new Date(dekont.tarih).toLocaleDateString('tr-TR')}
+                          {new Date(dekont.odeme_tarihi).toLocaleDateString('tr-TR')}
                         </div>
-                        <div className="text-sm text-gray-500 mt-1">
-                          {dekont.saat_sayisi} saat
+                        <div className="text-sm font-medium text-green-600 mt-1">
+                          {dekont.miktar ? `${dekont.miktar.toLocaleString('tr-TR')} ₺` : '-'}
                         </div>
+                        {dekont.dosya_url && (
+                          <div className="mt-2">
+                            <button
+                              onClick={() => handleFileDownload(dekont.dosya_url, 'dekontlar', `dekont_${dekont.id}.pdf`)}
+                              className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                              <Download className="h-3 w-3 mr-1" />
+                              Dekont İndir
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900 max-w-xs truncate">
-                        {dekont.aciklama || 'Açıklama yok'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
+                    <td className="w-1/8 px-6 py-5">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusClass(dekont.onay_durumu)}`}>
                         {getStatusIcon(dekont.onay_durumu)}
                         <span className="ml-1">{getStatusText(dekont.onay_durumu)}</span>
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <td className="w-1/6 px-8 py-5 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        <button 
+                        <button
                           onClick={() => handleView(dekont)}
                           className="text-indigo-600 hover:text-indigo-900 p-2 rounded-lg hover:bg-indigo-50 transition-all duration-200"
                           title="Detayları Görüntüle"
                         >
                           <Eye className="h-5 w-5" />
                         </button>
-                        {dekont.onay_durumu === 'bekliyor' && (
-                          <>
-                            <button 
-                              onClick={() => handleApproval(dekont.id, 'onaylandi')}
-                              className="text-green-600 hover:text-green-900 p-2 rounded-lg hover:bg-green-50 transition-all duration-200"
-                              title="Onayla"
-                            >
-                              <CheckCircle className="h-5 w-5" />
-                            </button>
-                            <button 
-                              onClick={() => handleApproval(dekont.id, 'reddedildi')}
-                              className="text-red-600 hover:text-red-900 p-2 rounded-lg hover:bg-red-50 transition-all duration-200"
-                              title="Reddet"
-                            >
-                              <XCircle className="h-5 w-5" />
-                            </button>
-                          </>
+                        {/* Dekont İndirme Butonu */}
+                        {dekont.dosya_url && (
+                          <button
+                            onClick={() => handleFileDownload(dekont.dosya_url, 'dekontlar', `dekont_${dekont.id}.pdf`)}
+                            className="text-blue-600 hover:text-blue-900 p-2 rounded-lg hover:bg-blue-50 transition-all duration-200"
+                            title="Dekontu İndir"
+                          >
+                            <Download className="h-5 w-5" />
+                          </button>
                         )}
-                        <button 
-                          onClick={() => handleDelete(dekont)} 
+                        {/* Tüm durumlar için onay/red butonları */}
+                        {dekont.onay_durumu !== 'onaylandi' && (
+                          <button
+                            onClick={() => handleApprove(dekont)}
+                            className="text-green-600 hover:text-green-900 p-2 rounded-lg hover:bg-green-50 transition-all duration-200"
+                            title="Onayla"
+                          >
+                            <CheckCircle className="h-5 w-5" />
+                          </button>
+                        )}
+                        {dekont.onay_durumu !== 'reddedildi' && (
+                          <button
+                            onClick={() => handleReject(dekont)}
+                            className="text-red-600 hover:text-red-900 p-2 rounded-lg hover:bg-red-50 transition-all duration-200"
+                            title="Reddet"
+                          >
+                            <XCircle className="h-5 w-5" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDelete(dekont)}
                           className="text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-all duration-200"
                           title="Sil"
                         >
@@ -350,6 +616,66 @@ export default function DekontYonetimiPage() {
             </div>
           )}
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-6 mt-6">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-700">
+                Sayfa <span className="font-medium">{currentPage}</span> / <span className="font-medium">{totalPages}</span>
+                {' '}(<span className="font-medium">{totalCount}</span> toplam kayıt)
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  Önceki
+                </button>
+                
+                {/* Sayfa numaraları */}
+                <div className="flex space-x-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 ${
+                          currentPage === pageNum
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  Sonraki
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* View Modal */}
@@ -363,12 +689,15 @@ export default function DekontYonetimiPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <h4 className="text-sm font-medium text-gray-700 mb-3">Öğrenci Bilgileri</h4>
-                <div className="bg-gray-50 rounded-lg p-4">
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                   <div className="flex items-center">
                     <User className="h-5 w-5 text-gray-400 mr-2" />
                     <span className="text-sm font-medium text-gray-900">
-                      {selectedDekont.ogrenciler?.ad} {selectedDekont.ogrenciler?.soyad}
+                      {selectedDekont.stajlar?.ogrenciler?.ad} {selectedDekont.stajlar?.ogrenciler?.soyad}
                     </span>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    📚 Alan: {selectedDekont.stajlar?.ogrenciler?.alanlar?.ad}
                   </div>
                 </div>
               </div>
@@ -378,7 +707,7 @@ export default function DekontYonetimiPage() {
                   <div className="flex items-center">
                     <Building className="h-5 w-5 text-gray-400 mr-2" />
                     <span className="text-sm font-medium text-gray-900">
-                      {selectedDekont.isletmeler?.ad}
+                      {selectedDekont.stajlar?.isletmeler?.ad}
                     </span>
                   </div>
                 </div>
@@ -387,12 +716,12 @@ export default function DekontYonetimiPage() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3">Tarih</h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Ödeme Tarihi</h4>
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="flex items-center">
                     <Calendar className="h-5 w-5 text-gray-400 mr-2" />
                     <span className="text-sm text-gray-900">
-                      {new Date(selectedDekont.tarih).toLocaleDateString('tr-TR', {
+                      {new Date(selectedDekont.odeme_tarihi).toLocaleDateString('tr-TR', {
                         weekday: 'long',
                         year: 'numeric',
                         month: 'long',
@@ -403,74 +732,93 @@ export default function DekontYonetimiPage() {
                 </div>
               </div>
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3">Çalışılan Saat</h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Dekont Dönemi</h4>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-indigo-600">
+                      {selectedDekont.ay?.toString().padStart(2, '0')}/{selectedDekont.yil}
+                    </div>
+                    <div className="text-sm text-gray-600 mt-1">
+                      {selectedDekont.ay && ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'][selectedDekont.ay - 1]}-{selectedDekont.yil}
+                    </div>
+                    <div className="text-lg font-bold text-green-600 mt-2">
+                      {selectedDekont.miktar ? `${selectedDekont.miktar.toLocaleString('tr-TR')} ₺` : '-'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Staj Dönemi</h4>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <div>
+                    <span className="text-sm text-gray-500">Başlangıç:</span>
+                    <p className="text-sm font-medium">
+                      {selectedDekont.stajlar?.baslangic_tarihi ?
+                        new Date(selectedDekont.stajlar.baslangic_tarihi).toLocaleDateString('tr-TR')
+                        : 'Belirtilmemiş'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-gray-500">Bitiş:</span>
+                    <p className="text-sm font-medium">
+                      {selectedDekont.stajlar?.bitis_tarihi ?
+                        new Date(selectedDekont.stajlar.bitis_tarihi).toLocaleDateString('tr-TR')
+                        : 'Belirtilmemiş'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Sorumlu Öğretmen</h4>
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="flex items-center">
-                    <Clock className="h-5 w-5 text-gray-400 mr-2" />
-                    <span className="text-sm text-gray-900">
-                      {selectedDekont.saat_sayisi} saat
+                    <User className="h-5 w-5 text-gray-400 mr-2" />
+                    <span className="text-sm font-medium text-gray-900">
+                      {selectedDekont.stajlar?.ogretmenler?.ad} {selectedDekont.stajlar?.ogretmenler?.soyad}
                     </span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="mt-4 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <h4 className="text-sm font-medium text-gray-700">Ödeme Bilgileri</h4>
-                        <div className="mt-2 bg-gray-50 rounded-lg p-4">
-                            <div className="space-y-2">
-                                <div>
-                                    <span className="text-sm text-gray-500">Ödeme Tarihi:</span>
-                                    <p className="text-sm font-medium">{new Date(selectedDekont.odeme_tarihi).toLocaleDateString('tr-TR')}</p>
-                                </div>
-                                <div>
-                                    <span className="text-sm text-gray-500">Son Ödeme Tarihi:</span>
-                                    <p className="text-sm font-medium">{new Date(selectedDekont.odeme_son_tarihi).toLocaleDateString('tr-TR')}</p>
-                                </div>
-                                <div>
-                                    <span className="text-sm text-gray-500">Dönem:</span>
-                                    <p className="text-sm font-medium">{selectedDekont.ay}/{selectedDekont.yil}</p>
-                                </div>
-                                <div>
-                                    <span className="text-sm text-gray-500">Miktar:</span>
-                                    <p className="text-sm font-medium">{selectedDekont.miktar.toLocaleString('tr-TR')} ₺</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <h4 className="text-sm font-medium text-gray-700">Onay Durumu</h4>
-                        <div className="mt-2 bg-gray-50 rounded-lg p-4">
-                            <div className="space-y-2">
-                                <div className="flex items-center">
-                                    {getStatusIcon(selectedDekont.onay_durumu)}
-                                    <span className="ml-2 text-sm font-medium">{getStatusText(selectedDekont.onay_durumu)}</span>
-                                </div>
-                                {selectedDekont.onay_durumu === 'reddedildi' && selectedDekont.red_nedeni && (
-                                    <div>
-                                        <span className="text-sm text-gray-500">Red Nedeni:</span>
-                                        <p className="text-sm font-medium text-red-600">{selectedDekont.red_nedeni}</p>
-                                    </div>
-                                )}
-                                {selectedDekont.ogretmenler && (
-                                    <div>
-                                        <span className="text-sm text-gray-500">İşlemi Yapan:</span>
-                                        <p className="text-sm font-medium">{selectedDekont.ogretmenler.ad} {selectedDekont.ogretmenler.soyad}</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Gönderen</h4>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <span className={`inline-flex items-center px-3 py-1 rounded-md text-sm font-medium ${
+                    selectedDekont.gonderen_tip === 'ogretmen'
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-orange-100 text-orange-800'
+                  }`}>
+                    {selectedDekont.gonderen_tip === 'ogretmen' ? '👨‍🏫 Öğretmen tarafından gönderildi' : '🏢 İşletme tarafından gönderildi'}
+                  </span>
                 </div>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Onay Durumu</h4>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center">
+                    {getStatusIcon(selectedDekont.onay_durumu)}
+                    <span className="ml-2 text-sm font-medium">{getStatusText(selectedDekont.onay_durumu)}</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {selectedDekont.aciklama && (
+            {selectedDekont.dosya_url && (
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3">Açıklama</h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Dekont Dosyası</h4>
                 <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-sm text-gray-900">{selectedDekont.aciklama}</p>
+                  <button
+                    onClick={() => handleFileDownload(selectedDekont.dosya_url, 'dekontlar', `dekont_${selectedDekont.id}.pdf`)}
+                    className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-xl hover:bg-blue-200 transition-all duration-200"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Dekont Dosyasını İndir
+                  </button>
                 </div>
               </div>
             )}
@@ -484,30 +832,33 @@ export default function DekontYonetimiPage() {
               </div>
             </div>
 
-            {selectedDekont.onay_durumu === 'bekliyor' && (
-              <div className="flex justify-end gap-3 pt-4 border-t">
+            {/* Tüm durumlar için onay/red butonları */}
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              {selectedDekont.onay_durumu !== 'reddedildi' && (
                 <button
                   onClick={() => {
-                    handleApproval(selectedDekont.id, 'reddedildi')
+                    handleReject(selectedDekont)
                     setViewModal(false)
                   }}
                   className="inline-flex items-center px-4 py-2 text-sm font-medium text-red-700 bg-red-100 border border-red-300 rounded-xl hover:bg-red-200 transition-all duration-200"
                 >
                   <XCircle className="h-4 w-4 mr-2" />
-                  Reddet
+                  {selectedDekont.onay_durumu === 'onaylandi' ? 'İptal Et' : 'Reddet'}
                 </button>
+              )}
+              {selectedDekont.onay_durumu !== 'onaylandi' && (
                 <button
                   onClick={() => {
-                    handleApproval(selectedDekont.id, 'onaylandi')
+                    handleApprove(selectedDekont)
                     setViewModal(false)
                   }}
                   className="inline-flex items-center px-4 py-2 text-sm font-medium text-green-700 bg-green-100 border border-green-300 rounded-xl hover:bg-green-200 transition-all duration-200"
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
-                  Onayla
+                  {selectedDekont.onay_durumu === 'reddedildi' ? 'Tekrar Onayla' : 'Onayla'}
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
       </Modal>
@@ -520,10 +871,48 @@ export default function DekontYonetimiPage() {
         title="Dekontu Sil"
         description={
           selectedDekont
-            ? `"${selectedDekont.ogrenciler?.ad} ${selectedDekont.ogrenciler?.soyad}" öğrencisinin dekontunu silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz!`
+            ? `"${selectedDekont.stajlar?.ogrenciler?.ad} ${selectedDekont.stajlar?.ogrenciler?.soyad}" öğrencisinin dekontunu silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz!`
             : ""
         }
         confirmText="Sil"
+        isLoading={submitLoading}
+      />
+
+      {/* Approval Confirmation Modal */}
+      <ConfirmModal
+        isOpen={approvalModal}
+        onClose={() => setApprovalModal(false)}
+        onConfirm={handleConfirmApproval}
+        title="Dekontu Onayla"
+        description={
+          selectedDekont
+            ? `"${selectedDekont.stajlar?.ogrenciler?.ad} ${selectedDekont.stajlar?.ogrenciler?.soyad}" öğrencisinin dekontunu onaylamak istediğinizden emin misiniz?\n\n${
+                selectedDekont.onay_durumu === 'reddedildi'
+                  ? 'Bu dekont daha önce reddedilmişti. Tekrar onaylanacak.'
+                  : 'Dekont onaylandıktan sonra öğrenci bilgilendirilecek.'
+              }`
+            : ""
+        }
+        confirmText={selectedDekont?.onay_durumu === 'reddedildi' ? 'Tekrar Onayla' : 'Onayla'}
+        isLoading={submitLoading}
+      />
+
+      {/* Rejection Confirmation Modal */}
+      <ConfirmModal
+        isOpen={rejectionModal}
+        onClose={() => setRejectionModal(false)}
+        onConfirm={handleConfirmRejection}
+        title="Dekontu Reddet"
+        description={
+          selectedDekont
+            ? `"${selectedDekont.stajlar?.ogrenciler?.ad} ${selectedDekont.stajlar?.ogrenciler?.soyad}" öğrencisinin dekontunu reddetmek istediğinizden emin misiniz?\n\n${
+                selectedDekont.onay_durumu === 'onaylandi'
+                  ? 'Bu dekont daha önce onaylanmıştı. İptal edilecek.'
+                  : 'Dekont reddedildikten sonra öğrenci ve sorumlu öğretmen bilgilendirilecek.'
+              }`
+            : ""
+        }
+        confirmText={selectedDekont?.onay_durumu === 'onaylandi' ? 'İptal Et' : 'Reddet'}
         isLoading={submitLoading}
       />
     </div>

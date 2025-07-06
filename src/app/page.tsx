@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { ChevronDownIcon, MagnifyingGlassIcon, BuildingOfficeIcon, AcademicCapIcon } from '@heroicons/react/24/outline'
+import { useToast } from '@/components/ui/Toast'
 
 interface Isletme {
     id: string
@@ -36,6 +37,7 @@ function useDebounce(value: string, delay: number) {
 
 export default function LoginPage() {
   const router = useRouter()
+  const { showToast } = useToast()
   const [loginType, setLoginType] = useState<'isletme' | 'ogretmen'>('isletme')
   
   const [selectedIsletme, setSelectedIsletme] = useState<Isletme | null>(null)
@@ -49,6 +51,7 @@ export default function LoginPage() {
   const [pinInput, setPinInput] = useState('')
   const [pinError, setPinError] = useState('')
   const [step, setStep] = useState(1)
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
 
   // Debounced search term - 300ms bekle
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -110,26 +113,62 @@ export default function LoginPage() {
 
   const handleSelectAndProceed = () => {
     if (loginType === 'isletme' && !selectedIsletme) {
-      setPinError('Lütfen bir işletme seçin.')
+      showToast({
+        type: 'warning',
+        title: 'Seçim Yapınız',
+        message: 'Lütfen devam etmek için bir işletme seçin.',
+        duration: 4000
+      })
       return
     }
     if (loginType === 'ogretmen' && !selectedOgretmen) {
-        setPinError('Lütfen bir öğretmen seçin.')
-        return
+      showToast({
+        type: 'warning',
+        title: 'Seçim Yapınız',
+        message: 'Lütfen devam etmek için bir öğretmen seçin.',
+        duration: 4000
+      })
+      return
     }
     setPinError('')
     setStep(2)
+    showToast({
+      type: 'info',
+      title: 'PIN Girişi',
+      message: 'Lütfen 4 haneli PIN kodunuzu girin.',
+      duration: 3000
+    })
   }
 
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isLoggingIn) return
+    
     setPinError('')
+    setIsLoggingIn(true)
 
     const isIsletme = loginType === 'isletme'
     const selectedEntity = isIsletme ? selectedIsletme : selectedOgretmen
 
     if (!selectedEntity) {
-      setPinError('Bir seçim yapılmamış. Lütfen geri dönüp tekrar deneyin.')
+      showToast({
+        type: 'error',
+        title: 'Seçim Hatası',
+        message: 'Bir seçim yapılmamış. Lütfen geri dönüp tekrar deneyin.',
+        duration: 5000
+      })
+      setIsLoggingIn(false)
+      return
+    }
+
+    if (!pinInput || pinInput.length !== 4) {
+      showToast({
+        type: 'warning',
+        title: 'Geçersiz PIN',
+        message: 'Lütfen 4 haneli PIN kodunuzu tam olarak girin.',
+        duration: 4000
+      })
+      setIsLoggingIn(false)
       return
     }
 
@@ -139,7 +178,7 @@ export default function LoginPage() {
       p_girilen_pin: pinInput,
       // GÜVENLİK UYARISI: IP adresi sunucu tarafında alınmalıdır.
       // Bu, istemci tarafında güvenli bir şekilde yapılamaz.
-      p_ip_adresi: '127.0.0.1', 
+      p_ip_adresi: '127.0.0.1',
       p_user_agent: navigator.userAgent
     }
 
@@ -148,11 +187,23 @@ export default function LoginPage() {
       const { data: pinResult, error: pinError } = await supabase.rpc(rpcName, rpcParams)
 
       if (pinError) {
-        setPinError(`Sistem hatası: ${pinError.message}`)
+        showToast({
+          type: 'error',
+          title: 'Sistem Hatası',
+          message: `PIN kontrol hatası: ${pinError.message}`,
+          duration: 6000
+        })
+        setIsLoggingIn(false)
         return
       }
       if (!pinResult) {
-        setPinError('PIN kontrol fonksiyonu yanıt vermedi. Lütfen sistemi kontrol edin.')
+        showToast({
+          type: 'error',
+          title: 'Sistem Hatası',
+          message: 'PIN kontrol fonksiyonu yanıt vermedi. Lütfen sistemi kontrol edin.',
+          duration: 6000
+        })
+        setIsLoggingIn(false)
         return
       }
       if (!pinResult.basarili) {
@@ -160,14 +211,27 @@ export default function LoginPage() {
         if (pinResult.kilitli && pinResult.kilitlenme_tarihi) {
           errorMessage += ` (${new Date(pinResult.kilitlenme_tarihi).toLocaleString('tr-TR')})`
         }
+        showToast({
+          type: 'error',
+          title: 'Giriş Başarısız',
+          message: errorMessage,
+          duration: 6000
+        })
         setPinError(errorMessage)
+        setIsLoggingIn(false)
         return
       }
 
       // 2. Başarılı Giriş -> Oturum Yönetimi
       const { data: { session }, error: sessionError } = await supabase.auth.signInAnonymously()
       if (sessionError || !session) {
-        setPinError(`Oturum başlatılamadı: ${sessionError?.message || 'Geçici oturum oluşturulamadı.'}`)
+        showToast({
+          type: 'error',
+          title: 'Oturum Hatası',
+          message: `Oturum başlatılamadı: ${sessionError?.message || 'Geçici oturum oluşturulamadı.'}`,
+          duration: 6000
+        })
+        setIsLoggingIn(false)
         return
       }
 
@@ -179,18 +243,47 @@ export default function LoginPage() {
       }
       const { error: updateError } = await supabase.auth.updateUser(updateUserPayload)
       if (updateError) {
-        setPinError(`Kullanıcı bilgileri güncellenemedi: ${updateError.message}`)
+        showToast({
+          type: 'error',
+          title: 'Kullanıcı Hatası',
+          message: `Kullanıcı bilgileri güncellenemedi: ${updateError.message}`,
+          duration: 6000
+        })
+        setIsLoggingIn(false)
         return
       }
 
-      // 4. Yönlendirme
+      // 4. Başarılı Giriş Bildirimi
+      const entityName = isIsletme
+        ? (selectedEntity as Isletme).ad
+        : `${(selectedEntity as Ogretmen).ad} ${(selectedEntity as Ogretmen).soyad}`
+      
+      showToast({
+        type: 'success',
+        title: 'Giriş Başarılı',
+        message: `Hoşgeldiniz, ${entityName}!`,
+        duration: 3000
+      })
+
+      // 5. Yönlendirme
       const localStorageKey = isIsletme ? 'isletme' : 'ogretmen'
       const redirectPath = isIsletme ? '/isletme' : '/ogretmen/panel'
 
       localStorage.setItem(localStorageKey, JSON.stringify(selectedEntity))
-      router.push(redirectPath)
+      
+      // Yönlendirmeden önce kısa bir delay
+      setTimeout(() => {
+        router.push(redirectPath)
+      }, 1000)
+      
     } catch (error) {
-      setPinError(`Beklenmeyen bir hata oluştu: ${(error as Error).message}`)
+      showToast({
+        type: 'error',
+        title: 'Beklenmeyen Hata',
+        message: `Sistem hatası: ${(error as Error).message}`,
+        duration: 6000
+      })
+      setIsLoggingIn(false)
     }
   }
 
@@ -348,11 +441,19 @@ export default function LoginPage() {
             >
               ← Geri dön
             </button>
-            <button 
-              type="submit" 
-              className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-md hover:shadow-lg"
+            <button
+              type="submit"
+              disabled={isLoggingIn || !pinInput}
+              className={`px-6 py-2 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg flex items-center space-x-2 ${
+                isLoggingIn || !pinInput
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700'
+              }`}
             >
-              Giriş Yap
+              {isLoggingIn && (
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+              )}
+              <span>{isLoggingIn ? 'Giriş Yapılıyor...' : 'Giriş Yap'}</span>
             </button>
         </div>
     </form>
@@ -404,12 +505,12 @@ export default function LoginPage() {
                       </div>
                     )}
                     
-                    <button 
+                    <button
                         onClick={handleSelectAndProceed}
                         disabled={!(selectedIsletme || selectedOgretmen)}
-                        className={`w-full px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
+                        className={`w-full px-4 py-3 rounded-xl font-medium transition-all duration-200 transform ${
                           (selectedIsletme || selectedOgretmen)
-                            ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-md hover:shadow-lg'
+                            ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-md hover:shadow-lg hover:-translate-y-0.5'
                             : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                         }`}
                     >

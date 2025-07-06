@@ -25,7 +25,7 @@ export type Dekont = {
 
 export interface DekontFormData {
   staj_id: number
-  tutar?: number
+  miktar?: number
   dosya?: File
   aciklama?: string
   ay: string

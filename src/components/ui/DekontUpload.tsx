@@ -20,7 +20,7 @@ export default function DekontUpload({ onSubmit, isLoading, stajId, isletmeler, 
   const [selectedIsletme, setSelectedIsletme] = useState(selectedIsletmeId)
   const [formData, setFormData] = useState<DekontFormData>({
     staj_id: stajId,
-    tutar: undefined,
+    miktar: undefined,
     ay: AY_LISTESI[new Date().getMonth()],
     yil: new Date().getFullYear().toString(),
     aciklama: ''
@@ -49,7 +49,7 @@ export default function DekontUpload({ onSubmit, isLoading, stajId, isletmeler, 
       })
       setFormData({
         staj_id: stajId,
-        tutar: undefined,
+        miktar: undefined,
         ay: AY_LISTESI[new Date().getMonth()],
         yil: new Date().getFullYear().toString(),
         aciklama: ''
@@ -93,16 +93,16 @@ export default function DekontUpload({ onSubmit, isLoading, stajId, isletmeler, 
       </div>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         <div>
-          <label htmlFor="tutar" className="block text-sm font-medium text-gray-700">
-            Tutar (TL) <span className="text-gray-400">(İsteğe bağlı)</span>
+          <label htmlFor="miktar" className="block text-sm font-medium text-gray-700">
+            Miktar (TL) <span className="text-gray-400">(İsteğe bağlı)</span>
           </label>
           <input
             type="number"
-            id="tutar"
+            id="miktar"
             min="0"
             step="0.01"
-            value={formData.tutar ?? ''}
-            onChange={(e) => setFormData(prev => ({ ...prev, tutar: e.target.value ? parseFloat(e.target.value) : undefined }))}
+            value={formData.miktar ?? ''}
+            onChange={(e) => setFormData(prev => ({ ...prev, miktar: e.target.value ? parseFloat(e.target.value) : undefined }))}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
           />
         </div>

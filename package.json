@@ -10,7 +10,8 @@
     "migrate": "node scripts/migrate.js",
     "db:setup": "node scripts/migrate.js",
     "quick-migrate": "node scripts/direct-migrate.js",
-    "seed": "node scripts/seed-data.js"
+    "seed": "node scripts/seed-data.js",
+    "seed:ogretmenler": "node scripts/seed-ogretmenler.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",
@@ -19,6 +20,8 @@
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.50.2",
     "dotenv": "^16.5.1",
+    "jspdf": "^3.0.1",
+    "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.350.0",
     "next": "15.3.4",
     "node-fetch": "^3.3.2",
@@ -26,7 +29,9 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.5.2",
-    "react-router-dom": "^7.6.3"
+    "react-router-dom": "^7.6.3",
+    "recharts": "^3.0.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20.11.25",

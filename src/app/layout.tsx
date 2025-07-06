@@ -1,6 +1,7 @@
 import './globals.css'
 import type { Metadata } from 'next'
 import { EgitimYiliProvider } from '@/lib/context/EgitimYiliContext'
+import { ToastProvider } from '@/components/ui/Toast'
 
 export const metadata: Metadata = {
   title: 'Hüsniye Özdilek MTAL - Koordinatörlük Yönetimi',
@@ -23,9 +24,11 @@ export default function RootLayout({
     <html lang="tr" className="h-full">
       <body className="min-h-full">
         <EgitimYiliProvider>
-          <div className="min-h-screen">
-            {children}
-          </div>
+          <ToastProvider>
+            <div className="min-h-screen">
+              {children}
+            </div>
+          </ToastProvider>
         </EgitimYiliProvider>
       </body>
     </html>

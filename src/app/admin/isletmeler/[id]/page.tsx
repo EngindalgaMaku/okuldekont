@@ -116,7 +116,7 @@ interface Dekont {
   isletme_id: number;
   tarih: string;
   aciklama: string;
-  tutar: number;
+  miktar: number;
   ay: string;
   ogrenci_adi?: string;
   dosya_url?: string;
@@ -162,10 +162,12 @@ export default function IsletmeDetayPage() {
   const [fesihModalOpen, setFesihModalOpen] = useState(false)
   const [belgeModalOpen, setBelgeModalOpen] = useState(false)
   const [dekontModalOpen, setDekontModalOpen] = useState(false)
+  const [dekontModalContext, setDekontModalContext] = useState<'student' | 'general'>('student')
   const [alanlar, setAlanlar] = useState<Alan[]>([])
   const [belgeler, setBelgeler] = useState<Belge[]>([])
   const [dekontlar, setDekontlar] = useState<Dekont[]>([])
   const [mevcutOgrenciler, setMevcutOgrenciler] = useState<Ogrenci[]>([])
+  const [aktifOgrenciler, setAktifOgrenciler] = useState<Staj[]>([])
   const [selectedStaj, setSelectedStaj] = useState<Staj | null>(null)
   
   // Dekont görüntüleme için state'ler
@@ -199,12 +201,20 @@ export default function IsletmeDetayPage() {
     dosya: null as File | null
   })
 
-  const [dekontFormData, setDekontFormData] = useState({
+  const [dekontFormData, setDekontFormData] = useState<{
+    tarih: string;
+    ay: string;
+    aciklama: string;
+    miktar: string;
+    dosya: File | null;
+    selectedOgrenciId: string;
+  }>({
     tarih: '',
     ay: '',
     aciklama: '',
-    tutar: '',
-    dosya: null as File | null
+    miktar: '',
+    dosya: null,
+    selectedOgrenciId: ''
   })
 
   // Fetch işletme bilgileri
@@ -321,6 +331,43 @@ export default function IsletmeDetayPage() {
     }
   }
 
+  // Fetch aktif öğrenciler (staj yapan öğrenciler)
+  async function fetchAktifOgrenciler() {
+    try {
+      const { data, error } = await supabase
+        .from('stajlar')
+        .select(`
+          id,
+          ogrenci_id,
+          baslangic_tarihi,
+          bitis_tarihi,
+          fesih_tarihi,
+          durum,
+          ogrenciler!inner (
+            id,
+            ad,
+            soyad,
+            no,
+            sinif,
+            alanlar (ad)
+          )
+        `)
+        .eq('isletme_id', isletmeId)
+        .eq('durum', 'aktif')
+        .is('fesih_tarihi', null)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Aktif öğrenciler çekilirken hata:', error)
+        return
+      }
+
+      setAktifOgrenciler(data as any || [])
+    } catch (error) {
+      console.error('Aktif öğrenci fetch hatası:', error)
+    }
+  }
+
   // Fetch işletme alanları
   async function fetchIsletmeAlanlar() {
     try {
@@ -433,6 +480,65 @@ export default function IsletmeDetayPage() {
       setDekontlar(data || [])
     } catch (error) {
       console.error('Dekont fetch hatası:', error)
+    }
+  }
+
+  // Smart file access functions
+  const getFileUrl = async (storedUrl: string, bucketName: string = 'public') => {
+    if (!storedUrl) return null
+    
+    // Public bucket için doğrudan URL döndür (dekont mantığı ile aynı)
+    if (bucketName === 'public') {
+      return storedUrl
+    }
+    
+    // Diğer bucket'lar için signed URL oluştur
+    const urlParts = storedUrl.split(`/${bucketName}/`)
+    if (urlParts.length === 2) {
+      const filePath = urlParts[1]
+      
+      const { data, error } = await supabase.storage
+        .from(bucketName)
+        .createSignedUrl(filePath, 3600) // 1 hour validity
+      
+      if (!error && data) {
+        return data.signedUrl
+      }
+    }
+    
+    return storedUrl // Fallback to stored URL
+  }
+
+  const handleFileView = async (fileUrl: string, bucketName: string) => {
+    try {
+      const accessUrl = await getFileUrl(fileUrl, bucketName)
+      if (accessUrl) {
+        window.open(accessUrl, '_blank')
+      } else {
+        alert('Dosya açılamadı!')
+      }
+    } catch (error) {
+      console.error('Dosya görüntüleme hatası:', error)
+      alert('Dosya görüntülenirken hata oluştu!')
+    }
+  }
+
+  const handleFileDownload = async (fileUrl: string, bucketName: string, fileName: string) => {
+    try {
+      const accessUrl = await getFileUrl(fileUrl, bucketName)
+      if (accessUrl) {
+        const link = document.createElement('a')
+        link.href = accessUrl
+        link.download = fileName
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      } else {
+        alert('Dosya indirilemedi!')
+      }
+    } catch (error) {
+      console.error('Dosya indirme hatası:', error)
+      alert('Dosya indirilirken hata oluştu!')
     }
   }
 
@@ -575,10 +681,15 @@ export default function IsletmeDetayPage() {
 
     try {
       // Dosya yükle
-      const dosyaAdi = `${Date.now()}_${belgeFormData.dosya.name}`
+      const dosyaAdi = `${Date.now()}_${belgeFormData.dosya.name.replace(/\s/g, '_')}`
+      const filePath = `belgeler/${isletmeId}/${dosyaAdi}`
+      
       const { data: dosyaData, error: dosyaError } = await supabase.storage
-        .from('belgeler')
-        .upload(dosyaAdi, belgeFormData.dosya)
+        .from('public')
+        .upload(filePath, belgeFormData.dosya, {
+          cacheControl: '3600',
+          upsert: false
+        })
 
       if (dosyaError) {
         console.error('Dosya yükleme hatası:', dosyaError)
@@ -586,9 +697,9 @@ export default function IsletmeDetayPage() {
         return
       }
 
-      // Public URL al
+      // Public URL al (dekontlarla aynı mantık)
       const { data: publicUrl } = supabase.storage
-        .from('belgeler')
+        .from('public')
         .getPublicUrl(dosyaData.path)
       
       const dosyaUrl = publicUrl.publicUrl
@@ -628,9 +739,17 @@ export default function IsletmeDetayPage() {
   }
 
   const handleDekontEkle = async () => {
-    if (!selectedStaj || !dekontFormData.tarih || !dekontFormData.ay || !dekontFormData.aciklama || !dekontFormData.tutar) {
-      alert('Tüm alanlar zorunludur!')
-      return
+    // Context'e göre validasyon
+    if (dekontModalContext === 'student') {
+      if (!selectedStaj || !dekontFormData.tarih || !dekontFormData.aciklama || !dekontFormData.miktar) {
+        alert('Tüm alanlar zorunludur!')
+        return
+      }
+    } else {
+      if (!dekontFormData.selectedOgrenciId || !dekontFormData.tarih || !dekontFormData.aciklama || !dekontFormData.miktar) {
+        alert('Tüm alanlar zorunludur! Lütfen öğrenci seçin.')
+        return
+      }
     }
 
     try {
@@ -638,21 +757,59 @@ export default function IsletmeDetayPage() {
       
       // Dosya varsa yükle
       if (dekontFormData.dosya) {
-        // Simülasyon - gerçek uygulamada Supabase Storage kullanılacak
-        dosyaUrl = `/uploads/dekontlar/${Date.now()}_${dekontFormData.dosya.name}`
+        const dosyaAdi = `${Date.now()}_${dekontFormData.dosya.name.replace(/\s/g, '_')}`
+        const filePath = `dekontlar/${isletmeId}/${dosyaAdi}`
+        
+        const { data: dosyaData, error: dosyaError } = await supabase.storage
+          .from('public')
+          .upload(filePath, dekontFormData.dosya, {
+            cacheControl: '3600',
+            upsert: false
+          })
+
+        if (dosyaError) {
+          console.error('Dosya yükleme hatası:', dosyaError)
+          alert('Dosya yüklenirken hata oluştu!')
+          return
+        }
+
+        const { data: publicUrl } = supabase.storage
+          .from('public')
+          .getPublicUrl(dosyaData.path)
+        
+        dosyaUrl = publicUrl.publicUrl
+      }
+
+      // Context'e göre staj ve öğrenci bilgilerini belirle
+      let stajId, ogrenciId
+      if (dekontModalContext === 'student' && selectedStaj) {
+        stajId = selectedStaj.id
+        ogrenciId = selectedStaj.ogrenci_id
+      } else {
+        // Genel context'te seçilen öğrencinin staj bilgisini bul
+        const selectedOgrenciStaj = aktifOgrenciler.find(staj => staj.ogrenci_id === parseInt(dekontFormData.selectedOgrenciId))
+        if (selectedOgrenciStaj) {
+          stajId = selectedOgrenciStaj.id
+          ogrenciId = selectedOgrenciStaj.ogrenci_id
+        } else {
+          alert('Seçilen öğrencinin staj bilgisi bulunamadı!')
+          return
+        }
       }
 
       const { error } = await supabase
         .from('dekontlar')
         .insert({
-          staj_id: selectedStaj.id,
-          ogrenci_id: selectedStaj.ogrenci_id,
+          staj_id: stajId,
+          ogrenci_id: ogrenciId,
           isletme_id: Number(isletmeId),
           tarih: dekontFormData.tarih,
+          ay: dekontFormData.ay || new Date().getMonth() + 1,
           aciklama: dekontFormData.aciklama,
-          tutar: parseFloat(dekontFormData.tutar),
+          miktar: parseFloat(dekontFormData.miktar),
           dosya_url: dosyaUrl,
-          onay_durumu: 'beklemede'
+          onay_durumu: 'bekliyor',
+          odeme_tarihi: dekontFormData.tarih
         })
 
       if (error) {
@@ -664,7 +821,7 @@ export default function IsletmeDetayPage() {
       alert('Dekont başarıyla eklendi!')
       setDekontModalOpen(false)
       setSelectedStaj(null)
-      setDekontFormData({ tarih: '', ay: '', aciklama: '', tutar: '', dosya: null })
+      setDekontFormData({ tarih: '', ay: '', aciklama: '', miktar: '', dosya: null, selectedOgrenciId: '' })
       fetchDekontlar()
     } catch (error) {
       console.error('Dekont ekleme hatası:', error)
@@ -681,7 +838,7 @@ export default function IsletmeDetayPage() {
           id,
           tarih,
           aciklama,
-          tutar,
+          miktar,
           dosya_url,
           onay_durumu,
           created_at
@@ -698,7 +855,7 @@ export default function IsletmeDetayPage() {
           tarih: dekont.tarih,
           ay: dekont.ay || '',
           aciklama: dekont.aciklama,
-          tutar: dekont.tutar,
+          miktar: dekont.miktar,
           dosya_url: dekont.dosya_url,
           onay_durumu: dekont.onay_durumu,
           staj_id: staj.id,
@@ -945,12 +1102,14 @@ export default function IsletmeDetayPage() {
                 onOgrenciEkle={() => setOgrenciModalOpen(true)}
                 onDekontEkle={(staj) => {
                   setSelectedStaj(staj)
-                  setDekontFormData({ 
-                    tarih: new Date().toISOString().split('T')[0], 
+                  setDekontModalContext('student')
+                  setDekontFormData({
+                    tarih: new Date().toISOString().split('T')[0],
                     ay: '',
-                    aciklama: '', 
-                    tutar: '', 
-                    dosya: null 
+                    aciklama: '',
+                    miktar: '',
+                    dosya: null,
+                    selectedOgrenciId: ''
                   })
                   setDekontModalOpen(true)
                 }}
@@ -973,11 +1132,34 @@ export default function IsletmeDetayPage() {
             )}
             
             {activeTab === 'belgeler' && (
-              <BelgelerPanel 
+              <BelgelerPanel
                 belgeler={belgeler}
                 isletmeId={Number(isletmeId)}
                 onRefresh={fetchBelgeler}
                 onBelgeEkle={() => setBelgeModalOpen(true)}
+                onFileView={handleFileView}
+                onFileDownload={handleFileDownload}
+              />
+            )}
+            
+            {activeTab === 'dekontlar' && (
+              <DekontlarPanel
+                dekontlar={dekontlar}
+                aktifOgrenciler={aktifOgrenciler}
+                onDekontEkle={() => {
+                  setSelectedStaj(null)
+                  setDekontModalContext('general')
+                  setDekontFormData({
+                    tarih: new Date().toISOString().split('T')[0],
+                    ay: '',
+                    aciklama: '',
+                    miktar: '',
+                    dosya: null,
+                    selectedOgrenciId: ''
+                  })
+                  setDekontModalOpen(true)
+                }}
+                onRefresh={fetchDekontlar}
               />
             )}
           </div>
@@ -1246,19 +1428,45 @@ export default function IsletmeDetayPage() {
         onClose={() => {
           setDekontModalOpen(false)
           setSelectedStaj(null)
-          setDekontFormData({ tarih: '', ay: '', aciklama: '', tutar: '', dosya: null })
+          setDekontFormData({ tarih: '', ay: '', aciklama: '', miktar: '', dosya: null, selectedOgrenciId: '' })
         }}
         title={selectedStaj ? `${selectedStaj.ogrenciler.ad} ${selectedStaj.ogrenciler.soyad} - Dekont Yükle` : 'Dekont Yükle'}
       >
         <div className="space-y-6">
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-            <p className="text-sm text-green-800">
-              <strong>Öğrenci:</strong> {selectedStaj ? `${selectedStaj.ogrenciler.ad} ${selectedStaj.ogrenciler.soyad} (${selectedStaj.ogrenciler.no})` : ''}
-            </p>
-            <p className="text-sm text-green-800">
-              <strong>Alan:</strong> {selectedStaj ? selectedStaj.ogrenciler.alanlar.ad : ''}
-            </p>
-          </div>
+          {dekontModalContext === 'student' && selectedStaj ? (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-green-800">
+                <strong>Öğrenci:</strong> {selectedStaj.ogrenciler.ad} {selectedStaj.ogrenciler.soyad} ({selectedStaj.ogrenciler.no})
+              </p>
+              <p className="text-sm text-green-800">
+                <strong>Alan:</strong> {selectedStaj.ogrenciler.alanlar.ad}
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Öğrenci Seç <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={dekontFormData.selectedOgrenciId}
+                onChange={(e) => setDekontFormData({...dekontFormData, selectedOgrenciId: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                required
+              >
+                <option value="">Öğrenci seçiniz...</option>
+                {aktifOgrenciler.map((staj) => (
+                  <option key={staj.id} value={staj.ogrenci_id}>
+                    {staj.ogrenciler.ad} {staj.ogrenciler.soyad} - {staj.ogrenciler.no} ({staj.ogrenciler.sinif}) - {staj.ogrenciler.alanlar.ad}
+                  </option>
+                ))}
+              </select>
+              {aktifOgrenciler.length === 0 && (
+                <p className="text-sm text-gray-500 mt-2">
+                  Bu işletmede aktif staj yapan öğrenci bulunmuyor.
+                </p>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1289,13 +1497,13 @@ export default function IsletmeDetayPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tutar (₺) <span className="text-red-500">*</span>
+              Miktar (₺) <span className="text-red-500">*</span>
             </label>
             <input
               type="number"
               step="0.01"
-              value={dekontFormData.tutar}
-              onChange={(e) => setDekontFormData({...dekontFormData, tutar: e.target.value})}
+              value={dekontFormData.miktar}
+              onChange={(e) => setDekontFormData({...dekontFormData, miktar: e.target.value})}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
               placeholder="0.00"
               required
@@ -1331,7 +1539,8 @@ export default function IsletmeDetayPage() {
               onClick={() => {
                 setDekontModalOpen(false)
                 setSelectedStaj(null)
-                setDekontFormData({ tarih: '', ay: '', aciklama: '', tutar: '', dosya: null })
+                setDekontModalContext('student')
+                setDekontFormData({ tarih: '', ay: '', aciklama: '', miktar: '', dosya: null, selectedOgrenciId: '' })
               }}
               className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
@@ -1351,16 +1560,20 @@ export default function IsletmeDetayPage() {
 }
 
 // Belgeler Paneli
-function BelgelerPanel({ 
-  belgeler, 
-  isletmeId, 
+function BelgelerPanel({
+  belgeler,
+  isletmeId,
   onRefresh,
-  onBelgeEkle 
-}: { 
+  onBelgeEkle,
+  onFileView,
+  onFileDownload
+}: {
   belgeler: Belge[]
   isletmeId: number
   onRefresh: () => void
   onBelgeEkle: () => void
+  onFileView: (fileUrl: string, bucketName: string) => void
+  onFileDownload: (fileUrl: string, bucketName: string, fileName: string) => void
 }) {
   const formatTur = (tur: string) => {
     switch (tur) {
@@ -1378,7 +1591,7 @@ function BelgelerPanel({
           <h3 className="text-lg font-medium text-gray-900">Belgeler</h3>
           <p className="text-sm text-gray-600">Toplam {belgeler.length} belge yüklendi</p>
         </div>
-        <button 
+        <button
           onClick={onBelgeEkle}
           className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
         >
@@ -1409,20 +1622,15 @@ function BelgelerPanel({
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <button 
-                    onClick={() => window.open(belge.dosya_url, '_blank')}
+                  <button
+                    onClick={() => onFileView(belge.dosya_url!, 'public')}
                     className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all"
                     title="Belgeyi görüntüle"
                   >
                     <Eye className="h-4 w-4" />
                   </button>
-                  <button 
-                    onClick={() => {
-                      const link = document.createElement('a')
-                      link.href = belge.dosya_url!
-                      link.download = belge.ad
-                      link.click()
-                    }}
+                  <button
+                    onClick={() => onFileDownload(belge.dosya_url!, 'public', belge.ad)}
                     className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-all"
                     title="Belgeyi indir"
                   >
@@ -2131,6 +2339,173 @@ function KoordinatorlerPanel({
           <button className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200">
             <Plus className="h-4 w-4 mr-2" />
             İlk Koordinatörü Ata
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Dekontlar Paneli
+function DekontlarPanel({
+  dekontlar,
+  aktifOgrenciler,
+  onDekontEkle,
+  onRefresh
+}: {
+  dekontlar: Dekont[]
+  aktifOgrenciler: Staj[]
+  onDekontEkle: () => void
+  onRefresh: () => void
+}) {
+  const getOnayDurumuRenk = (durum: string) => {
+    switch (durum) {
+      case 'onaylandi':
+        return 'bg-green-100 text-green-800'
+      case 'reddedildi':
+        return 'bg-red-100 text-red-800'
+      default:
+        return 'bg-yellow-100 text-yellow-800'
+    }
+  }
+
+  const getOnayDurumuText = (durum: string) => {
+    switch (durum) {
+      case 'onaylandi':
+        return 'Onaylandı'
+      case 'reddedildi':
+        return 'Reddedildi'
+      case 'beklemede':
+        return 'Beklemede'
+      default:
+        return 'Bekliyor'
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="text-lg font-medium text-gray-900">Dekontlar</h3>
+          <p className="text-sm text-gray-600">Toplam {dekontlar.length} dekont kaydı</p>
+        </div>
+        <button
+          onClick={onDekontEkle}
+          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
+        >
+          <Receipt className="h-4 w-4 mr-2" />
+          Dekont Ekle
+        </button>
+      </div>
+
+      {dekontlar.length > 0 ? (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Öğrenci
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tarih
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Miktar
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Açıklama
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Durum
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    İşlemler
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {dekontlar.map((dekont) => {
+                  const ogrenci = aktifOgrenciler.find(s => s.ogrenci_id === dekont.ogrenci_id)
+                  return (
+                    <tr key={dekont.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-4">
+                            <GraduationCap className="h-5 w-5 text-green-600" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {ogrenci ? `${ogrenci.ogrenciler.ad} ${ogrenci.ogrenciler.soyad}` : dekont.ogrenci_adi || 'Bilinmiyor'}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {ogrenci ? `No: ${ogrenci.ogrenciler.no} • ${ogrenci.ogrenciler.sinif}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {new Date(dekont.tarih).toLocaleDateString('tr-TR')}
+                        </div>
+                        {dekont.ay && (
+                          <div className="text-sm text-gray-500">
+                            {dekont.ay}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-green-600">
+                          {dekont.miktar ? `${dekont.miktar.toLocaleString('tr-TR')} ₺` : '-'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-900 max-w-xs truncate">
+                          {dekont.aciklama}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getOnayDurumuRenk(dekont.onay_durumu || 'bekliyor')}`}>
+                          {getOnayDurumuText(dekont.onay_durumu || 'bekliyor')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center space-x-2">
+                          {dekont.dosya_url && (
+                            <button
+                              onClick={() => window.open(dekont.dosya_url, '_blank')}
+                              className="text-blue-600 hover:text-blue-900 p-1 hover:bg-blue-50 rounded transition-all"
+                              title="Dosyayı görüntüle"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button
+                            className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded transition-all"
+                            title="Dekont sil"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <Receipt className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Henüz dekont yok</h3>
+          <p className="text-gray-600 mb-6">Bu işletme için henüz dekont kaydı bulunmuyor.</p>
+          <button
+            onClick={onDekontEkle}
+            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
+          >
+            <Receipt className="h-4 w-4 mr-2" />
+            İlk Dekontu Ekle
           </button>
         </div>
       )}

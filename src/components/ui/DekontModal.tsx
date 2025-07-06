@@ -25,7 +25,7 @@ export default function DekontModal({
   onSuccess
 }: DekontModalProps) {
   const [loading, setLoading] = useState(false)
-  const [tutar, setTutar] = useState('')
+  const [miktar, setMiktar] = useState('')
   const [aciklama, setAciklama] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -39,8 +39,8 @@ export default function DekontModal({
       return
     }
 
-    if (!tutar || isNaN(Number(tutar))) {
-      setError('Lütfen geçerli bir tutar girin')
+    if (!miktar || isNaN(Number(miktar))) {
+      setError('Lütfen geçerli bir miktar girin')
       return
     }
 
@@ -71,7 +71,7 @@ export default function DekontModal({
         .insert({
           staj_id: ogrenci.staj_id,
           isletme_id: isletmeId,
-          tutar: Number(tutar),
+          miktar: Number(miktar),
           aciklama,
           dosya_url: publicUrl,
           odeme_tarihi: new Date().toISOString()
@@ -99,27 +99,33 @@ export default function DekontModal({
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <p className="text-sm text-gray-500">
-            <span className="font-medium text-gray-900">
-              {ogrenci.ad} {ogrenci.soyad}
-            </span>{' '}
-            isimli öğrenci için dekont yüklüyorsunuz.
-          </p>
-          <p className="text-xs text-gray-400">{ogrenci.sinif}</p>
+          <label
+            htmlFor="ogrenci"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Öğrenci Adı
+          </label>
+          <input
+            type="text"
+            id="ogrenci"
+            value={`${ogrenci.ad} ${ogrenci.soyad} - ${ogrenci.sinif}`}
+            disabled
+            className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 shadow-sm sm:text-sm text-gray-900 font-medium"
+          />
         </div>
 
         <div>
           <label
-            htmlFor="tutar"
+            htmlFor="miktar"
             className="block text-sm font-medium text-gray-700"
           >
-            Tutar (₺)
+            Miktar (₺)
           </label>
           <input
             type="number"
-            id="tutar"
-            value={tutar}
-            onChange={(e) => setTutar(e.target.value)}
+            id="miktar"
+            value={miktar}
+            onChange={(e) => setMiktar(e.target.value)}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
             placeholder="0.00"
             step="0.01"

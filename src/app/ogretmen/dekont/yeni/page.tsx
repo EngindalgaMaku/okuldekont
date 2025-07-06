@@ -24,6 +24,7 @@ export default function YeniDekontPage() {
   const [stajyerler, setStajyerler] = useState<Stajyer[]>([])
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
 
   // Form state
   const [selectedStajyer, setSelectedStajyer] = useState('')
@@ -90,8 +91,38 @@ export default function YeniDekontPage() {
       const selectedStajyerData = stajyerler.find(s => s.id.toString() === selectedStajyer)
       if (!selectedStajyerData) throw new Error('Stajyer bulunamadı')
 
-      // Dosya yükleme işlemi (gerçek uygulamada Supabase Storage kullanılır)
-      let dosyaUrl = `dekont_${Date.now()}_${dekontDosyasi.name}`
+      // Dosya yükleme işlemi
+      const fileName = `dekont_${Date.now()}_${dekontDosyasi.name.replace(/\s/g, '_')}`;
+      const filePath = `${selectedStajyerData.isletme.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('dekontlar')
+        .upload(filePath, dekontDosyasi, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) throw new Error(`Dosya yükleme hatası: ${uploadError.message}`);
+
+      // Public URL'i al
+      const { data: urlData } = supabase.storage
+        .from('dekontlar')
+        .getPublicUrl(filePath);
+      
+      let dosyaUrl = urlData.publicUrl;
+
+      // Eğer public URL çalışmıyorsa signed URL kullan
+      try {
+        const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+          .from('dekontlar')
+          .createSignedUrl(filePath, 31536000); // 1 yıl geçerli
+
+        if (!signedUrlError && signedUrlData) {
+          dosyaUrl = signedUrlData.signedUrl;
+        }
+      } catch (signedUrlErr) {
+        console.warn('Signed URL oluşturulamadı, public URL kullanılıyor:', signedUrlErr);
+      }
 
       const { error } = await supabase
         .from('dekontlar')
@@ -101,23 +132,26 @@ export default function YeniDekontPage() {
           ogretmen_id: ogretmen.id,
           miktar: miktar ? parseFloat(miktar) : null,
           odeme_tarihi: odemeTarihi,
-          dekont_dosyasi: dosyaUrl,
+          dosya_url: dosyaUrl,
           onay_durumu: 'bekliyor'
         })
 
       if (error) throw error
 
-      setSuccess(true)
       // Form sıfırla
       setSelectedStajyer('')
       setMiktar('')
       setOdemeTarihi(new Date().toISOString().split('T')[0])
       setDekontDosyasi(null)
 
-      // 2 saniye sonra panele dön
+      // Başarı modal'ını göster
+      setShowSuccessModal(true)
+      
+      // 3 saniye sonra panele dön
       setTimeout(() => {
-        router.push('/ogretmen')
-      }, 2000)
+        setShowSuccessModal(false)
+        router.push('/ogretmen/panel')
+      }, 3000)
 
     } catch (error) {
       console.error('Dekont gönderme hatası:', error)
@@ -157,11 +191,11 @@ export default function YeniDekontPage() {
           </div>
 
           <div className="px-4 py-5 sm:p-6">
-            {success ? (
+            {showSuccessModal ? (
               <div className="text-center py-12">
-                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
+                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-6">
                   <svg
-                    className="h-6 w-6 text-green-600"
+                    className="h-10 w-10 text-green-600"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -174,12 +208,30 @@ export default function YeniDekontPage() {
                     />
                   </svg>
                 </div>
-                <h3 className="mt-3 text-lg font-medium text-gray-900">
-                  Dekont Başarıyla Gönderildi
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  Dekont Başarıyla Gönderildi! 🎉
                 </h3>
-                <p className="mt-2 text-sm text-gray-500">
-                  Panele yönlendiriliyorsunuz...
+                <p className="text-gray-600 mb-4">
+                  Dekontunuz sisteme kaydedildi ve onay için gönderildi.
                 </p>
+                <div className="text-sm text-gray-500 mb-6">
+                  3 saniye sonra panele yönlendirileceksiniz...
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-green-600 h-2 rounded-full transition-all duration-3000 ease-linear"
+                    style={{
+                      animation: 'progress 3s linear forwards',
+                      width: '0%'
+                    }}
+                  />
+                </div>
+                <style jsx>{`
+                  @keyframes progress {
+                    from { width: 0%; }
+                    to { width: 100%; }
+                  }
+                `}</style>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-6">

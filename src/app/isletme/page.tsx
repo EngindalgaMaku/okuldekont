@@ -62,6 +62,7 @@ interface Belge {
   tur: string
   dosya_url?: string
   yukleme_tarihi: string
+  yukleyen_kisi?: string
 }
 
 type ActiveTab = 'ogrenciler' | 'dekontlar' | 'belgeler'
@@ -97,6 +98,7 @@ export default function PanelPage() {
   const [belgeModalOpen, setBelgeModalOpen] = useState(false)
   const [belgeViewModal, setBelgeViewModal] = useState(false)
   const [selectedBelge, setSelectedBelge] = useState<Belge | null>(null)
+  const [belgeDeleteModalOpen, setBelgeDeleteModalOpen] = useState(false)
 
   // Dekont yönetimi için state'ler
   const [dekontModalOpen, setDekontModalOpen] = useState(false)
@@ -120,6 +122,58 @@ export default function PanelPage() {
     miktar: '',
     dosya: null as File | null
   })
+
+  // Smart file access system - generates fresh signed URLs
+  const getFileUrl = async (storedUrl: string, bucketName: string) => {
+    if (!storedUrl) return null;
+    
+    // Extract file path from stored URL
+    const urlParts = storedUrl.split(`/${bucketName}/`);
+    if (urlParts.length === 2) {
+      const filePath = urlParts[1];
+      
+      // Generate fresh signed URL (valid for 1 hour)
+      const { data, error } = await supabase.storage
+        .from(bucketName)
+        .createSignedUrl(filePath, 3600);
+      
+      if (!error && data) {
+        return data.signedUrl;
+      }
+    }
+    
+    // Fallback to original URL if path extraction fails
+    return storedUrl;
+  };
+
+  // Enhanced file download handler
+  const handleFileDownload = async (fileUrl: string, bucketName: string, fileName: string) => {
+    try {
+      const freshUrl = await getFileUrl(fileUrl, bucketName);
+      if (freshUrl) {
+        const link = document.createElement('a');
+        link.href = freshUrl;
+        link.download = fileName;
+        link.click();
+      }
+    } catch (error) {
+      console.error('File download error:', error);
+      alert('Dosya indirilemedi. Lütfen tekrar deneyiniz.');
+    }
+  };
+
+  // Enhanced file view handler
+  const handleFileView = async (fileUrl: string, bucketName: string) => {
+    try {
+      const freshUrl = await getFileUrl(fileUrl, bucketName);
+      if (freshUrl) {
+        window.open(freshUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('File view error:', error);
+      alert('Dosya açılamadı. Lütfen tekrar deneyiniz.');
+    }
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -270,15 +324,36 @@ export default function PanelPage() {
       // İşletmenin belgelerini getir
       const { data: belgeData, error: belgeError } = await supabase
         .from('belgeler')
-        .select('*')
+        .select(`
+          *,
+          ogretmenler (ad, soyad)
+        `)
         .eq('isletme_id', isletmeData.id)
         .order('yukleme_tarihi', { ascending: false })
 
       if (belgeError) {
         console.error('Belgeleri getirme hatası:', belgeError)
       } else if (belgeData) {
-        setBelgeler(belgeData)
-        setFilteredBelgeler(belgeData)
+        const formattedBelgeler = belgeData.map((belge: any) => {
+          // Kimin yüklediğini belirle
+          let yukleyenKisi = 'Bilinmiyor';
+          if (belge.ogretmen_id && belge.ogretmenler) {
+            yukleyenKisi = `${belge.ogretmenler.ad} ${belge.ogretmenler.soyad} (Öğretmen)`;
+          } else if (belge.ogretmen_id) {
+            yukleyenKisi = 'Öğretmen';
+          } else if (belge.isletme_yukleyen) {
+            yukleyenKisi = 'İşletme';
+          } else {
+            yukleyenKisi = 'Yönetici';
+          }
+
+          return {
+            ...belge,
+            yukleyen_kisi: yukleyenKisi
+          };
+        });
+        setBelgeler(formattedBelgeler)
+        setFilteredBelgeler(formattedBelgeler)
       }
     } catch (error) {
       console.error('Veri getirme hatası:', error)
@@ -312,11 +387,6 @@ export default function PanelPage() {
   }, [belgeler, belgeSearchTerm, belgeTurFilter, isletme])
 
   const handleBelgeEkle = async () => {
-    if (!belgeFormData.ad.trim()) {
-      alert('Belge adı gereklidir!')
-      return
-    }
-
     const belgeTuru = belgeFormData.tur === 'other' ? belgeFormData.customTur : belgeFormData.tur
 
     if (!belgeTuru.trim()) {
@@ -335,6 +405,28 @@ export default function PanelPage() {
     }
 
     try {
+      // Aynı türde kaç belge var, sayı no belirle
+      const ayniBelgeSayisi = belgeler.filter(b => b.tur === belgeTuru).length;
+      const belgeNo = String(ayniBelgeSayisi + 1).padStart(3, '0');
+
+      // Belge adını otomatik oluştur
+      const isletmeAdi = isletme.ad.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+      let belgeTuruAdi = '';
+      switch (belgeTuru) {
+        case 'sozlesme':
+          belgeTuruAdi = 'Sozlesme';
+          break;
+        case 'fesih_belgesi':
+          belgeTuruAdi = 'Fesih_Belgesi';
+          break;
+        case 'usta_ogretici_belgesi':
+          belgeTuruAdi = 'Usta_Ogretici_Belgesi';
+          break;
+        default:
+          belgeTuruAdi = belgeTuru.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+      }
+      const otomatikBelgeAdi = `${isletmeAdi}_${belgeTuruAdi}_${belgeNo}`;
+
       const file = belgeFormData.dosya;
       const fileName = `${Date.now()}-${file.name.replace(/\s/g, '_')}`;
       const filePath = `${isletme.id}/${fileName}`;
@@ -360,10 +452,10 @@ export default function PanelPage() {
         .from('belgeler')
         .insert({
           isletme_id: isletme.id,
-          ad: belgeFormData.ad,
+          ad: otomatikBelgeAdi,
           tur: belgeTuru,
           dosya_url: dosyaUrl,
-          user_id: user.id
+          isletme_yukleyen: true
         })
         .select()
 
@@ -390,34 +482,32 @@ export default function PanelPage() {
       return;
     }
     
-    if (confirm(`'${belge.ad}' adlı belgeyi kalıcı olarak silmek istediğinizden emin misiniz?`)) {
-      try {
-        const urlParts = belge.dosya_url.split('/belgeler/');
-        if (urlParts.length < 2) {
-          throw new Error("Geçersiz dosya URL formatı. Yol çıkarılamadı.");
-        }
-        const filePath = urlParts[1];
-        
-        const { error: storageError } = await supabase.storage.from('belgeler').remove([filePath]);
-        if (storageError && storageError.message !== 'The resource was not found') {
-          console.error("Depolama silme hatası:", storageError);
-          alert(`Dosya depolamadan silinirken bir hata oluştu: ${storageError.message}`);
-        }
-
-        const { error: dbError } = await supabase.from('belgeler').delete().eq('id', belge.id);
-        if (dbError) {
-          throw new Error(`Veritabanı silme hatası: ${dbError.message}`);
-        }
-
-        setBelgeler(belgeler.filter(b => b.id !== belge.id));
-        if (selectedBelge && selectedBelge.id === belge.id) {
-          setBelgeViewModal(false);
-          setSelectedBelge(null);
-        }
-      } catch (error: any) {
-        console.error('Belge silinirken beklenmedik hata:', error);
-        alert(`Bir hata oluştu: ${error.message}`);
+    try {
+      const urlParts = belge.dosya_url.split('/belgeler/');
+      if (urlParts.length < 2) {
+        throw new Error("Geçersiz dosya URL formatı. Yol çıkarılamadı.");
       }
+      const filePath = urlParts[1];
+      
+      const { error: storageError } = await supabase.storage.from('belgeler').remove([filePath]);
+      if (storageError && storageError.message !== 'The resource was not found') {
+        console.error("Depolama silme hatası:", storageError);
+        alert(`Dosya depolamadan silinirken bir hata oluştu: ${storageError.message}`);
+      }
+
+      const { error: dbError } = await supabase.from('belgeler').delete().eq('id', belge.id);
+      if (dbError) {
+        throw new Error(`Veritabanı silme hatası: ${dbError.message}`);
+      }
+
+      setBelgeler(belgeler.filter(b => b.id !== belge.id));
+      if (selectedBelge && selectedBelge.id === belge.id) {
+        setBelgeViewModal(false);
+        setSelectedBelge(null);
+      }
+    } catch (error: any) {
+      console.error('Belge silinirken beklenmedik hata:', error);
+      alert(`Bir hata oluştu: ${error.message}`);
     }
   };
 
@@ -985,19 +1075,16 @@ export default function PanelPage() {
                             </div>
                             <div className="flex items-center gap-2 self-end sm:self-auto">
                               {dekont.dosya_url && (
-                                <a
-                                  href={dekont.dosya_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  download
+                                <button
+                                  onClick={() => handleFileDownload(dekont.dosya_url!, 'dekontlar', `dekont_${dekont.id}.pdf`)}
                                   className="p-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                                   title="Dekontu İndir"
                                 >
                                   <Download className="h-5 w-5" />
-                                </a>
+                                </button>
                               )}
-                              {/* Sadece bekliyor ise sil */}
-                              {dekont.onay_durumu === 'bekliyor' && (
+                              {/* Bekliyor veya reddedildi ise sil */}
+                              {(dekont.onay_durumu === 'bekliyor' || dekont.onay_durumu === 'reddedildi') && (
                                 <button
                                   title="Dekontu Sil"
                                   className="p-2 text-red-600 hover:text-white bg-red-50 hover:bg-red-600 rounded-lg transition-colors"
@@ -1110,19 +1197,38 @@ export default function PanelPage() {
                               <h3 className="text-lg font-medium text-gray-900">
                                 {belge.ad}
                               </h3>
-                              <p className="text-sm text-gray-500">{formatBelgeTur(belge.tur)}</p>
+                              <div className="flex items-center space-x-3 mt-2 text-sm">
+                                <div className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg font-medium">
+                                  {formatBelgeTur(belge.tur)}
+                                </div>
+                                {belge.yukleyen_kisi && (
+                                  <div className="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg font-medium">
+                                    {belge.yukleyen_kisi}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                           <div className="flex items-center space-x-2">
                             {belge.dosya_url && (
                               <button
-                                onClick={() => window.open(belge.dosya_url, '_blank')}
+                                onClick={() => handleFileView(belge.dosya_url!, 'belgeler')}
                                 className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
                               >
                                 <Download className="h-4 w-4 mr-1.5" />
                                 İndir
                               </button>
                             )}
+                            <button
+                              onClick={() => {
+                                setSelectedBelge(belge)
+                                setBelgeDeleteModalOpen(true)
+                              }}
+                              className="flex items-center px-3 py-1.5 text-sm text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4 mr-1.5" />
+                              Sil
+                            </button>
                           </div>
                         </div>
                         <div className="mt-4">
@@ -1185,6 +1291,28 @@ export default function PanelPage() {
       {/* Modals */}
       <Modal isOpen={dekontModalOpen} onClose={() => setDekontModalOpen(false)} title="Yeni Dekont Ekle">
         <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Öğrenci Adı <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={selectedOgrenci?.id || ''}
+              onChange={(e) => {
+                const ogrenci = ogrenciler.find(o => o.id === e.target.value)
+                setSelectedOgrenci(ogrenci || null)
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            >
+              <option value="">Öğrenci Seçiniz</option>
+              {ogrenciler.map((ogrenci) => (
+                <option key={ogrenci.id} value={ogrenci.id}>
+                  {ogrenci.ad} {ogrenci.soyad} - {ogrenci.sinif}
+                </option>
+              ))}
+            </select>
+          </div>
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Dekont Dönemi <span className="text-red-500">*</span>
@@ -1308,19 +1436,6 @@ export default function PanelPage() {
 
       <Modal isOpen={belgeModalOpen} onClose={() => setBelgeModalOpen(false)} title="Yeni Belge Ekle">
         <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Belge Adı
-            </label>
-            <input
-              type="text"
-              value={belgeFormData.ad}
-              onChange={(e) => setBelgeFormData({...belgeFormData, ad: e.target.value})}
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="Belge adını giriniz"
-            />
-          </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Belge Türü
@@ -1531,19 +1646,14 @@ export default function PanelPage() {
                       <span className="text-sm text-gray-900">Dekont Belgesi</span>
                     </div>
                     <div className="flex space-x-2">
-                      <button 
-                        onClick={() => window.open(selectedDekont.dosya_url, '_blank')}
+                      <button
+                        onClick={() => handleFileView(selectedDekont.dosya_url!, 'dekontlar')}
                         className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all"
                       >
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button 
-                        onClick={() => {
-                          const link = document.createElement('a')
-                          link.href = selectedDekont.dosya_url!
-                          link.download = `dekont_${selectedDekont.id}.pdf`
-                          link.click()
-                        }}
+                      <button
+                        onClick={() => handleFileDownload(selectedDekont.dosya_url!, 'dekontlar', `dekont_${selectedDekont.id}.pdf`)}
                         className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-all"
                         title="Dosyayı indir"
                       >
@@ -1562,7 +1672,7 @@ export default function PanelPage() {
             </div>
 
             <div className="flex justify-end pt-4 gap-2">
-              {selectedDekont.onay_durumu === 'bekliyor' && (
+              {(selectedDekont.onay_durumu === 'bekliyor' || selectedDekont.onay_durumu === 'reddedildi') && (
                 <button
                   onClick={async () => {
                     if (!window.confirm('Bu dekontu silmek istediğinize emin misiniz?')) return;
@@ -1597,6 +1707,58 @@ export default function PanelPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Belge Silme Onay Modalı */}
+      <Modal isOpen={belgeDeleteModalOpen} onClose={() => setBelgeDeleteModalOpen(false)} title="Belgeyi Sil">
+        <div className="space-y-4">
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="h-5 w-5 text-red-600" />
+              </div>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">Belgeyi silmek istediğinize emin misiniz?</h3>
+              {selectedBelge && (
+                <div className="mt-2">
+                  <p className="text-sm text-gray-600">
+                    <strong>Belge:</strong> {selectedBelge.ad}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <strong>Tür:</strong> {formatBelgeTur(selectedBelge.tur)}
+                  </p>
+                </div>
+              )}
+              <p className="text-sm text-red-600 mt-3 font-medium">
+                ⚠️ Bu işlem geri alınamaz! Belge kalıcı olarak silinecektir.
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
+              onClick={() => {
+                setBelgeDeleteModalOpen(false)
+                setSelectedBelge(null)
+              }}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Vazgeç
+            </button>
+            <button
+              onClick={() => {
+                if (selectedBelge) {
+                  handleBelgeSil(selectedBelge)
+                  setBelgeDeleteModalOpen(false)
+                }
+              }}
+              className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Evet, Sil
+            </button>
+          </div>
+        </div>
       </Modal>
 
       <footer className="w-full bg-gradient-to-br from-indigo-900 to-indigo-800 text-white py-4 fixed bottom-0 left-0">

@@ -49,6 +49,7 @@ interface Belge {
   dosya_url: string;
   belge_turu: string;
   yukleme_tarihi: string;
+  yukleyen_kisi?: string;
 }
 
 const TeacherPanel = () => {
@@ -73,6 +74,7 @@ const TeacherPanel = () => {
   const [filteredBelgeler, setFilteredBelgeler] = useState<Belge[]>([]);
   const [belgeSearchTerm, setBelgeSearchTerm] = useState('');
   const [belgeTurFilter, setBelgeTurFilter] = useState<string>('all');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     const checkLocalStorage = () => {
@@ -189,7 +191,7 @@ const TeacherPanel = () => {
             id: d.id,
             isletme_ad: d.isletmeler.ad,
             ogrenci_ad: d.stajlar ? `${d.stajlar.ogrenciler.ad} ${d.stajlar.ogrenciler.soyad}` : 'İlişkili Öğrenci Yok',
-            miktar: d.tutar,
+            miktar: d.miktar,
             odeme_tarihi: d.odeme_tarihi,
             onay_durumu: d.onay_durumu,
             ay: d.ay,
@@ -210,7 +212,8 @@ const TeacherPanel = () => {
           .from('belgeler')
           .select(`
             *,
-            isletmeler (ad)
+            isletmeler (ad),
+            ogretmenler (ad, soyad)
           `)
           .in('isletme_id', isletmeIds)
           .order('created_at', { ascending: false });
@@ -218,14 +221,27 @@ const TeacherPanel = () => {
         if (belgeError) {
           console.error('Belgeleri getirme hatası:', belgeError);
         } else if (belgeData) {
-          const formattedBelgeler = belgeData.map((belge: any) => ({
-            id: belge.id,
-            isletme_ad: belge.isletmeler?.ad || 'Bilinmeyen İşletme',
-            dosya_adi: belge.dosya_adi || belge.ad,
-            dosya_url: belge.dosya_url,
-            belge_turu: belge.belge_turu || belge.tur,
-            yukleme_tarihi: belge.created_at
-          }));
+          const formattedBelgeler = belgeData.map((belge: any) => {
+            // Kimin yüklediğini belirle
+            let yukleyenKisi = 'Bilinmiyor';
+            if (belge.ogretmen_id && belge.ogretmenler) {
+              yukleyenKisi = `${belge.ogretmenler.ad} ${belge.ogretmenler.soyad} (Öğretmen)`;
+            } else if (belge.ogretmen_id) {
+              yukleyenKisi = 'Öğretmen';
+            } else {
+              yukleyenKisi = 'İşletme';
+            }
+
+            return {
+              id: belge.id,
+              isletme_ad: belge.isletmeler?.ad || 'Bilinmeyen İşletme',
+              dosya_adi: belge.dosya_adi || belge.ad,
+              dosya_url: belge.dosya_url,
+              belge_turu: belge.belge_turu || belge.tur,
+              yukleme_tarihi: belge.created_at,
+              yukleyen_kisi: yukleyenKisi
+            };
+          });
           setBelgeler(formattedBelgeler);
           setFilteredBelgeler(formattedBelgeler);
         }
@@ -324,15 +340,32 @@ const TeacherPanel = () => {
 
       const { error: uploadError } = await supabase.storage
         .from('dekontlar')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
       if (uploadError) throw new Error(`Dosya yükleme hatası: ${uploadError.message}`);
 
+      // Public URL'i al - bucket public ise
       const { data: urlData } = supabase.storage
         .from('dekontlar')
         .getPublicUrl(filePath);
       
-      const dosyaUrl = urlData.publicUrl;
+      let dosyaUrl = urlData.publicUrl;
+
+      // Eğer public URL çalışmıyorsa signed URL kullan
+      try {
+        const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+          .from('dekontlar')
+          .createSignedUrl(filePath, 31536000); // 1 yıl geçerli
+
+        if (!signedUrlError && signedUrlData) {
+          dosyaUrl = signedUrlData.signedUrl;
+        }
+      } catch (signedUrlErr) {
+        console.warn('Signed URL oluşturulamadı, public URL kullanılıyor:', signedUrlErr);
+      }
 
       const { data, error } = await supabase
         .from('dekontlar')
@@ -340,7 +373,7 @@ const TeacherPanel = () => {
           staj_id: formData.staj_id,
           isletme_id: selectedIsletme.id,
           ogretmen_id: teacher.id,
-          tutar: formData.tutar,
+          miktar: formData.miktar,
           ay: formData.ay.toString(),
           yil: formData.yil,
           aciklama: formData.aciklama || null,
@@ -360,14 +393,22 @@ const TeacherPanel = () => {
         id: data.id,
         isletme_ad: selectedIsletme.ad,
         ogrenci_ad: `${selectedStudent.ad} ${selectedStudent.soyad}`,
-        miktar: data.tutar,
+        miktar: data.miktar,
         yukleyen_kisi: `${teacher.ad} ${teacher.soyad} (Öğretmen)`,
         created_at: data.created_at
       };
 
       setDekontlar(prev => [yeniDekont, ...prev]);
       setDekontUploadModalOpen(false);
-      alert('Dekont başarıyla yüklendi!');
+      
+      // Başarı modal'ını göster
+      setShowSuccessModal(true);
+      
+      // 3 saniye sonra dekont listesine yönlendir
+      setTimeout(() => {
+        setShowSuccessModal(false);
+        setActiveTab('dekontlar');
+      }, 3000);
 
     } catch (error: any) {
       alert(`Bir hata oluştu: ${error.message}`);
@@ -384,27 +425,81 @@ const TeacherPanel = () => {
   const handleBelgeSubmit = async (formData: { isletmeId: string; dosyaAdi: string; dosya: File; belgeTuru: string; }) => {
     setIsSubmitting(true);
     try {
+      // İşletme adını al
+      const isletme = isletmeler.find(i => i.id === formData.isletmeId);
+      if (!isletme) throw new Error('İşletme bulunamadı');
+
+      // Aynı türde kaç belge var, sayı no belirle
+      const { data: existingBelgeler } = await supabase
+        .from('belgeler')
+        .select('id')
+        .eq('isletme_id', formData.isletmeId)
+        .eq('tur', formData.belgeTuru);
+      
+      const belgeNo = String((existingBelgeler?.length || 0) + 1).padStart(3, '0');
+
+      // Belge adını otomatik oluştur
+      const isletmeAdi = isletme.ad.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+      let belgeTuruAdi = '';
+      switch (formData.belgeTuru) {
+        case 'Sözleşme':
+        case 'sozlesme':
+          belgeTuruAdi = 'Sozlesme';
+          break;
+        case 'Fesih Belgesi':
+        case 'fesih_belgesi':
+          belgeTuruAdi = 'Fesih_Belgesi';
+          break;
+        case 'Usta Öğreticilik Belgesi':
+        case 'usta_ogretici_belgesi':
+          belgeTuruAdi = 'Usta_Ogretici_Belgesi';
+          break;
+        default:
+          belgeTuruAdi = formData.belgeTuru.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+      }
+      const otomatikBelgeAdi = `${isletmeAdi}_${belgeTuruAdi}_${belgeNo}`;
+
       const fileExt = formData.dosya.name.split('.').pop();
-      const fileName = `${formData.belgeTuru}-${Date.now()}.${fileExt}`;
+      const fileName = `${Date.now()}-${formData.dosya.name.replace(/\s/g, '_')}`;
       const filePath = `belgeler/${formData.isletmeId}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('belgeler')
-        .upload(filePath, formData.dosya);
+        .upload(filePath, formData.dosya, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
       if (uploadError) throw uploadError;
 
+      // Public URL'i al
       const { data: { publicUrl } } = supabase.storage
         .from('belgeler')
         .getPublicUrl(filePath);
+      
+      let dosyaUrl = publicUrl;
+
+      // Eğer public URL çalışmıyorsa signed URL kullan
+      try {
+        const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+          .from('belgeler')
+          .createSignedUrl(filePath, 31536000); // 1 yıl geçerli
+
+        if (!signedUrlError && signedUrlData) {
+          dosyaUrl = signedUrlData.signedUrl;
+        }
+      } catch (signedUrlErr) {
+        console.warn('Signed URL oluşturulamadı, public URL kullanılıyor:', signedUrlErr);
+      }
 
       const { error: dbError } = await supabase
         .from('belgeler')
         .insert({
           isletme_id: formData.isletmeId,
-          dosya_adi: formData.dosyaAdi,
-          dosya_url: publicUrl,
-          belge_turu: formData.belgeTuru,
+          ad: otomatikBelgeAdi,
+          dosya_url: dosyaUrl,
+          tur: formData.belgeTuru,
+          ogretmen_id: teacher?.id
         });
 
       if (dbError) throw dbError;
@@ -440,6 +535,67 @@ const TeacherPanel = () => {
     const files = e.dataTransfer.files;
     if (files.length > 0) {
       setSelectedFile(files[0]);
+    }
+  };
+
+  // Dosya erişimi için fresh signed URL oluştur
+  const getFileUrl = async (storedUrl: string, bucketName: string) => {
+    try {
+      // Eğer URL signed URL'se ve expire olmamışsa kullan
+      if (storedUrl.includes('token=') && storedUrl.includes('exp=')) {
+        return storedUrl;
+      }
+
+      // Public URL'den dosya yolunu çıkar
+      const urlParts = storedUrl.split(`/${bucketName}/`);
+      if (urlParts.length === 2) {
+        const filePath = urlParts[1];
+        
+        // Fresh signed URL oluştur
+        const { data, error } = await supabase.storage
+          .from(bucketName)
+          .createSignedUrl(filePath, 3600); // 1 saat geçerli
+
+        if (!error && data) {
+          return data.signedUrl;
+        }
+      }
+
+      // Fallback olarak orijinal URL'i döndür
+      return storedUrl;
+    } catch (error) {
+      console.error('URL oluşturma hatası:', error);
+      return storedUrl;
+    }
+  };
+
+  // Dosya indirme handler'ı
+  const handleFileDownload = async (dosyaUrl: string, fileName: string, bucketName: string = 'dekontlar') => {
+    try {
+      const freshUrl = await getFileUrl(dosyaUrl, bucketName);
+      
+      // Dosyayı indir
+      const link = document.createElement('a');
+      link.href = freshUrl;
+      link.download = fileName;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Dosya indirme hatası:', error);
+      alert('Dosya indirilemedi. Lütfen tekrar deneyin.');
+    }
+  };
+
+  // Dosya görüntüleme handler'ı
+  const handleFileView = async (dosyaUrl: string, bucketName: string = 'dekontlar') => {
+    try {
+      const freshUrl = await getFileUrl(dosyaUrl, bucketName);
+      window.open(freshUrl, '_blank');
+    } catch (error) {
+      console.error('Dosya görüntüleme hatası:', error);
+      alert('Dosya görüntülenemedi. Lütfen tekrar deneyin.');
     }
   };
 
@@ -706,16 +862,13 @@ const TeacherPanel = () => {
                           </div>
                           <div className="flex items-center gap-2 self-end sm:self-auto">
                             {dekont.dosya_url && (
-                              <a
-                                href={dekont.dosya_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                download
+                              <button
+                                onClick={() => handleFileDownload(dekont.dosya_url!, `dekont-${dekont.ogrenci_ad}-${dekont.ay}-${dekont.yil}`, 'dekontlar')}
                                 className="p-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                                 title="Dekontu İndir"
                               >
                                 <Download className="h-5 w-5" />
-                              </a>
+                              </button>
                             )}
                             {dekont.onay_durumu === 'bekliyor' && (
                               <button
@@ -841,13 +994,18 @@ const TeacherPanel = () => {
                               <div className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg font-medium">
                                 {formatBelgeTur(belge.belge_turu)}
                               </div>
+                              {belge.yukleyen_kisi && (
+                                <div className="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg font-medium">
+                                  {belge.yukleyen_kisi}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
                           {belge.dosya_url && (
                             <button
-                              onClick={() => window.open(belge.dosya_url, '_blank')}
+                              onClick={() => handleFileView(belge.dosya_url, 'belgeler')}
                               className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
                             >
                               <Download className="h-4 w-4 mr-1.5" />
@@ -949,6 +1107,41 @@ const TeacherPanel = () => {
         </Modal>
       )}
 
+      {/* Başarı Modal'ı */}
+      <Modal isOpen={showSuccessModal} onClose={() => setShowSuccessModal(false)} title="">
+        <div className="text-center py-8">
+          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-6">
+            <CheckCircle className="h-10 w-10 text-green-600" />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            Dekont Başarıyla Yüklendi! 🎉
+          </h3>
+          <p className="text-gray-600 mb-4">
+            Dekontunuz sisteme kaydedildi ve onay için gönderildi.
+          </p>
+          <div className="text-sm text-gray-500">
+            3 saniye sonra dekont listesine yönlendirileceksiniz...
+          </div>
+          <div className="mt-6">
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-green-600 h-2 rounded-full transition-all duration-3000 ease-linear"
+                style={{
+                  animation: 'progress 3s linear forwards',
+                  width: '0%'
+                }}
+              />
+            </div>
+          </div>
+        </div>
+        <style jsx>{`
+          @keyframes progress {
+            from { width: 0%; }
+            to { width: 100%; }
+          }
+        `}</style>
+      </Modal>
+
       {/* Belge Yükleme Modalı */}
       <BelgeUploadModal
         isOpen={isBelgeUploadModalOpen}
@@ -957,6 +1150,7 @@ const TeacherPanel = () => {
         onSubmit={handleBelgeSubmit}
         isLoading={isSubmitting}
         selectedIsletmeId={selectedIsletme?.id}
+        onFileView={handleFileView}
       />
     </div>
   );
@@ -970,6 +1164,7 @@ interface BelgeUploadModalProps {
   onSubmit: (formData: { isletmeId: string; dosyaAdi: string; dosya: File; belgeTuru: string; }) => Promise<void>;
   isLoading: boolean;
   selectedIsletmeId?: string;
+  onFileView: (dosyaUrl: string, bucketName?: string) => Promise<void>;
 }
 
 const BelgeUploadModal = ({
@@ -979,6 +1174,7 @@ const BelgeUploadModal = ({
   onSubmit,
   isLoading,
   selectedIsletmeId = '',
+  onFileView,
 }: BelgeUploadModalProps) => {
   const [selectedIsletme, setSelectedIsletme] = useState<string>(selectedIsletmeId);
   const [belgeTuru, setBelgeTuru] = useState('');
@@ -1101,7 +1297,7 @@ const BelgeUploadModal = ({
                       </div>
                     </div>
                     <button
-                      onClick={() => window.open(belge.dosya_url, '_blank')}
+                      onClick={() => onFileView(belge.dosya_url, 'belgeler')}
                       className="p-2 text-gray-400 hover:text-indigo-600 rounded-full hover:bg-gray-100"
                     >
                       <Download className="h-5 w-5" />

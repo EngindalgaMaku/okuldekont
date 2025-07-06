@@ -41,6 +41,9 @@ interface Ogrenci {
   soyad: string
   no: string
   sinif_id: string
+  sinif?: string
+  isletme_adi?: string
+  staj_durumu?: string
 }
 
 interface OgrenciFormData {
@@ -82,6 +85,7 @@ export default function AlanDetayPage() {
   const [ogretmenler, setOgretmenler] = useState<Ogretmen[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSinifFilter, setSelectedSinifFilter] = useState('')
+  const [selectedOgrenciSinif, setSelectedOgrenciSinif] = useState('')
   const [filteredOgrenciler, setFilteredOgrenciler] = useState<Ogrenci[]>([])
   const [isletmeler, setIsletmeler] = useState<Isletme[]>([])
 
@@ -155,9 +159,13 @@ export default function AlanDetayPage() {
     aktif: false
   })
 
-  // Silme onayı için state
+  // Silme onayı için state (alan silme)
   const [silmeOnayi, setSilmeOnayi] = useState('')
   const [silmeHatasi, setSilmeHatasi] = useState('')
+
+  // Sınıf silme onayı için state
+  const [sinifSilmeOnayi, setSinifSilmeOnayi] = useState('')
+  const [sinifSilmeHatasi, setSinifSilmeHatasi] = useState('')
 
   useEffect(() => {
     if (alanId) {
@@ -182,7 +190,7 @@ export default function AlanDetayPage() {
   // Öğrencileri filtreleme useEffect'i
   useEffect(() => {
     if (selectedSinifFilter) {
-      setFilteredOgrenciler(ogrenciler.filter(ogrenci => ogrenci.sinif_id === selectedSinifFilter))
+      setFilteredOgrenciler(ogrenciler.filter(ogrenci => ogrenci.sinif === selectedSinifFilter))
     } else {
       setFilteredOgrenciler(ogrenciler)
     }
@@ -237,30 +245,35 @@ export default function AlanDetayPage() {
   }
 
   const fetchOgrenciler = async () => {
-    // Öğrencileri ve işletme bilgilerini çek
-    const { data, error } = await supabase
-      .from('ogrenciler')
-      .select(`
-        *,
-        isletmeler(ad)
-      `)
-      .eq('alan_id', alanId)
-      .order('sinif', { ascending: true })
-      .order('ad', { ascending: true })
+    try {
+      // Öğrencileri ve işletme bilgilerini çek
+      const { data, error } = await supabase
+        .from('ogrenciler')
+        .select(`
+          *,
+          isletmeler(ad)
+        `)
+        .eq('alan_id', alanId)
+        .order('sinif', { ascending: true })
+        .order('ad', { ascending: true })
 
-    if (error) {
-      console.error('Öğrenciler alınırken hata:', error)
-      return
+      if (error) {
+        console.error('Öğrenciler alınırken hata:', error)
+        return
+      }
+
+      // İşletme adını düzgün formata çevir
+      const ogrencilerWithInfo = (data || []).map((ogrenci: any) => ({
+        ...ogrenci,
+        isletme_adi: ogrenci.isletmeler?.ad || null,
+        staj_durumu: ogrenci.isletme_id ? 'aktif' : 'isletmesi_yok'
+      }))
+
+      setOgrenciler(ogrencilerWithInfo)
+    } catch (error) {
+      console.error('Öğrenciler yüklenirken beklenmeyen hata:', error)
+      setOgrenciler([])
     }
-
-         // İşletme adını düzgün formata çevir
-     const ogrencilerWithIsletme = (data || []).map((ogrenci: any) => ({
-       ...ogrenci,
-       isletme_adi: ogrenci.isletmeler?.ad || null,
-       staj_durumu: ogrenci.isletme_id ? 'aktif' : 'isletmesi_yok'
-     }))
-
-    setOgrenciler(ogrencilerWithIsletme)
   }
 
   const fetchOgretmenler = async () => {
@@ -408,39 +421,37 @@ export default function AlanDetayPage() {
 
   const handleOgrenciEkle = async () => {
     if (!ogrenciFormData.ad.trim() || !ogrenciFormData.soyad.trim() ||
-        !ogrenciFormData.no.trim() || !ogrenciFormData.sinif_id.trim()) {
+        !ogrenciFormData.no.trim() || !ogrenciFormData.sinif_id) {
       toast.error('Lütfen tüm alanları doldurun')
       return
     }
 
     try {
-      const { data, error } = await supabase
+      setSubmitLoading(true)
+      const { error } = await supabase
         .from('ogrenciler')
         .insert({
           ad: ogrenciFormData.ad.trim(),
           soyad: ogrenciFormData.soyad.trim(),
           no: ogrenciFormData.no.trim(),
-          sinif_id: ogrenciFormData.sinif_id.trim(),
+          sinif: ogrenciFormData.sinif_id,
           alan_id: params.id
         })
-        .select()
 
       if (error) throw error
 
-      const formattedOgrenciler = data.map(ogrenci => ({
-        id: ogrenci.id,
-        ad: ogrenci.ad,
-        soyad: ogrenci.soyad,
-        no: ogrenci.no,
-        sinif_id: ogrenci.sinif_id
-      }))
-
-      setOgrenciler([...ogrenciler, ...formattedOgrenciler])
+      // Verileri yeniden yükle
+      await fetchOgrenciler()
+      await fetchSiniflar() // Sınıf sayılarını güncelle
+      
       setOgrenciModalOpen(false)
       setOgrenciFormData({ ad: '', soyad: '', no: '', sinif_id: '' })
+      toast.success('Öğrenci başarıyla eklendi')
     } catch (error) {
       console.error('Öğrenci eklenirken hata:', error)
-      alert('Öğrenci eklenirken bir hata oluştu')
+      toast.error('Öğrenci eklenirken bir hata oluştu')
+    } finally {
+      setSubmitLoading(false)
     }
   }
 
@@ -454,15 +465,15 @@ export default function AlanDetayPage() {
       ad: ogrenci.ad,
       soyad: ogrenci.soyad,
       no: ogrenci.no,
-      sinif: ogrenci.sinif_id
+      sinif: ogrenci.sinif || ''
     })
     setEditOgrenciModal(true)
   }
 
   const handleOgrenciGuncelle = async () => {
-    if (!selectedOgrenci || !editOgrenciFormData.ad.trim() || 
-        !editOgrenciFormData.soyad.trim() || !editOgrenciFormData.no.trim() || 
-        !editOgrenciFormData.sinif.trim()) {
+    if (!selectedOgrenci || !editOgrenciFormData.ad.trim() ||
+        !editOgrenciFormData.soyad.trim() || !editOgrenciFormData.no.trim() ||
+        !editOgrenciFormData.sinif) {
       alert('Lütfen tüm alanları doldurun!')
       return
     }
@@ -474,7 +485,7 @@ export default function AlanDetayPage() {
         ad: editOgrenciFormData.ad.trim(),
         soyad: editOgrenciFormData.soyad.trim(),
         no: editOgrenciFormData.no.trim(),
-        sinif_id: editOgrenciFormData.sinif.trim()
+        sinif: editOgrenciFormData.sinif
       })
       .eq('id', selectedOgrenci.id)
 
@@ -482,8 +493,8 @@ export default function AlanDetayPage() {
       alert('Öğrenci güncellenirken hata oluştu: ' + error.message)
     } else {
       setEditOgrenciModal(false)
-      fetchOgrenciler()
-      fetchSiniflar() // Sınıf sayılarını güncelle
+      await fetchOgrenciler()
+      await fetchSiniflar() // Sınıf sayılarını güncelle
     }
     setSubmitLoading(false)
   }
@@ -1017,6 +1028,20 @@ export default function AlanDetayPage() {
               </button>
               <button
                 onClick={() => {
+                  setActiveTab('ogrenciler')
+                  router.replace(`/admin/alanlar/${alanId}?tab=ogrenciler`)
+                }}
+                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${
+                  activeTab === 'ogrenciler'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <User className="h-5 w-5" />
+                Öğrenciler ({ogrenciler.length})
+              </button>
+              <button
+                onClick={() => {
                   setActiveTab('isletmeler')
                   router.replace(`/admin/alanlar/${alanId}?tab=isletmeler`)
                 }}
@@ -1076,8 +1101,12 @@ export default function AlanDetayPage() {
                     {siniflar.map((sinif) => (
                       <div key={sinif.id} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-shadow duration-200">
                         <div className="flex items-center justify-between mb-3">
-                          <Link
-                            href={`/admin/alanlar/${alanId}/siniflar/${sinif.id}`}
+                          <button
+                            onClick={() => {
+                              setActiveTab('ogrenciler')
+                              setSelectedSinifFilter(sinif.ad)
+                              router.replace(`/admin/alanlar/${alanId}?tab=ogrenciler`)
+                            }}
                             className="flex items-center flex-1 text-left hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors duration-200"
                           >
                             <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center mr-3">
@@ -1090,7 +1119,7 @@ export default function AlanDetayPage() {
                                 <p className="text-xs text-indigo-600 font-medium">{sinif.dal}</p>
                               )}
                             </div>
-                          </Link>
+                          </button>
                           <div className="flex space-x-2">
                             <button
                               onClick={(e) => {
@@ -1098,17 +1127,9 @@ export default function AlanDetayPage() {
                                 handleSinifDuzenle(sinif)
                               }}
                               className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200"
+                              title="Sınıfı Düzenle"
                             >
                               <Edit className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleSinifSil(sinif)
-                              }}
-                              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200"
-                            >
-                              <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
                         </div>
@@ -1120,6 +1141,99 @@ export default function AlanDetayPage() {
                     <School className="mx-auto h-12 w-12 text-gray-400" />
                     <h3 className="mt-2 text-sm font-medium text-gray-900">Henüz sınıf yok</h3>
                     <p className="mt-1 text-sm text-gray-500">Bu alan için henüz sınıf eklenmemiş.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'ogrenciler' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900">Öğrenciler</h2>
+                  <div className="flex gap-3">
+                    {/* Sınıf filtresi */}
+                    <select
+                      value={selectedSinifFilter}
+                      onChange={(e) => setSelectedSinifFilter(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Tüm sınıflar</option>
+                      {siniflar.map((sinif) => (
+                        <option key={sinif.id} value={sinif.ad}>
+                          {sinif.ad}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => {
+                        setOgrenciFormData({ ad: '', soyad: '', no: '', sinif_id: '' })
+                        setOgrenciModalOpen(true)
+                      }}
+                      className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      Yeni Öğrenci Ekle
+                    </button>
+                  </div>
+                </div>
+
+                {filteredOgrenciler.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredOgrenciler.map((ogrenci) => (
+                      <div key={ogrenci.id} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-shadow duration-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                              <User className="h-5 w-5 text-green-600" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-gray-900">{ogrenci.ad} {ogrenci.soyad}</h3>
+                              <p className="text-sm text-gray-500">No: {ogrenci.no}</p>
+                              <p className="text-xs text-indigo-600 font-medium">📚 {ogrenci.sinif}</p>
+                              {ogrenci.isletme_adi && (
+                                <p className="text-xs text-blue-600">🏢 {ogrenci.isletme_adi}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleOgrenciDuzenle(ogrenci)}
+                              className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200"
+                              title="Öğrenciyi Düzenle"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleOgrenciSil(ogrenci)}
+                              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200"
+                              title="Öğrenciyi Sil"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <User className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">
+                      {selectedSinifFilter ? `${selectedSinifFilter} sınıfında öğrenci yok` : 'Henüz öğrenci yok'}
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {selectedSinifFilter ? 'Bu sınıf için henüz öğrenci eklenmemiş.' : 'Bu alan için henüz öğrenci eklenmemiş.'}
+                    </p>
+                    <button
+                      onClick={() => {
+                        setOgrenciFormData({ ad: '', soyad: '', no: '', sinif_id: selectedSinifFilter })
+                        setOgrenciModalOpen(true)
+                      }}
+                      className="mt-4 inline-flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-lg hover:bg-green-200 transition-colors duration-200"
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      İlk öğrenciyi ekle
+                    </button>
                   </div>
                 )}
               </div>
@@ -1253,34 +1367,111 @@ export default function AlanDetayPage() {
             />
           </div>
 
-          <div className="flex justify-end space-x-3 pt-4 border-t">
+          <div className="flex justify-between pt-4 border-t">
             <button
-              onClick={() => setEditSinifModal(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-md border border-gray-300"
+              onClick={() => {
+                setEditSinifModal(false)
+                setDeleteSinifModal(true)
+              }}
+              className="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-md border border-red-300"
             >
-              İptal
+              Sınıfı Sil
             </button>
-            <button
-              onClick={handleSinifGuncelle}
-              disabled={submitLoading}
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50"
-            >
-              {submitLoading ? 'Güncelleniyor...' : 'Güncelle'}
-            </button>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setEditSinifModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-md border border-gray-300"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleSinifGuncelle}
+                disabled={submitLoading}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50"
+              >
+                {submitLoading ? 'Güncelleniyor...' : 'Güncelle'}
+              </button>
+            </div>
           </div>
         </div>
       </Modal>
 
       {/* Sınıf Silme Onay Modalı */}
-      <ConfirmModal
+      <Modal
         isOpen={deleteSinifModal}
-        onClose={() => setDeleteSinifModal(false)}
-        onConfirm={handleSinifSilOnayla}
+        onClose={() => {
+          setDeleteSinifModal(false)
+          setSinifSilmeOnayi('')
+          setSinifSilmeHatasi('')
+        }}
         title="Sınıfı Sil"
-        description={`"${selectedSinif?.ad}" sınıfını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`}
-        confirmText="Sil"
-        isLoading={submitLoading}
-      />
+      >
+        <div className="space-y-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <AlertTriangle className="h-5 w-5 text-red-400" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-semibold text-red-800 mb-2">
+                  Dikkat: Bu işlem geri alınamaz!
+                </h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <p>
+                    Bu sınıfı silmek için sınıf adını ({selectedSinif?.ad}) aşağıdaki kutuya yazın.
+                    Bu işlem geri alınamaz ve sınıftaki tüm öğrenci kayıtları silinecektir.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Onay için sınıf adını yazın
+            </label>
+            <input
+              type="text"
+              value={sinifSilmeOnayi}
+              onChange={(e) => {
+                setSinifSilmeOnayi(e.target.value)
+                setSinifSilmeHatasi('')
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              placeholder={selectedSinif?.ad}
+            />
+            {sinifSilmeHatasi && (
+              <p className="mt-1 text-sm text-red-600">{sinifSilmeHatasi}</p>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              onClick={() => {
+                setDeleteSinifModal(false)
+                setSinifSilmeOnayi('')
+                setSinifSilmeHatasi('')
+              }}
+              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-md border border-gray-300"
+            >
+              İptal
+            </button>
+            <button
+              onClick={() => {
+                if (sinifSilmeOnayi !== selectedSinif?.ad) {
+                  setSinifSilmeHatasi('Sınıf adı eşleşmiyor')
+                  return
+                }
+                handleSinifSilOnayla()
+              }}
+              disabled={!sinifSilmeOnayi || sinifSilmeOnayi !== selectedSinif?.ad || submitLoading}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitLoading ? 'Siliniyor...' : 'Evet, Sil'}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Öğrenci Modalları */}
       <Modal
@@ -1331,12 +1522,19 @@ export default function AlanDetayPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Sınıf
             </label>
-            <input
-              type="text"
+            <select
               value={ogrenciFormData.sinif_id}
               onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, sinif_id: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+            >
+              <option value="">Sınıf seçin</option>
+              {siniflar.map((sinif) => (
+                <option key={sinif.id} value={sinif.ad}>
+                  {sinif.ad}
+                  {sinif.dal && ` - ${sinif.dal}`}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex justify-end space-x-3 pt-4 border-t">
