@@ -212,8 +212,7 @@ const TeacherPanel = () => {
           .from('belgeler')
           .select(`
             *,
-            isletmeler (ad),
-            ogretmenler (ad, soyad)
+            isletmeler (ad)
           `)
           .in('isletme_id', isletmeIds)
           .order('created_at', { ascending: false });
@@ -224,12 +223,12 @@ const TeacherPanel = () => {
           const formattedBelgeler = belgeData.map((belge: any) => {
             // Kimin yüklediğini belirle
             let yukleyenKisi = 'Bilinmiyor';
-            if (belge.ogretmen_id && belge.ogretmenler) {
-              yukleyenKisi = `${belge.ogretmenler.ad} ${belge.ogretmenler.soyad} (Öğretmen)`;
-            } else if (belge.ogretmen_id) {
+            if (belge.ogretmen_id) {
               yukleyenKisi = 'Öğretmen';
-            } else {
+            } else if (belge.isletme_yukleyen) {
               yukleyenKisi = 'İşletme';
+            } else {
+              yukleyenKisi = 'Yönetici';
             }
 
             return {
