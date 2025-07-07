@@ -1,13 +1,17 @@
 import { useState, useRef } from 'react'
-import { Upload, X, Calendar } from 'lucide-react'
+import { Upload, X, User } from 'lucide-react'
 import { DekontFormData } from '@/types/dekont'
+import ModernSelect from './ModernSelect'
 
 interface DekontUploadProps {
   onSubmit: (formData: DekontFormData) => Promise<void>
   isLoading?: boolean
-  stajId: number
-  isletmeler: { id: string; ad: string }[]
-  selectedIsletmeId: string
+  stajId?: string
+  isletmeler?: { id: string; ad: string }[]
+  selectedIsletmeId?: string
+  stajyerler?: { id: string; ad: string; soyad: string; sinif: string }[]
+  selectedStajyerId?: string
+  onStajyerChange?: (stajyerId: string) => void
 }
 
 const AY_LISTESI = [
@@ -15,11 +19,21 @@ const AY_LISTESI = [
   'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
 ];
 
-export default function DekontUpload({ onSubmit, isLoading, stajId, isletmeler, selectedIsletmeId }: DekontUploadProps) {
+export default function DekontUpload({
+  onSubmit,
+  isLoading,
+  stajId,
+  isletmeler,
+  selectedIsletmeId,
+  stajyerler,
+  selectedStajyerId,
+  onStajyerChange
+}: DekontUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [selectedIsletme, setSelectedIsletme] = useState(selectedIsletmeId)
+  const [selectedIsletme, setSelectedIsletme] = useState(selectedIsletmeId || '')
+  const [selectedStajyer, setSelectedStajyer] = useState(selectedStajyerId || '')
   const [formData, setFormData] = useState<DekontFormData>({
-    staj_id: stajId,
+    staj_id: stajId || '',
     miktar: undefined,
     ay: AY_LISTESI[new Date().getMonth()],
     yil: new Date().getFullYear().toString(),
@@ -45,10 +59,11 @@ export default function DekontUpload({ onSubmit, isLoading, stajId, isletmeler, 
         ...formData,
         dosya: selectedFile || undefined,
         isletme_id: selectedIsletme,
+        staj_id: selectedStajyer || stajId || '',
         odeme_tarihi: new Date().toISOString().split('T')[0]
       })
       setFormData({
-        staj_id: stajId,
+        staj_id: stajId || '',
         miktar: undefined,
         ay: AY_LISTESI[new Date().getMonth()],
         yil: new Date().getFullYear().toString(),
@@ -74,23 +89,53 @@ export default function DekontUpload({ onSubmit, isLoading, stajId, isletmeler, 
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  const handleStajyerChange = (stajyerId: string | number) => {
+    const idStr = stajyerId.toString()
+    setSelectedStajyer(idStr)
+    if (onStajyerChange) {
+      onStajyerChange(idStr)
+    }
+  }
+
+  const stajyerOptions = stajyerler?.map(stajyer => ({
+    id: stajyer.id,
+    label: `${stajyer.ad} ${stajyer.soyad}`,
+    subtitle: stajyer.sinif
+  })) || []
+
+  const isletmeOptions = isletmeler?.map(isletme => ({
+    id: isletme.id,
+    label: isletme.ad
+  })) || []
+
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">İşletme</label>
-        <div className="relative">
-          <select
-            value={selectedIsletme}
-            onChange={e => setSelectedIsletme(e.target.value)}
-            className="block w-full appearance-none rounded-xl border border-gray-300 bg-white py-3 pl-4 pr-10 text-base shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 transition-all duration-200 hover:border-blue-400"
-          >
-            {isletmeler.map(isletme => (
-              <option key={isletme.id} value={isletme.id}>{isletme.ad}</option>
-            ))}
-          </select>
-          <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-        </div>
-      </div>
+      {/* Öğrenci Seçimi */}
+      {stajyerler && stajyerler.length > 0 && (
+        <ModernSelect
+          options={stajyerOptions}
+          value={selectedStajyer}
+          onChange={handleStajyerChange}
+          placeholder="Öğrenci Seçiniz..."
+          label="Öğrenci Adı"
+          required
+          icon={<User className="w-4 h-4" />}
+          searchable
+        />
+      )}
+
+      {/* İşletme Seçimi */}
+      {isletmeler && isletmeler.length > 0 && (
+        <ModernSelect
+          options={isletmeOptions}
+          value={selectedIsletme}
+          onChange={(id) => setSelectedIsletme(id.toString())}
+          placeholder="İşletme Seçiniz..."
+          label="İşletme"
+          required
+          searchable
+        />
+      )}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         <div>
           <label htmlFor="miktar" className="block text-sm font-medium text-gray-700">
@@ -167,14 +212,14 @@ export default function DekontUpload({ onSubmit, isLoading, stajId, isletmeler, 
                       type="file"
                       ref={fileInputRef}
                       className="sr-only"
-                      accept=".pdf,.jpg,.jpeg,.png"
+                      accept=".jpg,.jpeg,.png,.pdf"
                       onChange={handleFileChange}
                     />
                   </label>
                   <p className="pl-1">veya sürükleyip bırakın</p>
                 </div>
                 <p className="text-xs text-gray-500">
-                  PDF, JPG veya PNG (max. 10MB)
+                  JPG, JPEG, PNG veya PDF (max. 10MB)
                 </p>
               </>
             ) : (
@@ -195,7 +240,7 @@ export default function DekontUpload({ onSubmit, isLoading, stajId, isletmeler, 
           </div>
         </div>
         {errors.dosya && <p className="mt-1 text-sm text-red-600">{errors.dosya}</p>}
-      </div>
+        </div>
       <div className="flex justify-end">
         <button
           type="submit"
@@ -207,4 +252,4 @@ export default function DekontUpload({ onSubmit, isLoading, stajId, isletmeler, 
       </div>
     </form>
   )
-} 
+}

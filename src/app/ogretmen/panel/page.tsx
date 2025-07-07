@@ -76,6 +76,50 @@ const TeacherPanel = () => {
   const [belgeTurFilter, setBelgeTurFilter] = useState<string>('all');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
+  // Dekont takip sistemi için yardımcı fonksiyonlar
+  const getCurrentMonth = () => new Date().getMonth() + 1;
+  const getCurrentYear = () => new Date().getFullYear();
+  const getCurrentDay = () => new Date().getDate();
+  
+  const aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+  
+  // Bu ay için dekont eksik olan öğrencileri tespit et
+  const getEksikDekontOgrenciler = () => {
+    const currentMonth = getCurrentMonth();
+    const currentYear = getCurrentYear();
+    const currentMonthName = aylar[currentMonth - 1];
+    
+    const tumOgrenciler: Array<{id: string, ad: string, soyad: string, sinif: string, no: string, isletme_ad: string}> = [];
+    isletmeler.forEach(isletme => {
+      isletme.ogrenciler.forEach(ogrenci => {
+        tumOgrenciler.push({
+          ...ogrenci,
+          isletme_ad: isletme.ad
+        });
+      });
+    });
+    
+    return tumOgrenciler.filter(ogrenci => {
+      const ogrenciDekontlari = dekontlar.filter(d =>
+        d.ogrenci_ad === `${ogrenci.ad} ${ogrenci.soyad}` &&
+        d.ay === currentMonthName &&
+        String(d.yil) === String(currentYear)
+      );
+      return ogrenciDekontlari.length === 0;
+    });
+  };
+
+  // Gecikme durumunu kontrol et (ayın 10'undan sonra)
+  const isGecikme = () => getCurrentDay() > 10;
+  
+  // Kritik süre kontrolü (ayın 1-10'u arası)
+  const isKritikSure = () => {
+    const day = getCurrentDay();
+    return day >= 1 && day <= 10;
+  };
+
+  const eksikDekontOgrenciler = getEksikDekontOgrenciler();
+
   useEffect(() => {
     const checkLocalStorage = () => {
       const storedOgretmen = localStorage.getItem('ogretmen');
@@ -276,8 +320,8 @@ const TeacherPanel = () => {
   };
 
   const handleDekontSil = async (dekont: Dekont) => {
-    if (dekont.onay_durumu !== 'bekliyor') {
-      alert('Sadece "bekliyor" durumundaki dekontlar silinebilir.');
+    if (dekont.onay_durumu === 'onaylandi') {
+      alert('Onaylanmış dekontlar silinemez.');
       return;
     }
 
@@ -331,6 +375,22 @@ const TeacherPanel = () => {
     try {
       if (!formData.dosya) {
         throw new Error("Dekont dosyası zorunludur.");
+      }
+
+      // Onaylanmış dekont kontrolü - aynı öğrenci, ay ve yıl için
+      const ayAdi = formData.ay;
+      const ogrenciAdi = `${selectedStudent.ad} ${selectedStudent.soyad}`;
+      const mevcutDekontlar = dekontlar.filter(d =>
+        d.ogrenci_ad === ogrenciAdi &&
+        d.ay === ayAdi &&
+        String(d.yil) === String(formData.yil)
+      );
+      
+      const onaylanmisDekont = mevcutDekontlar.find(d => d.onay_durumu === 'onaylandi');
+      if (onaylanmisDekont) {
+        alert(`❌ ${ayAdi} ${formData.yil} döneminde öğrencinin onaylanmış dekontu bulunuyor. Aynı aya tekrar dekont yükleyemezsiniz.`);
+        setIsSubmitting(false);
+        return;
       }
 
       const file = formData.dosya;
@@ -722,6 +782,93 @@ const TeacherPanel = () => {
       {/* Main Content */}
       <main className="relative -mt-32 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Dekont Takip Uyarı Sistemi */}
+          {eksikDekontOgrenciler.length > 0 && (
+            <div className={`mb-6 rounded-2xl shadow-lg ring-1 ring-black ring-opacity-5 p-6 ${
+              isGecikme()
+                ? 'bg-gradient-to-r from-red-50 to-red-100 border-l-4 border-red-500'
+                : isKritikSure()
+                ? 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-l-4 border-yellow-500'
+                : 'bg-gradient-to-r from-blue-50 to-blue-100 border-l-4 border-blue-500'
+            }`}>
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  {isGecikme() ? (
+                    <XCircle className="h-6 w-6 text-red-600" />
+                  ) : isKritikSure() ? (
+                    <Clock className="h-6 w-6 text-yellow-600" />
+                  ) : (
+                    <Calendar className="h-6 w-6 text-blue-600" />
+                  )}
+                </div>
+                <div className="ml-3 flex-1">
+                  <h3 className={`text-lg font-medium ${
+                    isGecikme() ? 'text-red-800' : isKritikSure() ? 'text-yellow-800' : 'text-blue-800'
+                  }`}>
+                    {isGecikme()
+                      ? '🚨 GECİKME UYARISI!'
+                      : isKritikSure()
+                      ? '⏰ KRİTİK SÜRE!'
+                      : '📅 Dekont Hatırlatması'
+                    }
+                  </h3>
+                  <div className={`mt-2 text-sm ${
+                    isGecikme() ? 'text-red-700' : isKritikSure() ? 'text-yellow-700' : 'text-blue-700'
+                  }`}>
+                    <p className="font-medium mb-2">
+                      {isGecikme()
+                        ? `${aylar[getCurrentMonth() - 1]} ayı dekont yükleme süresi geçti! İşletmeler devlet katkı payı alamayabilir.`
+                        : isKritikSure()
+                        ? `${aylar[getCurrentMonth() - 1]} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
+                        : `${aylar[getCurrentMonth() - 1]} ayı için eksik dekontlar var.`
+                      }
+                    </p>
+                    <p className="mb-3">
+                      <strong>Eksik dekont olan öğrenciler ({eksikDekontOgrenciler.length} kişi):</strong>
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {eksikDekontOgrenciler.map((ogrenci) => {
+                        const isletme = isletmeler.find(i => i.ad === ogrenci.isletme_ad);
+                        const fullOgrenci = isletme?.ogrenciler.find(o => o.ad === ogrenci.ad && o.soyad === ogrenci.soyad);
+                        
+                        return (
+                          <div key={`${ogrenci.ad}-${ogrenci.soyad}-${ogrenci.isletme_ad}`} className={`p-3 rounded-lg ${
+                            isGecikme() ? 'bg-red-100 border border-red-200' :
+                            isKritikSure() ? 'bg-yellow-100 border border-yellow-200' :
+                            'bg-blue-100 border border-blue-200'
+                          }`}>
+                            <div className="font-medium text-gray-900">
+                              {ogrenci.ad} {ogrenci.soyad}
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              {ogrenci.sinif} - No: {ogrenci.no}
+                            </div>
+                            <div className="text-xs text-blue-600 font-medium">
+                              {ogrenci.isletme_ad}
+                            </div>
+                            {fullOgrenci && isletme && (
+                              <button
+                                onClick={() => handleOpenDekontUpload(fullOgrenci, isletme)}
+                                className={`mt-2 w-full flex items-center justify-center px-2 py-1 text-xs font-medium rounded transition-colors ${
+                                  isGecikme() ? 'bg-red-600 text-white hover:bg-red-700' :
+                                  isKritikSure() ? 'bg-yellow-600 text-white hover:bg-yellow-700' :
+                                  'bg-blue-600 text-white hover:bg-blue-700'
+                                }`}
+                              >
+                                <Upload className="h-3 w-3 mr-1" />
+                                Hemen Yükle
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black ring-opacity-5 p-6 divide-y divide-gray-200">
           {activeTab === 'isletmeler' && (
             <div className="space-y-6">
@@ -755,8 +902,8 @@ const TeacherPanel = () => {
                       Öğrenciler ({isletme.ogrenciler.length})
                     </h4>
                     
-                    {isletme.ogrenciler.map(ogrenci => (
-                      <div key={ogrenci.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-4">
+                    {isletme.ogrenciler.map((ogrenci, index) => (
+                      <div key={ogrenci.id} className={`flex items-center justify-between bg-gray-50 rounded-lg p-4 ${index < isletme.ogrenciler.length - 1 ? 'border-b border-gray-200' : ''}`}>
                         <div className="flex items-center">
                           <div className="h-10 w-10 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg flex items-center justify-center">
                             <User className="h-5 w-5 text-indigo-600" />
@@ -838,8 +985,8 @@ const TeacherPanel = () => {
                               <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
                                 {dekont.isletme_ad}
                               </span>
-                              <span>{
-                                (() => {
+                              <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-bold border border-indigo-200">
+                                {(() => {
                                   // Aynı öğrenci, ay ve yıl için kaçıncı ek olduğunu bul
                                   const sameDekonts = dekontlar.filter(d =>
                                     d.ogrenci_ad === dekont.ogrenci_ad &&
@@ -850,13 +997,14 @@ const TeacherPanel = () => {
                                   const sorted = [...sameDekonts].sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
                                   const ekIndex = sorted.findIndex(d => d.id === dekont.id);
                                   return dekont.ay + (ekIndex > 0 ? ` (ek-${ekIndex+1})` : '') + ' ' + dekont.yil;
-                                })()
-                              }</span>
-                              {dekont.miktar && (
-                                <span className="text-green-600 font-medium">
-                                  {dekont.miktar} TL
-                                </span>
-                              )}
+                                })()}
+                              </span>
+                            </div>
+                            {/* Yükleyen bilgisi */}
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-xs">
+                                <span className="font-bold">Gönderen:</span> {dekont.yukleyen_kisi}
+                              </span>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -869,7 +1017,7 @@ const TeacherPanel = () => {
                                 <Download className="h-5 w-5" />
                               </button>
                             )}
-                            {dekont.onay_durumu === 'bekliyor' && (
+                            {dekont.onay_durumu !== 'onaylandi' && (
                               <button
                                 onClick={() => {
                                   setSelectedDekont(dekont);
@@ -886,11 +1034,9 @@ const TeacherPanel = () => {
                         {/* Alt köşeler: miktar (sol), yüklenme tarihi (sağ) */}
                         <div className="flex justify-between items-end mt-2">
                           {/* Sol alt: Miktar */}
-                          {dekont.miktar && (
-                            <span className="text-xs font-bold text-green-600">
-                              Miktar: {dekont.miktar.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
-                            </span>
-                          )}
+                          <span className="text-xs font-bold text-green-600">
+                            Miktar: {dekont.miktar ? dekont.miktar.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' }) : '-'}
+                          </span>
                           {/* Sağ alt: Yüklenme tarihi */}
                           {dekont.created_at && (
                             <span className="text-xs text-gray-400">
@@ -937,13 +1083,6 @@ const TeacherPanel = () => {
                 <h2 className="text-lg font-medium text-gray-900">
                   Tüm İşletme Belgeleri ({filteredBelgeler.length})
                 </h2>
-                <button
-                  onClick={() => setBelgeUploadModalOpen(true)}
-                  className="flex items-center px-4 py-2 text-sm text-white bg-gradient-to-r from-indigo-600 to-blue-600 rounded-lg hover:from-indigo-700 hover:to-blue-700 transition-colors shadow-sm"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Yeni Belge Ekle
-                </button>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -1042,7 +1181,7 @@ const TeacherPanel = () => {
         <div className="space-y-4">
           <div className="flex items-center gap-3 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded text-yellow-900 text-sm">
             <AlertTriangle className="h-5 w-5 text-yellow-500" />
-            <span>Bu dekontu silmek istediğinize emin misiniz? <b>Onaylanmış dekontlar silinemez.</b></span>
+            <span>Bu dekontu silmek istediğinize emin misiniz? <b>Sadece onaylanmış dekontlar silinemez.</b></span>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button
@@ -1097,7 +1236,7 @@ const TeacherPanel = () => {
           title={`Dekont Yükle: ${selectedStudent.ad} ${selectedStudent.soyad}`}
         >
           <DekontUploadForm
-            stajId={selectedStudent.staj_id as number}
+            stajId={selectedStudent.staj_id?.toString()}
             onSubmit={handleDekontSubmit}
             isLoading={isSubmitting}
             isletmeler={isletmeler.map(i => ({ id: i.id, ad: i.ad }))}

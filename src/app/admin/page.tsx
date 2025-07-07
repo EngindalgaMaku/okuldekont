@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FileText, Users, Building, TrendingUp, CheckCircle, Clock, XCircle, Shield, AlertTriangle, RefreshCw } from 'lucide-react'
+import { FileText, Users, Building, TrendingUp, CheckCircle, Clock, XCircle, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { StatCardSkeleton, ListSkeleton } from '@/components/ui/Skeleton'
@@ -15,12 +15,27 @@ export default function AdminDashboard() {
     rededilenDekontlar: 0,
     totalIsletmeler: 0,
     totalOgretmenler: 0,
-    totalOgrenciler: 0,
-    kilitliHesaplar: 0
+    totalOgrenciler: 0
   })
+  const [schoolName, setSchoolName] = useState('Hüsniye Özdilek Ticaret MTAL')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const { showToast } = useToast()
+
+  // Okul ismini ayarlardan çek
+  const fetchSchoolName = async () => {
+    try {
+      const { data, error } = await supabase.rpc('get_system_setting', {
+        p_setting_key: 'school_name'
+      })
+      
+      if (!error && data) {
+        setSchoolName(data)
+      }
+    } catch (error) {
+      console.error('Okul ismi çekilirken hata:', error)
+    }
+  }
 
   // Veritabanından istatistikleri çek
   const fetchStats = async (isRefresh = false) => {
@@ -29,6 +44,11 @@ export default function AdminDashboard() {
         setRefreshing(true)
       } else {
         setLoading(true)
+      }
+      
+      // Okul ismini de çek
+      if (!isRefresh) {
+        await fetchSchoolName()
       }
       
       // Dekontlar
@@ -44,7 +64,7 @@ export default function AdminDashboard() {
       // Öğretmenler
       const { data: ogretmenler, error: ogretmenError } = await supabase
         .from('ogretmenler')
-        .select('id, aktif, hesap_kilitli')
+        .select('id')
       
       // Öğrenciler
       const { data: ogrenciler, error: ogrenciError } = await supabase
@@ -65,7 +85,6 @@ export default function AdminDashboard() {
       const totalIsletmeler = isletmeler?.length || 0
       const totalOgretmenler = ogretmenler?.length || 0
       const totalOgrenciler = ogrenciler?.length || 0
-      const kilitliHesaplar = ogretmenler?.filter(o => o.hesap_kilitli)?.length || 0
       
       setStats({
         totalDekontlar,
@@ -74,8 +93,7 @@ export default function AdminDashboard() {
         rededilenDekontlar,
         totalIsletmeler,
         totalOgretmenler,
-        totalOgrenciler,
-        kilitliHesaplar
+        totalOgrenciler
       })
 
       if (isRefresh) {
@@ -107,6 +125,15 @@ export default function AdminDashboard() {
 
   const quickActions = [
     {
+      title: 'Koordinatörlük Yönetimi',
+      description: 'Öğrenci staj süreçlerini koordine edin',
+      href: '/admin/stajlar',
+      icon: Users,
+      color: 'from-emerald-500 to-emerald-600',
+      bgColor: 'bg-emerald-50',
+      textColor: 'text-emerald-600'
+    },
+    {
       title: 'Dekont Yönetimi',
       description: 'Bekleyen dekontları onaylayın',
       href: '/admin/dekontlar',
@@ -132,15 +159,6 @@ export default function AdminDashboard() {
       color: 'from-green-500 to-green-600',
       bgColor: 'bg-green-50',
       textColor: 'text-green-600'
-    },
-    {
-      title: 'Öğretmen Yönetimi',
-      description: 'Öğretmen kayıtlarını yönetin',
-      href: '/admin/ogretmenler',
-      icon: Users,
-      color: 'from-purple-500 to-purple-600',
-      bgColor: 'bg-purple-50',
-      textColor: 'text-purple-600'
     }
   ]
 
@@ -151,7 +169,7 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
-            <p className="text-indigo-100">Hüsniye Özdilek MTAL - Koordinatörlük Yönetimi</p>
+            <p className="text-indigo-100">{schoolName} - Koordinatörlük Yönetimi</p>
           </div>
           <button
             onClick={() => fetchStats(true)}
@@ -241,65 +259,6 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* Security Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {loading ? (
-          <>
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-          </>
-        ) : (
-          <>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow duration-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Kilitli Hesaplar</p>
-                  <p className="text-3xl font-bold text-orange-600">{stats.kilitliHesaplar}</p>
-                </div>
-                <div className="p-3 bg-orange-50 rounded-xl">
-                  <AlertTriangle className="h-6 w-6 text-orange-600" />
-                </div>
-              </div>
-              <div className="mt-4">
-                <Link href="/admin/guvenlik" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors duration-200">
-                  Yönet →
-                </Link>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow duration-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Güvenlik Logları</p>
-                  <p className="text-3xl font-bold text-gray-900">24</p>
-                </div>
-                <div className="p-3 bg-gray-50 rounded-xl">
-                  <Shield className="h-6 w-6 text-gray-600" />
-                </div>
-              </div>
-              <div className="mt-4 flex items-center">
-                <span className="text-sm text-gray-500">Son 24 saat</span>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow duration-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Başarısız Girişler</p>
-                  <p className="text-3xl font-bold text-red-600">8</p>
-                </div>
-                <div className="p-3 bg-red-50 rounded-xl">
-                  <XCircle className="h-6 w-6 text-red-600" />
-                </div>
-              </div>
-              <div className="mt-4 flex items-center">
-                <span className="text-sm text-gray-500">Son 24 saat</span>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
 
       {/* Quick Actions */}
       <div>

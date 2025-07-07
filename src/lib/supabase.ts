@@ -150,27 +150,27 @@ export interface Database {
       }
       stajlar: {
         Row: {
-          id: number
-          ogrenci_id: number
-          isletme_id: number
+          id: string
+          ogrenci_id: string
+          isletme_id: string
           baslangic_tarihi: string
           bitis_tarihi: string
           durum: 'aktif' | 'tamamlandi' | 'iptal'
           created_at: string
         }
         Insert: {
-          id?: number
-          ogrenci_id: number
-          isletme_id: number
+          id?: string
+          ogrenci_id: string
+          isletme_id: string
           baslangic_tarihi: string
           bitis_tarihi: string
           durum?: 'aktif' | 'tamamlandi' | 'iptal'
           created_at?: string
         }
         Update: {
-          id?: number
-          ogrenci_id?: number
-          isletme_id?: number
+          id?: string
+          ogrenci_id?: string
+          isletme_id?: string
           baslangic_tarihi?: string
           bitis_tarihi?: string
           durum?: 'aktif' | 'tamamlandi' | 'iptal'
@@ -180,7 +180,7 @@ export interface Database {
       dekontlar: {
         Row: {
           id: number
-          staj_id: number
+          staj_id: string
           miktar: number
           odeme_tarihi: string
           dekont_dosyasi: string | null
@@ -189,7 +189,7 @@ export interface Database {
         }
         Insert: {
           id?: number
-          staj_id: number
+          staj_id: string
           miktar: number
           odeme_tarihi: string
           dekont_dosyasi?: string | null
@@ -198,7 +198,7 @@ export interface Database {
         }
         Update: {
           id?: number
-          staj_id?: number
+          staj_id?: string
           miktar?: number
           odeme_tarihi?: string
           dekont_dosyasi?: string | null

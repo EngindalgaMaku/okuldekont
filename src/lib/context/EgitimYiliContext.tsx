@@ -2,6 +2,7 @@
 
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getSchoolName } from '@/lib/settings'
 
 interface EgitimYiliContextType {
   okulAdi: string
@@ -18,10 +19,13 @@ export function EgitimYiliProvider({ children }: { children: ReactNode }) {
   const [egitimYili, setEgitimYili] = useState('2024-2025')
   const [loading, setLoading] = useState(false)
 
-  // Gerçek eğitim yılı verilerini yükle (isteğe bağlı)
+  // Gerçek eğitim yılı ve okul adı verilerini yükle
   useEffect(() => {
-    const loadEgitimYili = async () => {
+    const loadSystemData = async () => {
+      setLoading(true)
+      
       try {
+        // Eğitim yılını yükle
         const { data, error } = await supabase
           .from('egitim_yillari')
           .select('yil')
@@ -31,14 +35,20 @@ export function EgitimYiliProvider({ children }: { children: ReactNode }) {
         if (data && !error) {
           setEgitimYili(data.yil)
         }
-        // Hata varsa da sabit değer kullanmaya devam et
+        
+        // Okul adını yükle
+        const schoolNameFromDb = await getSchoolName()
+        setOkulAdi(schoolNameFromDb)
+        
       } catch (error) {
         // Sessizce hata geç, sabit değerler kullan
-        console.log('Eğitim yılı yüklenemedi, sabit değer kullanılıyor')
+        console.log('Sistem verileri yüklenemedi, sabit değerler kullanılıyor')
+      } finally {
+        setLoading(false)
       }
     }
 
-    loadEgitimYili()
+    loadSystemData()
   }, [])
 
   const value = { okulAdi, egitimYili, setOkulAdi, setEgitimYili, loading }

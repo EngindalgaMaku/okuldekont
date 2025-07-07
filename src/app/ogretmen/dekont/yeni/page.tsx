@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { GraduationCap, Upload, ArrowLeft } from 'lucide-react'
+import { GraduationCap, Upload, ArrowLeft, Eye, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useEgitimYili } from '@/lib/context/EgitimYiliContext'
+import { extractDekontInfo, validateOCRResult, isImageFile, isPDFFile, prepareFileForOCR, DekontOCRResult, validateDekontComplete, DekontValidationResult } from '@/lib/ocr'
 
 interface Stajyer {
   id: number
@@ -34,6 +35,11 @@ export default function YeniDekontPage() {
     return today.toISOString().split('T')[0]
   })
   const [dekontDosyasi, setDekontDosyasi] = useState<File | null>(null)
+  const [ocrResult, setOcrResult] = useState<DekontOCRResult | null>(null)
+  const [ocrProgress, setOcrProgress] = useState(0)
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [ocrError, setOcrError] = useState<string | null>(null)
+  const [validationResult, setValidationResult] = useState<DekontValidationResult | null>(null)
 
   useEffect(() => {
     const storedOgretmen = localStorage.getItem('ogretmen')
@@ -79,6 +85,78 @@ export default function YeniDekontPage() {
         }
       }))
       setStajyerler(formattedStajyerler)
+    }
+  }
+
+  const performOCR = async (file: File) => {
+    try {
+      setOcrLoading(true)
+      setOcrError(null)
+      setOcrProgress(0)
+      
+      const preparedFile = await prepareFileForOCR(file)
+      const result = await extractDekontInfo(preparedFile, setOcrProgress)
+      
+      setOcrResult(result)
+      
+      // OCR sonuçlarını forma otomatik doldur (sadece boş alanlar)
+      if (result.miktar && result.miktar > 0 && !miktar) {
+        setMiktar(result.miktar.toString())
+      }
+      
+      // Öğrenci ismi doğrulaması
+      const selectedStajyerData = stajyerler.find(s => s.id.toString() === selectedStajyer)
+      if (selectedStajyerData) {
+        const validation = validateDekontComplete(
+          result,
+          selectedStajyerData.ad,
+          selectedStajyerData.soyad,
+          miktar ? parseFloat(miktar) : undefined
+        )
+        setValidationResult(validation)
+      }
+      
+    } catch (error) {
+      console.error('OCR hatası:', error)
+      setOcrError(error instanceof Error ? error.message : 'OCR işlemi başarısız oldu')
+    } finally {
+      setOcrLoading(false)
+      setOcrProgress(0)
+    }
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setDekontDosyasi(file)
+      setOcrResult(null)
+      setOcrError(null)
+      setValidationResult(null)
+      
+      // OCR işlemi başlat
+      if (isImageFile(file)) {
+        await performOCR(file)
+      } else {
+        setOcrError('Şu anda sadece resim dosyalarından (JPG, PNG, JPEG) OCR yapılabilir.')
+      }
+    }
+  }
+
+  const handleStajyerChange = (stajyerId: string) => {
+    setSelectedStajyer(stajyerId)
+    
+    // Eğer OCR sonucu varsa, yeni öğrenci ile doğrulama yap
+    if (ocrResult) {
+      const selectedStajyerData = stajyerler.find(s => s.id.toString() === stajyerId)
+      if (selectedStajyerData) {
+        const validation = validateDekontComplete(
+          ocrResult,
+          selectedStajyerData.ad,
+          selectedStajyerData.soyad,
+          miktar ? parseFloat(miktar) : undefined
+        )
+        setValidationResult(validation)
+      }
     }
   }
 
@@ -133,7 +211,9 @@ export default function YeniDekontPage() {
           miktar: miktar ? parseFloat(miktar) : null,
           odeme_tarihi: odemeTarihi,
           dosya_url: dosyaUrl,
-          onay_durumu: 'bekliyor'
+          onay_durumu: 'bekliyor',
+          ocr_confidence: ocrResult?.confidence || null,
+          ocr_raw_text: ocrResult?.rawText || null
         })
 
       if (error) throw error
@@ -241,7 +321,7 @@ export default function YeniDekontPage() {
                   </label>
                   <select
                     value={selectedStajyer}
-                    onChange={(e) => setSelectedStajyer(e.target.value)}
+                    onChange={(e) => handleStajyerChange(e.target.value)}
                     required
                     className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
                   >
@@ -292,15 +372,167 @@ export default function YeniDekontPage() {
                   <div className="mt-1">
                     <input
                       type="file"
-                      onChange={(e) => setDekontDosyasi(e.target.files?.[0] || null)}
-                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={handleFileChange}
+                      accept=".jpg,.jpeg,.png"
                       required
                       className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
                     />
                   </div>
                   <p className="mt-2 text-sm text-gray-500">
-                    PDF, JPG veya PNG formatında dekont dosyası yükleyin
+                    JPG, JPEG veya PNG formatında dekont resmi yükleyin. (PDF desteği geçici olarak kapalı)
                   </p>
+                  
+                  {/* OCR Progress */}
+                  {ocrLoading && (
+                    <div className="mt-3 bg-blue-50 border border-blue-200 rounded-md p-3">
+                      <div className="flex items-center">
+                        <Loader2 className="animate-spin h-4 w-4 text-blue-600 mr-2" />
+                        <span className="text-sm text-blue-800">Dekont analiz ediliyor...</span>
+                      </div>
+                      <div className="mt-2 w-full bg-blue-200 rounded-full h-2">
+                        <div
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${ocrProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* OCR Error */}
+                  {ocrError && (
+                    <div className="mt-3 bg-red-50 border border-red-200 rounded-md p-3">
+                      <div className="flex items-center">
+                        <AlertCircle className="h-4 w-4 text-red-600 mr-2" />
+                        <span className="text-sm text-red-800">{ocrError}</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* OCR Results */}
+                  {ocrResult && (
+                    <div className="mt-3 bg-green-50 border border-green-200 rounded-md p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center">
+                          <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                          <span className="text-sm font-medium text-green-800">Dekont Analiz Sonuçları</span>
+                        </div>
+                        <span className="text-xs text-green-600">
+                          Güven: {Math.round(ocrResult.confidence)}%
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-1 text-sm">
+                        {ocrResult.miktar && (
+                          <div className="flex justify-between">
+                            <span className="text-green-700">Miktar:</span>
+                            <span className="font-medium text-green-800">{ocrResult.miktar.toFixed(2)} TL</span>
+                          </div>
+                        )}
+                        {ocrResult.tarih && (
+                          <div className="flex justify-between">
+                            <span className="text-green-700">Tarih:</span>
+                            <span className="font-medium text-green-800">{ocrResult.tarih}</span>
+                          </div>
+                        )}
+                        {ocrResult.banka && (
+                          <div className="flex justify-between">
+                            <span className="text-green-700">Banka:</span>
+                            <span className="font-medium text-green-800">{ocrResult.banka}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {(() => {
+                        const validation = validateOCRResult(ocrResult)
+                        return (
+                          <div className="mt-2 pt-2 border-t border-green-200">
+                            {validation.warnings.length > 0 && (
+                              <div className="text-xs text-yellow-700">
+                                <strong>Uyarılar:</strong>
+                                <ul className="list-disc list-inside mt-1">
+                                  {validation.warnings.map((warning, i) => (
+                                    <li key={i}>{warning}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {validation.errors.length > 0 && (
+                              <div className="text-xs text-red-700">
+                                <strong>Hatalar:</strong>
+                                <ul className="list-disc list-inside mt-1">
+                                  {validation.errors.map((error, i) => (
+                                    <li key={i}>{error}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Dekont Doğrulama Sonuçları */}
+                  {validationResult && (
+                    <div className="mt-3 space-y-2">
+                      {/* İsim Doğrulama */}
+                      <div className={`p-3 rounded-md border ${
+                        validationResult.validations.nameMatch
+                          ? 'bg-green-50 border-green-200'
+                          : 'bg-red-50 border-red-200'
+                      }`}>
+                        <div className="flex items-center">
+                          {validationResult.validations.nameMatch ? (
+                            <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                          ) : (
+                            <AlertCircle className="h-4 w-4 text-red-600 mr-2" />
+                          )}
+                          <span className={`text-sm font-medium ${
+                            validationResult.validations.nameMatch ? 'text-green-800' : 'text-red-800'
+                          }`}>
+                            {validationResult.validations.nameMatch
+                              ? 'Öğrenci ismi dekont üzerinde bulundu ✓'
+                              : 'Öğrenci ismi dekont üzerinde bulunamadı ✗'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Genel Doğrulama Durumu */}
+                      {!validationResult.isValid && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                          <div className="flex items-center">
+                            <AlertCircle className="h-4 w-4 text-yellow-600 mr-2" />
+                            <span className="text-sm font-medium text-yellow-800">Doğrulama Uyarıları</span>
+                          </div>
+                          <ul className="mt-2 text-sm text-yellow-700">
+                            {validationResult.errors.map((error, i) => (
+                              <li key={i} className="flex items-center">
+                                <span className="w-1 h-1 bg-yellow-600 rounded-full mr-2"></span>
+                                {error}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {validationResult.warnings.length > 0 && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                          <div className="flex items-center">
+                            <AlertCircle className="h-4 w-4 text-blue-600 mr-2" />
+                            <span className="text-sm font-medium text-blue-800">Bilgilendirme</span>
+                          </div>
+                          <ul className="mt-2 text-sm text-blue-700">
+                            {validationResult.warnings.map((warning, i) => (
+                              <li key={i} className="flex items-center">
+                                <span className="w-1 h-1 bg-blue-600 rounded-full mr-2"></span>
+                                {warning}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-5">

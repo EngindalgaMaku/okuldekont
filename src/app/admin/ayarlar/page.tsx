@@ -4,11 +4,15 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Settings, Database, Users, Mail, Shield, Save, RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
+import { AdminManagement } from '@/components/ui/AdminManagement'
 
 export default function AyarlarPage() {
   const router = useRouter()
+  const { adminRole } = useAuth()
   const [loading, setLoading] = useState(false)
   const [saveLoading, setSaveLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState('genel')
 
   // System stats
   const [stats, setStats] = useState({
@@ -21,12 +25,15 @@ export default function AyarlarPage() {
 
   // Settings
   const [settings, setSettings] = useState({
+    schoolName: '',
     emailNotifications: true,
     autoApproval: false,
     maxFileSize: 5, // MB
     allowedFileTypes: 'pdf,jpg,png',
     systemMaintenance: false
   })
+  const [settingsLoading, setSettingsLoading] = useState(true)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
 
   useEffect(() => {
     fetchStats()
@@ -78,24 +85,121 @@ export default function AyarlarPage() {
   }
 
   const fetchSettings = async () => {
-    // Gerçek uygulamada sistem ayarları veritabanından çekilir
-    // Şimdilik varsayılan değerler
+    try {
+      setSettingsLoading(true)
+      console.log('Ayarlar çekiliyor...')
+      
+      // RLS'yi bypass etmek için get_system_setting fonksiyonunu kullan
+      const settingsKeys = ['school_name', 'email_notifications', 'auto_approval', 'max_file_size', 'allowed_file_types', 'maintenance_mode']
+      const settingsMap: any = {}
+      
+      for (const key of settingsKeys) {
+        try {
+          const { data, error } = await supabase.rpc('get_system_setting', {
+            p_setting_key: key
+          })
+          
+          if (!error && data !== null) {
+            settingsMap[key] = data
+          }
+          console.log(`${key}:`, data, error)
+        } catch (err) {
+          console.error(`${key} alınamadı:`, err)
+        }
+      }
+
+      console.log('Alınan ayarlar:', settingsMap)
+
+      setSettings({
+        schoolName: settingsMap.school_name || 'Hüsniye Özdilek MTAL',
+        emailNotifications: settingsMap.email_notifications === 'true',
+        autoApproval: settingsMap.auto_approval === 'true',
+        maxFileSize: parseInt(settingsMap.max_file_size || '5'),
+        allowedFileTypes: settingsMap.allowed_file_types || 'pdf,jpg,png',
+        systemMaintenance: settingsMap.maintenance_mode === 'true'
+      })
+    } catch (error) {
+      console.error('Ayarlar çekilirken hata:', error)
+      // Hata durumunda default değerleri ayarla
+      setSettings({
+        schoolName: 'Hüsniye Özdilek MTAL',
+        emailNotifications: true,
+        autoApproval: false,
+        maxFileSize: 5,
+        allowedFileTypes: 'pdf,jpg,png',
+        systemMaintenance: false
+      })
+    } finally {
+      setSettingsLoading(false)
+    }
   }
 
   const handleSaveSettings = async () => {
     setSaveLoading(true)
     
     try {
-      // Gerçek uygulamada ayarlar veritabanına kaydedilir
-      await new Promise(resolve => setTimeout(resolve, 1000)) // Simülasyon
+      console.log('Ayarlar kaydediliyor...', settings)
       
-      alert('Ayarlar başarıyla kaydedildi!')
+      // Her ayarı update_system_setting fonksiyonu ile güncelle
+      const settingsToUpdate = [
+        { key: 'school_name', value: settings.schoolName },
+        { key: 'email_notifications', value: settings.emailNotifications.toString() },
+        { key: 'auto_approval', value: settings.autoApproval.toString() },
+        { key: 'max_file_size', value: settings.maxFileSize.toString() },
+        { key: 'allowed_file_types', value: settings.allowedFileTypes },
+        { key: 'maintenance_mode', value: settings.systemMaintenance.toString() }
+      ]
+
+      let successCount = 0
+      
+      for (const setting of settingsToUpdate) {
+        console.log(`${setting.key} kaydediliyor:`, setting.value)
+        
+        const { data, error } = await supabase.rpc('update_system_setting', {
+          p_setting_key: setting.key,
+          p_setting_value: setting.value
+        })
+
+        if (error) {
+          console.error(`${setting.key} güncellenemedi:`, error)
+          throw new Error(`${setting.key} güncellenirken hata: ${error.message}`)
+        }
+        
+        if (data === true) {
+          successCount++
+          console.log(`✅ ${setting.key} başarıyla güncellendi`)
+        } else {
+          console.warn(`⚠️ ${setting.key} güncellenme durumu belirsiz:`, data)
+        }
+      }
+      
+      console.log(`${successCount}/${settingsToUpdate.length} ayar başarıyla güncellendi`)
+      setShowSuccessModal(true)
+      
+      // Ayarları yeniden yükle
+      await fetchSettings()
+      
     } catch (error) {
       console.error('Ayarlar kaydedilirken hata:', error)
-      alert('Ayarlar kaydedilirken bir hata oluştu!')
+      alert('Ayarlar kaydedilirken bir hata oluştu: ' + (error as Error).message)
     }
 
     setSaveLoading(false)
+  }
+
+  // Loading state için render
+  if (settingsLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4">
+          <div className="text-center">
+            <RefreshCw className="h-8 w-8 animate-spin text-indigo-600 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Sistem Ayarları Yükleniyor</h2>
+            <p className="text-gray-600">Ayarlar veritabanından alınıyor...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -119,7 +223,38 @@ export default function AyarlarPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Tabs */}
+        <div className="mb-8">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('genel')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'genel'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Settings className="h-4 w-4 inline mr-2" />
+                Genel Ayarlar
+              </button>
+              <button
+                onClick={() => setActiveTab('admin')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'admin'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Users className="h-4 w-4 inline mr-2" />
+                Admin Yönetimi
+              </button>
+            </nav>
+          </div>
+        </div>
+
+        {activeTab === 'genel' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* System Stats */}
           <div className="lg:col-span-2">
             <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-6 mb-8">
@@ -160,6 +295,24 @@ export default function AyarlarPage() {
               </div>
               
               <div className="space-y-6">
+                {/* School Name */}
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900 mb-3">Okul Bilgileri</h3>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Okul Adı
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.schoolName}
+                      onChange={(e) => setSettings({...settings, schoolName: e.target.value})}
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="Okul adını giriniz"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Bu isim sistem genelinde görüntülenecektir</p>
+                  </div>
+                </div>
+
                 {/* Email Notifications */}
                 <div className="flex items-center justify-between">
                   <div>
@@ -285,29 +438,61 @@ export default function AyarlarPage() {
                   <Database className="h-4 w-4 inline mr-2" />
                   Dekont Yönetimi
                 </button>
-                <button
-                  onClick={() => router.push('/admin/raporlar')}
-                  className="w-full text-left px-4 py-3 text-sm text-gray-700 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all duration-200"
-                >
-                  <Mail className="h-4 w-4 inline mr-2" />
-                  Rapor ve Analiz
-                </button>
               </div>
             </div>
 
-            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-6 text-white">
+            <div className={`rounded-2xl p-6 text-white ${
+              settings.systemMaintenance
+                ? 'bg-gradient-to-r from-red-500 to-orange-600'
+                : 'bg-gradient-to-r from-indigo-500 to-purple-600'
+            }`}>
               <h3 className="text-lg font-semibold mb-2">Sistem Durumu</h3>
-              <p className="text-indigo-100 text-sm mb-4">
-                Sistem normal çalışıyor. Son güncelleme: {new Date().toLocaleDateString('tr-TR')}
+              <p className={`text-sm mb-4 ${
+                settings.systemMaintenance ? 'text-red-100' : 'text-indigo-100'
+              }`}>
+                {settings.systemMaintenance
+                  ? 'Sistem bakım modunda. Kullanıcı girişleri engellendi.'
+                  : `Sistem normal çalışıyor. Son güncelleme: ${new Date().toLocaleDateString('tr-TR')}`
+                }
               </p>
               <div className="flex items-center">
-                <div className="w-3 h-3 bg-green-400 rounded-full mr-2"></div>
-                <span className="text-sm">Çevrimiçi</span>
+                <div className={`w-3 h-3 rounded-full mr-2 ${
+                  settings.systemMaintenance ? 'bg-orange-400' : 'bg-green-400'
+                }`}></div>
+                <span className="text-sm">
+                  {settings.systemMaintenance ? 'Bakım Modunda' : 'Çevrimiçi'}
+                </span>
               </div>
             </div>
           </div>
         </div>
+        )}
+
+        {activeTab === 'admin' && (
+          <AdminManagement currentUserRole={adminRole} />
+        )}
       </div>
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
+            <div className="text-center">
+              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                <Save className="h-8 w-8 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Başarılı!</h3>
+              <p className="text-gray-600 mb-6">Sistem ayarları başarıyla kaydedildi.</p>
+              <button
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
+              >
+                Tamam
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

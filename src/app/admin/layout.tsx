@@ -23,6 +23,7 @@ import {
   BookOpen
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/lib/supabase'
 
 const menuItems = [
   {
@@ -30,6 +31,12 @@ const menuItems = [
     icon: Home,
     href: '/admin',
     description: 'Genel bakış ve istatistikler'
+  },
+  {
+    title: 'Koordinatörlük Yönetimi',
+    icon: Briefcase,
+    href: '/admin/stajlar',
+    description: 'Öğrenci staj süreçleri'
   },
   {
     title: 'Alanlar',
@@ -42,12 +49,6 @@ const menuItems = [
     icon: Receipt,
     href: '/admin/dekontlar',
     description: 'Ödeme ve dekont yönetimi'
-  },
-  {
-    title: 'Raporlar',
-    icon: BarChart3,
-    href: '/admin/raporlar',
-    description: 'Analiz ve raporlama'
   }
 ]
 
@@ -74,10 +75,11 @@ function useMediaQuery(query: string) {
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const { user, loading, isAdmin, signOut } = useAuth()
+  const { user, loading, isAdmin, adminRole, signOut } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true)
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [schoolName, setSchoolName] = useState('Hüsniye Özdilek MTAL')
   
   // Tablet ve daha küçük ekranlar için media query
   const isTabletOrSmaller = useMediaQuery('(max-width: 1279px)')
@@ -90,6 +92,28 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       setDesktopSidebarOpen(true)
     }
   }, [isTabletOrSmaller])
+
+  // Okul ismini ayarlardan çek
+  const fetchSchoolName = async () => {
+    try {
+      const { data, error } = await supabase.rpc('get_system_setting', {
+        p_setting_key: 'school_name'
+      })
+      
+      if (!error && data) {
+        setSchoolName(data)
+      }
+    } catch (error) {
+      console.error('Okul ismi çekilirken hata:', error)
+    }
+  }
+
+  // Okul ismini yükle
+  useEffect(() => {
+    if (user && isAdmin) {
+      fetchSchoolName()
+    }
+  }, [user, isAdmin])
 
   // Auth check and redirect logic
   useEffect(() => {
@@ -163,7 +187,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-50 pb-16">
       {/* Mobile Sidebar */}
       <Transition.Root show={sidebarOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50 lg:hidden" onClose={setSidebarOpen}>
@@ -345,7 +369,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     <p className="text-sm font-medium text-gray-900">
                       {user.user_metadata?.full_name || user.email?.split('@')[0]}
                     </p>
-                    <p className="text-xs text-gray-500">Admin</p>
+                    <p className="text-xs text-gray-500">
+                      {adminRole === 'super_admin' ? 'Süper Admin' :
+                       adminRole === 'admin' ? 'Admin' :
+                       adminRole === 'operator' ? 'Operatör' : 'Admin'}
+                    </p>
                   </div>
                   <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
                     <span className="text-sm font-medium text-indigo-600">
@@ -379,6 +407,20 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           </div>
         </main>
       </div>
+
+      {/* Footer */}
+      <footer className="w-full bg-gradient-to-br from-indigo-900 to-indigo-800 text-white py-4 fixed bottom-0 left-0 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center">
+            <div className="flex items-center space-x-2">
+              <div className="font-bold bg-white text-indigo-900 w-6 h-6 flex items-center justify-center rounded-md">
+                A
+              </div>
+              <span className="text-sm">&copy; {new Date().getFullYear()} {schoolName}</span>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

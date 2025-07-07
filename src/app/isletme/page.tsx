@@ -41,6 +41,7 @@ interface Dekont {
   ay: string
   yil: number | string
   staj_id: string | number
+  yukleyen_kisi?: string
   stajlar?: {
     ogrenciler?: {
       ad: string
@@ -105,6 +106,42 @@ export default function PanelPage() {
   // Silme onay modalı için
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [pendingDeleteDekont, setPendingDeleteDekont] = useState<Dekont | null>(null);
+  // Başarılı dekont yükleme modalı için
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
+
+  // Dekont takip sistemi için yardımcı fonksiyonlar
+  const getCurrentMonth = () => new Date().getMonth() + 1;
+  const getCurrentYear = () => new Date().getFullYear();
+  const getCurrentDay = () => new Date().getDate();
+  
+  const aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+  
+  // Bu ay için dekont eksik olan öğrencileri tespit et
+  const getEksikDekontOgrenciler = () => {
+    const currentMonth = getCurrentMonth();
+    const currentYear = getCurrentYear();
+    const currentMonthName = aylar[currentMonth - 1];
+    
+    return ogrenciler.filter(ogrenci => {
+      const ogrenciDekontlari = dekontlar.filter(d =>
+        String(d.staj_id) === String(ogrenci.staj_id) &&
+        d.ay === currentMonthName &&
+        String(d.yil) === String(currentYear)
+      );
+      return ogrenciDekontlari.length === 0;
+    });
+  };
+
+  // Gecikme durumunu kontrol et (ayın 10'undan sonra)
+  const isGecikme = () => getCurrentDay() > 10;
+  
+  // Kritik süre kontrolü (ayın 1-10'u arası)
+  const isKritikSure = () => {
+    const day = getCurrentDay();
+    return day >= 1 && day <= 10;
+  };
+
+  const eksikDekontOgrenciler = getEksikDekontOgrenciler();
 
   // Belge form verileri
   const [belgeFormData, setBelgeFormData] = useState({
@@ -253,8 +290,8 @@ export default function PanelPage() {
           alanlar: staj.ogrenciler.alanlar,
           baslangic_tarihi: staj.baslangic_tarihi,
           bitis_tarihi: staj.bitis_tarihi,
-          ogretmen_ad: staj.ogretmenler.ad,
-          ogretmen_soyad: staj.ogretmenler.soyad
+          ogretmen_ad: staj.ogretmenler?.ad || 'Bilinmiyor',
+          ogretmen_soyad: staj.ogretmenler?.soyad || ''
         }))
         setOgrenciler(formattedOgrenciler)
       }
@@ -276,6 +313,10 @@ export default function PanelPage() {
                 ad
               )
             )
+          ),
+          ogretmenler (
+            ad,
+            soyad
           )
         `)
         .order('created_at', { ascending: false })
@@ -292,68 +333,76 @@ export default function PanelPage() {
 
         console.log('İşletme dekontları:', isletmeDekontlari)
 
-        const formattedDekontlar = isletmeDekontlari.map((dekont: any) => ({
-          id: dekont.id.toString(),
-          staj_id: dekont.staj_id.toString(),
-          miktar: dekont.miktar ? parseFloat(dekont.miktar) : null,
-          onay_durumu: dekont.onay_durumu || 'bekliyor',
-          aciklama: dekont.aciklama || '',
-          dosya_url: dekont.dekont_dosyasi || dekont.dosya_url || dekont.file_url || null,
-          ay: dekont.ay?.toString() || '',
-          yil: dekont.yil?.toString() || '',
-          gonderen: dekont.gonderen || 'isletme',
-          odeme_tarihi: dekont.odeme_tarihi || null,
-          ogrenci_adi: `${dekont.stajlar?.ogrenciler?.ad || ''} ${dekont.stajlar?.ogrenciler?.soyad || ''}`.trim(),
-          stajlar: dekont.stajlar ? {
-            ogrenciler: {
-              ad: dekont.stajlar.ogrenciler.ad || '',
-              soyad: dekont.stajlar.ogrenciler.soyad || '',
-              sinif: dekont.stajlar.ogrenciler.sinif?.toString() || '',
-              no: dekont.stajlar.ogrenciler.no?.toString() || '',
-              alanlar: dekont.stajlar.ogrenciler.alanlar ? {
-                ad: dekont.stajlar.ogrenciler.alanlar.ad || ''
-              } : undefined
-            }
-          } : undefined,
-          created_at: dekont.created_at
-        }))
+        const formattedDekontlar = isletmeDekontlari.map((dekont: any) => {
+          // Kimin yüklediğini belirle
+          let yukleyenKisi = 'Bilinmiyor';
+          if (dekont.ogretmen_id && dekont.ogretmenler) {
+            yukleyenKisi = `${dekont.ogretmenler.ad} ${dekont.ogretmenler.soyad} (Öğretmen)`;
+          } else {
+            yukleyenKisi = `${isletmeData.ad} (İşletme)`;
+          }
+
+          return {
+            id: dekont.id.toString(),
+            staj_id: dekont.staj_id.toString(),
+            miktar: dekont.miktar ? parseFloat(dekont.miktar) : null,
+            onay_durumu: dekont.onay_durumu || 'bekliyor',
+            aciklama: dekont.aciklama || '',
+            dosya_url: dekont.dekont_dosyasi || dekont.dosya_url || dekont.file_url || null,
+            ay: dekont.ay?.toString() || '',
+            yil: dekont.yil?.toString() || '',
+            gonderen: dekont.gonderen || 'isletme',
+            yukleyen_kisi: yukleyenKisi,
+            odeme_tarihi: dekont.odeme_tarihi || null,
+            ogrenci_adi: `${dekont.stajlar?.ogrenciler?.ad || ''} ${dekont.stajlar?.ogrenciler?.soyad || ''}`.trim(),
+            stajlar: dekont.stajlar ? {
+              ogrenciler: {
+                ad: dekont.stajlar.ogrenciler.ad || '',
+                soyad: dekont.stajlar.ogrenciler.soyad || '',
+                sinif: dekont.stajlar.ogrenciler.sinif?.toString() || '',
+                no: dekont.stajlar.ogrenciler.no?.toString() || '',
+                alanlar: dekont.stajlar.ogrenciler.alanlar ? {
+                  ad: dekont.stajlar.ogrenciler.alanlar.ad || ''
+                } : undefined
+              }
+            } : undefined,
+            created_at: dekont.created_at
+          };
+        })
 
         setDekontlar(formattedDekontlar)
       }
 
-      // İşletmenin belgelerini getir
-      const { data: belgeData, error: belgeError } = await supabase
-        .from('belgeler')
-        .select(`
-          *,
-          ogretmenler (ad, soyad)
-        `)
-        .eq('isletme_id', isletmeData.id)
-        .order('yukleme_tarihi', { ascending: false })
+      // İşletmenin belgelerini getir - daha güvenli sorgu
+      try {
+        const { data: belgeData, error: belgeError } = await supabase
+          .from('belgeler')
+          .select('*')
+          .eq('isletme_id', isletmeData.id)
+          .order('created_at', { ascending: false })
 
-      if (belgeError) {
-        console.error('Belgeleri getirme hatası:', belgeError)
-      } else if (belgeData) {
-        const formattedBelgeler = belgeData.map((belge: any) => {
-          // Kimin yüklediğini belirle
-          let yukleyenKisi = 'Bilinmiyor';
-          if (belge.ogretmen_id && belge.ogretmenler) {
-            yukleyenKisi = `${belge.ogretmenler.ad} ${belge.ogretmenler.soyad} (Öğretmen)`;
-          } else if (belge.ogretmen_id) {
-            yukleyenKisi = 'Öğretmen';
-          } else if (belge.isletme_yukleyen) {
-            yukleyenKisi = 'İşletme';
-          } else {
-            yukleyenKisi = 'Yönetici';
-          }
-
-          return {
+        if (belgeError) {
+          console.error('Belgeleri getirme hatası:', belgeError)
+          // Belge hatası olsa bile devam et, sadece boş array kullan
+          setBelgeler([])
+          setFilteredBelgeler([])
+        } else if (belgeData) {
+          const formattedBelgeler = belgeData.map((belge: any) => ({
             ...belge,
-            yukleyen_kisi: yukleyenKisi
-          };
-        });
-        setBelgeler(formattedBelgeler)
-        setFilteredBelgeler(formattedBelgeler)
+            yukleme_tarihi: belge.created_at || belge.yukleme_tarihi,
+            yukleyen_kisi: belge.isletme_yukleyen ? 'İşletme' : 'Yönetici'
+          }));
+          setBelgeler(formattedBelgeler)
+          setFilteredBelgeler(formattedBelgeler)
+        } else {
+          // Belge verisi null ise boş array kullan
+          setBelgeler([])
+          setFilteredBelgeler([])
+        }
+      } catch (error) {
+        console.error('Belgeler getirme genel hatası:', error)
+        setBelgeler([])
+        setFilteredBelgeler([])
       }
     } catch (error) {
       console.error('Veri getirme hatası:', error)
@@ -545,11 +594,20 @@ export default function PanelPage() {
       // Ay adları ve ay adı değişkenini fonksiyon başına taşı
       const aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
       const ayAdi = aylar[dekontFormData.ay - 1];
+      
       // Aynı öğrenci ve ay için daha önce dekont var mı kontrolü
       const mevcutDekontlar = dekontlar.filter(d => {
         // d.staj_id hem string hem number olabilir, hepsini stringe çevir
         return String(d.staj_id) === String(selectedOgrenci?.staj_id) && d.ay === ayAdi && String(d.yil) === String(dekontFormData.yil);
       });
+
+      // Onaylanmış dekont kontrolü
+      const onaylanmisDekont = mevcutDekontlar.find(d => d.onay_durumu === 'onaylandi');
+      if (onaylanmisDekont) {
+        alert(`❌ ${ayAdi} ${dekontFormData.yil} döneminde öğrencinin onaylanmış dekontu bulunuyor. Aynı aya tekrar dekont yükleyemezsiniz.`);
+        return;
+      }
+
       let ekDekontIndex = 0;
       if (mevcutDekontlar.length > 0) {
         ekDekontIndex = mevcutDekontlar.length;
@@ -657,7 +715,8 @@ export default function PanelPage() {
           return
         }
 
-        alert('Dekont başarıyla eklendi!')
+        // Dekont başarıyla eklendi, modal göster
+        setSuccessModalOpen(true)
         // Yeni dekontu state'e ekle (fetchData çağırmadan)
         if (dekontData) {
           setDekontlar(prev => [
@@ -673,6 +732,7 @@ export default function PanelPage() {
               gonderen: dekontData.gonderen || 'isletme',
               odeme_tarihi: dekontData.odeme_tarihi || null,
               ogrenci_adi: selectedOgrenci ? `${selectedOgrenci.ad} ${selectedOgrenci.soyad}` : '',
+              yukleyen_kisi: `${isletme!.ad} (İşletme)`,
               stajlar: dekontData.stajlar ? {
                 ogrenciler: dekontData.stajlar.ogrenciler ? {
                   ad: dekontData.stajlar.ogrenciler.ad || '',
@@ -904,9 +964,9 @@ export default function PanelPage() {
           <div className="mt-8">
             <nav className="-mb-px flex space-x-4" aria-label="Tabs">
               {[
-                { id: 'ogrenciler', icon: Users, label: 'Öğrenciler' },
-                { id: 'dekontlar', icon: Receipt, label: 'Dekontlar' },
-                { id: 'belgeler', icon: FileText, label: 'Belgeler' }
+                { id: 'ogrenciler', icon: Users, label: 'Öğrenciler', count: ogrenciler.length },
+                { id: 'dekontlar', icon: Receipt, label: 'Dekontlar', count: dekontlar.length },
+                { id: 'belgeler', icon: FileText, label: 'Belgeler', count: filteredBelgeler.length }
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -923,7 +983,7 @@ export default function PanelPage() {
                   >
                     <div className="flex items-center justify-center">
                       <Icon className={`h-5 w-5 ${isActive ? 'text-indigo-700' : 'text-indigo-300 group-hover:text-white'} mr-2`} />
-                      {tab.label}
+                      {tab.label} ({tab.count})
                     </div>
                     {isActive && (
                       <span className="absolute inset-x-0 bottom-0 h-0.5 bg-indigo-700" />
@@ -939,25 +999,124 @@ export default function PanelPage() {
       {/* Main Content */}
       <main className="relative -mt-32 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Dekont Takip Uyarı Sistemi */}
+          {eksikDekontOgrenciler.length > 0 && (
+            <div className={`mb-6 rounded-2xl shadow-lg ring-1 ring-black ring-opacity-5 p-6 ${
+              isGecikme()
+                ? 'bg-gradient-to-r from-red-50 to-red-100 border-l-4 border-red-500'
+                : isKritikSure()
+                ? 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-l-4 border-yellow-500'
+                : 'bg-gradient-to-r from-blue-50 to-blue-100 border-l-4 border-blue-500'
+            }`}>
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  {isGecikme() ? (
+                    <XCircle className="h-6 w-6 text-red-600" />
+                  ) : isKritikSure() ? (
+                    <Clock className="h-6 w-6 text-yellow-600" />
+                  ) : (
+                    <Calendar className="h-6 w-6 text-blue-600" />
+                  )}
+                </div>
+                <div className="ml-3 flex-1">
+                  <h3 className={`text-lg font-medium ${
+                    isGecikme() ? 'text-red-800' : isKritikSure() ? 'text-yellow-800' : 'text-blue-800'
+                  }`}>
+                    {isGecikme()
+                      ? '🚨 GECİKME UYARISI!'
+                      : isKritikSure()
+                      ? '⏰ KRİTİK SÜRE!'
+                      : '📅 Dekont Hatırlatması'
+                    }
+                  </h3>
+                  <div className={`mt-2 text-sm ${
+                    isGecikme() ? 'text-red-700' : isKritikSure() ? 'text-yellow-700' : 'text-blue-700'
+                  }`}>
+                    <p className="font-medium mb-2">
+                      {isGecikme()
+                        ? `${aylar[getCurrentMonth() - 1]} ayı dekont yükleme süresi geçti! Devlet katkı payı alamayabilirsiniz.`
+                        : isKritikSure()
+                        ? `${aylar[getCurrentMonth() - 1]} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
+                        : `${aylar[getCurrentMonth() - 1]} ayı için eksik dekontlar var.`
+                      }
+                    </p>
+                    <p className="mb-3">
+                      <strong>Eksik dekont olan öğrenciler ({eksikDekontOgrenciler.length} kişi):</strong>
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {eksikDekontOgrenciler.map((ogrenci) => (
+                        <div key={ogrenci.id} className={`p-3 rounded-lg ${
+                          isGecikme() ? 'bg-red-100 border border-red-200' :
+                          isKritikSure() ? 'bg-yellow-100 border border-yellow-200' :
+                          'bg-blue-100 border border-blue-200'
+                        }`}>
+                          <div className="font-medium text-gray-900">
+                            {ogrenci.ad} {ogrenci.soyad}
+                          </div>
+                          <div className="text-xs text-gray-600">
+                            {ogrenci.sinif} - No: {ogrenci.no}
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSelectedOgrenci(ogrenci)
+                              setDekontModalOpen(true)
+                            }}
+                            className={`mt-2 w-full flex items-center justify-center px-2 py-1 text-xs font-medium rounded transition-colors ${
+                              isGecikme() ? 'bg-red-600 text-white hover:bg-red-700' :
+                              isKritikSure() ? 'bg-yellow-600 text-white hover:bg-yellow-700' :
+                              'bg-blue-600 text-white hover:bg-blue-700'
+                            }`}
+                          >
+                            <Upload className="h-3 w-3 mr-1" />
+                            Hemen Yükle
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black ring-opacity-5 p-6 divide-y divide-gray-200">
             {activeTab === 'ogrenciler' && (
               <div className="space-y-6">
-                {ogrenciler.map((ogrenci) => (
-                  <div key={ogrenci.id} className="pt-6 first:pt-0">
+                {ogrenciler.map((ogrenci, index) => (
+                  <div
+                    key={ogrenci.id}
+                    className={`pt-6 first:pt-0 p-4 rounded-xl transition-all duration-300 hover:shadow-lg hover:scale-[1.02] ${
+                      index % 2 === 0
+                        ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 hover:from-blue-100 hover:to-indigo-100'
+                        : 'bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 hover:from-purple-100 hover:to-pink-100'
+                    }`}
+                  >
                     <div className="flex items-start justify-between">
                       <div className="flex items-center">
-                        <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center">
-                          <User className="h-6 w-6 text-indigo-600" />
+                        <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
+                          index % 2 === 0
+                            ? 'bg-gradient-to-br from-blue-100 to-indigo-100 text-blue-600'
+                            : 'bg-gradient-to-br from-purple-100 to-pink-100 text-purple-600'
+                        }`}>
+                          <User className="h-6 w-6" />
                         </div>
                         <div className="ml-4">
                           <h3 className="text-lg font-medium text-gray-900">
                             {ogrenci.ad} {ogrenci.soyad}
                           </h3>
                           <div className="flex items-center space-x-3 mt-2 text-sm">
-                            <div className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg font-medium min-w-[80px] text-center">
+                            <div className={`px-3 py-1.5 rounded-lg font-medium min-w-[80px] text-center ${
+                              index % 2 === 0
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-purple-100 text-purple-700'
+                            }`}>
                               {ogrenci.sinif}
                             </div>
-                            <div className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg font-medium">
+                            <div className={`px-3 py-1.5 rounded-lg font-medium ${
+                              index % 2 === 0
+                                ? 'bg-indigo-100 text-indigo-700'
+                                : 'bg-pink-100 text-pink-700'
+                            }`}>
                               No: {ogrenci.no}
                             </div>
                           </div>
@@ -968,7 +1127,11 @@ export default function PanelPage() {
                           setSelectedOgrenci(ogrenci)
                           setDekontModalOpen(true)
                         }}
-                        className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                        className={`flex items-center px-3 py-1.5 text-sm rounded-lg transition-all duration-200 shadow-sm hover:shadow-md ${
+                          index % 2 === 0
+                            ? 'text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200'
+                            : 'text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200'
+                        }`}
                       >
                         <Upload className="h-4 w-4 mr-1.5" />
                         Dekont Yükle
@@ -977,19 +1140,29 @@ export default function PanelPage() {
                     <div className="mt-4 flex flex-col gap-2">
                       <div className="flex items-center text-sm text-gray-500">
                         <GraduationCap className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="px-2 py-1 bg-teal-50 text-teal-700 rounded-lg font-medium">
+                        <span className={`px-2 py-1 rounded-lg font-medium ${
+                          index % 2 === 0
+                            ? 'bg-teal-50 text-teal-700'
+                            : 'bg-emerald-50 text-emerald-700'
+                        }`}>
                           {ogrenci.alanlar?.ad || "Alan bilgisi yok"}
                         </span>
                       </div>
                       <div className="flex items-center text-sm text-gray-500">
                         <Calendar className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="font-medium text-gray-700">İşe Başlama:</span>{' '}
-                        {new Date(ogrenci.baslangic_tarihi).toLocaleDateString('tr-TR')}
+                        <span className="font-medium text-gray-700">Staja Başlama:</span>
+                        <span className="ml-2 text-gray-900">
+                          {new Date(ogrenci.baslangic_tarihi).toLocaleDateString('tr-TR')}
+                        </span>
                       </div>
                       <div className="flex items-center text-sm text-gray-500">
                         <User className="h-4 w-4 text-gray-400 mr-2" />
                         <span className="font-medium text-gray-700">Koordinatör:</span>{' '}
-                        <span className="px-2 py-1 bg-teal-50 text-teal-700 rounded-lg font-medium ml-1">
+                        <span className={`px-2 py-1 rounded-lg font-medium ml-1 ${
+                          index % 2 === 0
+                            ? 'bg-teal-50 text-teal-700'
+                            : 'bg-emerald-50 text-emerald-700'
+                        }`}>
                           {ogrenci.ogretmen_ad} {ogrenci.ogretmen_soyad}
                         </span>
                       </div>
@@ -1009,10 +1182,10 @@ export default function PanelPage() {
                   <h2 className="text-2xl font-semibold text-gray-900">Dekontlar</h2>
                   <button
                     onClick={() => setDekontModalOpen(true)}
-                    className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                    title="Yeni Dekont"
+                    className="flex items-center px-4 py-2 text-sm text-white bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-colors shadow-sm"
                   >
-                    <Plus className="h-5 w-5" />
+                    <Plus className="h-4 w-4 mr-2" />
+                    Yeni Dekont Ekle
                   </button>
                 </div>
 
@@ -1057,8 +1230,8 @@ export default function PanelPage() {
                                     {dekont.stajlar.ogrenciler.alanlar.ad}
                                   </span>
                                 )}
-                                <span>{
-                                  (() => {
+                                <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-bold border border-indigo-200">
+                                  {(() => {
                                     // Aynı öğrenci, ay ve yıl için kaçıncı ek olduğunu bul
                                     const sameDekonts = dekontlar.filter(d =>
                                       String(d.staj_id) === String(dekont.staj_id) &&
@@ -1069,8 +1242,14 @@ export default function PanelPage() {
                                     const sorted = [...sameDekonts].sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
                                     const ekIndex = sorted.findIndex(d => d.id == dekont.id);
                                     return dekont.ay + (ekIndex > 0 ? ` (ek-${ekIndex+1})` : '') + ' ' + dekont.yil;
-                                  })()
-                                }</span>
+                                  })()}
+                                </span>
+                              </div>
+                              {/* Yükleyen bilgisi */}
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className="text-xs">
+                                  <span className="font-bold">Gönderen:</span> {dekont.yukleyen_kisi || 'Bilinmiyor'}
+                                </span>
                               </div>
                             </div>
                             <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -1083,8 +1262,9 @@ export default function PanelPage() {
                                   <Download className="h-5 w-5" />
                                 </button>
                               )}
-                              {/* Bekliyor veya reddedildi ise sil */}
-                              {(dekont.onay_durumu === 'bekliyor' || dekont.onay_durumu === 'reddedildi') && (
+                              {/* Bekliyor veya reddedildi ise ve işletme tarafından gönderilmiş ise sil */}
+                              {(dekont.onay_durumu === 'bekliyor' || dekont.onay_durumu === 'reddedildi') &&
+                               dekont.yukleyen_kisi && !dekont.yukleyen_kisi.includes('(Öğretmen)') && (
                                 <button
                                   title="Dekontu Sil"
                                   className="p-2 text-red-600 hover:text-white bg-red-50 hover:bg-red-600 rounded-lg transition-colors"
@@ -1101,11 +1281,9 @@ export default function PanelPage() {
                           {/* Alt köşeler: miktar (sol), yüklenme tarihi (sağ) */}
                           <div className="flex justify-between items-end mt-2">
                             {/* Sol alt: Miktar */}
-                            {dekont.miktar && (
-                              <span className="text-xs font-bold text-green-600">
-                                Miktar: {dekont.miktar.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
-                              </span>
-                            )}
+                            <span className="text-xs font-bold text-green-600">
+                              Miktar: {dekont.miktar ? dekont.miktar.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' }) : '-'}
+                            </span>
                             {/* Sağ alt: Yüklenme tarihi */}
                             {dekont.created_at && (
                               <span className="text-xs text-gray-400">
@@ -1296,17 +1474,22 @@ export default function PanelPage() {
               Öğrenci Adı <span className="text-red-500">*</span>
             </label>
             <select
-              value={selectedOgrenci?.id || ''}
+              value={selectedOgrenci?.id ? String(selectedOgrenci.id) : ''}
               onChange={(e) => {
-                const ogrenci = ogrenciler.find(o => o.id === e.target.value)
-                setSelectedOgrenci(ogrenci || null)
+                const selectedValue = e.target.value;
+                if (selectedValue === '') {
+                  setSelectedOgrenci(null);
+                } else {
+                  const ogrenci = ogrenciler.find(o => String(o.id) === selectedValue);
+                  setSelectedOgrenci(ogrenci || null);
+                }
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               required
             >
               <option value="">Öğrenci Seçiniz</option>
               {ogrenciler.map((ogrenci) => (
-                <option key={ogrenci.id} value={ogrenci.id}>
+                <option key={ogrenci.id} value={String(ogrenci.id)}>
                   {ogrenci.ad} {ogrenci.soyad} - {ogrenci.sinif}
                 </option>
               ))}
@@ -1761,6 +1944,38 @@ export default function PanelPage() {
         </div>
       </Modal>
 
+      {/* Başarılı Dekont Yükleme Modalı */}
+      <Modal isOpen={successModalOpen} onClose={() => setSuccessModalOpen(false)} title="">
+        <div className="text-center py-8">
+          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-6">
+            <div className="flex items-center justify-center h-12 w-12 rounded-full bg-green-200 animate-pulse">
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-4">Dekont Başarıyla Yüklendi!</h3>
+          <p className="text-gray-600 mb-6">
+            Dekontunuz sisteme kaydedildi ve onay için gönderildi.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={() => {
+                setSuccessModalOpen(false)
+                setActiveTab('dekontlar')
+              }}
+              className="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-sm"
+            >
+              Dekontları Görüntüle
+            </button>
+            <button
+              onClick={() => setSuccessModalOpen(false)}
+              className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Tamam
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       <footer className="w-full bg-gradient-to-br from-indigo-900 to-indigo-800 text-white py-4 fixed bottom-0 left-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-center">
@@ -1775,4 +1990,4 @@ export default function PanelPage() {
       </footer>
     </div>
   )
-} 
+}

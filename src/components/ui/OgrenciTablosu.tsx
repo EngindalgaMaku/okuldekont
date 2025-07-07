@@ -44,17 +44,37 @@ export default function OgrenciTablosu({
 
   return (
     <div className="space-y-4">
-      {ogrenciler.map((ogrenci) => (
-        <div key={ogrenci.id} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-all duration-200">
+      {ogrenciler.map((ogrenci, index) => (
+        <div
+          key={ogrenci.id}
+          className={`rounded-xl p-4 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] ${
+            index % 2 === 0
+              ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 hover:from-blue-100 hover:to-indigo-100'
+              : 'bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 hover:from-purple-100 hover:to-pink-100'
+          }`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-medium text-gray-900">
                 {ogrenci.ad} {ogrenci.soyad}
               </h3>
-              <p className="text-sm text-gray-500">
-                {ogrenci.sinif} - No: {ogrenci.no}
-              </p>
-              <p className="text-xs text-gray-400">
+              <div className="flex items-center space-x-2 mt-2">
+                <p className={`text-sm font-medium px-2 py-1 rounded-lg ${
+                  index % 2 === 0
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-purple-100 text-purple-700'
+                }`}>
+                  {ogrenci.sinif}
+                </p>
+                <p className={`text-sm font-medium px-2 py-1 rounded-lg ${
+                  index % 2 === 0
+                    ? 'bg-indigo-100 text-indigo-700'
+                    : 'bg-pink-100 text-pink-700'
+                }`}>
+                  No: {ogrenci.no}
+                </p>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
                 {formatDate(ogrenci.baslangic_tarihi)} - {formatDate(ogrenci.bitis_tarihi)}
               </p>
             </div>
@@ -65,7 +85,11 @@ export default function OgrenciTablosu({
                     setSelectedOgrenci(ogrenci)
                     setDekontModalOpen(true)
                   }}
-                  className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                  className={`flex items-center gap-1 px-3 py-1 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md ${
+                    index % 2 === 0
+                      ? 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-200'
+                      : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200'
+                  }`}
                 >
                   <Upload className="h-4 w-4" />
                   Dekont Yükle
@@ -78,7 +102,11 @@ export default function OgrenciTablosu({
                     setSelectedOgrenciDekontlar(ogrenciDekontlari)
                     setDekontViewModalOpen(true)
                   }}
-                  className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                  className={`flex items-center gap-1 px-3 py-1 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md ${
+                    index % 2 === 0
+                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200'
+                      : 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-200'
+                  }`}
                 >
                   <Eye className="h-4 w-4" />
                   Dekontları Gör

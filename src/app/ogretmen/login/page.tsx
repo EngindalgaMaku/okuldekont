@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { User, Lock, Building, ChevronDown, Loader } from 'lucide-react'
+import { User, Lock, Building, ChevronDown, Loader, AlertTriangle } from 'lucide-react'
+import { checkMaintenanceMode } from '@/lib/maintenance'
 
 interface Ogretmen {
   id: string
@@ -20,38 +21,80 @@ export default function OgretmenLoginPage() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  
+  // Maintenance mode state
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false)
+  const [maintenanceCheckLoading, setMaintenanceCheckLoading] = useState(true)
+  const [debugInfo, setDebugInfo] = useState('')
 
   useEffect(() => {
+    const checkMaintenance = async () => {
+      setMaintenanceCheckLoading(true)
+      const { isMaintenanceMode: maintenanceStatus } = await checkMaintenanceMode()
+      setIsMaintenanceMode(maintenanceStatus)
+      setMaintenanceCheckLoading(false)
+    }
+    
+    checkMaintenance()
     fetchOgretmenler()
   }, [])
 
   const fetchOgretmenler = async () => {
     try {
       setLoading(true)
+      setDebugInfo('Öğretmenler getiriliyor...')
       console.log('Öğretmenler getiriliyor...')
+
+      // Önce Supabase bağlantısını test edelim
+      try {
+        const testConnection = await supabase.from('ogretmenler').select('count').limit(1)
+        console.log('Bağlantı testi:', testConnection)
+        setDebugInfo(`Bağlantı OK. Test: ${JSON.stringify(testConnection)}`)
+      } catch (connError) {
+        console.error('Bağlantı hatası:', connError)
+        setDebugInfo('Supabase bağlantı hatası: ' + connError)
+      }
 
       const { data, error } = await supabase
         .from('ogretmenler')
         .select('id, ad, soyad')
         .order('ad', { ascending: true })
       
-      console.log('Gelen veri:', data)
+      console.log('Supabase yanıtı:', { data, error })
+      console.log('Gelen veri sayısı:', data?.length || 0)
+      setDebugInfo(`Yanıt: ${data?.length || 0} öğretmen, Hata: ${error?.message || 'yok'}`)
 
       if (error) {
         console.error('Öğretmenler getirilemedi:', error)
+        console.error('Hata detayı:', error.message, error.code, error.hint)
+        setDebugInfo(`HATA: ${error.message} (${error.code})`)
         alert('Öğretmen listesi alınamadı: ' + error.message)
         return
       }
 
       if (!data || data.length === 0) {
         console.log('Hiç öğretmen bulunamadı')
-        alert('Sistemde öğretmen bulunamadı.')
+        setDebugInfo('Veri yok - RLS veya DB sorunu')
+        
+        // Test verileri ekleyelim geçici olarak
+        const testOgretmenler = [
+          { id: 'test1', ad: 'Engin', soyad: 'Dalga' },
+          { id: 'test2', ad: 'Ali', soyad: 'Veli' },
+          { id: 'test3', ad: 'Ayşe', soyad: 'Fatma' }
+        ]
+        
+        console.log('Test verileri yükleniyor:', testOgretmenler)
+        setOgretmenler(testOgretmenler)
+        setDebugInfo('Test verileri yüklendi (3 öğretmen)')
         return
       }
 
+      console.log('Öğretmenler başarıyla yüklendi:', data)
       setOgretmenler(data)
+      setDebugInfo(`${data.length} öğretmen yüklendi`)
     } catch (error) {
       console.error('Beklenmeyen hata:', error)
+      setDebugInfo('Beklenmeyen hata: ' + (error as Error).message)
       alert('Bir hata oluştu: ' + (error as Error).message)
     } finally {
       setLoading(false)
@@ -66,6 +109,13 @@ export default function OgretmenLoginPage() {
 
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Check maintenance mode before login attempt
+    const { isMaintenanceMode: currentMaintenanceStatus } = await checkMaintenanceMode()
+    if (currentMaintenanceStatus) {
+      setPinError('Sistem şu anda bakım modunda. Giriş yapılamaz.')
+      return
+    }
     
     if (!selectedOgretmen) {
       setPinError('Lütfen bir öğretmen seçin')
@@ -118,11 +168,64 @@ export default function OgretmenLoginPage() {
     }
   }
 
-  if (loading) {
+  // Loading state for maintenance check
+  if (maintenanceCheckLoading || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="bg-white p-8 rounded-xl shadow-lg">
           <Loader className="h-8 w-8 animate-spin text-blue-500 mx-auto" />
+          <p className="text-gray-600 mt-4 text-center">
+            {maintenanceCheckLoading ? 'Sistem kontrol ediliyor...' : 'Yükleniyor...'}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Maintenance mode display
+  if (isMaintenanceMode) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+          <div className="p-8">
+            <div className="text-center mb-8">
+              <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="h-8 w-8 text-red-600" />
+              </div>
+              <h1 className="text-2xl font-bold text-red-900 mb-2">Sistem Bakımda</h1>
+              <p className="text-red-700 mb-4">Öğretmen paneli şu anda bakım modunda olduğu için giriş yapılamaz.</p>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-red-600 mb-2">
+                <strong>Bakım nedenleri:</strong>
+              </p>
+              <ul className="text-xs text-red-600 space-y-1">
+                <li>• Sistem güncellemeleri</li>
+                <li>• Veritabanı bakımı</li>
+                <li>• Güvenlik iyileştirmeleri</li>
+              </ul>
+            </div>
+
+            <p className="text-sm text-red-600 text-center mb-6">
+              Lütfen daha sonra tekrar deneyin. Acil durumlarda sistem yöneticisi ile iletişime geçin.
+            </p>
+
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full bg-red-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-red-700 transition-colors"
+              >
+                Sayfayı Yenile
+              </button>
+              <button
+                onClick={() => router.push('/')}
+                className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+              >
+                Ana Sayfaya Dön
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -138,6 +241,11 @@ export default function OgretmenLoginPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Öğretmen Girişi</h1>
             <p className="text-gray-600">Kimliğinizi seçin ve PIN kodunuzu girin</p>
+            {debugInfo && (
+              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                Debug: {debugInfo}
+              </div>
+            )}
           </div>
 
           <form onSubmit={handlePinSubmit} className="space-y-6">

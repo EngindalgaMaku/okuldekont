@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { ChevronDownIcon, MagnifyingGlassIcon, BuildingOfficeIcon, AcademicCapIcon } from '@heroicons/react/24/outline'
+import { ChevronDownIcon, MagnifyingGlassIcon, BuildingOfficeIcon, AcademicCapIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { useToast } from '@/components/ui/Toast'
+import { checkMaintenanceMode } from '@/lib/maintenance'
+import { getSchoolName } from '@/lib/settings'
 
 interface Isletme {
     id: string
@@ -53,6 +55,13 @@ export default function LoginPage() {
   const [step, setStep] = useState(1)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
 
+  // Maintenance mode state
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false)
+  const [maintenanceCheckLoading, setMaintenanceCheckLoading] = useState(true)
+
+  // School name state
+  const [schoolName, setSchoolName] = useState('Hüsniye Özdilek MTAL')
+
   // Debounced search term - 300ms bekle
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
@@ -97,6 +106,25 @@ export default function LoginPage() {
     }
   }, [loginType])
 
+  // Check maintenance mode and load school name on component mount
+  useEffect(() => {
+    const initializeApp = async () => {
+      setMaintenanceCheckLoading(true)
+      
+      // Check maintenance mode
+      const { isMaintenanceMode: maintenanceStatus } = await checkMaintenanceMode()
+      setIsMaintenanceMode(maintenanceStatus)
+      
+      // Get school name
+      const schoolNameFromDb = await getSchoolName()
+      setSchoolName(schoolNameFromDb)
+      
+      setMaintenanceCheckLoading(false)
+    }
+    
+    initializeApp()
+  }, [])
+
   // Debounced search term değiştiğinde arama yap
   useEffect(() => {
     if (debouncedSearchTerm) {
@@ -111,7 +139,19 @@ export default function LoginPage() {
     resetSelection()
   }, [loginType])
 
-  const handleSelectAndProceed = () => {
+  const handleSelectAndProceed = async () => {
+    // Check maintenance mode before proceeding
+    const { isMaintenanceMode: currentMaintenanceStatus } = await checkMaintenanceMode()
+    if (currentMaintenanceStatus) {
+      showToast({
+        type: 'error',
+        title: 'Sistem Bakımda',
+        message: 'Sistem şu anda bakım modunda. Lütfen daha sonra tekrar deneyin.',
+        duration: 6000
+      })
+      return
+    }
+
     if (loginType === 'isletme' && !selectedIsletme) {
       showToast({
         type: 'warning',
@@ -143,6 +183,19 @@ export default function LoginPage() {
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (isLoggingIn) return
+    
+    // Check maintenance mode before login attempt
+    const { isMaintenanceMode: currentMaintenanceStatus } = await checkMaintenanceMode()
+    if (currentMaintenanceStatus) {
+      showToast({
+        type: 'error',
+        title: 'Sistem Bakımda',
+        message: 'Sistem şu anda bakım modunda. Giriş yapılamaz.',
+        duration: 6000
+      })
+      setIsLoggingIn(false)
+      return
+    }
     
     setPinError('')
     setIsLoggingIn(true)
@@ -459,6 +512,56 @@ export default function LoginPage() {
     </form>
   )
 
+  // Loading state for maintenance check
+  if (maintenanceCheckLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-600 border-t-transparent mx-auto mb-4"></div>
+            <p className="text-gray-600">Sistem kontrol ediliyor...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Maintenance mode display
+  if (isMaintenanceMode) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-xl border border-red-200">
+          <div className="text-center">
+            <div className="mx-auto w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mb-4">
+              <ExclamationTriangleIcon className="h-8 w-8 text-red-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-red-900 mb-2">Sistem Bakımda</h1>
+            <p className="text-red-700 mb-4">Sistem şu anda bakım modunda olduğu için giriş yapılamaz.</p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm text-red-600 mb-2">
+                <strong>Bakım nedenleri:</strong>
+              </p>
+              <ul className="text-xs text-red-600 space-y-1 text-left">
+                <li>• Sistem güncellemeleri</li>
+                <li>• Veritabanı bakımı</li>
+                <li>• Güvenlik iyileştirmeleri</li>
+              </ul>
+            </div>
+            <p className="text-sm text-red-600 mt-4">
+              Lütfen daha sonra tekrar deneyin. Acil durumlarda sistem yöneticisi ile iletişime geçin.
+            </p>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="w-full px-4 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-colors"
+          >
+            Sayfayı Yenile
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
@@ -467,7 +570,7 @@ export default function LoginPage() {
                   <AcademicCapIcon className="h-8 w-8 text-white" />
                 </div>
                 <h1 className="text-2xl font-bold text-gray-900">Koordinatörlük Yönetimi</h1>
-                <p className="text-gray-600 mt-1">Hüsniye Özdilek MTAL</p>
+                <p className="text-gray-600 mt-1">{schoolName}</p>
             </div>
             
             {step === 1 && (
@@ -476,8 +579,8 @@ export default function LoginPage() {
                         <button
                             onClick={() => setLoginType('isletme')}
                             className={`flex items-center justify-center px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
-                              loginType === 'isletme' 
-                                ? 'bg-indigo-600 text-white shadow-md' 
+                              loginType === 'isletme'
+                                ? 'bg-indigo-600 text-white shadow-md'
                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                         >
@@ -487,8 +590,8 @@ export default function LoginPage() {
                         <button
                             onClick={() => setLoginType('ogretmen')}
                             className={`flex items-center justify-center px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
-                              loginType === 'ogretmen' 
-                                ? 'bg-indigo-600 text-white shadow-md' 
+                              loginType === 'ogretmen'
+                                ? 'bg-indigo-600 text-white shadow-md'
                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                         >

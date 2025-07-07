@@ -91,7 +91,11 @@ export default function DekontYonetimiPage() {
         const link = document.createElement('a');
         link.href = freshUrl;
         link.download = fileName;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
       }
     } catch (error) {
       console.error('File download error:', error);
@@ -528,7 +532,13 @@ export default function DekontYonetimiPage() {
                       <div>
                         <div className="text-sm text-gray-900 flex items-center">
                           <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                          {new Date(dekont.odeme_tarihi).toLocaleDateString('tr-TR')}
+                          {new Date(dekont.odeme_tarihi).toLocaleString('tr-TR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
                         </div>
                         <div className="text-sm font-medium text-green-600 mt-1">
                           {dekont.miktar ? `${dekont.miktar.toLocaleString('tr-TR')} ₺` : '-'}
@@ -721,11 +731,13 @@ export default function DekontYonetimiPage() {
                   <div className="flex items-center">
                     <Calendar className="h-5 w-5 text-gray-400 mr-2" />
                     <span className="text-sm text-gray-900">
-                      {new Date(selectedDekont.odeme_tarihi).toLocaleDateString('tr-TR', {
+                      {new Date(selectedDekont.odeme_tarihi).toLocaleString('tr-TR', {
                         weekday: 'long',
                         year: 'numeric',
                         month: 'long',
-                        day: 'numeric'
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
                       })}
                     </span>
                   </div>

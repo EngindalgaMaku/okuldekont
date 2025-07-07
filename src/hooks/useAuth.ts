@@ -8,13 +8,15 @@ export interface AuthState {
   user: User | null
   loading: boolean
   isAdmin: boolean
+  adminRole?: string
 }
 
 export function useAuth() {
   const [authState, setAuthState] = useState<AuthState>({
     user: null,
     loading: true,
-    isAdmin: false
+    isAdmin: false,
+    adminRole: undefined
   })
 
   useEffect(() => {
@@ -25,24 +27,25 @@ export function useAuth() {
         
         if (error) {
           console.error('Session error:', error)
-          setAuthState({ user: null, loading: false, isAdmin: false })
+          setAuthState({ user: null, loading: false, isAdmin: false, adminRole: undefined })
           return
         }
 
         if (session?.user) {
           // Check if user is admin
-          const isAdmin = await checkAdminStatus(session.user)
-          setAuthState({ 
-            user: session.user, 
-            loading: false, 
-            isAdmin 
+          const adminStatus = await checkAdminStatus(session.user)
+          setAuthState({
+            user: session.user,
+            loading: false,
+            isAdmin: adminStatus.isAdmin,
+            adminRole: adminStatus.role
           })
         } else {
-          setAuthState({ user: null, loading: false, isAdmin: false })
+          setAuthState({ user: null, loading: false, isAdmin: false, adminRole: undefined })
         }
       } catch (error) {
         console.error('Auth initialization error:', error)
-        setAuthState({ user: null, loading: false, isAdmin: false })
+        setAuthState({ user: null, loading: false, isAdmin: false, adminRole: undefined })
       }
     }
 
@@ -52,14 +55,15 @@ export function useAuth() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.user) {
-          const isAdmin = await checkAdminStatus(session.user)
-          setAuthState({ 
-            user: session.user, 
-            loading: false, 
-            isAdmin 
+          const adminStatus = await checkAdminStatus(session.user)
+          setAuthState({
+            user: session.user,
+            loading: false,
+            isAdmin: adminStatus.isAdmin,
+            adminRole: adminStatus.role
           })
         } else {
-          setAuthState({ user: null, loading: false, isAdmin: false })
+          setAuthState({ user: null, loading: false, isAdmin: false, adminRole: undefined })
         }
       }
     )
@@ -67,36 +71,40 @@ export function useAuth() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const checkAdminStatus = async (user: User): Promise<boolean> => {
+  const checkAdminStatus = async (user: User): Promise<{ isAdmin: boolean; role?: string }> => {
     try {
-      // Check if user exists in admin users or has admin role
-      // For now, check if email matches admin pattern or exists in admin table
-      const adminEmails = [
-        'admin@okul.com',
-        'yonetici@hozdilek.edu.tr',
-        'koordinator@mtal.gov.tr'
-      ]
+      // Check against admin users table in database
+      const { data, error } = await supabase
+        .from('admin_kullanicilar')
+        .select('yetki_seviyesi, aktif')
+        .eq('id', user.id)
+        .eq('aktif', true)
+        .single()
 
-      // Check if email is in admin list or has admin metadata
-      if (adminEmails.includes(user.email || '') || 
-          user.user_metadata?.role === 'admin' ||
-          user.app_metadata?.role === 'admin') {
-        return true
+      if (error || !data) {
+        // Fallback to email check for initial setup
+        const adminEmails = [
+          'admin@okul.com',
+          'yonetici@hozdilek.edu.tr',
+          'koordinator@mtal.gov.tr'
+        ]
+
+        if (adminEmails.includes(user.email || '') ||
+            user.user_metadata?.role === 'admin' ||
+            user.app_metadata?.role === 'admin') {
+          return { isAdmin: true, role: 'super_admin' }
+        }
+
+        return { isAdmin: false }
       }
 
-      // TODO: In production, check against admin users table in database
-      // const { data } = await supabase
-      //   .from('admin_users')
-      //   .select('id')
-      //   .eq('email', user.email)
-      //   .single()
-      // 
-      // return !!data
-
-      return false
+      return {
+        isAdmin: true,
+        role: data.yetki_seviyesi
+      }
     } catch (error) {
       console.error('Admin status check error:', error)
-      return false
+      return { isAdmin: false }
     }
   }
 
@@ -114,8 +122,8 @@ export function useAuth() {
       }
 
       if (data.user) {
-        const isAdmin = await checkAdminStatus(data.user)
-        if (!isAdmin) {
+        const adminStatus = await checkAdminStatus(data.user)
+        if (!adminStatus.isAdmin) {
           // Sign out if not admin
           await supabase.auth.signOut()
           throw new Error('Bu hesap admin paneline erişim yetkisine sahip değil.')
@@ -134,7 +142,7 @@ export function useAuth() {
       setAuthState(prev => ({ ...prev, loading: true }))
       const { error } = await supabase.auth.signOut()
       if (error) throw error
-      setAuthState({ user: null, loading: false, isAdmin: false })
+      setAuthState({ user: null, loading: false, isAdmin: false, adminRole: undefined })
       return { error: null }
     } catch (error: any) {
       setAuthState(prev => ({ ...prev, loading: false }))
