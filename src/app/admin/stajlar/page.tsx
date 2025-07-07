@@ -634,6 +634,28 @@ export default function StajYonetimiPage() {
         return
       }
 
+      // Öğrencinin aktif stajını bul
+      const aktifStaj = stajlar.find(staj =>
+        staj.ogrenci_id === selectedOgrenci.id && staj.durum === 'aktif'
+      )
+
+      if (!aktifStaj) {
+        showToast({
+          type: 'error',
+          title: 'Hata',
+          message: 'Bu öğrencinin aktif stajı bulunamadı'
+        })
+        return
+      }
+
+      // Staj tablosundaki koordinatör bilgisini güncelle
+      const { error: updateStajError } = await supabase
+        .from('stajlar')
+        .update({ ogretmen_id: koordinatorForm.ogretmen_id })
+        .eq('id', aktifStaj.id)
+
+      if (updateStajError) throw updateStajError
+
       // Önce mevcut aktif koordinatör kaydını pasif yap
       const { error: updateError } = await supabase
         .from('ogrenci_koordinatorleri')
