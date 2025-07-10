@@ -1,18 +1,15 @@
 'use client'
 
-import { Fragment } from 'react'
-import { Dialog, Transition } from '@headlessui/react'
-import { AlertTriangle, X, Trash2, Loader } from 'lucide-react'
 import Modal from './Modal'
+import { X, AlertTriangle } from 'lucide-react'
 
 interface ConfirmModalProps {
   isOpen: boolean
   onClose: () => void
   onConfirm: () => void
   title: string
-  description: string
+  description: React.ReactNode
   confirmText?: string
-  confirmLoadingText?: string
   isLoading?: boolean
 }
 
@@ -23,41 +20,37 @@ export default function ConfirmModal({
   title,
   description,
   confirmText = 'Onayla',
-  confirmLoadingText = 'Onaylanıyor...',
-  isLoading = false
+  isLoading = false,
 }: ConfirmModalProps) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title}>
-      <div className="mt-2">
-        <p className="text-sm text-gray-500">
-          {description}
-        </p>
-      </div>
-
-      <div className="mt-6 flex justify-end gap-3">
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2 text-gray-700 hover:text-gray-900"
-        >
-          İptal
-        </button>
-        <button
-          type="button"
-          onClick={onConfirm}
-          disabled={isLoading}
-          className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? (
-            <>
-              <Loader className="h-5 w-5 animate-spin" />
-              {confirmLoadingText}
-            </>
-          ) : (
-            confirmText
-          )}
-        </button>
+    <Modal isOpen={isOpen} onClose={onClose} title={title} titleIcon={AlertTriangle}>
+      <div className="space-y-4">
+        <div className="text-gray-600">{description}</div>
+        <div className="flex justify-end gap-3 pt-4 border-t">
+          <button
+            onClick={onClose}
+            disabled={isLoading}
+            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2 disabled:opacity-50"
+          >
+            <X className="h-4 w-4" />
+            İptal
+          </button>
+          <button
+            onClick={() => {
+              onConfirm()
+            }}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+          >
+            {isLoading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            ) : (
+                <AlertTriangle className="h-4 w-4" />
+            )}
+            {isLoading ? 'İşleniyor...' : confirmText}
+          </button>
+        </div>
       </div>
     </Modal>
   )
-} 
+}

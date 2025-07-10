@@ -25,12 +25,12 @@ export default function AdminDashboard() {
   // Okul ismini ayarlardan çek
   const fetchSchoolName = async () => {
     try {
-      const { data, error } = await supabase.rpc('get_system_setting', {
-        p_setting_key: 'school_name'
-      })
-      
-      if (!error && data) {
-        setSchoolName(data)
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'school_name')
+      if (!error && data && data.length > 0) {
+        setSchoolName(data[0].value as string)
       }
     } catch (error) {
       console.error('Okul ismi çekilirken hata:', error)

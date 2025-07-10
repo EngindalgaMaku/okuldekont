@@ -8,23 +8,23 @@ import Modal from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 
 interface Isletme {
-    id: number;
+    id: string;
     ad: string;
     adres?: string;
     telefon?: string;
     email?: string;
     yetkili_kisi?: string;
     pin?: string;
-    ogretmen_id?: number;
+    ogretmen_id?: string;
     ogretmenler?: {
-        id: number;
+        id: string;
         ad: string;
         soyad: string;
     };
 }
 
 interface Ogretmen {
-    id: number;
+    id: string;
     ad: string;
     soyad: string;
     aktif?: boolean;
@@ -192,7 +192,7 @@ export default function IsletmeYonetimiPage() {
       email: isletme.email || '',
       yetkili_kisi: isletme.yetkili_kisi || '',
       pin: isletme.pin || '',
-      ogretmen_id: isletme.ogretmen_id?.toString() || ''
+      ogretmen_id: isletme.ogretmen_id || ''
     })
     setEditModal(true)
   }
@@ -218,7 +218,7 @@ export default function IsletmeYonetimiPage() {
         email: formData.email.trim() || null,
         yetkili_kisi: formData.yetkili_kisi.trim() || null,
         pin: formData.pin.trim(),
-        ogretmen_id: formData.ogretmen_id ? parseInt(formData.ogretmen_id) : null
+        ogretmen_id: formData.ogretmen_id || null
       }])
 
     if (error) {
@@ -251,7 +251,7 @@ export default function IsletmeYonetimiPage() {
         email: formData.email.trim() || null,
         yetkili_kisi: formData.yetkili_kisi.trim() || null,
         pin: formData.pin.trim(),
-        ogretmen_id: formData.ogretmen_id ? parseInt(formData.ogretmen_id) : null
+        ogretmen_id: formData.ogretmen_id || null
       })
       .eq('id', selectedIsletme.id)
 

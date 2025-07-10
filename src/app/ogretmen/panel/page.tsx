@@ -16,7 +16,8 @@ interface Ogrenci {
   no: string;
   sinif: string;
   alan: string;
-  staj_id?: number;
+  staj_id?: string;
+  baslangic_tarihi: string;
 }
 
 interface Isletme {
@@ -33,8 +34,8 @@ interface Dekont {
   miktar: number | null;
   odeme_tarihi: string;
   onay_durumu: 'bekliyor' | 'onaylandi' | 'reddedildi';
-  ay: string;
-  yil: number | string;
+  ay: number;
+  yil: number;
   dosya_url?: string;
   aciklama?: string;
   red_nedeni?: string;
@@ -75,21 +76,22 @@ const TeacherPanel = () => {
   const [belgeSearchTerm, setBelgeSearchTerm] = useState('');
   const [belgeTurFilter, setBelgeTurFilter] = useState<string>('all');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [errorModal, setErrorModal] = useState({ isOpen: false, title: '', message: '' });
+  const [belgeSilModalOpen, setBelgeSilModalOpen] = useState(false);
+  const [selectedBelge, setSelectedBelge] = useState<Belge | null>(null);
 
-  // Dekont takip sistemi için yardımcı fonksiyonlar
   const getCurrentMonth = () => new Date().getMonth() + 1;
   const getCurrentYear = () => new Date().getFullYear();
   const getCurrentDay = () => new Date().getDate();
   
   const aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
   
+  const previousMonth = getCurrentMonth() === 1 ? 12 : getCurrentMonth() - 1;
+  const previousMonthYear = getCurrentMonth() === 1 ? getCurrentYear() - 1 : getCurrentYear();
+
   // Bu ay için dekont eksik olan öğrencileri tespit et
   const getEksikDekontOgrenciler = () => {
-    const currentMonth = getCurrentMonth();
-    const currentYear = getCurrentYear();
-    const currentMonthName = aylar[currentMonth - 1];
-    
-    const tumOgrenciler: Array<{id: string, ad: string, soyad: string, sinif: string, no: string, isletme_ad: string}> = [];
+    const tumOgrenciler: Array<{id: string, ad: string, soyad: string, sinif: string, no: string, isletme_ad: string, baslangic_tarihi: string}> = [];
     isletmeler.forEach(isletme => {
       isletme.ogrenciler.forEach(ogrenci => {
         tumOgrenciler.push({
@@ -100,10 +102,17 @@ const TeacherPanel = () => {
     });
     
     return tumOgrenciler.filter(ogrenci => {
+      const stajBaslangic = new Date(ogrenci.baslangic_tarihi);
+      const kontrolTarihi = new Date(previousMonthYear, previousMonth - 1);
+
+      if (kontrolTarihi < stajBaslangic) {
+        return false;
+      }
+
       const ogrenciDekontlari = dekontlar.filter(d =>
         d.ogrenci_ad === `${ogrenci.ad} ${ogrenci.soyad}` &&
-        d.ay === currentMonthName &&
-        String(d.yil) === String(currentYear)
+        d.ay === previousMonth &&
+        d.yil === previousMonthYear
       );
       return ogrenciDekontlari.length === 0;
     });
@@ -172,6 +181,7 @@ const TeacherPanel = () => {
         .select(`
           isletme_id,
           ogrenci_id,
+          baslangic_tarihi,
           isletmeler (id, ad),
           ogrenciler (id, ad, soyad, no, sinif, alanlar (ad))
         `)
@@ -201,6 +211,7 @@ const TeacherPanel = () => {
           no: staj.ogrenciler.no,
           sinif: staj.ogrenciler.sinif,
           alan: staj.ogrenciler.alanlar.ad,
+          baslangic_tarihi: staj.baslangic_tarihi,
         });
       });
 
@@ -212,29 +223,31 @@ const TeacherPanel = () => {
       if (isletmeIds.length > 0) {
         const { data: dekontData, error: dekontError } = await supabase
           .from('dekontlar')
-          .select(`
-            *,
-            stajlar(ogrenciler(ad, soyad)),
-            isletmeler(ad),
-            ogretmenler(ad, soyad)
-          `)
+          .select('*')
           .in('isletme_id', isletmeIds)
           .order('created_at', { ascending: false });
         
         if (dekontError) throw dekontError;
 
-        const formattedDekontlar = dekontData.map((d: any) => {
+        const formattedDekontlar = await Promise.all(dekontData.map(async (d: any) => {
+          const { data: staj, error: stajError } = await supabase.from('stajlar').select('ogrenciler(ad, soyad), isletmeler(ad)').eq('id', d.staj_id).single();
+          const { data: ogretmen, error: ogretmenError } = await supabase.from('ogretmenler').select('ad, soyad').eq('id', d.ogretmen_id).single();
+
           let yukleyenKisi = 'Bilinmiyor';
-          if (d.ogretmen_id && d.ogretmenler) {
-            yukleyenKisi = `${d.ogretmenler.ad} ${d.ogretmenler.soyad} (Öğretmen)`;
-          } else {
-            yukleyenKisi = `${d.isletmeler.ad} (İşletme)`;
+          if (d.ogretmen_id && ogretmen) {
+            yukleyenKisi = `${ogretmen.ad} ${ogretmen.soyad} (Öğretmen)`;
+          } else if (staj?.isletmeler) {
+            const isletme = Array.isArray(staj.isletmeler) ? staj.isletmeler[0] : staj.isletmeler;
+            yukleyenKisi = `${isletme.ad} (İşletme)`;
           }
+
+          const isletme = staj?.isletmeler ? (Array.isArray(staj.isletmeler) ? staj.isletmeler[0] : staj.isletmeler) : null;
+          const ogrenci = staj?.ogrenciler ? (Array.isArray(staj.ogrenciler) ? staj.ogrenciler[0] : staj.ogrenciler) : null;
 
           return {
             id: d.id,
-            isletme_ad: d.isletmeler.ad,
-            ogrenci_ad: d.stajlar ? `${d.stajlar.ogrenciler.ad} ${d.stajlar.ogrenciler.soyad}` : 'İlişkili Öğrenci Yok',
+            isletme_ad: isletme?.ad || 'Bilinmeyen İşletme',
+            ogrenci_ad: ogrenci ? `${ogrenci.ad} ${ogrenci.soyad}` : 'İlişkili Öğrenci Yok',
             miktar: d.miktar,
             odeme_tarihi: d.odeme_tarihi,
             onay_durumu: d.onay_durumu,
@@ -246,7 +259,7 @@ const TeacherPanel = () => {
             yukleyen_kisi: yukleyenKisi,
             created_at: d.created_at,
           };
-        });
+        }));
         setDekontlar(formattedDekontlar);
       }
 
@@ -254,18 +267,16 @@ const TeacherPanel = () => {
       if (isletmeIds.length > 0) {
         const { data: belgeData, error: belgeError } = await supabase
           .from('belgeler')
-          .select(`
-            *,
-            isletmeler (ad)
-          `)
+          .select('*')
           .in('isletme_id', isletmeIds)
           .order('created_at', { ascending: false });
 
         if (belgeError) {
           console.error('Belgeleri getirme hatası:', belgeError);
         } else if (belgeData) {
-          const formattedBelgeler = belgeData.map((belge: any) => {
-            // Kimin yüklediğini belirle
+          const formattedBelgeler = await Promise.all(belgeData.map(async (belge: any) => {
+            const { data: isletme, error: isletmeError } = await supabase.from('isletmeler').select('ad').eq('id', belge.isletme_id).single();
+            
             let yukleyenKisi = 'Bilinmiyor';
             if (belge.ogretmen_id) {
               yukleyenKisi = 'Öğretmen';
@@ -277,14 +288,14 @@ const TeacherPanel = () => {
 
             return {
               id: belge.id,
-              isletme_ad: belge.isletmeler?.ad || 'Bilinmeyen İşletme',
+              isletme_ad: isletme?.ad || 'Bilinmeyen İşletme',
               dosya_adi: belge.dosya_adi || belge.ad,
               dosya_url: belge.dosya_url,
               belge_turu: belge.belge_turu || belge.tur,
               yukleme_tarihi: belge.created_at,
               yukleyen_kisi: yukleyenKisi
             };
-          });
+          }));
           setBelgeler(formattedBelgeler);
           setFilteredBelgeler(formattedBelgeler);
         }
@@ -308,7 +319,11 @@ const TeacherPanel = () => {
 
     if (error || !data) {
       console.error('Staj ID bulunamadı:', error);
-      alert('Bu öğrenci ve işletmeye ait staj kaydı bulunamadı. Dekont yüklenemiyor.');
+      setErrorModal({
+        isOpen: true,
+        title: 'Staj Kaydı Bulunamadı',
+        message: 'Bu öğrenci ve işletmeye ait staj kaydı bulunamadı. Dekont yüklenemiyor.'
+      });
       return null;
     }
     return data.id;
@@ -321,7 +336,11 @@ const TeacherPanel = () => {
 
   const handleDekontSil = async (dekont: Dekont) => {
     if (dekont.onay_durumu === 'onaylandi') {
-      alert('Onaylanmış dekontlar silinemez.');
+      setErrorModal({
+        isOpen: true,
+        title: 'Silme İşlemi Yapılamaz',
+        message: 'Onaylanmış dekontlar silinemez.'
+      });
       return;
     }
 
@@ -331,7 +350,7 @@ const TeacherPanel = () => {
 
         // 1. Storage'dan dosyayı sil
         if (dekont.dosya_url) {
-          const dosyaYolu = dekont.dosya_url.split('/dekontlar/').pop();
+          const dosyaYolu = new URL(dekont.dosya_url).pathname.split('/dekontlar/').pop();
           if (dosyaYolu) {
             const { error: storageError } = await supabase.storage.from('dekontlar').remove([dosyaYolu]);
             if (storageError && storageError.message !== 'The resource was not found') {
@@ -346,10 +365,14 @@ const TeacherPanel = () => {
 
         // 3. State'i güncelle
         setDekontlar(prevDekontlar => prevDekontlar.filter(d => d.id !== dekont.id));
-        alert('Dekont başarıyla silindi.');
+        // Başarı için modal yerine toast kullanabiliriz veya şimdilik bırakabiliriz
 
       } catch (error: any) {
-        alert(`Hata: Dekont silinirken bir sorun oluştu. ${error.message}`);
+        setErrorModal({
+          isOpen: true,
+          title: 'Silme Hatası',
+          message: `Dekont silinirken bir sorun oluştu: ${error.message}`
+        });
       } finally {
         setLoading(false);
       }
@@ -359,7 +382,7 @@ const TeacherPanel = () => {
   const handleOpenDekontUpload = async (ogrenci: Ogrenci, isletme: Isletme) => {
     const stajId = await findStajId(ogrenci.id, isletme.id);
     if (stajId) {
-      setSelectedStudent({ ...ogrenci, staj_id: stajId });
+      setSelectedStudent({ ...ogrenci, staj_id: stajId.toString() });
       setSelectedIsletme(isletme);
       setDekontUploadModalOpen(true);
     }
@@ -367,7 +390,11 @@ const TeacherPanel = () => {
 
   const handleDekontSubmit = async (formData: DekontFormData) => {
     if (!teacher || !selectedStudent || !selectedIsletme) {
-      alert("Gerekli bilgiler eksik, işlem iptal edildi.");
+      setErrorModal({
+        isOpen: true,
+        title: 'Eksik Bilgi',
+        message: 'Gerekli bilgiler eksik, işlem iptal edildi.'
+      });
       return;
     }
     
@@ -382,26 +409,77 @@ const TeacherPanel = () => {
       const ogrenciAdi = `${selectedStudent.ad} ${selectedStudent.soyad}`;
       const mevcutDekontlar = dekontlar.filter(d =>
         d.ogrenci_ad === ogrenciAdi &&
-        d.ay === ayAdi &&
-        String(d.yil) === String(formData.yil)
+        d.ay === parseInt(ayAdi, 10) &&
+        d.yil === parseInt(formData.yil, 10)
       );
       
       const onaylanmisDekont = mevcutDekontlar.find(d => d.onay_durumu === 'onaylandi');
       if (onaylanmisDekont) {
-        alert(`❌ ${ayAdi} ${formData.yil} döneminde öğrencinin onaylanmış dekontu bulunuyor. Aynı aya tekrar dekont yükleyemezsiniz.`);
+        setErrorModal({
+          isOpen: true,
+          title: 'Dekont Zaten Mevcut',
+          message: `${aylar[parseInt(ayAdi, 10) - 1]} ${formData.yil} döneminde öğrencinin onaylanmış dekontu bulunuyor. Aynı aya tekrar dekont yükleyemezsiniz.`
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      const stajBaslangic = new Date(selectedStudent.baslangic_tarihi);
+      const dekontTarihi = new Date(parseInt(formData.yil, 10), parseInt(ayAdi, 10) - 1);
+      const bugun = new Date();
+      bugun.setHours(0, 0, 0, 0); // Sadece tarih karşılaştırması için
+
+      if (dekontTarihi >= bugun) {
+        setErrorModal({
+          isOpen: true,
+          title: 'Geçersiz Tarih',
+          message: 'Gelecek veya mevcut ay için dekont yükleyemezsiniz.'
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (dekontTarihi < stajBaslangic) {
+        setErrorModal({
+          isOpen: true,
+          title: 'Geçersiz Tarih',
+          message: `Dekont tarihi, öğrencinin staj başlangıç tarihinden (${stajBaslangic.toLocaleDateString('tr-TR')}) önce olamaz.`
+        });
         setIsSubmitting(false);
         return;
       }
 
       const file = formData.dosya;
-      const fileName = `${Date.now()}-${file.name.replace(/\s/g, '_')}`;
+      
+      // Anlamlı dosya ismi oluştur: dekont_ay_yil_ogretmen_isletme_ogrenci
+      const fileExt = file.name.split('.').pop();
+      const cleanName = (text: string) => text.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+      
+      // Ek dekont kontrolü - aynı dönemde kaçıncı dekont olduğunu bul
+      const ekDekontIndex = mevcutDekontlar.length; // Mevcut dekont sayısı = bu dekonttun sıra numarası
+      
+      let dosyaIsmi = [
+        'dekont',
+        cleanName(formData.ay.toLowerCase()),
+        formData.yil,
+        cleanName(`${teacher.ad}_${teacher.soyad}`),
+        cleanName(selectedIsletme.ad),
+        cleanName(`${selectedStudent.ad}_${selectedStudent.soyad}`)
+      ].join('_');
+      
+      // Ek dekont varsa belirt
+      if (ekDekontIndex > 0) {
+        dosyaIsmi += `_ek${ekDekontIndex + 1}`;
+      }
+      
+      const fileName = dosyaIsmi + '.' + fileExt;
       const filePath = `${selectedIsletme.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('dekontlar')
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: false
+          upsert: true
         });
 
       if (uploadError) throw new Error(`Dosya yükleme hatası: ${uploadError.message}`);
@@ -433,12 +511,13 @@ const TeacherPanel = () => {
           isletme_id: selectedIsletme.id,
           ogretmen_id: teacher.id,
           miktar: formData.miktar,
-          ay: formData.ay.toString(),
-          yil: formData.yil,
+          ay: parseInt(formData.ay, 10) || getCurrentMonth(),
+          yil: parseInt(formData.yil, 10) || getCurrentYear(),
           aciklama: formData.aciklama || null,
           dosya_url: dosyaUrl,
           onay_durumu: 'bekliyor',
-          odeme_tarihi: new Date().toISOString().split('T')[0]
+          odeme_tarihi: new Date().toISOString().split('T')[0],
+          odeme_son_tarihi: new Date(new Date().setDate(new Date().getDate() + 10)).toISOString().split('T')[0]
         })
         .select().single();
 
@@ -470,7 +549,11 @@ const TeacherPanel = () => {
       }, 3000);
 
     } catch (error: any) {
-      alert(`Bir hata oluştu: ${error.message}`);
+      setErrorModal({
+        isOpen: true,
+        title: 'Dekont Yükleme Hatası',
+        message: `Bir hata oluştu: ${error.message}`
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -498,29 +581,15 @@ const TeacherPanel = () => {
       const belgeNo = String((existingBelgeler?.length || 0) + 1).padStart(3, '0');
 
       // Belge adını otomatik oluştur
-      const isletmeAdi = isletme.ad.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-      let belgeTuruAdi = '';
-      switch (formData.belgeTuru) {
-        case 'Sözleşme':
-        case 'sozlesme':
-          belgeTuruAdi = 'Sozlesme';
-          break;
-        case 'Fesih Belgesi':
-        case 'fesih_belgesi':
-          belgeTuruAdi = 'Fesih_Belgesi';
-          break;
-        case 'Usta Öğreticilik Belgesi':
-        case 'usta_ogretici_belgesi':
-          belgeTuruAdi = 'Usta_Ogretici_Belgesi';
-          break;
-        default:
-          belgeTuruAdi = formData.belgeTuru.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-      }
-      const otomatikBelgeAdi = `${isletmeAdi}_${belgeTuruAdi}_${belgeNo}`;
-
+      const cleanText = (text: string) => text.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+      const isletmeAdi = cleanText(isletme.ad);
+      const belgeTuruAdi = cleanText(formData.belgeTuru);
+      const tarih = new Date().toISOString().split('T')[0];
+      const zamanDamgasi = Date.now();
       const fileExt = formData.dosya.name.split('.').pop();
-      const fileName = `${Date.now()}-${formData.dosya.name.replace(/\s/g, '_')}`;
-      const filePath = `belgeler/${formData.isletmeId}/${fileName}`;
+      
+      const otomatikBelgeAdi = `${belgeTuruAdi}_${isletmeAdi}_${tarih}_${zamanDamgasi}.${fileExt}`;
+      const filePath = `${formData.isletmeId}/${otomatikBelgeAdi}`;
 
       const { error: uploadError } = await supabase.storage
         .from('belgeler')
@@ -657,6 +726,7 @@ const TeacherPanel = () => {
       alert('Dosya görüntülenemedi. Lütfen tekrar deneyin.');
     }
   };
+
 
   if (loading) {
     return (
@@ -817,10 +887,10 @@ const TeacherPanel = () => {
                   }`}>
                     <p className="font-medium mb-2">
                       {isGecikme()
-                        ? `${aylar[getCurrentMonth() - 1]} ayı dekont yükleme süresi geçti! İşletmeler devlet katkı payı alamayabilir.`
+                        ? `${aylar[previousMonth - 1]} ayı dekont yükleme süresi geçti! İşletmeler devlet katkı payı alamayabilir.`
                         : isKritikSure()
-                        ? `${aylar[getCurrentMonth() - 1]} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
-                        : `${aylar[getCurrentMonth() - 1]} ayı için eksik dekontlar var.`
+                        ? `${aylar[previousMonth - 1]} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
+                        : `${aylar[previousMonth - 1]} ayı için eksik dekontlar var.`
                       }
                     </p>
                     <p className="mb-3">
@@ -869,11 +939,11 @@ const TeacherPanel = () => {
             </div>
           )}
 
-          <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black ring-opacity-5 p-6 divide-y divide-gray-200">
+          <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black ring-opacity-5">
           {activeTab === 'isletmeler' && (
-            <div className="space-y-6">
-              {isletmeler.map(isletme => (
-                <div key={isletme.id} className="pt-6 first:pt-0">
+            <div className="space-y-0">
+              {isletmeler.map((isletme, index) => (
+                <div key={isletme.id} className={`p-6 ${index > 0 ? 'border-t border-gray-200' : ''} ${index % 2 !== 0 ? 'bg-gray-50' : ''}`}>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center">
                       <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center">
@@ -920,6 +990,10 @@ const TeacherPanel = () => {
                               <div className="flex items-center gap-1 text-gray-500">
                                 <GraduationCap className="h-3 w-3" />
                                 <span>{ogrenci.alan}</span>
+                              </div>
+                              <div className="flex items-center gap-1 text-gray-500">
+                                <Calendar className="h-3 w-3" />
+                                <span>Başlangıç: {new Date(ogrenci.baslangic_tarihi).toLocaleDateString('tr-TR')}</span>
                               </div>
                             </div>
                           </div>
@@ -996,7 +1070,10 @@ const TeacherPanel = () => {
                                   // Yüklenme tarihine göre sırala (en eski ilk)
                                   const sorted = [...sameDekonts].sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
                                   const ekIndex = sorted.findIndex(d => d.id === dekont.id);
-                                  return dekont.ay + (ekIndex > 0 ? ` (ek-${ekIndex+1})` : '') + ' ' + dekont.yil;
+                                  
+                                  // Ay adını görüntüle - dekont.ay zaten ay adı olarak geliyor
+                                  const ayAdi = aylar[dekont.ay - 1] || dekont.ay;
+                                  return ayAdi + (ekIndex > 0 ? ` (ek-${ekIndex+1})` : '') + ' ' + dekont.yil;
                                 })()}
                               </span>
                             </div>
@@ -1150,6 +1227,16 @@ const TeacherPanel = () => {
                               İndir
                             </button>
                           )}
+                          <button
+                            onClick={() => {
+                              setSelectedBelge(belge);
+                              setBelgeSilModalOpen(true);
+                            }}
+                            className="flex items-center px-3 py-1.5 text-sm text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1.5" />
+                            Sil
+                          </button>
                         </div>
                       </div>
                       <div className="mt-4">
@@ -1229,9 +1316,9 @@ const TeacherPanel = () => {
       </footer>
 
       {/* Dekont Yükleme Modal'ı */}
-      {isDekontUploadModalOpen && selectedStudent && selectedIsletme && typeof selectedStudent.staj_id === 'number' && (
-        <Modal 
-          isOpen={isDekontUploadModalOpen} 
+      {isDekontUploadModalOpen && selectedStudent && selectedIsletme && typeof selectedStudent.staj_id === 'string' && (
+        <Modal
+          isOpen={isDekontUploadModalOpen}
           onClose={() => setDekontUploadModalOpen(false)}
           title={`Dekont Yükle: ${selectedStudent.ad} ${selectedStudent.soyad}`}
         >
@@ -1290,6 +1377,96 @@ const TeacherPanel = () => {
         selectedIsletmeId={selectedIsletme?.id}
         onFileView={handleFileView}
       />
+
+      {/* Error Modal */}
+      <Modal 
+        isOpen={errorModal.isOpen} 
+        onClose={() => setErrorModal({ isOpen: false, title: '', message: '' })}
+        title={errorModal.title}
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-3 bg-red-50 border-l-4 border-red-400 rounded text-red-900 text-sm">
+            <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+            <span>{errorModal.message}</span>
+          </div>
+          <div className="flex justify-end pt-4">
+            <button
+              onClick={() => setErrorModal({ isOpen: false, title: '', message: '' })}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Tamam
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Belge Silme Onay Modalı */}
+      <Modal isOpen={belgeSilModalOpen} onClose={() => setBelgeSilModalOpen(false)} title="Belgeyi Sil">
+        {selectedBelge && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded text-yellow-900 text-sm">
+              <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0" />
+              <span>
+                <b>{selectedBelge.dosya_adi}</b> adlı belgeyi kalıcı olarak silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+              </span>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                onClick={() => setBelgeSilModalOpen(false)}
+                disabled={isSubmitting}
+              >
+                Vazgeç
+              </button>
+              <button
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center"
+                disabled={isSubmitting}
+                onClick={async () => {
+                  if (!selectedBelge) return;
+                  
+                  setIsSubmitting(true);
+                  try {
+                    // 1. Storage'dan dosyayı sil
+                    if (selectedBelge.dosya_url) {
+                      const url = new URL(selectedBelge.dosya_url);
+                      const pathWithBucket = url.pathname;
+                      const pathParts = pathWithBucket.split('/belgeler/');
+                      if (pathParts.length > 1) {
+                        const filePath = pathParts[1];
+                        const { error: storageError } = await supabase.storage.from('belgeler').remove([filePath]);
+                        if (storageError && storageError.message !== 'The resource was not found') {
+                          throw new Error(`Depolama hatası: ${storageError.message}`);
+                        }
+                      }
+                    }
+                    
+                    // 2. Veritabanından belgeyi sil
+                    const { error: dbError } = await supabase.from('belgeler').delete().eq('id', selectedBelge.id);
+                    if (dbError) throw dbError;
+                    
+                    // 3. State'i güncelle
+                    setBelgeler(prev => prev.filter(b => b.id !== selectedBelge.id));
+                    
+                    setBelgeSilModalOpen(false);
+                    setSelectedBelge(null);
+                  } catch (error: any) {
+                    setErrorModal({
+                      isOpen: true,
+                      title: 'Silme Hatası',
+                      message: `Belge silinirken bir sorun oluştu: ${error.message}`
+                    });
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+              >
+                {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                Evet, Sil
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

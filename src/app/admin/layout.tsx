@@ -13,14 +13,15 @@ import {
   Briefcase,
   FileText,
   LogOut,
-  Calendar,
-  Shield,
-  Settings,
-  GraduationCap,
-  Receipt,
-  AlertTriangle,
-  BarChart3,
-  BookOpen
+ Calendar,
+ Shield,
+ Settings,
+ GraduationCap,
+ Receipt,
+ AlertTriangle,
+ BarChart3,
+ BookOpen,
+ Check
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
@@ -49,6 +50,12 @@ const menuItems = [
     icon: Receipt,
     href: '/admin/dekontlar',
     description: 'Ödeme ve dekont yönetimi'
+  },
+  {
+    title: 'Görev Takibi',
+    icon: Check,
+    href: '/admin/gorev-takip',
+    description: 'Görev belgelerinin takibi'
   }
 ]
 
@@ -94,26 +101,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }, [isTabletOrSmaller])
 
   // Okul ismini ayarlardan çek
-  const fetchSchoolName = async () => {
-    try {
-      const { data, error } = await supabase.rpc('get_system_setting', {
-        p_setting_key: 'school_name'
-      })
-      
-      if (!error && data) {
-        setSchoolName(data)
-      }
-    } catch (error) {
-      console.error('Okul ismi çekilirken hata:', error)
-    }
-  }
-
-  // Okul ismini yükle
+  // Okul ismini geçici olarak sabit bir değerle ayarla
   useEffect(() => {
-    if (user && isAdmin) {
-      fetchSchoolName()
-    }
-  }, [user, isAdmin])
+    setSchoolName('Hüsniye Özdilek MTAL');
+  }, []);
 
   // Auth check and redirect logic
   useEffect(() => {

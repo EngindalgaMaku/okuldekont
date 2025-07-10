@@ -17,14 +17,26 @@ export async function GET() {
             alan_id,
             sinif,
             no,
-            alan (
+            alanlar (
               ad
             )
           ),
           isletmeler (
             ad,
             yetkili_kisi
+          ),
+          ogretmenler (
+            ad,
+            soyad
           )
+        ),
+        isletmeler (
+          ad,
+          yetkili_kisi
+        ),
+        ogretmenler (
+          ad,
+          soyad
         )
       `)
       .order('created_at', { ascending: false })

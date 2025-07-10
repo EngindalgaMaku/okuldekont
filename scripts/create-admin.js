@@ -1,73 +1,99 @@
-import { createClient } from '@supabase/supabase-js'
-import dotenv from 'dotenv'
+const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const path = require('path');
 
-dotenv.config()
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
-
-async function createAdminUser() {
-  console.log('🔐 ADMİN KULLANICI OLUŞTURULUYOR...')
-  console.log('==================================')
-
+// .env.local dosyasındaki çevre değişkenlerini yükle
+function loadEnv() {
   try {
-    // Admin kullanıcısı bilgileri
-    const adminEmail = 'admin@okul.com'
-    const adminPassword = 'AdminOkul2025!' // Güçlü şifre
-    const adminName = 'System Administrator'
-
-    console.log('📧 E-posta:', adminEmail)
-    console.log('🔑 Şifre:', adminPassword)
-    console.log('👤 Ad Soyad:', adminName)
-    console.log('')
-
-    // Supabase Auth ile kullanıcı oluştur (e-posta onayını atla)
-    const { data, error } = await supabase.auth.signUp({
-      email: adminEmail,
-      password: adminPassword,
-      options: {
-        emailRedirectTo: undefined,
-        data: {
-          full_name: adminName,
-          role: 'admin',
-          is_admin: true
+    const envPath = path.join(__dirname, '../.env.local');
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf8');
+      envContent.split('\n').forEach(line => {
+        const [key, ...valueParts] = line.split('=');
+        if (key && valueParts.length > 0) {
+          const value = valueParts.join('=').trim();
+          if (!process.env[key.trim()]) {
+            process.env[key.trim()] = value;
+          }
         }
-      }
-    })
-
-    if (error) {
-      console.error('❌ Hata:', error.message)
-      
-      if (error.message.includes('already registered')) {
-        console.log('ℹ️ Bu e-posta zaten kayıtlı. Giriş yapmayı deneyin.')
-        console.log('')
-        console.log('📋 GİRİŞ BİLGİLERİ:')
-        console.log('E-posta:', adminEmail)
-        console.log('Şifre:', adminPassword)
-        return
-      }
-      
-      return
+      });
     }
-
-    if (data.user) {
-      console.log('✅ Admin kullanıcısı başarıyla oluşturuldu!')
-      console.log('User ID:', data.user.id)
-      console.log('E-posta:', data.user.email)
-      console.log('')
-      console.log('📋 GİRİŞ BİLGİLERİ:')
-      console.log('E-posta:', adminEmail)
-      console.log('Şifre:', adminPassword)
-      console.log('')
-      console.log('🌐 Admin paneline giriş için:')
-      console.log('http://localhost:3000/admin/login')
-    }
-
   } catch (error) {
-    console.error('❌ Beklenmeyen hata:', error)
+    console.error('⚠️ .env.local dosyası okunurken hata oluştu:', error);
   }
 }
 
-createAdminUser()
+loadEnv();
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceRoleKey) {
+  console.error('❌ Supabase URL veya Service Role Key bulunamadı. Lütfen .env.local dosyasını kontrol edin.');
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
+
+async function createAdmin() {
+  console.log('🔑 Admin kullanıcısı oluşturuluyor...');
+
+  const adminEmail = 'admin@sistem.com';
+  const adminPassword = '123456';
+
+  // 1. Kullanıcıyı auth.users tablosunda ara
+  const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
+  if (listError) {
+    console.error('❌ Kullanıcılar listelenirken hata:', listError.message);
+    return;
+  }
+
+  const existingUser = users.find(u => u.email === adminEmail);
+
+  let userId;
+
+  if (existingUser) {
+    console.log('ℹ️ Admin kullanıcısı zaten mevcut. ID:', existingUser.id);
+    userId = existingUser.id;
+  } else {
+    // 2. Kullanıcı yoksa oluştur
+    const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+      email: adminEmail,
+      password: adminPassword,
+      email_confirm: true,
+    });
+
+    if (createError) {
+      console.error('❌ Admin kullanıcısı oluşturulurken hata:', createError.message);
+      return;
+    }
+    console.log('✅ Admin kullanıcısı başarıyla oluşturuldu. ID:', newUser.user.id);
+    userId = newUser.user.id;
+  }
+
+  // 3. admin_kullanicilar tablosuna ekle/güncelle
+  const { data: adminData, error: upsertError } = await supabase
+    .from('admin_kullanicilar')
+    .upsert({
+      id: userId,
+      ad: 'Sistem',
+      soyad: 'Admini',
+      email: adminEmail,
+      yetki_seviyesi: 'super_admin'
+    }, { onConflict: 'id' });
+
+  if (upsertError) {
+    console.error('❌ admin_kullanicilar tablosuna eklenirken/güncellenirken hata:', upsertError.message);
+    return;
+  }
+
+  console.log('✅ Admin kullanıcısı public tabloda başarıyla ayarlandı.');
+  console.log('🎉 İşlem tamamlandı!');
+}
+
+createAdmin();

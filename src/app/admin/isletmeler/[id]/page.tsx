@@ -35,43 +35,43 @@ import { supabase } from '@/lib/supabase'
 import Modal from '@/components/ui/Modal'
 
 interface Isletme {
-  id: number;
+  id: string;
   ad: string;
   adres?: string;
   telefon?: string;
   email?: string;
   yetkili_kisi?: string;
   pin?: string;
-  ogretmen_id?: number;
+  ogretmen_id?: string;
   ogretmenler?: {
-    id: number;
+    id: string;
     ad: string;
     soyad: string;
   };
 }
 
 interface Ogrenci {
-  id: number;
+  id: string;
   ad: string;
   soyad: string;
   no: string;
-  alan_id: number;
+  alan_id: string;
   sinif: string;
-  isletme_id?: number;
+  isletme_id?: string;
   alanlar: {
     ad: string;
   };
 }
 
 interface Staj {
-  id: number;
-  ogrenci_id: number;
+  id: string;
+  ogrenci_id: string;
   baslangic_tarihi: string;
   bitis_tarihi: string;
   fesih_tarihi?: string;
   durum: string;
   ogrenciler: {
-    id: number;
+    id: string;
     ad: string;
     soyad: string;
     no: string;
@@ -83,28 +83,28 @@ interface Staj {
 }
 
 interface IsletmeAlan {
-  id: number;
-  alan_id: number;
+  id: string;
+  alan_id: string;
   alanlar: {
-    id: number;
+    id: string;
     ad: string;
   };
   ogretmenler?: {
-    id: number;
+    id: string;
     ad: string;
     soyad: string;
-    alan_id: number;
+    alan_id: string;
   } | null;
 }
 
 interface Alan {
-  id: number;
+  id: string;
   ad: string;
 }
 
 interface Belge {
-  id: number;
-  isletme_id: number;
+  id: string;
+  isletme_id: string;
   ad: string;
   tur: string;
   dosya_url?: string;
@@ -112,8 +112,8 @@ interface Belge {
 }
 
 interface Dekont {
-  id: number;
-  isletme_id: number;
+  id: string;
+  isletme_id: string;
   tarih: string;
   aciklama: string;
   miktar: number;
@@ -121,26 +121,26 @@ interface Dekont {
   ogrenci_adi?: string;
   dosya_url?: string;
   onay_durumu?: string;
-  staj_id?: number;
-  ogrenci_id?: number;
+  staj_id?: string;
+  ogrenci_id?: string;
 }
 
 interface IsletmeData {
-  id: number;
-  ogretmen_id: number | null;
+  id: string;
+  ogretmen_id: string | null;
   ogretmenler: {
-    id: number;
+    id: string;
     ad: string;
     soyad: string;
-    alan_id: number;
+    alan_id: string;
   } | null;
 }
 
 interface AlanData {
-  id: number;
-  alan_id: number;
+  id: string;
+  alan_id: string;
   alanlar: {
-    id: number;
+    id: string;
     ad: string;
   };
 }
@@ -444,7 +444,7 @@ export default function IsletmeDetayPage() {
       const { data, error } = await supabase
         .from('belgeler')
         .select('id, isletme_id, ad, tur, dosya_url, yukleme_tarihi')
-        .eq('isletme_id', parseInt(isletmeId))
+        .eq('isletme_id', isletmeId)
 
       if (error) {
                   console.error('Belgeler çekilirken hata:', error.message)
@@ -612,8 +612,8 @@ export default function IsletmeDetayPage() {
 
       // Staj kaydı oluştur
       const stajInsertData = {
-        ogrenci_id: parseInt(ogrenciFormData.ogrenci_id),
-        isletme_id: parseInt(isletmeId),
+        ogrenci_id: ogrenciFormData.ogrenci_id,
+        isletme_id: isletmeId,
         ogretmen_id: isletme?.ogretmen_id || null,
         egitim_yili_id: egitimYiliData?.id || 1,
         baslangic_tarihi: ogrenciFormData.baslangic_tarihi,
@@ -636,8 +636,8 @@ export default function IsletmeDetayPage() {
       // Öğrencinin isletme_id'sini güncelle (aktif staj için)
       const { error: ogrenciUpdateError } = await supabase
         .from('ogrenciler')
-        .update({ isletme_id: parseInt(isletmeId) })
-        .eq('id', parseInt(ogrenciFormData.ogrenci_id))
+        .update({ isletme_id: isletmeId })
+        .eq('id', ogrenciFormData.ogrenci_id)
 
       if (ogrenciUpdateError) {
         console.error('Öğrenci güncelleme hatası:', ogrenciUpdateError)
@@ -708,7 +708,7 @@ export default function IsletmeDetayPage() {
       const { error: belgeError } = await supabase
         .from('belgeler')
         .insert({
-          isletme_id: parseInt(isletmeId),
+          isletme_id: isletmeId,
           ad: belgeFormData.ad,
           tur: belgeTuru,
           dosya_url: dosyaUrl,
@@ -787,7 +787,7 @@ export default function IsletmeDetayPage() {
         ogrenciId = selectedStaj.ogrenci_id
       } else {
         // Genel context'te seçilen öğrencinin staj bilgisini bul
-        const selectedOgrenciStaj = aktifOgrenciler.find(staj => staj.ogrenci_id === parseInt(dekontFormData.selectedOgrenciId))
+        const selectedOgrenciStaj = aktifOgrenciler.find(staj => staj.ogrenci_id === dekontFormData.selectedOgrenciId)
         if (selectedOgrenciStaj) {
           stajId = selectedOgrenciStaj.id
           ogrenciId = selectedOgrenciStaj.ogrenci_id
@@ -802,7 +802,7 @@ export default function IsletmeDetayPage() {
         .insert({
           staj_id: stajId,
           ogrenci_id: ogrenciId,
-          isletme_id: Number(isletmeId),
+          isletme_id: isletmeId,
           tarih: dekontFormData.tarih,
           ay: dekontFormData.ay || new Date().getMonth() + 1,
           aciklama: dekontFormData.aciklama,
@@ -851,7 +851,7 @@ export default function IsletmeDetayPage() {
         const formattedDekontlar = dekontData.map((dekont: any) => ({
           id: dekont.id,
           ogrenci_adi: `${staj.ogrenciler.ad} ${staj.ogrenciler.soyad}`,
-          isletme_id: parseInt(isletmeId),
+          isletme_id: isletmeId,
           tarih: dekont.tarih,
           ay: dekont.ay || '',
           aciklama: dekont.aciklama,
@@ -1097,7 +1097,7 @@ export default function IsletmeDetayPage() {
             {activeTab === 'ogrenciler' && (
               <OgrencilerPanel 
                 stajlar={stajlar}
-                isletmeId={Number(isletmeId)}
+                isletmeId={isletmeId}
                 onRefresh={fetchStajlar}
                 onOgrenciEkle={() => setOgrenciModalOpen(true)}
                 onDekontEkle={(staj) => {
@@ -1118,10 +1118,9 @@ export default function IsletmeDetayPage() {
             )}
             
             {activeTab === 'koordinatorler' && (
-              <KoordinatorlerPanel 
-                isletmeAlanlar={isletmeAlanlar}
-                isletmeId={Number(isletmeId)}
-                onRefresh={fetchIsletmeAlanlar}
+              <KoordinatorlerPanel
+                isletme={isletme}
+                onRefresh={fetchIsletme}
               />
             )}
             
@@ -1134,7 +1133,7 @@ export default function IsletmeDetayPage() {
             {activeTab === 'belgeler' && (
               <BelgelerPanel
                 belgeler={belgeler}
-                isletmeId={Number(isletmeId)}
+                isletmeId={isletmeId}
                 onRefresh={fetchBelgeler}
                 onBelgeEkle={() => setBelgeModalOpen(true)}
                 onFileView={handleFileView}
@@ -1569,7 +1568,7 @@ function BelgelerPanel({
   onFileDownload
 }: {
   belgeler: Belge[]
-  isletmeId: number
+  isletmeId: string
   onRefresh: () => void
   onBelgeEkle: () => void
   onFileView: (fileUrl: string, bucketName: string) => void
@@ -1824,7 +1823,7 @@ function OgrencilerPanel({
   onDekontlarGoster
 }: { 
   stajlar: Staj[]
-  isletmeId: number
+  isletmeId: string
   onRefresh: () => void
   onOgrenciEkle: () => void
   onDekontEkle: (staj: Staj) => void
@@ -1899,7 +1898,7 @@ function OgrencilerPanel({
     }
   }
 
-  const handleStajSil = async (stajId: number, ogrenciAd: string) => {
+  const handleStajSil = async (stajId: string, ogrenciAd: string) => {
     if (!confirm(`${ogrenciAd} öğrencisinin stajını kalıcı olarak silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz!`)) {
       return
     }
@@ -2271,75 +2270,41 @@ function OgrencilerPanel({
 }
 
 // Koordinatörler Paneli
-function KoordinatorlerPanel({ 
-  isletmeAlanlar, 
-  isletmeId, 
-  onRefresh 
-}: { 
-  isletmeAlanlar: IsletmeAlan[]
-  isletmeId: number
+function KoordinatorlerPanel({
+  isletme,
+  onRefresh
+}: {
+  isletme: Isletme
   onRefresh: () => void
 }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-medium text-gray-900">Alan Koordinatörleri</h3>
-          <p className="text-sm text-gray-600">Her alan için atanmış koordinatör öğretmenler</p>
+          <h3 className="text-lg font-medium text-gray-900">Koordinatör Öğretmen</h3>
+          <p className="text-sm text-gray-600">İşletmeden sorumlu koordinatör öğretmen</p>
         </div>
-        <button className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200">
-          <Plus className="h-4 w-4 mr-2" />
-          Koordinatör Ekle
-        </button>
       </div>
 
-      {isletmeAlanlar.length > 0 ? (
-        <div className="space-y-4">
-          {isletmeAlanlar.map((isletmeAlan) => (
-            <div key={isletmeAlan.id} className="bg-white border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
-                    <BookOpen className="h-5 w-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900">{isletmeAlan.alanlar.ad}</h4>
-                    {isletmeAlan.ogretmenler ? (
-                      <div className="flex items-center mt-1">
-                        <UserCheck className="h-4 w-4 text-green-600 mr-1" />
-                        <span className="text-sm text-green-700">
-                          {isletmeAlan.ogretmenler.ad} {isletmeAlan.ogretmenler.soyad}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center mt-1">
-                        <User className="h-4 w-4 text-gray-400 mr-1" />
-                        <span className="text-sm text-gray-500">Koordinatör atanmamış</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all">
-                    <Edit className="h-4 w-4" />
-                  </button>
-                  <button className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
+      {isletme.ogretmenler ? (
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
+                <UserCheck className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <h4 className="font-medium text-gray-900">{isletme.ogretmenler.ad} {isletme.ogretmenler.soyad}</h4>
+                <span className="text-sm text-gray-500">Koordinatör Öğretmen</span>
               </div>
             </div>
-          ))}
+          </div>
         </div>
       ) : (
         <div className="text-center py-12">
           <UserCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Henüz koordinatör yok</h3>
-          <p className="text-gray-600 mb-6">Bu işletme için alan koordinatörü atanmamış.</p>
-          <button className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200">
-            <Plus className="h-4 w-4 mr-2" />
-            İlk Koordinatörü Ata
-          </button>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Koordinatör atanmamış</h3>
+          <p className="text-gray-600 mb-6">Bu işletmeye henüz bir koordinatör öğretmen atanmamış.</p>
         </div>
       )}
     </div>

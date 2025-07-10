@@ -6,6 +6,9 @@ import { FileText, Eye, Trash2, Loader, Search, Filter, Calendar, Building, User
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import DekontIndirModal from '@/components/ui/DekontIndirModal'
+import JSZip from 'jszip'
+import { saveAs } from 'file-saver'
 
 interface Dekont {
     id: number;
@@ -59,6 +62,15 @@ export default function DekontYonetimiPage() {
   const [rejectionModal, setRejectionModal] = useState(false)
   const [selectedDekont, setSelectedDekont] = useState<Dekont | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
+
+  // Bulk selection states
+  const [selectedDekontlar, setSelectedDekontlar] = useState<number[]>([])
+  const [bulkActionModal, setBulkActionModal] = useState(false)
+  const [bulkAction, setBulkAction] = useState<'delete' | 'approve' | 'reject' | null>(null)
+
+  // Bulk download states
+  const [downloadModalOpen, setDownloadModalOpen] = useState(false)
+  const [downloadLoading, setDownloadLoading] = useState(false)
 
   // Smart file access system - generates fresh signed URLs
   const getFileUrl = async (storedUrl: string, bucketName: string) => {
@@ -135,16 +147,20 @@ export default function DekontYonetimiPage() {
       .from('dekontlar')
       .select(`
         *,
-        stajlar (
+        stajlar!dekontlar_staj_id_fkey (
           baslangic_tarihi,
           bitis_tarihi,
-          ogrenciler (
+          ogrenci_id,
+          isletme_id,
+          ogretmen_id,
+          ogrenciler!stajlar_ogrenci_id_fkey (
             ad,
             soyad,
-            alanlar (ad)
+            alan_id,
+            alanlar!ogrenciler_alan_id_fkey (ad)
           ),
-          isletmeler (ad),
-          ogretmenler (ad, soyad)
+          isletmeler!stajlar_isletme_id_fkey (ad),
+          ogretmenler!stajlar_ogretmen_id_fkey (ad, soyad)
         )
       `)
       .order('created_at', { ascending: false })
@@ -344,13 +360,127 @@ export default function DekontYonetimiPage() {
     }
   }
 
-  if (loading) {
-    return (
-        <div className="flex justify-center items-center h-32">
-            <Loader className="animate-spin h-8 w-8 text-indigo-600" />
-        </div>
+  // Bulk selection functions
+  const toggleSelectDekont = (dekontId: number) => {
+    setSelectedDekontlar(prev => 
+      prev.includes(dekontId) 
+        ? prev.filter(id => id !== dekontId)
+        : [...prev, dekontId]
     )
   }
+
+  const toggleSelectAll = () => {
+    setSelectedDekontlar(prev => 
+      prev.length === filteredDekontlar.length 
+        ? []
+        : filteredDekontlar.map(d => d.id)
+    )
+  }
+
+  const handleBulkAction = (action: 'delete' | 'approve' | 'reject') => {
+    if (selectedDekontlar.length === 0) {
+      alert('Lütfen en az bir dekont seçin')
+      return
+    }
+    setBulkAction(action)
+    setBulkActionModal(true)
+  }
+
+  const handleConfirmBulkAction = async () => {
+    if (!bulkAction || selectedDekontlar.length === 0) return
+
+    setSubmitLoading(true)
+    try {
+      if (bulkAction === 'delete') {
+        // Toplu silme
+        for (const dekontId of selectedDekontlar) {
+          const { error } = await supabase
+            .from('dekontlar')
+            .delete()
+            .eq('id', dekontId)
+          
+          if (error) throw error
+        }
+        alert(`${selectedDekontlar.length} dekont başarıyla silindi`)
+      } else {
+        // Toplu onay/red
+        const newStatus = bulkAction === 'approve' ? 'onaylandi' : 'reddedildi'
+        
+        for (const dekontId of selectedDekontlar) {
+          const { error } = await supabase
+            .from('dekontlar')
+            .update({ onay_durumu: newStatus })
+            .eq('id', dekontId)
+          
+          if (error) throw error
+        }
+        alert(`${selectedDekontlar.length} dekont ${newStatus === 'onaylandi' ? 'onaylandı' : 'reddedildi'}`)
+      }
+
+      // Listeyi yenile ve seçimi temizle
+      await fetchDekontlar(currentPage)
+      setSelectedDekontlar([])
+      setBulkActionModal(false)
+      setBulkAction(null)
+    } catch (error) {
+      console.error('Toplu işlem hatası:', error)
+      alert('İşlem sırasında bir hata oluştu')
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  const handleConfirmBulkDownload = async (folderStructure: string, zipName: string) => {
+    setDownloadLoading(true)
+    try {
+      const zip = new JSZip()
+      const dekontsToDownload = dekontlar.filter(d => selectedDekontlar.includes(d.id))
+
+      for (const dekont of dekontsToDownload) {
+        if (dekont.dosya_url) {
+          const freshUrl = await getFileUrl(dekont.dosya_url, 'dekontlar')
+          if (freshUrl) {
+            const response = await fetch(freshUrl)
+            const blob = await response.blob()
+            
+            const ogrenci = dekont.stajlar?.ogrenciler
+            const isletme = dekont.stajlar?.isletmeler
+            const ogretmen = dekont.stajlar?.ogretmenler
+            const alan = dekont.stajlar?.ogrenciler?.alanlar
+
+            const path = folderStructure
+              .replace('{alan}', alan?.ad || 'Bilinmeyen_Alan')
+              .replace('{ogretmen_ad_soyad}', `${ogretmen?.ad || 'Bilinmeyen'}_${ogretmen?.soyad || 'Ogretmen'}`)
+              .replace('{isletme_ad}', isletme?.ad || 'Bilinmeyen_Isletme')
+              .replace('{ogrenci_ad_soyad}', `${ogrenci?.ad || 'Bilinmeyen'}_${ogrenci?.soyad || 'Ogrenci'}`)
+              .replace('{yil}', dekont.yil?.toString() || 'YYYY')
+              .replace('{ay}', dekont.ay?.toString().padStart(2, '0') || 'MM')
+
+            const fileName = `${ogrenci?.ad}_${ogrenci?.soyad}_${dekont.yil}_${dekont.ay}.pdf`
+            zip.folder(path)?.file(fileName, blob)
+          }
+        }
+      }
+
+      const content = await zip.generateAsync({ type: 'blob' })
+      saveAs(content, `${zipName}.zip`)
+      alert(`${dekontsToDownload.length} dekont başarıyla ZIP dosyasına eklendi ve indirme başlatıldı.`)
+    } catch (error) {
+      console.error('Toplu indirme hatası:', error)
+      alert('Dekontlar indirilirken bir hata oluştu.')
+    } finally {
+      setDownloadLoading(false)
+      setDownloadModalOpen(false)
+    }
+  }
+ 
+   if (loading) {
+     return (
+         <div className="flex justify-center items-center h-32">
+             <Loader className="animate-spin h-8 w-8 text-indigo-600" />
+         </div>
+     )
+   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
@@ -456,12 +586,61 @@ export default function DekontYonetimiPage() {
           </div>
         </div>
 
+        {/* Bulk Actions */}
+        {selectedDekontlar.length > 0 && (
+          <div className="bg-white/90 backdrop-blur-lg shadow-lg rounded-xl border border-indigo-200 p-4 mb-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">
+                {selectedDekontlar.length} dekont seçildi
+              </span>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => handleBulkAction('approve')}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 transition-all duration-200"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Toplu Onayla
+                </button>
+                <button
+                  onClick={() => handleBulkAction('reject')}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-yellow-600 hover:bg-yellow-700 transition-all duration-200"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Toplu Reddet
+                </button>
+                <button
+                  onClick={() => handleBulkAction('delete')}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 transition-all duration-200"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Toplu Sil
+                </button>
+                <button
+                 onClick={() => setDownloadModalOpen(true)}
+                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition-all duration-200"
+               >
+                 <Download className="h-4 w-4 mr-2" />
+                 Toplu İndir
+               </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Dekont List */}
         <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full table-fixed divide-y divide-gray-200">
               <thead className="bg-gradient-to-r from-indigo-50 to-purple-50">
                 <tr>
+                  <th className="w-16 px-4 py-5 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    <input
+                      type="checkbox"
+                      checked={selectedDekontlar.length === filteredDekontlar.length && filteredDekontlar.length > 0}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                    />
+                  </th>
                   <th className="w-1/4 px-8 py-5 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                     Öğrenci / İşletme
                   </th>
@@ -488,6 +667,14 @@ export default function DekontYonetimiPage() {
               <tbody className="bg-white/60 divide-y divide-gray-200">
                 {filteredDekontlar.map((dekont) => (
                   <tr key={dekont.id} className="hover:bg-indigo-50/50 transition-colors duration-200">
+                    <td className="w-16 px-4 py-5 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedDekontlar.includes(dekont.id)}
+                        onChange={() => toggleSelectDekont(dekont.id)}
+                        className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                      />
+                    </td>
                     <td className="w-1/4 px-8 py-5">
                       <div>
                         <div className="text-sm font-medium text-gray-900 flex items-center">
@@ -503,7 +690,7 @@ export default function DekontYonetimiPage() {
                     <td className="w-1/8 px-6 py-5">
                       <div className="text-center">
                         <div className="text-lg font-bold text-indigo-600">
-                          {dekont.ay && dekont.yil ? `${['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'][dekont.ay - 1]}-${dekont.yil}` : '-'}
+                          {dekont.ay && dekont.yil ? `${['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'][dekont.ay - 1]} ${dekont.yil}` : '-'}
                         </div>
                       </div>
                     </td>
@@ -751,7 +938,7 @@ export default function DekontYonetimiPage() {
                       {selectedDekont.ay?.toString().padStart(2, '0')}/{selectedDekont.yil}
                     </div>
                     <div className="text-sm text-gray-600 mt-1">
-                      {selectedDekont.ay && ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'][selectedDekont.ay - 1]}-{selectedDekont.yil}
+                      {selectedDekont.ay && ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'][selectedDekont.ay - 1]} {selectedDekont.yil}
                     </div>
                     <div className="text-lg font-bold text-green-600 mt-2">
                       {selectedDekont.miktar ? `${selectedDekont.miktar.toLocaleString('tr-TR')} ₺` : '-'}
@@ -927,6 +1114,44 @@ export default function DekontYonetimiPage() {
         confirmText={selectedDekont?.onay_durumu === 'onaylandi' ? 'İptal Et' : 'Reddet'}
         isLoading={submitLoading}
       />
+
+      {/* Bulk Action Confirmation Modal */}
+      <ConfirmModal
+        isOpen={bulkActionModal}
+        onClose={() => setBulkActionModal(false)}
+        onConfirm={handleConfirmBulkAction}
+        isLoading={submitLoading}
+        title={
+          bulkAction === 'delete' 
+            ? 'Toplu Silme' 
+            : bulkAction === 'approve' 
+            ? 'Toplu Onaylama' 
+            : 'Toplu Reddetme'
+        }
+        description={
+          bulkAction === 'delete' 
+            ? `${selectedDekontlar.length} dekontu silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`
+            : bulkAction === 'approve' 
+            ? `${selectedDekontlar.length} dekontu onaylamak istediğinizden emin misiniz?`
+            : `${selectedDekontlar.length} dekontu reddetmek istediğinizden emin misiniz?`
+        }
+        confirmText={
+          bulkAction === 'delete' 
+            ? 'Sil' 
+            : bulkAction === 'approve' 
+            ? 'Onayla' 
+            : 'Reddet'
+        }
+      />
+
+      {/* Bulk Download Modal */}
+      <DekontIndirModal
+        isOpen={downloadModalOpen}
+        onClose={() => setDownloadModalOpen(false)}
+        onConfirm={handleConfirmBulkDownload}
+        isLoading={downloadLoading}
+        dekontSayisi={selectedDekontlar.length}
+      />
     </div>
   )
-} 
+}

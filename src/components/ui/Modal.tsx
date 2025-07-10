@@ -9,13 +9,15 @@ interface ModalProps {
   onClose: () => void
   title: string
   children: React.ReactNode
+  titleIcon?: React.ElementType
 }
 
 export default function Modal({
   isOpen,
   onClose,
   title,
-  children
+  children,
+  titleIcon: TitleIcon
 }: ModalProps) {
   return (
     <Transition.Root show={isOpen} as={Fragment}>
@@ -57,9 +59,10 @@ export default function Modal({
                 <div>
                   <Dialog.Title
                     as="h3"
-                    className="text-lg font-medium leading-6 text-gray-900 mb-4"
+                    className="text-lg font-medium leading-6 text-gray-900 mb-4 flex items-center gap-2"
                   >
-                    {title}
+                   {TitleIcon && <TitleIcon className="h-6 w-6 text-gray-500" />}
+                    <span>{title}</span>
                   </Dialog.Title>
                   <div>{children}</div>
                 </div>

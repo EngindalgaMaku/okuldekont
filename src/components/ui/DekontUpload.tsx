@@ -35,8 +35,8 @@ export default function DekontUpload({
   const [formData, setFormData] = useState<DekontFormData>({
     staj_id: stajId || '',
     miktar: undefined,
-    ay: AY_LISTESI[new Date().getMonth()],
-    yil: new Date().getFullYear().toString(),
+    ay: (new Date().getMonth() === 0 ? 12 : new Date().getMonth()).toString(),
+    yil: (new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear()).toString(),
     aciklama: ''
   })
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -65,7 +65,7 @@ export default function DekontUpload({
       setFormData({
         staj_id: stajId || '',
         miktar: undefined,
-        ay: AY_LISTESI[new Date().getMonth()],
+        ay: (new Date().getMonth()).toString(),
         yil: new Date().getFullYear().toString(),
         aciklama: ''
       })
@@ -107,6 +107,8 @@ export default function DekontUpload({
     id: isletme.id,
     label: isletme.ad
   })) || []
+
+  const YIL_LISTESI = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -161,22 +163,34 @@ export default function DekontUpload({
             onChange={(e) => setFormData(prev => ({ ...prev, ay: e.target.value }))}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
           >
-            {AY_LISTESI.map((ay) => (
-              <option key={ay} value={ay}>{ay}</option>
-            ))}
+            {AY_LISTESI.map((ay, index) => {
+              const today = new Date();
+              const currentYear = today.getFullYear();
+              const currentMonth = today.getMonth();
+              const selectedYear = parseInt(formData.yil, 10);
+
+              if (selectedYear > currentYear || (selectedYear === currentYear && index >= currentMonth)) {
+                return null;
+              }
+              
+              return <option key={ay} value={index + 1}>{ay}</option>
+            })}
           </select>
         </div>
         <div>
           <label htmlFor="yil" className="block text-sm font-medium text-gray-700">
             Yıl
           </label>
-          <input
-            type="text"
+          <select
             id="yil"
             value={formData.yil}
             onChange={(e) => setFormData(prev => ({ ...prev, yil: e.target.value }))}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-          />
+          >
+            {YIL_LISTESI.map((yil) => (
+              <option key={yil} value={yil}>{yil}</option>
+            ))}
+          </select>
         </div>
       </div>
       <div>

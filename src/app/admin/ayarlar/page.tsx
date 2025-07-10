@@ -26,6 +26,7 @@ export default function AyarlarPage() {
   // Settings
   const [settings, setSettings] = useState({
     schoolName: '',
+    coordinator_deputy_head_name: '',
     emailNotifications: true,
     autoApproval: false,
     maxFileSize: 5, // MB
@@ -89,22 +90,18 @@ export default function AyarlarPage() {
       setSettingsLoading(true)
       console.log('Ayarlar çekiliyor...')
       
-      // RLS'yi bypass etmek için get_system_setting fonksiyonunu kullan
-      const settingsKeys = ['school_name', 'email_notifications', 'auto_approval', 'max_file_size', 'allowed_file_types', 'maintenance_mode']
-      const settingsMap: any = {}
-      
-      for (const key of settingsKeys) {
-        try {
-          const { data, error } = await supabase.rpc('get_system_setting', {
-            p_setting_key: key
-          })
-          
-          if (!error && data !== null) {
-            settingsMap[key] = data
-          }
-          console.log(`${key}:`, data, error)
-        } catch (err) {
-          console.error(`${key} alınamadı:`, err)
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('key, value')
+
+      if (error) {
+        throw error
+      }
+
+      const settingsMap: { [key: string]: any } = {}
+      if (data) {
+        for (const setting of data) {
+          settingsMap[setting.key] = setting.value
         }
       }
 
@@ -112,6 +109,7 @@ export default function AyarlarPage() {
 
       setSettings({
         schoolName: settingsMap.school_name || 'Hüsniye Özdilek MTAL',
+        coordinator_deputy_head_name: settingsMap.coordinator_deputy_head_name || '',
         emailNotifications: settingsMap.email_notifications === 'true',
         autoApproval: settingsMap.auto_approval === 'true',
         maxFileSize: parseInt(settingsMap.max_file_size || '5'),
@@ -123,6 +121,7 @@ export default function AyarlarPage() {
       // Hata durumunda default değerleri ayarla
       setSettings({
         schoolName: 'Hüsniye Özdilek MTAL',
+        coordinator_deputy_head_name: '',
         emailNotifications: true,
         autoApproval: false,
         maxFileSize: 5,
@@ -143,6 +142,7 @@ export default function AyarlarPage() {
       // Her ayarı update_system_setting fonksiyonu ile güncelle
       const settingsToUpdate = [
         { key: 'school_name', value: settings.schoolName },
+        { key: 'coordinator_deputy_head_name', value: settings.coordinator_deputy_head_name },
         { key: 'email_notifications', value: settings.emailNotifications.toString() },
         { key: 'auto_approval', value: settings.autoApproval.toString() },
         { key: 'max_file_size', value: settings.maxFileSize.toString() },
@@ -310,6 +310,19 @@ export default function AyarlarPage() {
                       placeholder="Okul adını giriniz"
                     />
                     <p className="text-xs text-gray-500 mt-1">Bu isim sistem genelinde görüntülenecektir</p>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Koordinatör Müdür Yardımcısı Adı Soyadı
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.coordinator_deputy_head_name}
+                      onChange={(e) => setSettings({...settings, coordinator_deputy_head_name: e.target.value})}
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="Örn: Ali Veli"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Bu isim, görev belgelerindeki "Koordinatör Müdür Yardımcısı" imza alanında görünecektir.</p>
                   </div>
                 </div>
 

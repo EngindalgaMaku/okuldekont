@@ -108,6 +108,7 @@ export default function PanelPage() {
   const [pendingDeleteDekont, setPendingDeleteDekont] = useState<Dekont | null>(null);
   // Başarılı dekont yükleme modalı için
   const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [errorModal, setErrorModal] = useState({ isOpen: false, title: '', message: '' });
 
   // Dekont takip sistemi için yardımcı fonksiyonlar
   const getCurrentMonth = () => new Date().getMonth() + 1;
@@ -259,17 +260,20 @@ export default function PanelPage() {
           id,
           baslangic_tarihi,
           bitis_tarihi,
-          ogrenciler (
+          ogrenci_id,
+          ogretmen_id,
+          ogrenciler!stajlar_ogrenci_id_fkey (
             id,
             ad,
             soyad,
             sinif,
             no,
-            alanlar (
+            alan_id,
+            alanlar!ogrenciler_alan_id_fkey (
               ad
             )
           ),
-          ogretmenler (
+          ogretmenler!stajlar_ogretmen_id_fkey (
             ad,
             soyad
           )
@@ -301,20 +305,21 @@ export default function PanelPage() {
         .from('dekontlar')
         .select(`
           *,
-          stajlar (
+          stajlar!dekontlar_staj_id_fkey (
             isletme_id,
-            ogrenciler (
+            ogrenci_id,
+            ogrenciler!stajlar_ogrenci_id_fkey (
               id,
               ad,
               soyad,
               sinif,
               alan_id,
-              alanlar (
+              alanlar!ogrenciler_alan_id_fkey (
                 ad
               )
             )
           ),
-          ogretmenler (
+          ogretmenler!dekontlar_ogretmen_id_fkey (
             ad,
             soyad
           )
@@ -578,7 +583,11 @@ export default function PanelPage() {
   const handleDekontEkle = async () => {
     try {
       if (!selectedOgrenci) {
-        alert('Lütfen öğrenci seçiniz')
+        setErrorModal({
+        isOpen: true,
+        title: 'Öğrenci Seçimi',
+        message: 'Lütfen öğrenci seçiniz'
+      });
         return
       }
 
@@ -587,7 +596,11 @@ export default function PanelPage() {
 
       // Dosya seçilmediyse uyarı ver ve gönderme
       if (!dekontFormData.dosya) {
-        alert('Lütfen bir dekont dosyası seçiniz!');
+        setErrorModal({
+          isOpen: true,
+          title: 'Dosya Seçimi',
+          message: 'Lütfen bir dekont dosyası seçiniz!'
+        });
         return;
       }
 
@@ -604,7 +617,11 @@ export default function PanelPage() {
       // Onaylanmış dekont kontrolü
       const onaylanmisDekont = mevcutDekontlar.find(d => d.onay_durumu === 'onaylandi');
       if (onaylanmisDekont) {
-        alert(`❌ ${ayAdi} ${dekontFormData.yil} döneminde öğrencinin onaylanmış dekontu bulunuyor. Aynı aya tekrar dekont yükleyemezsiniz.`);
+        setErrorModal({
+          isOpen: true,
+          title: 'Dekont Zaten Mevcut',
+          message: `${ayAdi} ${dekontFormData.yil} döneminde öğrencinin onaylanmış dekontu bulunuyor. Aynı aya tekrar dekont yükleyemezsiniz.`
+        });
         return;
       }
 
@@ -618,12 +635,25 @@ export default function PanelPage() {
       if (dekontFormData.dosya) {
         const file = dekontFormData.dosya;
         const fileExt = file.name.split('.').pop();
-        // Dosya ismi: ayAdi-(ekN)-ogrenciId-timestamp.ext
-        let fileName = `${ayAdi.toLowerCase()}`;
+        
+        // Anlamlı dosya ismi oluştur: dekont_ay_yil_ogretmen_isletme_ogrenci
+        const cleanName = (text: string) => text.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+        
+        let dosyaIsmi = [
+          'dekont',
+          cleanName(ayAdi.toLowerCase()),
+          dekontFormData.yil,
+          cleanName(`${selectedOgrenci.ogretmen_ad}_${selectedOgrenci.ogretmen_soyad}`),
+          cleanName(isletme!.ad),
+          cleanName(`${selectedOgrenci.ad}_${selectedOgrenci.soyad}`)
+        ].join('_');
+        
+        // Ek dekont varsa belirt
         if (ekDekontIndex > 0) {
-          fileName += `-ek${ekDekontIndex+1}`;
+          dosyaIsmi += `_ek${ekDekontIndex+1}`;
         }
-        fileName += `-${selectedOgrenci.id}-${Date.now()}.${fileExt}`;
+        
+        const fileName = dosyaIsmi + '.' + fileExt;
         const filePath = fileName;
 
         // Dosyayı yükle
@@ -1241,7 +1271,10 @@ export default function PanelPage() {
                                     // Yüklenme tarihine göre sırala (en eski ilk)
                                     const sorted = [...sameDekonts].sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
                                     const ekIndex = sorted.findIndex(d => d.id == dekont.id);
-                                    return dekont.ay + (ekIndex > 0 ? ` (ek-${ekIndex+1})` : '') + ' ' + dekont.yil;
+                                    
+                                    // Ay adını görüntüle - dekont.ay zaten ay adı olarak geliyor
+                                    const ayAdi = dekont.ay;
+                                    return ayAdi + (ekIndex > 0 ? ` (ek-${ekIndex+1})` : '') + ' ' + dekont.yil;
                                   })()}
                                 </span>
                               </div>
@@ -1969,6 +2002,28 @@ export default function PanelPage() {
             <button
               onClick={() => setSuccessModalOpen(false)}
               className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Tamam
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Error Modal */}
+      <Modal 
+        isOpen={errorModal.isOpen} 
+        onClose={() => setErrorModal({ isOpen: false, title: '', message: '' })}
+        title={errorModal.title}
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-3 bg-red-50 border-l-4 border-red-400 rounded text-red-900 text-sm">
+            <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+            <span>{errorModal.message}</span>
+          </div>
+          <div className="flex justify-end pt-4">
+            <button
+              onClick={() => setErrorModal({ isOpen: false, title: '', message: '' })}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
             >
               Tamam
             </button>

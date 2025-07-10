@@ -9,17 +9,17 @@ import ConfirmModal from '@/components/ui/ConfirmModal'
 import Link from 'next/link'
 
 interface Alan {
-    id: number;
+    id: string;
     ad: string;
 }
 
 interface Ogretmen {
-    id: number;
+    id: string;
     ad: string;
     soyad: string;
     email?: string;
     telefon?: string;
-    alan_id?: number;
+    alan_id?: string;
     aktif: boolean;
     pin?: string;
     alanlar?: { ad: string };
@@ -96,8 +96,8 @@ export default function OgretmenYonetimiPage() {
 
     // Alan filtresi
     if (selectedAlan) {
-      filtered = filtered.filter(ogretmen => 
-        ogretmen.alan_id?.toString() === selectedAlan
+      filtered = filtered.filter(ogretmen =>
+        ogretmen.alan_id === selectedAlan
       )
     }
 
@@ -180,7 +180,7 @@ export default function OgretmenYonetimiPage() {
       soyad: ogretmen.soyad,
       email: ogretmen.email || '',
       telefon: ogretmen.telefon || '',
-      alan_id: ogretmen.alan_id?.toString() || '',
+      alan_id: ogretmen.alan_id || '',
       aktif: ogretmen.aktif,
       pin: ogretmen.pin || ''
     })
@@ -206,7 +206,7 @@ export default function OgretmenYonetimiPage() {
         soyad: formData.soyad.trim(),
         email: formData.email.trim() || null,
         telefon: formData.telefon.trim() || null,
-        alan_id: formData.alan_id ? parseInt(formData.alan_id) : null,
+        alan_id: formData.alan_id || null,
         aktif: formData.aktif,
         pin: formData.pin.trim()
       }])
@@ -239,7 +239,7 @@ export default function OgretmenYonetimiPage() {
         soyad: formData.soyad.trim(),
         email: formData.email.trim() || null,
         telefon: formData.telefon.trim() || null,
-        alan_id: formData.alan_id ? parseInt(formData.alan_id) : null,
+        alan_id: formData.alan_id || null,
         aktif: formData.aktif,
         pin: formData.pin.trim()
       })
@@ -745,7 +745,6 @@ export default function OgretmenYonetimiPage() {
         title="Öğretmen Sil"
         description={`${selectedOgretmen?.ad} ${selectedOgretmen?.soyad} isimli öğretmeni silmek istediğinize emin misiniz?`}
         confirmText="Sil"
-        confirmLoadingText="Siliniyor..."
         isLoading={submitLoading}
       />
     </div>

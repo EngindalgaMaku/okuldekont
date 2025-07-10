@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment, ReactNode } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { Briefcase, Plus, Edit, Trash2, User, Users, ArrowLeft, GraduationCap, School, UserCheck, Settings, AlertTriangle, Lock, Building2, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 
 interface Alan {
-  id: number
+  id: string
   ad: string
   aciklama?: string
   aktif: boolean
@@ -40,8 +40,7 @@ interface Ogrenci {
   ad: string
   soyad: string
   no: string
-  sinif_id: string
-  sinif?: string
+  sinif: string
   isletme_adi?: string
   staj_durumu?: string
 }
@@ -54,11 +53,11 @@ interface OgrenciFormData {
 }
 
 interface Ogretmen {
-  id: number
+  id: string
   ad: string
   soyad: string
   email: string
-  alan_id: number
+  alan_id: string
   telefon?: string
   is_koordinator?: boolean
 }
@@ -68,7 +67,6 @@ interface Isletme {
   ad: string
   adres?: string
   telefon?: string
-  alan_id: string
 }
 
 export default function AlanDetayPage() {
@@ -85,7 +83,6 @@ export default function AlanDetayPage() {
   const [ogretmenler, setOgretmenler] = useState<Ogretmen[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSinifFilter, setSelectedSinifFilter] = useState('')
-  const [selectedOgrenciSinif, setSelectedOgrenciSinif] = useState('')
   const [filteredOgrenciler, setFilteredOgrenciler] = useState<Ogrenci[]>([])
   const [isletmeler, setIsletmeler] = useState<Isletme[]>([])
 
@@ -100,8 +97,6 @@ export default function AlanDetayPage() {
   const [selectedOgrenci, setSelectedOgrenci] = useState<Ogrenci | null>(null)
 
   // Form states
-  const [yeniSinifAd, setYeniSinifAd] = useState('')
-  const [editSinifAd, setEditSinifAd] = useState('')
   const [submitLoading, setSubmitLoading] = useState(false)
 
   // Sınıf ekleme form state
@@ -212,67 +207,105 @@ export default function AlanDetayPage() {
   }
 
   const fetchSiniflar = async () => {
-    // Önce sınıfları al
-    const { data: sinifData, error: sinifError } = await supabase
-      .from('siniflar')
-      .select('*')
-      .eq('alan_id', alanId)
-      .order('ad')
+    try {
+      // First get the siniflar
+      const { data: sinifData, error: sinifError } = await supabase
+        .from('siniflar')
+        .select('*')
+        .eq('alan_id', alanId)
+        .order('ad')
 
-    if (sinifError) {
-      console.error('Sınıflar alınırken hata:', sinifError)
-      return
+      if (sinifError) throw sinifError
+
+      // Get counts separately for each sinif
+      const siniflarWithCount = await Promise.all(
+        sinifData.map(async (sinif) => {
+          // Count ogrenciler for this sinif
+          const { count: ogrenciCount } = await supabase
+            .from('ogrenciler')
+            .select('*', { count: 'exact', head: true })
+            .eq('sinif', sinif.ad)
+            .eq('alan_id', alanId)
+
+          return {
+            ...sinif,
+            ogrenci_sayisi: ogrenciCount || 0
+          }
+        })
+      )
+
+      setSiniflar(siniflarWithCount)
+    } catch (error) {
+      console.error('Sınıflar alınırken hata:', error)
+    } finally {
+      setLoading(false)
     }
-
-    // Her sınıf için öğrenci sayısını al
-    const siniflarWithCount = await Promise.all(
-      (sinifData || []).map(async (sinif) => {
-        const { count } = await supabase
-          .from('ogrenciler')
-          .select('*', { count: 'exact', head: true })
-          .eq('sinif', sinif.ad)
-          .eq('alan_id', alanId)
-
-        return {
-          ...sinif,
-          ogrenci_sayisi: count || 0
-        }
-      })
-    )
-
-    setSiniflar(siniflarWithCount)
-    setLoading(false)
   }
 
   const fetchOgrenciler = async () => {
     try {
-      // Öğrencileri ve işletme bilgilerini çek
-      const { data, error } = await supabase
+      // First get students
+      const { data: ogrencilerData, error: ogrencilerError } = await supabase
         .from('ogrenciler')
-        .select(`
-          *,
-          isletmeler(ad)
-        `)
-        .eq('alan_id', alanId)
-        .order('sinif', { ascending: true })
-        .order('ad', { ascending: true })
+        .select('id, ad, soyad, no, sinif')
+        .eq('alan_id', alanId);
 
-      if (error) {
-        console.error('Öğrenciler alınırken hata:', error)
-        return
-      }
+      if (ogrencilerError) throw ogrencilerError;
 
-      // İşletme adını düzgün formata çevir
-      const ogrencilerWithInfo = (data || []).map((ogrenci: any) => ({
-        ...ogrenci,
-        isletme_adi: ogrenci.isletmeler?.ad || null,
-        staj_durumu: ogrenci.isletme_id ? 'aktif' : 'isletmesi_yok'
-      }))
+      // Get staj and isletme info for each student
+      const ogrencilerWithInfo = await Promise.all(
+        ogrencilerData.map(async (ogrenci) => {
+          try {
+            // Get active staj for this student (without join to avoid foreign key issues)
+            const { data: stajData, error: stajError } = await supabase
+              .from('stajlar')
+              .select('durum, isletme_id')
+              .eq('ogrenci_id', ogrenci.id)
+              .eq('durum', 'aktif')
+              .maybeSingle();
 
-      setOgrenciler(ogrencilerWithInfo)
+            let isletme_adi = null;
+            let staj_durumu = 'isletmesi_yok';
+            
+            // If staj query was successful and staj exists, get isletme name separately
+            if (!stajError && stajData?.isletme_id) {
+              const { data: isletmeData, error: isletmeError } = await supabase
+                .from('isletmeler')
+                .select('ad')
+                .eq('id', stajData.isletme_id)
+                .maybeSingle();
+              
+              if (!isletmeError && isletmeData) {
+                isletme_adi = isletmeData.ad;
+              } else {
+                console.warn(`İşletme bulunamadı: ${stajData.isletme_id}`);
+                isletme_adi = null;
+              }
+              staj_durumu = 'aktif';
+            } else if (stajError) {
+              console.warn(`Staj bilgisi alınamadı (öğrenci: ${ogrenci.id}):`, stajError);
+            }
+
+            return {
+              ...ogrenci,
+              isletme_adi,
+              staj_durumu
+            };
+          } catch (stajError) {
+            // If there's an error getting staj data, return student without staj info
+            console.warn(`Staj bilgisi alınamadı (öğrenci: ${ogrenci.id}):`, stajError);
+            return {
+              ...ogrenci,
+              isletme_adi: null,
+              staj_durumu: 'isletmesi_yok'
+            };
+          }
+        })
+      );
+      
+      setOgrenciler(ogrencilerWithInfo);
     } catch (error) {
-      console.error('Öğrenciler yüklenirken beklenmeyen hata:', error)
-      setOgrenciler([])
+      console.error('Öğrenciler alınırken hata:', error);
     }
   }
 
@@ -292,20 +325,33 @@ export default function AlanDetayPage() {
   }
 
   const fetchIsletmeler = async () => {
-    const { data, error } = await supabase
-      .from('isletme_alanlar')
-      .select('isletmeler(*)')
-      .eq('alan_id', alanId)
+    try {
+      // First get isletme_alanlar for this alan
+      const { data: isletmeAlanlarData, error: isletmeAlanlarError } = await supabase
+        .from('isletme_alanlar')
+        .select('isletme_id')
+        .eq('alan_id', alanId);
 
-    if (error) {
-      console.error('İşletmeler alınırken hata:', error)
-    } else if (data) {
-      const isletmeListesi = data
-        .map((item: any) => item.isletmeler)
-        .filter(Boolean) as Isletme[]
-      
-      isletmeListesi.sort((a, b) => (a.ad || '').localeCompare(b.ad || ''))
-      setIsletmeler(isletmeListesi)
+      if (isletmeAlanlarError) throw isletmeAlanlarError;
+
+      if (!isletmeAlanlarData || isletmeAlanlarData.length === 0) {
+        setIsletmeler([]);
+        return;
+      }
+
+      // Get isletmeler that are in this alan
+      const isletmeIds = isletmeAlanlarData.map(ia => ia.isletme_id);
+      const { data: isletmelerData, error: isletmelerError } = await supabase
+        .from('isletmeler')
+        .select('id, ad, adres, telefon')
+        .in('id', isletmeIds);
+
+      if (isletmelerError) throw isletmelerError;
+
+      setIsletmeler(isletmelerData || []);
+    } catch (error) {
+      console.error('İşletmeler alınırken hata:', error);
+      setIsletmeler([]);
     }
   }
 
@@ -320,7 +366,7 @@ export default function AlanDetayPage() {
       .from('siniflar')
       .insert({
         ad: sinifFormData.ad.trim(),
-        alan_id: parseInt(alanId),
+        alan_id: alanId,
         dal: sinifFormData.dal.trim() || null,
         isletme_gunleri: sinifFormData.isletme_gunleri || null,
         okul_gunleri: sinifFormData.okul_gunleri || null,
@@ -386,19 +432,14 @@ export default function AlanDetayPage() {
     if (!selectedSinif) return
 
     // Önce bu sınıfta öğrenci var mı kontrol et
-    const { data: ogrenciData, error: ogrenciError } = await supabase
+    const { count } = await supabase
       .from('ogrenciler')
-      .select('id')
+      .select('*', { count: 'exact', head: true })
       .eq('sinif', selectedSinif.ad)
       .eq('alan_id', alanId)
 
-    if (ogrenciError) {
-      alert('Sınıf kontrolü yapılırken hata oluştu: ' + ogrenciError.message)
-      return
-    }
-
-    if (ogrenciData && ogrenciData.length > 0) {
-      alert(`Bu sınıfta ${ogrenciData.length} öğrenci var. Önce öğrencileri silin veya başka sınıfa taşıyın.`)
+    if (count && count > 0) {
+      alert(`Bu sınıfta ${count} öğrenci var. Önce öğrencileri silin veya başka sınıfa taşıyın.`)
       setDeleteSinifModal(false)
       return
     }
@@ -435,7 +476,7 @@ export default function AlanDetayPage() {
           soyad: ogrenciFormData.soyad.trim(),
           no: ogrenciFormData.no.trim(),
           sinif: ogrenciFormData.sinif_id,
-          alan_id: params.id
+          alan_id: alanId
         })
 
       if (error) throw error
@@ -702,15 +743,13 @@ export default function AlanDetayPage() {
       setSubmitLoading(true)
 
       // Önce bağlı öğrencileri kontrol et
-      const { data: ogrenciler, error: ogrenciError } = await supabase
+      const { count } = await supabase
         .from('ogrenciler')
-        .select('id')
+        .select('*', { count: 'exact', head: true })
         .eq('alan_id', alanId)
 
-      if (ogrenciError) throw ogrenciError
-
-      if (ogrenciler && ogrenciler.length > 0) {
-        alert(`Bu alanda ${ogrenciler.length} öğrenci kayıtlı. Önce öğrencileri başka bir alana aktarmanız gerekiyor.`)
+      if (count && count > 0) {
+        alert(`Bu alanda ${count} öğrenci kayıtlı. Önce öğrencileri başka bir alana aktarmanız gerekiyor.`)
         setAlanSilModal(false)
         return
       }
@@ -1061,21 +1100,22 @@ export default function AlanDetayPage() {
             {activeTab === 'ogretmenler' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {ogretmenler.map((ogretmen: any) => (
-                  <div
+                  <Link
+                    href={`/admin/ogretmenler/${ogretmen.id}`}
                     key={ogretmen.id}
-                    className="p-4 rounded-lg border border-gray-200 hover:border-indigo-200 hover:shadow-sm transition-all duration-200"
+                    className="block p-4 rounded-lg border border-gray-200 hover:border-indigo-400 hover:shadow-md transition-all duration-200 bg-white"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-indigo-50 rounded-full">
-                        <Users className="h-5 w-5 text-indigo-600" />
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-indigo-100 rounded-full">
+                        <User className="h-6 w-6 text-indigo-600" />
                       </div>
                       <div>
-                        <h3 className="font-medium text-gray-900">{ogretmen.ad} {ogretmen.soyad}</h3>
+                        <h3 className="font-semibold text-gray-900">{ogretmen.ad} {ogretmen.soyad}</h3>
                         {ogretmen.email && <p className="text-sm text-gray-500">{ogretmen.email}</p>}
                         {ogretmen.telefon && <p className="text-sm text-gray-500">{ogretmen.telefon}</p>}
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
@@ -1626,135 +1666,6 @@ export default function AlanDetayPage() {
         confirmText="Sil"
         isLoading={submitLoading}
       />
-
-      {/* Alan Ayarları Modalı */}
-      <Modal
-        isOpen={alanAyarlarModal}
-        onClose={() => setAlanAyarlarModal(false)}
-        title="Alan Ayarları"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Alan Adı
-            </label>
-            <input
-              type="text"
-              value={alanFormData.ad}
-              onChange={(e) => setAlanFormData({ ...alanFormData, ad: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Açıklama
-            </label>
-            <textarea
-              value={alanFormData.aciklama}
-              onChange={(e) => setAlanFormData({ ...alanFormData, aciklama: e.target.value })}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="aktif"
-              checked={alanFormData.aktif}
-              onChange={(e) => setAlanFormData({ ...alanFormData, aktif: e.target.checked })}
-              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-            />
-            <label htmlFor="aktif" className="ml-2 block text-sm text-gray-900">
-              Alan aktif
-            </label>
-          </div>
-
-          <div className="flex justify-end space-x-3 pt-4 border-t">
-            <button
-              onClick={() => setAlanAyarlarModal(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-md border border-gray-300"
-            >
-              İptal
-            </button>
-            <button
-              onClick={handleAlanGuncelle}
-              disabled={submitLoading}
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50"
-            >
-              {submitLoading ? 'Güncelleniyor...' : 'Güncelle'}
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Alan Silme Onay Modalı */}
-      <Modal
-        isOpen={alanSilModal}
-        onClose={() => setAlanSilModal(false)}
-        title="Alanı Sil"
-      >
-        <div className="space-y-4">
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <AlertTriangle className="h-5 w-5 text-amber-400" />
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-semibold text-amber-800 mb-2">
-                  Dikkat: Bu işlem geri alınamaz!
-                </h3>
-                <div className="mt-2 text-sm text-amber-700">
-                  <p>
-                    Bu alanı silmek için alan adını ({alan?.ad}) aşağıdaki kutuya yazın.
-                    Bu işlem geri alınamaz ve tüm alan verilerini silecektir.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Onay için alan adını yazın
-            </label>
-            <input
-              type="text"
-              value={silmeOnayi}
-              onChange={(e) => setSilmeOnayi(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              placeholder={alan?.ad}
-            />
-          </div>
-
-          {silmeHatasi && (
-            <div className="text-sm text-red-600">
-              {silmeHatasi}
-            </div>
-          )}
-
-          <div className="flex justify-end space-x-3 pt-4 border-t">
-            <button
-              onClick={() => {
-                setAlanSilModal(false)
-                setSilmeOnayi('')
-                setSilmeHatasi('')
-              }}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-md border border-gray-300"
-            >
-              İptal
-            </button>
-            <button
-              onClick={handleAlanSil}
-              disabled={submitLoading || silmeOnayi !== alan?.ad}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50"
-            >
-              {submitLoading ? 'Siliniyor...' : 'Alanı Sil'}
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   )
-} 
+}

@@ -1,9 +1,34 @@
 const fs = require('fs')
 const path = require('path')
 const https = require('https')
+const { createClient } = require('@supabase/supabase-js')
 
-const SUPABASE_URL = 'https://guqwqbxsfvddwwczwljp.supabase.co'
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1cXdxYnhzZnZkZHd3Y3p3bGpwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDY4OTQ2MCwiZXhwIjoyMDY2MjY1NDYwfQ.snDNh-cNBjEoLstTmE3U6loXPrhKydBoTG7BvP6BONQ'
+// Environment variables'dan bilgileri al
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('NEXT_PUBLIC_SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY environment variables gerekli!')
+  process.exit(1)
+}
+
+async function testSupabaseConnection() {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    })
+    if (!response.ok) {
+      throw new Error(`Supabase bağlantısı başarısız: ${response.status} ${response.statusText}`)
+    }
+    console.log('Supabase bağlantısı başarılı!')
+  } catch (error) {
+    console.error('Supabase bağlantısı hatası:', error.message)
+    process.exit(1)
+  }
+}
 
 // SQL'i direkt çalıştır
 async function executeSql(sql) {

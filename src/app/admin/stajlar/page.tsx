@@ -5,9 +5,10 @@ import { Building2, Users, FileText, Plus, Search, Filter, Download, Upload, Tra
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
+import OgretmenBazliYonetim, { OgretmenStajData } from '@/components/ui/OgretmenBazliYonetim'
 
 interface Staj {
-  id: number
+  id: string
   ogrenci_id: string
   isletme_id: string
   ogretmen_id: string
@@ -82,9 +83,11 @@ export default function StajYonetimiPage() {
   const [bostOgrenciler, setBostOgrenciler] = useState<Ogrenci[]>([])
   const [isletmeler, setIsletmeler] = useState<Isletme[]>([])
   const [ogretmenler, setOgretmenler] = useState<Ogretmen[]>([])
+  const [ogretmenBazliData, setOgretmenBazliData] = useState<OgretmenStajData[]>([])
+  const [filteredOgretmenBazliData, setFilteredOgretmenBazliData] = useState<OgretmenStajData[]>([])
   const [alanlar, setAlanlar] = useState<Alan[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'aktif' | 'bost' | 'tamamlandi'>('aktif')
+  const [activeTab, setActiveTab] = useState<'aktif' | 'bost' | 'tamamlandi' | 'ogretmen'>('aktif')
   
   // Modal states
   const [newStajModalOpen, setNewStajModalOpen] = useState(false)
@@ -125,13 +128,15 @@ export default function StajYonetimiPage() {
     notlar: ''
   })
   
+  const [koordinatorAtaLoading, setKoordinatorAtaLoading] = useState(false)
+  
   // Search and filter
   const [searchTerm, setSearchTerm] = useState('')
   const [filterIsletme, setFilterIsletme] = useState('')
   const [filterOgretmen, setFilterOgretmen] = useState('')
   const [filterAlan, setFilterAlan] = useState('')
   const [filterSinif, setFilterSinif] = useState('')
-  const [openDropdowns, setOpenDropdowns] = useState<Record<number, boolean>>({})
+  const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({})
   
   // Pagination states
   const [currentPageStajlar, setCurrentPageStajlar] = useState(1)
@@ -258,28 +263,14 @@ export default function StajYonetimiPage() {
 
       if (ogretmenError) throw ogretmenError
 
-      // Koordinatör bilgilerini getir
-      const { data: koordinatorData, error: koordinatorError } = await supabase
-        .from('ogrenci_koordinatorleri')
-        .select('ogrenci_id, ogretmen_id')
-        .eq('durum', 'aktif')
-
-      if (koordinatorError) throw koordinatorError
-
-      // Stajlar ile öğretmen ve koordinatör bilgilerini manuel birleştir
+      // Stajlar ile öğretmen bilgilerini manuel birleştir
       const stajlarWithDetails = stajData?.map(staj => {
-        // Staj koordinatör öğretmenini bul
         const stajOgretmeni = ogretmenData?.find(og => og.id === staj.ogretmen_id)
-        
-        // Öğrenci koordinatörünü bul
-        const koordinatorKaydi = koordinatorData?.find(k => k.ogrenci_id === staj.ogrenci_id)
-        const koordinatorOgretmeni = koordinatorKaydi ?
-          ogretmenData?.find(og => og.id === koordinatorKaydi.ogretmen_id) : null
         
         return {
           ...staj,
           ogretmenler: stajOgretmeni || null,
-          koordinator_ogretmen: koordinatorOgretmeni || null
+          koordinator_ogretmen: stajOgretmeni || null // Koordinatör de stajdaki öğretmenle aynı
         }
       }) || []
 
@@ -324,7 +315,6 @@ export default function StajYonetimiPage() {
           id, ad, soyad, alan_id,
           alanlar (ad)
         `)
-        .eq('aktif', true)
         .order('ad')
       
       if (ogretmenListError) throw ogretmenListError
@@ -344,6 +334,25 @@ export default function StajYonetimiPage() {
       if (alanError) throw alanError
       setAlanlar(alanData || [])
       
+      // Öğretmen bazlı veri yapısını oluştur
+      const ogretmenStajMap: Record<string, OgretmenStajData> = {}
+      ogretmenListData?.forEach(ogretmen => {
+        ogretmenStajMap[ogretmen.id] = {
+          id: ogretmen.id,
+          ad: ogretmen.ad,
+          soyad: ogretmen.soyad,
+          stajlar: []
+        }
+      })
+
+      stajlarWithDetails.forEach(staj => {
+        if (staj.ogretmen_id && ogretmenStajMap[staj.ogretmen_id]) {
+          ogretmenStajMap[staj.ogretmen_id].stajlar.push(staj)
+        }
+      })
+
+      setOgretmenBazliData(Object.values(ogretmenStajMap))
+
     } catch (error) {
       console.error('Veri yükleme hatası:', error)
       showToast({
@@ -624,12 +633,40 @@ export default function StajYonetimiPage() {
   }
 
   const handleKoordinatorAta = async () => {
+    if (koordinatorAtaLoading) return // Prevent multiple clicks
+    
     try {
-      if (!selectedOgrenci || !koordinatorForm.ogretmen_id || !koordinatorForm.baslangic_tarihi) {
+      setKoordinatorAtaLoading(true)
+      console.log('Koordinatör atama başladı')
+      console.log('selectedOgrenci:', selectedOgrenci)
+      console.log('koordinatorForm:', koordinatorForm)
+
+      if (!selectedOgrenci) {
+        console.log('Öğrenci seçilmemiş')
         showToast({
           type: 'error',
-          title: 'Eksik Bilgi',
-          message: 'Lütfen tüm gerekli alanları doldurun'
+          title: 'Öğrenci Seçilmemiş',
+          message: 'Lütfen bir öğrenci seçin'
+        })
+        return
+      }
+      
+      if (!koordinatorForm.ogretmen_id) {
+        console.log('Koordinatör seçilmemiş')
+        showToast({
+          type: 'error',
+          title: 'Koordinatör Seçilmemiş',
+          message: 'Lütfen bir koordinatör öğretmen seçin'
+        })
+        return
+      }
+      
+      if (!koordinatorForm.baslangic_tarihi) {
+        console.log('Başlangıç tarihi girilmemiş')
+        showToast({
+          type: 'error',
+          title: 'Tarih Eksik',
+          message: 'Lütfen koordinatörlük başlangıç tarihini girin'
         })
         return
       }
@@ -638,6 +675,8 @@ export default function StajYonetimiPage() {
       const aktifStaj = stajlar.find(staj =>
         staj.ogrenci_id === selectedOgrenci.id && staj.durum === 'aktif'
       )
+
+      console.log('Aktif staj:', aktifStaj)
 
       if (!aktifStaj) {
         showToast({
@@ -648,38 +687,20 @@ export default function StajYonetimiPage() {
         return
       }
 
+      console.log('Staj güncelleniyor, id:', aktifStaj.id, 'yeni ogretmen_id:', koordinatorForm.ogretmen_id)
+
       // Staj tablosundaki koordinatör bilgisini güncelle
       const { error: updateStajError } = await supabase
         .from('stajlar')
         .update({ ogretmen_id: koordinatorForm.ogretmen_id })
         .eq('id', aktifStaj.id)
 
-      if (updateStajError) throw updateStajError
-
-      // Önce mevcut aktif koordinatör kaydını pasif yap
-      const { error: updateError } = await supabase
-        .from('ogrenci_koordinatorleri')
-        .update({ durum: 'pasif' })
-        .eq('ogrenci_id', selectedOgrenci.id)
-        .eq('durum', 'aktif')
-
-      if (updateError) {
-        // Hata varsa da devam et, çünkü önceki kayıt olmayabilir
-        console.warn('Eski koordinatör kaydı pasif yapılırken hata:', updateError)
+      if (updateStajError) {
+        console.error('Staj güncelleme hatası:', updateStajError)
+        throw updateStajError
       }
 
-      // Yeni koordinatör atama kaydı oluştur
-      const { error: insertError } = await supabase
-        .from('ogrenci_koordinatorleri')
-        .insert({
-          ogrenci_id: selectedOgrenci.id,
-          ogretmen_id: koordinatorForm.ogretmen_id,
-          baslangic_tarihi: koordinatorForm.baslangic_tarihi,
-          durum: 'aktif',
-          notlar: koordinatorForm.notlar || null
-        })
-
-      if (insertError) throw insertError
+      console.log('Koordinatör ataması başarılı')
 
       showToast({
         type: 'success',
@@ -703,6 +724,8 @@ export default function StajYonetimiPage() {
         title: 'Hata',
         message: `Koordinatör ataması yapılırken bir hata oluştu: ${(error as Error).message || 'Bilinmeyen hata'}`
       })
+    } finally {
+      setKoordinatorAtaLoading(false)
     }
   }
 
@@ -851,6 +874,28 @@ export default function StajYonetimiPage() {
     setCurrentPageBost(1)
   }, [searchTerm, filterAlan, filterSinif])
 
+  // Öğretmen bazlı veri için filtreleme
+  useEffect(() => {
+    let filtered = ogretmenBazliData
+
+    // Arama filtresi (öğretmen adına göre)
+    if (searchTerm) {
+      filtered = filtered.filter(ogretmen =>
+        `${ogretmen.ad} ${ogretmen.soyad}`.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    }
+
+    // Alan filtresi (öğretmenin alanına göre)
+    if (filterAlan) {
+      const alanOgretmenIds = ogretmenler
+        .filter(o => o.alan_id === filterAlan)
+        .map(o => o.id)
+      filtered = filtered.filter(ogretmen => alanOgretmenIds.includes(ogretmen.id))
+    }
+
+    setFilteredOgretmenBazliData(filtered)
+  }, [ogretmenBazliData, searchTerm, filterAlan, ogretmenler])
+
   // Modal için alan bazlı öğrenci filtreleme
   const modalOgrenciler = newStajForm.alan_id === ''
     ? bostOgrenciler
@@ -979,7 +1024,8 @@ export default function StajYonetimiPage() {
             {[
               { id: 'aktif', label: 'Aktif Stajlar', count: stajlar.filter(s => s.durum === 'aktif').length },
               { id: 'bost', label: 'Boşta Olan Öğrenciler', count: bostOgrenciler.length },
-              { id: 'tamamlandi', label: 'Tamamlanan/Feshedilen', count: stajlar.filter(s => s.durum !== 'aktif').length }
+              { id: 'tamamlandi', label: 'Tamamlanan/Feshedilen', count: stajlar.filter(s => s.durum !== 'aktif').length },
+              { id: 'ogretmen', label: 'Öğretmen Bazlı', count: ogretmenler.length }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1005,7 +1051,11 @@ export default function StajYonetimiPage() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder={activeTab === 'bost' ? 'Öğrenci ara...' : 'Öğrenci veya işletme ara...'}
+                  placeholder={
+                    activeTab === 'bost' ? 'Öğrenci ara...' :
+                    activeTab === 'ogretmen' ? 'Öğretmen ara...' :
+                    'Öğrenci veya işletme ara...'
+                  }
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
@@ -1035,18 +1085,20 @@ export default function StajYonetimiPage() {
               />
               
               {/* Sınıf Filtresi */}
-              <ModernSelect
-                value={filterSinif}
-                onChange={setFilterSinif}
-                options={[
-                  { value: '', label: 'Tüm Sınıflar' },
-                  ...availableClasses.map(sinif => ({ value: sinif, label: sinif }))
-                ]}
-                placeholder="Sınıf seçin"
-                label="Sınıf"
-              />
+              {activeTab !== 'ogretmen' && (
+                <ModernSelect
+                  value={filterSinif}
+                  onChange={setFilterSinif}
+                  options={[
+                    { value: '', label: 'Tüm Sınıflar' },
+                    ...availableClasses.map(sinif => ({ value: sinif, label: sinif }))
+                  ]}
+                  placeholder="Sınıf seçin"
+                  label="Sınıf"
+                />
+              )}
               
-              {activeTab !== 'bost' && (
+              {activeTab !== 'bost' && activeTab !== 'ogretmen' && (
                 <>
                   {/* İşletme Filtresi */}
                   <ModernSelect
@@ -1121,7 +1173,9 @@ export default function StajYonetimiPage() {
 
         {/* Content */}
         <div className="p-6">
-          {activeTab === 'bost' ? (
+          {activeTab === 'ogretmen' ? (
+            <OgretmenBazliYonetim data={filteredOgretmenBazliData} />
+          ) : activeTab === 'bost' ? (
             // Boşta olan öğrenciler
             <div className="space-y-4">
               {/* Sayfa bilgisi */}
@@ -1230,7 +1284,7 @@ export default function StajYonetimiPage() {
               )}
             </div>
           ) : (
-            // Staj listesi
+            // Staj listesi (Aktif ve Tamamlanan/Feshedilen)
             <div className="space-y-4">
               {/* Sayfa bilgisi */}
               {totalStajlar > 0 && (
@@ -1332,15 +1386,21 @@ export default function StajYonetimiPage() {
                                 <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
                                   <button
                                     onClick={() => {
+                                      console.log('Koordinatör Ata butonu tıklandı')
+                                      console.log('staj.ogrenciler:', staj.ogrenciler)
                                       if (staj.ogrenciler) {
+                                        console.log('Öğrenci seçiliyor:', staj.ogrenciler)
                                         setSelectedOgrenci(staj.ogrenciler)
                                         setKoordinatorForm({
                                           ogretmen_id: '',
                                           baslangic_tarihi: new Date().toISOString().split('T')[0],
                                           notlar: ''
                                         })
+                                        console.log('Modal açılıyor')
                                         setKoordinatorModalOpen(true)
                                         setOpenDropdowns(prev => ({ ...prev, [staj.id]: false }))
+                                      } else {
+                                        console.log('Öğrenci bilgisi bulunamadı!')
                                       }
                                     }}
                                     className="w-full flex items-center space-x-3 px-4 py-2 text-sm text-purple-600 hover:bg-purple-50 transition-colors"
@@ -1827,9 +1887,13 @@ export default function StajYonetimiPage() {
               </button>
               <button
                 onClick={handleKoordinatorAta}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                disabled={koordinatorAtaLoading}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
               >
-                Koordinatör Ata
+                {koordinatorAtaLoading && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                )}
+                <span>{koordinatorAtaLoading ? 'Atanıyor...' : 'Koordinatör Ata'}</span>
               </button>
             </div>
           </div>

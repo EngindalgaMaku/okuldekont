@@ -73,37 +73,23 @@ export function useAuth() {
 
   const checkAdminStatus = async (user: User): Promise<{ isAdmin: boolean; role?: string }> => {
     try {
-      // Check against admin users table in database
       const { data, error } = await supabase
         .from('admin_kullanicilar')
-        .select('yetki_seviyesi, aktif')
+        .select('yetki_seviyesi')
         .eq('id', user.id)
         .eq('aktif', true)
-        .single()
 
-      if (error || !data) {
-        // Fallback to email check for initial setup
-        const adminEmails = [
-          'admin@okul.com',
-          'yonetici@hozdilek.edu.tr',
-          'koordinator@mtal.gov.tr'
-        ]
-
-        if (adminEmails.includes(user.email || '') ||
-            user.user_metadata?.role === 'admin' ||
-            user.app_metadata?.role === 'admin') {
-          return { isAdmin: true, role: 'super_admin' }
-        }
-
+      if (error) {
         return { isAdmin: false }
       }
 
-      return {
-        isAdmin: true,
-        role: data.yetki_seviyesi
+      if (data && data.length > 0) {
+        return { isAdmin: true, role: data[0].yetki_seviyesi }
       }
+
+      return { isAdmin: false }
     } catch (error) {
-      console.error('Admin status check error:', error)
+      console.error('Yönetici durumu kontrol edilirken beklenmedik bir hata oluştu:', error)
       return { isAdmin: false }
     }
   }

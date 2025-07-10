@@ -142,7 +142,7 @@ export default function AlanlarPage() {
     try {
       setLoading(true)
       
-      // Önce alanları çek
+      // First get the alanlar
       const { data: alanlarData, error: alanlarError } = await supabase
         .from('alanlar')
         .select('*')
@@ -150,16 +150,16 @@ export default function AlanlarPage() {
 
       if (alanlarError) throw alanlarError
 
-      // Her alan için öğretmen ve öğrenci sayılarını hesapla
+      // Get counts separately for each alan
       const alanlarWithCounts = await Promise.all(
-        (alanlarData || []).map(async (alan) => {
-          // Öğretmen sayısı
+        alanlarData.map(async (alan) => {
+          // Count ogretmenler for this alan
           const { count: ogretmenCount } = await supabase
             .from('ogretmenler')
             .select('*', { count: 'exact', head: true })
             .eq('alan_id', alan.id)
 
-          // Öğrenci sayısı
+          // Count ogrenciler for this alan
           const { count: ogrenciCount } = await supabase
             .from('ogrenciler')
             .select('*', { count: 'exact', head: true })
@@ -168,7 +168,7 @@ export default function AlanlarPage() {
           return {
             ...alan,
             ogretmen_sayisi: ogretmenCount || 0,
-            ogrenci_sayisi: ogrenciCount || 0
+            ogrenci_sayisi: ogrenciCount || 0,
           }
         })
       )

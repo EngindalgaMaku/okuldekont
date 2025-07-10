@@ -1,0 +1,17 @@
+{
+  "timestamp": "2025-07-10T00-50-57-543Z",
+  "totalTables": 10,
+  "totalRecords": 651,
+  "tables": {
+    "alanlar": 6,
+    "egitim_yillari": 2,
+    "ogretmenler": 112,
+    "siniflar": 39,
+    "ogrenciler": 200,
+    "isletmeler": 124,
+    "stajlar": 120,
+    "dekontlar": 0,
+    "isletme_alanlar": 48,
+    "system_settings": 0
+  }
+}

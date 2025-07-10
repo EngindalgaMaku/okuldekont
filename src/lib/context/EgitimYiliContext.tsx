@@ -2,8 +2,6 @@
 
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { getSchoolName } from '@/lib/settings'
-
 interface EgitimYiliContextType {
   okulAdi: string
   egitimYili: string
@@ -15,34 +13,38 @@ interface EgitimYiliContextType {
 const EgitimYiliContext = createContext<EgitimYiliContextType | undefined>(undefined)
 
 export function EgitimYiliProvider({ children }: { children: ReactNode }) {
-  const [okulAdi, setOkulAdi] = useState('Hüsniye Özdilek MTAL')
-  const [egitimYili, setEgitimYili] = useState('2024-2025')
-  const [loading, setLoading] = useState(false)
+  const [okulAdi, setOkulAdi] = useState('')
+  const [egitimYili, setEgitimYili] = useState('')
+  const [loading, setLoading] = useState(true)
 
-  // Gerçek eğitim yılı ve okul adı verilerini yükle
   useEffect(() => {
     const loadSystemData = async () => {
       setLoading(true)
-      
       try {
-        // Eğitim yılını yükle
         const { data, error } = await supabase
-          .from('egitim_yillari')
-          .select('yil')
-          .eq('aktif', true)
-          .single()
-        
-        if (data && !error) {
-          setEgitimYili(data.yil)
+          .from('system_settings')
+          .select('key, value')
+          .in('key', ['aktif_egitim_yili', 'okul_adi'])
+
+        if (error) {
+          console.error('Ayarlar yüklenirken hata:', error)
+          throw error
         }
-        
-        // Okul adını yükle
-        const schoolNameFromDb = await getSchoolName()
-        setOkulAdi(schoolNameFromDb)
-        
+
+        const settings: { [key: string]: string } = {}
+        if (data) {
+          data.forEach(setting => {
+            settings[setting.key] = setting.value
+          })
+        }
+
+        setEgitimYili(settings.aktif_egitim_yili || 'Eğitim Yılı Yok')
+        setOkulAdi(settings.okul_adi || 'Okul Adı Yok')
+
       } catch (error) {
-        // Sessizce hata geç, sabit değerler kullan
-        console.log('Sistem verileri yüklenemedi, sabit değerler kullanılıyor')
+        console.error('Sistem verileri yüklenemedi, varsayılan değerler kullanılıyor:', error)
+        setEgitimYili('2023-2024')
+        setOkulAdi('Hüsniye Özdilek MTAL')
       } finally {
         setLoading(false)
       }

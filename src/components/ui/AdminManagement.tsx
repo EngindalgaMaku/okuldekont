@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { User, Plus, Edit, Trash2, Shield, Crown, Settings, AlertTriangle, Save, X, Check, Mail } from 'lucide-react'
+import { User, Plus, Edit, Trash2, Shield, Crown, Settings, AlertTriangle, Save, X, Check, Mail, Key, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { AdminUser, CreateAdminUser, UpdateAdminUser, YetkiSeviyeleri } from '@/types/admin'
 import { Button } from '@/components/ui/Button'
@@ -15,11 +15,14 @@ interface AdminManagementProps {
 export function AdminManagement({ currentUserRole }: AdminManagementProps) {
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
+  const [formLoading, setFormLoading] = useState(false)
+  
+  // Modal states
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
-  const [formLoading, setFormLoading] = useState(false)
 
   // Form states
   const [newUser, setNewUser] = useState<CreateAdminUser>({
@@ -28,6 +31,10 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
     email: '',
     yetki_seviyesi: 'operator'
   })
+  
+  const [newPassword, setNewPassword] = useState('')
+  const [useCustomPassword, setUseCustomPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
 
   const [editUser, setEditUser] = useState<UpdateAdminUser>({
     ad: '',
@@ -36,125 +43,123 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
     aktif: true
   })
 
-  const isSuperAdmin = currentUserRole === 'super_admin'
+  const [passwordUpdate, setPasswordUpdate] = useState('')
+  const [showPasswordUpdate, setShowPasswordUpdate] = useState(false)
 
   useEffect(() => {
-    if (isSuperAdmin) {
-      fetchAdminUsers()
-    }
-  }, [isSuperAdmin])
+    fetchAdminUsers()
+  }, [])
 
   const fetchAdminUsers = async () => {
+    setLoading(true)
     try {
-      setLoading(true)
       const { data, error } = await supabase.rpc('get_admin_users')
       
       if (error) {
-        console.error('Admin kullanıcıları çekilirken hata:', error)
+        console.error('Admin kullanıcılar çekilirken hata:', error)
         return
       }
 
       setAdminUsers(data || [])
     } catch (error) {
-      console.error('Admin kullanıcıları çekilirken hata:', error)
+      console.error('Admin kullanıcılar çekilirken hata:', error)
     } finally {
       setLoading(false)
     }
   }
 
   const handleAddUser = async () => {
-    if (!newUser.ad || !newUser.soyad || !newUser.email) {
-      alert('Tüm alanları doldurunuz')
+    if (!newUser.ad.trim() || !newUser.soyad.trim() || !newUser.email.trim()) {
+      alert('Lütfen tüm alanları doldurun')
       return
     }
 
+    setFormLoading(true)
+
     try {
-      setFormLoading(true)
-      
-      // Get current user session for authorization
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        alert('Oturum süresi dolmuş, lütfen tekrar giriş yapın')
-        return
-      }
-      
-      // API route'u kullanarak kullanıcı oluştur ve davet gönder
       const response = await fetch('/api/admin/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
         },
         body: JSON.stringify({
-          email: newUser.email,
-          ad: newUser.ad,
-          soyad: newUser.soyad,
-          yetki_seviyesi: newUser.yetki_seviyesi
+          ...newUser,
+          password: useCustomPassword ? newPassword : undefined
         })
       })
 
       const result = await response.json()
 
       if (!response.ok) {
-        alert('Hata: ' + (result.error || 'Bilinmeyen hata'))
-        return
+        throw new Error(result.error || 'Kullanıcı eklenemedi')
       }
 
-      alert(`✅ Admin kullanıcı başarıyla oluşturuldu!\n\n📧 ${newUser.email} adresine davet maili gönderildi.\n\nKullanıcı emailindeki linke tıklayarak şifresini belirleyebilir.`)
+      alert(result.message)
       
+      // Reset form
       setNewUser({
         ad: '',
         soyad: '',
         email: '',
         yetki_seviyesi: 'operator'
       })
+      setNewPassword('')
+      setUseCustomPassword(false)
       setShowAddModal(false)
-      fetchAdminUsers()
-    } catch (error) {
-      console.error('Admin kullanıcı eklenirken hata:', error)
-      alert('Admin kullanıcı eklenirken hata oluştu: ' + (error as Error).message)
+      
+      // Refresh list
+      await fetchAdminUsers()
+
+    } catch (error: any) {
+      console.error('Kullanıcı ekleme hatası:', error)
+      alert(error.message || 'Kullanıcı eklenirken bir hata oluştu')
     } finally {
       setFormLoading(false)
     }
   }
 
   const handleEditUser = async () => {
-    if (!selectedUser || !editUser.ad || !editUser.soyad) {
-      alert('Tüm alanları doldurunuz')
+    if (!selectedUser || !editUser.ad.trim() || !editUser.soyad.trim()) {
+      alert('Lütfen tüm alanları doldurun')
       return
     }
 
+    setFormLoading(true)
+
     try {
-      setFormLoading(true)
-      
-      const { data, error } = await supabase.rpc('update_admin_user', {
-        p_user_id: selectedUser.id,
-        p_ad: editUser.ad,
-        p_soyad: editUser.soyad,
-        p_yetki_seviyesi: editUser.yetki_seviyesi,
-        p_aktif: editUser.aktif
+      const response = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({
+          userId: selectedUser.id,
+          ...editUser,
+          password: passwordUpdate || undefined
+        })
       })
 
-      if (error) {
-        console.error('Admin kullanıcı güncellenirken hata:', error)
-        alert('Admin kullanıcı güncellenirken hata: ' + error.message)
-        return
-      }
+      const result = await response.json()
 
-      const result = data as { success: boolean; error?: string; message?: string }
-      
-      if (!result.success) {
-        alert(result.error || 'Bilinmeyen hata')
-        return
+      if (!response.ok) {
+        throw new Error(result.error || 'Kullanıcı güncellenemedi')
       }
 
       alert(result.message)
+      
+      // Reset form
+      setPasswordUpdate('')
       setShowEditModal(false)
       setSelectedUser(null)
-      fetchAdminUsers()
-    } catch (error) {
-      console.error('Admin kullanıcı güncellenirken hata:', error)
-      alert('Admin kullanıcı güncellenirken hata oluştu')
+      
+      // Refresh list
+      await fetchAdminUsers()
+
+    } catch (error: any) {
+      console.error('Kullanıcı güncelleme hatası:', error)
+      alert(error.message || 'Kullanıcı güncellenirken bir hata oluştu')
     } finally {
       setFormLoading(false)
     }
@@ -163,33 +168,29 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
   const handleDeleteUser = async () => {
     if (!selectedUser) return
 
+    setFormLoading(true)
+
     try {
-      setFormLoading(true)
-      
       const { data, error } = await supabase.rpc('delete_admin_user', {
         p_user_id: selectedUser.id
       })
 
       if (error) {
-        console.error('Admin kullanıcı silinirken hata:', error)
-        alert('Admin kullanıcı silinirken hata: ' + error.message)
-        return
+        throw new Error(error.message)
       }
 
-      const result = data as { success: boolean; error?: string; message?: string }
-      
-      if (!result.success) {
-        alert(result.error || 'Bilinmeyen hata')
-        return
+      if (data.success) {
+        alert(data.message)
+        setShowDeleteModal(false)
+        setSelectedUser(null)
+        await fetchAdminUsers()
+      } else {
+        throw new Error(data.error)
       }
 
-      alert(result.message)
-      setShowDeleteModal(false)
-      setSelectedUser(null)
-      fetchAdminUsers()
-    } catch (error) {
-      console.error('Admin kullanıcı silinirken hata:', error)
-      alert('Admin kullanıcı silinirken hata oluştu')
+    } catch (error: any) {
+      console.error('Kullanıcı silme hatası:', error)
+      alert(error.message || 'Kullanıcı silinirken bir hata oluştu')
     } finally {
       setFormLoading(false)
     }
@@ -203,6 +204,7 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
       yetki_seviyesi: user.yetki_seviyesi,
       aktif: user.aktif
     })
+    setPasswordUpdate('')
     setShowEditModal(true)
   }
 
@@ -211,15 +213,21 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
     setShowDeleteModal(true)
   }
 
-  if (!isSuperAdmin) {
+  const openPasswordModal = (user: AdminUser) => {
+    setSelectedUser(user)
+    setPasswordUpdate('')
+    setShowPasswordModal(true)
+  }
+
+  if (currentUserRole !== 'super_admin') {
     return (
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
         <div className="flex items-center">
-          <AlertTriangle className="h-5 w-5 text-yellow-600 mr-3" />
+          <AlertTriangle className="h-6 w-6 text-yellow-600 mr-3" />
           <div>
-            <h3 className="text-sm font-medium text-yellow-800">Yetkisiz Erişim</h3>
-            <p className="text-sm text-yellow-700 mt-1">
-              Admin kullanıcı yönetimi sadece Süper Admin yetkisine sahip kullanıcılar tarafından kullanılabilir.
+            <h3 className="text-lg font-medium text-yellow-800">Erişim Kısıtlı</h3>
+            <p className="text-yellow-700 mt-1">
+              Admin kullanıcı yönetimi sadece süper admin yetki seviyesindeki kullanıcılar tarafından kullanılabilir.
             </p>
           </div>
         </div>
@@ -307,6 +315,13 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
                   </div>
                   
                   <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => openPasswordModal(user)}
+                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Şifre Değiştir"
+                    >
+                      <Key className="h-4 w-4" />
+                    </button>
                     <button
                       onClick={() => openEditModal(user)}
                       className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -397,14 +412,56 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
             </p>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <Mail className="h-5 w-5 text-blue-600 mr-2 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-800">
-                <p className="font-medium mb-1">Otomatik Hesap Oluşturma:</p>
-                <p>Kullanıcı eklendikten sonra belirtilen email adresine davet maili gönderilecek. Kullanıcı bu emaildeki linke tıklayarak şifresini belirleyip hesabını aktive edebilir.</p>
-              </div>
+          {/* Password Section */}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-medium text-gray-700">Şifre Ayarlama</label>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={useCustomPassword}
+                  onChange={(e) => setUseCustomPassword(e.target.checked)}
+                  className="mr-2 h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                />
+                <span className="text-sm text-gray-600">Özel şifre ata</span>
+              </label>
             </div>
+            
+            {useCustomPassword ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Şifre</label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Minimum 8 karakter"
+                    minLength={8}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Kullanıcı bu şifre ile sisteme giriş yapabilir.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start">
+                  <Mail className="h-5 w-5 text-blue-600 mr-2 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium mb-1">Otomatik Hesap Oluşturma:</p>
+                    <p>Kullanıcı eklendikten sonra belirtilen email adresine davet maili gönderilecek. Kullanıcı bu emaildeki linke tıklayarak şifresini belirleyip hesabını aktive edebilir.</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="flex justify-end space-x-3 pt-4">
@@ -482,6 +539,31 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
               </p>
             )}
           </div>
+
+          {/* Password Update Section */}
+          <div className="border-t pt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Yeni Şifre (İsteğe Bağlı)</label>
+            <div className="relative">
+              <input
+                type={showPasswordUpdate ? "text" : "password"}
+                value={passwordUpdate}
+                onChange={(e) => setPasswordUpdate(e.target.value)}
+                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="Yeni şifre (boş bırakılırsa değişmez)"
+                minLength={8}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPasswordUpdate(!showPasswordUpdate)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showPasswordUpdate ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Şifre alanını boş bırakırsanız mevcut şifre değişmez.
+            </p>
+          </div>
           
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-gray-700">Aktif Durum</span>
@@ -509,7 +591,102 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
               disabled={formLoading}
               className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {formLoading ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'}
+              {formLoading ? 'Güncelleniyor...' : 'Güncelle'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Password Change Modal */}
+      <Modal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        title={`${selectedUser?.ad} ${selectedUser?.soyad} - Şifre Değiştir`}
+      >
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <Key className="h-5 w-5 text-blue-600 mr-2 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-blue-800">
+                <p className="font-medium mb-1">Şifre Değiştirme</p>
+                <p>Bu kullanıcı için yeni bir şifre belirleyin. Kullanıcı yeni şifre ile sisteme giriş yapabilir.</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Yeni Şifre</label>
+            <div className="relative">
+              <input
+                type={showPasswordUpdate ? "text" : "password"}
+                value={passwordUpdate}
+                onChange={(e) => setPasswordUpdate(e.target.value)}
+                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="Minimum 8 karakter"
+                minLength={8}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPasswordUpdate(!showPasswordUpdate)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showPasswordUpdate ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Güvenli bir şifre seçin (minimum 8 karakter).
+            </p>
+          </div>
+          
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
+              onClick={() => setShowPasswordModal(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              disabled={formLoading}
+            >
+              İptal
+            </button>
+            <button
+              onClick={async () => {
+                if (!passwordUpdate.trim()) {
+                  alert('Lütfen bir şifre girin')
+                  return
+                }
+                
+                setFormLoading(true)
+                try {
+                  const response = await fetch('/api/admin/users', {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+                    },
+                    body: JSON.stringify({
+                      userId: selectedUser?.id,
+                      password: passwordUpdate
+                    })
+                  })
+
+                  const result = await response.json()
+
+                  if (!response.ok) {
+                    throw new Error(result.error || 'Şifre güncellenemedi')
+                  }
+
+                  alert(result.message)
+                  setPasswordUpdate('')
+                  setShowPasswordModal(false)
+                  
+                } catch (error: any) {
+                  alert(error.message || 'Şifre güncellenirken bir hata oluştu')
+                } finally {
+                  setFormLoading(false)
+                }
+              }}
+              disabled={formLoading || !passwordUpdate.trim()}
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {formLoading ? 'Güncelleniyor...' : 'Şifreyi Güncelle'}
             </button>
           </div>
         </div>
@@ -521,9 +698,12 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleDeleteUser}
         title="Admin Kullanıcıyı Sil"
-        description={`${selectedUser?.ad} ${selectedUser?.soyad} adlı admin kullanıcıyı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`}
+        description={
+          selectedUser
+            ? `"${selectedUser.ad} ${selectedUser.soyad}" adlı admin kullanıcıyı silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz ve kullanıcının tüm erişim yetkileri iptal edilir.`
+            : ""
+        }
         confirmText="Sil"
-        confirmLoadingText="Siliniyor..."
         isLoading={formLoading}
       />
     </div>

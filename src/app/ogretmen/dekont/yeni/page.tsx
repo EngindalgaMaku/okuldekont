@@ -169,8 +169,39 @@ export default function YeniDekontPage() {
       const selectedStajyerData = stajyerler.find(s => s.id.toString() === selectedStajyer)
       if (!selectedStajyerData) throw new Error('Stajyer bulunamadı')
 
-      // Dosya yükleme işlemi
-      const fileName = `dekont_${Date.now()}_${dekontDosyasi.name.replace(/\s/g, '_')}`;
+      // Ek dekont kontrolü için mevcut dekontları kontrol et
+      const odemeTarihiObj = new Date(odemeTarihi);
+      const ayIndex = odemeTarihiObj.getMonth() + 1; // 1-12 arası ay
+      const yil = odemeTarihiObj.getFullYear();
+      
+      const { data: mevcutDekontlar } = await supabase
+        .from('dekontlar')
+        .select('id')
+        .eq('staj_id', parseInt(selectedStajyer))
+        .eq('ay', ayIndex.toString())
+        .eq('yil', yil);
+
+      // Anlamlı dosya ismi oluştur: dekont_ay_yil_ogretmen_isletme_ogrenci
+      const fileExt = dekontDosyasi.name.split('.').pop();
+      const cleanName = (text: string) => text.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+      const ayAdi = ['ocak', 'subat', 'mart', 'nisan', 'mayis', 'haziran', 'temmuz', 'agustos', 'eylul', 'ekim', 'kasim', 'aralik'][odemeTarihiObj.getMonth()];
+      
+      let dosyaIsmi = [
+        'dekont',
+        ayAdi,
+        yil,
+        cleanName(`${ogretmen.ad}_${ogretmen.soyad}`),
+        cleanName(selectedStajyerData.isletme.ad),
+        cleanName(`${selectedStajyerData.ad}_${selectedStajyerData.soyad}`)
+      ].join('_');
+      
+      // Ek dekont varsa belirt
+      const ekDekontIndex = mevcutDekontlar?.length || 0;
+      if (ekDekontIndex > 0) {
+        dosyaIsmi += `_ek${ekDekontIndex + 1}`;
+      }
+      
+      const fileName = dosyaIsmi + '.' + fileExt;
       const filePath = `${selectedStajyerData.isletme.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -209,6 +240,8 @@ export default function YeniDekontPage() {
           isletme_id: selectedStajyerData.isletme.id,
           ogretmen_id: ogretmen.id,
           miktar: miktar ? parseFloat(miktar) : null,
+          ay: ayIndex.toString(),
+          yil: yil,
           odeme_tarihi: odemeTarihi,
           dosya_url: dosyaUrl,
           onay_durumu: 'bekliyor',
