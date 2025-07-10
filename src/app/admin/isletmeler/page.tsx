@@ -20,7 +20,17 @@ interface Isletme {
         id: string;
         ad: string;
         soyad: string;
+        alanlar?: {
+            ad: string;
+        };
     };
+    aktifOgrenciler?: {
+        id: string;
+        ad: string;
+        soyad: string;
+        no: string;
+        sinif: string;
+    }[];
 }
 
 interface Ogretmen {
@@ -40,9 +50,12 @@ export default function IsletmeYonetimiPage() {
   const [paginatedData, setPaginatedData] = useState<Isletme[]>([])
   const [ogretmenler, setOgretmenler] = useState<Ogretmen[]>([])
   const [loading, setLoading] = useState(true)
+  const [newPins, setNewPins] = useState<{ [key: string]: string }>({})
+  const [selectedItems, setSelectedItems] = useState<string[]>([])
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
+  const [filterType, setFilterType] = useState<'aktif' | 'tum'>('aktif')
   
   // Modal states
   const [addModal, setAddModal] = useState(false)
@@ -64,7 +77,7 @@ export default function IsletmeYonetimiPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
-  const itemsPerPage = 8
+  const itemsPerPage = 10
 
   async function fetchIsletmeler() {
     setLoading(true)
@@ -86,23 +99,59 @@ export default function IsletmeYonetimiPage() {
       // Sonra öğretmenleri al
       const { data: ogretmenlerData, error: ogretmenlerError } = await supabase
         .from('ogretmenler')
-        .select('id, ad, soyad, alan_id')
+        .select(`
+          id,
+          ad,
+          soyad,
+          alan_id,
+          alanlar (ad)
+        `)
 
       if (ogretmenlerError) {
         console.error('Öğretmenler çekilirken hata:', ogretmenlerError)
       }
 
-      // İşletmelere koordinatör bilgilerini ekle
-      const isletmelerWithKoordinator = isletmelerData?.map(isletme => {
-        const koordinator = ogretmenlerData?.find(ogr => ogr.id === isletme.ogretmen_id)
+      
+            // Remove duplicate ogretmenler
+            const uniqueOgretmenlerData = Array.from(new Set(ogretmenlerData?.map(a => a.id)))
+              .map(id => {
+                return ogretmenlerData?.find(a => a.id === id)
+              })
+      // Aktif öğrencileri al
+      const { data: aktifStajlarData, error: stajlarError } = await supabase
+        .from('stajlar')
+        .select(`
+          isletme_id,
+          ogrenciler!inner (
+            id,
+            ad,
+            soyad,
+            no,
+            sinif
+          )
+        `)
+        .eq('durum', 'aktif')
+        .is('fesih_tarihi', null)
+
+      if (stajlarError) {
+        console.error('Aktif stajlar çekilirken hata:', stajlarError)
+      }
+
+      // İşletmelere koordinatör ve aktif öğrenci bilgilerini ekle
+      const isletmelerWithDetails = isletmelerData?.map(isletme => {
+        const koordinator = uniqueOgretmenlerData?.find(ogr => ogr?.id === isletme.ogretmen_id)
+        const aktifOgrenciler = aktifStajlarData?.filter(staj => staj.isletme_id === isletme.id)
+          .map(staj => staj.ogrenciler) || []
+        
         return {
           ...isletme,
-          ogretmenler: koordinator || null
+          ogretmenler: koordinator || null,
+          aktifOgrenciler
         }
       }) || []
 
-      setIsletmeler(isletmelerWithKoordinator)
-      setFilteredIsletmeler(isletmelerWithKoordinator)
+      setIsletmeler(isletmelerWithDetails)
+      setFilteredIsletmeler(isletmelerWithDetails)
     } catch (error) {
       console.error('Genel hata:', error)
       alert('Veriler yüklenirken bir hata oluştu.')
@@ -137,6 +186,13 @@ export default function IsletmeYonetimiPage() {
   useEffect(() => {
     let filtered = isletmeler
 
+    // Aktif/Tüm filtresi
+    if (filterType === 'aktif') {
+      filtered = filtered.filter(isletme =>
+        isletme.aktifOgrenciler && isletme.aktifOgrenciler.length > 0
+      )
+    }
+
     // Arama filtresi
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim()
@@ -148,13 +204,18 @@ export default function IsletmeYonetimiPage() {
         isletme.yetkili_kisi?.toLowerCase().includes(query) ||
         isletme.pin?.includes(query) ||
         isletme.ogretmenler?.ad.toLowerCase().includes(query) ||
-        isletme.ogretmenler?.soyad.toLowerCase().includes(query)
+        isletme.ogretmenler?.soyad.toLowerCase().includes(query) ||
+        isletme.aktifOgrenciler?.some(ogrenci =>
+          ogrenci.ad.toLowerCase().includes(query) ||
+          ogrenci.soyad.toLowerCase().includes(query) ||
+          ogrenci.no.includes(query)
+        )
       )
     }
 
     setFilteredIsletmeler(filtered)
-    setCurrentPage(1) // Reset to first page when search changes
-  }, [isletmeler, searchQuery])
+    setCurrentPage(1) // Reset to first page when filters change
+  }, [isletmeler, searchQuery, filterType])
 
   // Sayfalama fonksiyonu
   useEffect(() => {
@@ -321,7 +382,7 @@ export default function IsletmeYonetimiPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-[95%] mx-auto px-2 sm:px-4 lg:px-6 py-4">
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
@@ -347,7 +408,7 @@ export default function IsletmeYonetimiPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="İşletme adı, adres, telefon, email, yetkili veya koordinatör ara..."
+                  placeholder="İşletme adı, yetkili, telefon, koordinatör veya aktif öğrenci ara..."
                   className="pl-10 pr-10 py-3 w-full border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white/70"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -366,6 +427,19 @@ export default function IsletmeYonetimiPage() {
                 <span>
                   {filteredIsletmeler.length} işletme gösteriliyor
                 </span>
+                
+                {/* Filter Dropdown */}
+                <div className="flex items-center gap-2">
+                  <select
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value as 'aktif' | 'tum')}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    <option value="aktif">Aktif İşletmeler</option>
+                    <option value="tum">Tüm İşletmeler</option>
+                  </select>
+                </div>
+
                 {searchQuery && (
                   <div className="flex items-center gap-2">
                     <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs">
@@ -427,13 +501,33 @@ export default function IsletmeYonetimiPage() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider w-12">
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          checked={selectedItems.length === paginatedData.length && paginatedData.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedItems(paginatedData.map(item => item.id))
+                            } else {
+                              setSelectedItems([])
+                            }
+                          }}
+                        />
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                         İşletme
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                        İletişim
+                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                        Koordinatör
                       </th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                        Aktif Öğrenciler
+                      </th>
+                      <th className="px-6 py-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
+                        PIN
+                      </th>
+                      <th className="px-6 py-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
                         Detay
                       </th>
                     </tr>
@@ -441,45 +535,123 @@ export default function IsletmeYonetimiPage() {
                   <tbody className="bg-white/60 divide-y divide-gray-200">
                     {paginatedData.map((isletme) => (
                       <tr key={isletme.id} className="hover:bg-indigo-50/50 transition-colors duration-200">
-                        <td className="px-4 py-3">
+                        <td className="px-6 py-4 text-center w-12">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            checked={selectedItems.includes(isletme.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedItems([...selectedItems, isletme.id])
+                              } else {
+                                setSelectedItems(selectedItems.filter(id => id !== isletme.id))
+                              }
+                            }}
+                          />
+                        </td>
+                        <td className="px-6 py-4">
                           <div className="flex items-center">
                             <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center mr-3">
                               <Building className="h-4 w-4 text-indigo-600" />
                             </div>
                             <div>
-                              <div className="text-sm font-medium text-gray-900 truncate max-w-[200px]">
+                              <div
+                                className="text-sm font-medium text-indigo-600 hover:text-indigo-800 cursor-pointer truncate max-w-[200px]"
+                                onClick={() => router.push(`/admin/isletmeler/${isletme.id}`)}
+                              >
                                 {isletme.ad}
                               </div>
-                              {isletme.adres && (
-                                <div className="text-xs text-gray-500 truncate max-w-[200px]" title={isletme.adres}>
-                                  📍 {isletme.adres}
-                                </div>
-                              )}
+                              <div className="space-y-1 mt-1">
+                                {isletme.yetkili_kisi && (
+                                  <div className="text-xs text-gray-500">
+                                    👤 {isletme.yetkili_kisi}
+                                  </div>
+                                )}
+                                {isletme.telefon && (
+                                  <div className="text-xs text-gray-600">
+                                    📞 {isletme.telefon}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="space-y-1">
-                            {isletme.telefon && (
-                              <div className="text-xs text-gray-600 flex items-center">
-                                📞 {isletme.telefon}
+                        <td className="px-6 py-4">
+                          <div>
+                            {isletme.ogretmenler ? (
+                              <div>
+                                <div className="text-sm text-gray-900">
+                                  {isletme.ogretmenler.ad} {isletme.ogretmenler.soyad}
+                                </div>
+                                {isletme.ogretmenler.alanlar && (
+                                  <div className="text-xs text-gray-500">
+                                    {isletme.ogretmenler.alanlar.ad}
+                                  </div>
+                                )}
                               </div>
-                            )}
-                            {isletme.email && (
-                              <div className="text-xs text-gray-600 flex items-center truncate max-w-[150px]" title={isletme.email}>
-                                ✉️ {isletme.email}
-                              </div>
-                            )}
-                            {isletme.yetkili_kisi && (
-                              <div className="text-xs text-gray-500">
-                                👤 {isletme.yetkili_kisi}
+                            ) : (
+                              <div className="text-sm text-gray-400">
+                                Atanmamış
                               </div>
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-6 py-4">
+                          <div>
+                            {isletme.aktifOgrenciler && isletme.aktifOgrenciler.length > 0 ? (
+                              <div className="space-y-1">
+                                {isletme.aktifOgrenciler.slice(0, 3).map((ogrenci, index) => (
+                                  <div key={index} className="text-xs text-gray-700">
+                                    {ogrenci.ad} {ogrenci.soyad} ({ogrenci.no})
+                                    <div className="text-xs text-gray-500">{ogrenci.sinif}</div>
+                                  </div>
+                                ))}
+                                {isletme.aktifOgrenciler.length > 3 && (
+                                  <div className="text-xs text-gray-500">
+                                    +{isletme.aktifOgrenciler.length - 3} diğer
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-400">
+                                Aktif öğrenci yok
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-center space-x-2">
+                            <input
+                              type="text"
+                              className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm font-mono text-center"
+                              value={newPins[isletme.id] || isletme.pin || ''}
+                              maxLength={4}
+                              onChange={(e) => setNewPins({ ...newPins, [isletme.id]: e.target.value })}
+                            />
+                            <button
+                              className="px-2 py-1 bg-indigo-600 text-white rounded-md text-xs hover:bg-indigo-700"
+                              onClick={async () => {
+                                const newPin = newPins[isletme.id] || isletme.pin || ''
+                                const { error } = await supabase
+                                  .from('isletmeler')
+                                  .update({ pin: newPin })
+                                  .eq('id', isletme.id)
+
+                                if (error) {
+                                  alert(`PIN güncellenirken hata oluştu: ${error.message}`)
+                                } else {
+                                  alert('PIN başarıyla güncellendi!')
+                                  fetchIsletmeler()
+                                }
+                              }}
+                            >
+                              Kaydet
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
                           <div className="flex justify-center">
-                            <button 
+                            <button
                               onClick={() => router.push(`/admin/isletmeler/${isletme.id}`)}
                               className="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all duration-200"
                               title="İşletme Detayı"

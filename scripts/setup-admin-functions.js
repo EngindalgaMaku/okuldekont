@@ -26,7 +26,7 @@ function loadEnv() {
 loadEnv();
 
 async function main() {
-  console.log('🚀 System Settings kurulumu başlatılıyor...');
+  console.log('🚀 Admin fonksiyonları kurulumu başlatılıyor...');
   
   const databaseUrl = process.env.DATABASE_URL;
 
@@ -43,15 +43,15 @@ async function main() {
     await client.connect();
     console.log('✅ Veritabanı bağlantısı başarılı.');
 
-    const sqlFilePath = path.join(__dirname, 'recreate-system-settings.sql');
+    const sqlFilePath = path.join(__dirname, 'create-admin-functions.sql');
     const sql = fs.readFileSync(sqlFilePath, 'utf8');
     console.log(`✅ SQL betiği okunuyor: ${path.basename(sqlFilePath)}`);
 
     await client.query(sql);
-    console.log('✅ System settings tablosu ve fonksiyonları başarıyla oluşturuldu.');
+    console.log('✅ Admin fonksiyonları ve tablosu başarıyla oluşturuldu.');
 
   } catch (err) {
-    console.error('❌ System settings kurulumunda hata oluştu:', err);
+    console.error('❌ Admin fonksiyonları kurulumunda hata oluştu:', err);
     console.error('Hata detayı:', err.message);
     process.exit(1);
   } finally {

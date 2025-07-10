@@ -1,5 +1,5 @@
 export interface AdminUser {
-  id: string
+  id: string // UUID from Supabase auth
   ad: string
   soyad: string
   email: string

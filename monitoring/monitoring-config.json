@@ -1,0 +1,54 @@
+{
+  "monitoring": {
+    "enabled": true,
+    "interval": 300000,
+    "alertThresholds": {
+      "maxConnections": 80,
+      "maxCPU": 85,
+      "maxMemory": 90,
+      "maxDiskUsage": 85,
+      "minFreeSpace": 1000,
+      "maxQueryTime": 10000,
+      "maxActiveQueries": 100,
+      "maxErrorRate": 0.1,
+      "maxResponseTime": 2000,
+      "minBackupFrequency": 86400000
+    },
+    "tables": {
+      "criticalTables": [
+        "ogretmenler",
+        "ogrenciler",
+        "isletmeler",
+        "stajlar",
+        "dekontlar"
+      ],
+      "maxRecordsPerTable": 1000000,
+      "maxTableSize": "500MB"
+    },
+    "notifications": {
+      "email": {
+        "enabled": false,
+        "recipients": []
+      },
+      "webhook": {
+        "enabled": false,
+        "url": ""
+      },
+      "console": {
+        "enabled": true
+      }
+    }
+  },
+  "healthCheck": {
+    "enabled": true,
+    "interval": 60000,
+    "timeout": 10000,
+    "retries": 3
+  },
+  "logging": {
+    "enabled": true,
+    "level": "info",
+    "maxLogFiles": 30,
+    "maxLogSize": "10MB"
+  }
+}

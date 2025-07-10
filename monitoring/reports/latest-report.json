@@ -1,0 +1,116 @@
+{
+  "timestamp": "2025-07-10T11:36:58.046Z",
+  "database": {
+    "connectionStatus": "CONNECTED",
+    "version": null,
+    "uptime": null,
+    "activeConnections": null,
+    "totalConnections": null,
+    "errors": []
+  },
+  "tables": {
+    "criticalTables": {
+      "ogretmenler": {
+        "name": "ogretmenler",
+        "recordCount": 136,
+        "status": "HEALTHY",
+        "lastChecked": "2025-07-10T11:36:59.527Z"
+      },
+      "ogrenciler": {
+        "name": "ogrenciler",
+        "recordCount": 150,
+        "status": "HEALTHY",
+        "lastChecked": "2025-07-10T11:36:59.815Z"
+      },
+      "isletmeler": {
+        "name": "isletmeler",
+        "recordCount": 172,
+        "status": "HEALTHY",
+        "lastChecked": "2025-07-10T11:37:00.107Z"
+      },
+      "stajlar": {
+        "name": "stajlar",
+        "recordCount": 150,
+        "status": "HEALTHY",
+        "lastChecked": "2025-07-10T11:37:00.378Z"
+      },
+      "dekontlar": {
+        "name": "dekontlar",
+        "recordCount": 0,
+        "status": "WARNING",
+        "lastChecked": "2025-07-10T11:37:00.707Z",
+        "issue": "Tablo boş"
+      }
+    },
+    "totalTables": 5,
+    "totalRecords": 608,
+    "largeTables": [],
+    "emptyTables": [
+      "dekontlar"
+    ],
+    "errors": []
+  },
+  "performance": {
+    "queryPerformance": {
+      "simple_select": {
+        "name": "simple_select",
+        "duration": 274,
+        "success": true,
+        "recordCount": 6,
+        "status": "FAST"
+      },
+      "join_query": {
+        "name": "join_query",
+        "duration": 296,
+        "success": true,
+        "recordCount": 10,
+        "status": "FAST"
+      },
+      "complex_query": {
+        "name": "complex_query",
+        "duration": 604,
+        "success": true,
+        "recordCount": 5,
+        "status": "FAST"
+      }
+    },
+    "slowQueries": [],
+    "resourceUsage": {},
+    "errors": []
+  },
+  "security": {
+    "rlsStatus": {},
+    "recentLogins": {
+      "total": 0,
+      "successful": 0,
+      "failed": 0,
+      "failureRate": 0
+    },
+    "failedAttempts": {},
+    "suspiciousActivity": [],
+    "errors": []
+  },
+  "backups": {
+    "latestBackup": null,
+    "backupFrequency": null,
+    "backupSizes": [],
+    "backupValidation": {},
+    "errors": [
+      "Backup monitoring hatası: this.backupScheduler.listAvailableBackups is not a function"
+    ]
+  },
+  "alerts": [
+    {
+      "type": "EMPTY_TABLES",
+      "severity": "WARNING",
+      "message": "Boş tablolar: dekontlar",
+      "timestamp": "2025-07-10T11:37:02.357Z"
+    }
+  ],
+  "summary": {
+    "status": "WARNING",
+    "totalIssues": 1,
+    "criticalIssues": 0,
+    "warnings": 1
+  }
+}

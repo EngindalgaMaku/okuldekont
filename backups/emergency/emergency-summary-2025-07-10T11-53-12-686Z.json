@@ -1,0 +1,30 @@
+{
+  "timestamp": "2025-07-10T11-53-12-686Z",
+  "type": "emergency",
+  "totalTables": 13,
+  "totalRecords": 773,
+  "tables": {
+    "alanlar": 6,
+    "egitim_yillari": 2,
+    "ogretmenler": 136,
+    "siniflar": 57,
+    "ogrenciler": 150,
+    "isletmeler": 172,
+    "stajlar": 150,
+    "dekontlar": 0,
+    "isletme_alanlar": 96,
+    "system_settings": 0,
+    "isletme_koordinatorler": 0,
+    "isletme_giris_denemeleri": 0,
+    "ogretmen_giris_denemeleri": 4
+  },
+  "metadata": {
+    "supabaseUrl": "https://guqwqbxsfvddwwczwljp.supabase.co",
+    "backupDate": "2025-07-10T11:53:12.687Z",
+    "nodeVersion": "v22.17.0",
+    "systemInfo": {
+      "platform": "win32",
+      "arch": "x64"
+    }
+  }
+}

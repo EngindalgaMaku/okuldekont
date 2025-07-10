@@ -353,15 +353,342 @@ class DatabaseRollbackSystem {
   }
 
   async executeRollback(backupData, tablesToProcess) {
-    console.log('⚡ Rollback işlemi başlatılıyor...');
+    console.log('⚡ Full rollback işlemi başlatılıyor...');
     
     const result = {
       success: true,
       processedTables: [],
+      processedObjects: {
+        functions: [],
+        triggers: [],
+        policies: [],
+        types: [],
+        views: [],
+        sequences: [],
+        indexes: [],
+        constraints: []
+      },
       errors: [],
       warnings: []
     };
 
+    // 1. Schema objects'leri restore et (önce bunlar)
+    if (backupData.version === '2.0.0') {
+      await this.restoreSchemaObjects(backupData, result);
+    }
+
+    // 2. Table data'larını restore et
+    await this.restoreTableData(backupData, tablesToProcess, result);
+
+    result.success = result.errors.length === 0;
+    return result;
+  }
+
+  async restoreSchemaObjects(backupData, result) {
+    console.log('🔧 Schema objects restore ediliyor...');
+    
+    // 1. Extensions (en önce)
+    if (backupData.extensions && Object.keys(backupData.extensions).length > 0) {
+      await this.restoreExtensions(backupData.extensions, result);
+    }
+
+    // 2. Custom Types (fonksiyonlardan önce)
+    if (backupData.types && Object.keys(backupData.types).length > 0) {
+      await this.restoreTypes(backupData.types, result);
+    }
+
+    // 3. Functions & RPCs
+    if (backupData.functions && Object.keys(backupData.functions).length > 0) {
+      await this.restoreFunctions(backupData.functions, result);
+    }
+
+    // 4. Views
+    if (backupData.views && Object.keys(backupData.views).length > 0) {
+      await this.restoreViews(backupData.views, result);
+    }
+
+    // 5. Triggers (tablolardan sonra)
+    if (backupData.triggers && Object.keys(backupData.triggers).length > 0) {
+      await this.restoreTriggers(backupData.triggers, result);
+    }
+
+    // 6. RLS Policies (tablolardan sonra)
+    if (backupData.policies && Object.keys(backupData.policies).length > 0) {
+      await this.restorePolicies(backupData.policies, result);
+    }
+
+    // 7. Sequences
+    if (backupData.sequences && Object.keys(backupData.sequences).length > 0) {
+      await this.restoreSequences(backupData.sequences, result);
+    }
+
+    // 8. Indexes (tablolardan sonra)
+    if (backupData.indexes && Object.keys(backupData.indexes).length > 0) {
+      await this.restoreIndexes(backupData.indexes, result);
+    }
+
+    // 9. Constraints (en son)
+    if (backupData.constraints && Object.keys(backupData.constraints).length > 0) {
+      await this.restoreConstraints(backupData.constraints, result);
+    }
+  }
+
+  async restoreExtensions(extensions, result) {
+    console.log('🧩 Extensions restore ediliyor...');
+    
+    for (const [extName, extData] of Object.entries(extensions)) {
+      try {
+        const { error } = await supabase.rpc('exec_sql', {
+          query: `CREATE EXTENSION IF NOT EXISTS "${extName}";`
+        });
+
+        if (error) {
+          result.warnings.push(`Extension ${extName} restore hatası: ${error.message}`);
+        } else {
+          result.processedObjects.extensions = result.processedObjects.extensions || [];
+          result.processedObjects.extensions.push(extName);
+          console.log(`   ✅ Extension: ${extName}`);
+        }
+      } catch (error) {
+        result.warnings.push(`Extension ${extName} restore hatası: ${error.message}`);
+      }
+    }
+  }
+
+  async restoreTypes(types, result) {
+    console.log('🏷️ Custom Types restore ediliyor...');
+    
+    for (const [typeName, typeData] of Object.entries(types)) {
+      try {
+        if (typeData.type === 'e' && typeData.enumValues) {
+          // Enum type restore
+          const enumValues = typeData.enumValues.map(val => `'${val}'`).join(', ');
+          const { error } = await supabase.rpc('exec_sql', {
+            query: `DO $$ BEGIN
+              CREATE TYPE ${typeName} AS ENUM (${enumValues});
+            EXCEPTION
+              WHEN duplicate_object THEN null;
+            END $$;`
+          });
+
+          if (error) {
+            result.warnings.push(`Type ${typeName} restore hatası: ${error.message}`);
+          } else {
+            result.processedObjects.types.push(typeName);
+            console.log(`   ✅ Type: ${typeName} (enum)`);
+          }
+        }
+      } catch (error) {
+        result.warnings.push(`Type ${typeName} restore hatası: ${error.message}`);
+      }
+    }
+  }
+
+  async restoreFunctions(functions, result) {
+    console.log('🔧 Functions restore ediliyor...');
+    
+    for (const [funcName, funcData] of Object.entries(functions)) {
+      try {
+        if (funcData.definition) {
+          const { error } = await supabase.rpc('exec_sql', {
+            query: funcData.definition
+          });
+
+          if (error) {
+            result.warnings.push(`Function ${funcName} restore hatası: ${error.message}`);
+          } else {
+            result.processedObjects.functions.push(funcName);
+            console.log(`   ✅ Function: ${funcName}`);
+          }
+        }
+      } catch (error) {
+        result.warnings.push(`Function ${funcName} restore hatası: ${error.message}`);
+      }
+    }
+  }
+
+  async restoreViews(views, result) {
+    console.log('👁️ Views restore ediliyor...');
+    
+    for (const [viewName, viewData] of Object.entries(views)) {
+      try {
+        if (viewData.definition) {
+          const { error } = await supabase.rpc('exec_sql', {
+            query: `CREATE OR REPLACE VIEW ${viewName} AS ${viewData.definition};`
+          });
+
+          if (error) {
+            result.warnings.push(`View ${viewName} restore hatası: ${error.message}`);
+          } else {
+            result.processedObjects.views.push(viewName);
+            console.log(`   ✅ View: ${viewName}`);
+          }
+        }
+      } catch (error) {
+        result.warnings.push(`View ${viewName} restore hatası: ${error.message}`);
+      }
+    }
+  }
+
+  async restoreTriggers(triggers, result) {
+    console.log('⚡ Triggers restore ediliyor...');
+    
+    for (const [triggerKey, triggerData] of Object.entries(triggers)) {
+      try {
+        if (triggerData.statement) {
+          const { error } = await supabase.rpc('exec_sql', {
+            query: triggerData.statement
+          });
+
+          if (error) {
+            result.warnings.push(`Trigger ${triggerData.name} restore hatası: ${error.message}`);
+          } else {
+            result.processedObjects.triggers.push(triggerData.name);
+            console.log(`   ✅ Trigger: ${triggerData.name}`);
+          }
+        }
+      } catch (error) {
+        result.warnings.push(`Trigger ${triggerData.name} restore hatası: ${error.message}`);
+      }
+    }
+  }
+
+  async restorePolicies(policies, result) {
+    console.log('🛡️ RLS Policies restore ediliyor...');
+    
+    for (const [policyKey, policyData] of Object.entries(policies)) {
+      try {
+        let policySQL = `CREATE POLICY "${policyData.name}" ON ${policyData.table}`;
+        
+        if (policyData.permissive === 'PERMISSIVE') {
+          policySQL += ' AS PERMISSIVE';
+        } else if (policyData.permissive === 'RESTRICTIVE') {
+          policySQL += ' AS RESTRICTIVE';
+        }
+        
+        if (policyData.command && policyData.command !== '*') {
+          policySQL += ` FOR ${policyData.command}`;
+        }
+        
+        if (policyData.roles && policyData.roles.length > 0) {
+          policySQL += ` TO ${policyData.roles.join(', ')}`;
+        }
+        
+        if (policyData.using) {
+          policySQL += ` USING (${policyData.using})`;
+        }
+        
+        if (policyData.withCheck) {
+          policySQL += ` WITH CHECK (${policyData.withCheck})`;
+        }
+        
+        policySQL += ';';
+
+        const { error } = await supabase.rpc('exec_sql', {
+          query: policySQL
+        });
+
+        if (error) {
+          result.warnings.push(`Policy ${policyData.name} restore hatası: ${error.message}`);
+        } else {
+          result.processedObjects.policies.push(policyData.name);
+          console.log(`   ✅ Policy: ${policyData.name}`);
+        }
+      } catch (error) {
+        result.warnings.push(`Policy ${policyData.name} restore hatası: ${error.message}`);
+      }
+    }
+  }
+
+  async restoreSequences(sequences, result) {
+    console.log('🔢 Sequences restore ediliyor...');
+    
+    for (const [seqName, seqData] of Object.entries(sequences)) {
+      try {
+        // Sequence current value'yu restore et
+        if (seqData.currentValue !== null) {
+          const { error } = await supabase.rpc('exec_sql', {
+            query: `SELECT setval('${seqName}', ${seqData.currentValue});`
+          });
+
+          if (error) {
+            result.warnings.push(`Sequence ${seqName} restore hatası: ${error.message}`);
+          } else {
+            result.processedObjects.sequences.push(seqName);
+            console.log(`   ✅ Sequence: ${seqName} (value: ${seqData.currentValue})`);
+          }
+        }
+      } catch (error) {
+        result.warnings.push(`Sequence ${seqName} restore hatası: ${error.message}`);
+      }
+    }
+  }
+
+  async restoreIndexes(indexes, result) {
+    console.log('📚 Indexes restore ediliyor...');
+    
+    for (const [indexKey, indexData] of Object.entries(indexes)) {
+      try {
+        if (indexData.definition) {
+          const { error } = await supabase.rpc('exec_sql', {
+            query: indexData.definition
+          });
+
+          if (error) {
+            result.warnings.push(`Index ${indexData.name} restore hatası: ${error.message}`);
+          } else {
+            result.processedObjects.indexes.push(indexData.name);
+            console.log(`   ✅ Index: ${indexData.name}`);
+          }
+        }
+      } catch (error) {
+        result.warnings.push(`Index ${indexData.name} restore hatası: ${error.message}`);
+      }
+    }
+  }
+
+  async restoreConstraints(constraints, result) {
+    console.log('🔒 Constraints restore ediliyor...');
+    
+    for (const [constraintKey, constraintData] of Object.entries(constraints)) {
+      try {
+        let constraintSQL = `ALTER TABLE ${constraintData.table} ADD CONSTRAINT ${constraintData.name}`;
+        
+        if (constraintData.type === 'FOREIGN KEY') {
+          constraintSQL += ` FOREIGN KEY (${constraintData.column}) REFERENCES ${constraintData.foreignTable}(${constraintData.foreignColumn})`;
+          if (constraintData.updateRule) {
+            constraintSQL += ` ON UPDATE ${constraintData.updateRule}`;
+          }
+          if (constraintData.deleteRule) {
+            constraintSQL += ` ON DELETE ${constraintData.deleteRule}`;
+          }
+        } else if (constraintData.type === 'CHECK') {
+          constraintSQL += ` CHECK (${constraintData.checkClause})`;
+        } else if (constraintData.type === 'UNIQUE') {
+          constraintSQL += ` UNIQUE (${constraintData.column})`;
+        }
+        
+        constraintSQL += ';';
+
+        const { error } = await supabase.rpc('exec_sql', {
+          query: constraintSQL
+        });
+
+        if (error) {
+          result.warnings.push(`Constraint ${constraintData.name} restore hatası: ${error.message}`);
+        } else {
+          result.processedObjects.constraints.push(constraintData.name);
+          console.log(`   ✅ Constraint: ${constraintData.name}`);
+        }
+      } catch (error) {
+        result.warnings.push(`Constraint ${constraintData.name} restore hatası: ${error.message}`);
+      }
+    }
+  }
+
+  async restoreTableData(backupData, tablesToProcess, result) {
+    console.log('📋 Table data restore ediliyor...');
+    
     for (const tableName of tablesToProcess) {
       const tableData = backupData.tables[tableName];
       
@@ -371,7 +698,7 @@ class DatabaseRollbackSystem {
       }
 
       try {
-        console.log(`🔄 ${tableName} tablosu geri yükleniyor...`);
+        console.log(`   🔄 ${tableName} tablosu geri yükleniyor...`);
         
         // Mevcut verileri sil
         const { error: deleteError } = await supabase
@@ -402,16 +729,13 @@ class DatabaseRollbackSystem {
           success: true
         });
 
-        console.log(`✅ ${tableName} geri yüklendi (${tableData.data.length} kayıt)`);
+        console.log(`   ✅ ${tableName} geri yüklendi (${tableData.data.length} kayıt)`);
         
       } catch (error) {
         result.errors.push(`${tableName}: ${error.message}`);
-        console.error(`❌ ${tableName} geri yükleme hatası: ${error.message}`);
+        console.error(`   ❌ ${tableName} geri yükleme hatası: ${error.message}`);
       }
     }
-
-    result.success = result.errors.length === 0;
-    return result;
   }
 
   async listRollbackHistory() {

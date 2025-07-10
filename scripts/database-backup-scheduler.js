@@ -106,8 +106,17 @@ class DatabaseBackupScheduler {
     const backupData = {
       timestamp,
       type: 'full',
-      version: '1.0.0',
+      version: '2.0.0',
       tables: {},
+      functions: {},
+      triggers: {},
+      policies: {},
+      types: {},
+      views: {},
+      sequences: {},
+      indexes: {},
+      constraints: {},
+      extensions: {},
       metadata: {
         supabaseUrl: supabaseUrl,
         backupDate: new Date().toISOString(),
@@ -119,21 +128,58 @@ class DatabaseBackupScheduler {
       }
     };
 
-    // Tüm tabloları yedekle
+    console.log('📊 Full database backup başlatılıyor (tables + schema objects)...');
+
+    // 1. Tüm tabloları yedekle
+    await this.backupTables(backupData);
+    
+    // 2. Fonksiyonları yedekle (RPC'ler dahil)
+    await this.backupFunctions(backupData);
+    
+    // 3. Trigger'ları yedekle
+    await this.backupTriggers(backupData);
+    
+    // 4. RLS Policies yedekle
+    await this.backupPolicies(backupData);
+    
+    // 5. Custom Types yedekle
+    await this.backupTypes(backupData);
+    
+    // 6. Views yedekle
+    await this.backupViews(backupData);
+    
+    // 7. Sequences yedekle
+    await this.backupSequences(backupData);
+    
+    // 8. Indexes yedekle
+    await this.backupIndexes(backupData);
+    
+    // 9. Constraints yedekle
+    await this.backupConstraints(backupData);
+    
+    // 10. Extensions yedekle
+    await this.backupExtensions(backupData);
+
+    return backupData;
+  }
+
+  async backupTables(backupData) {
+    console.log('📋 Tablo verileri yedekleniyor...');
+    
     const tables = [
-      'alanlar', 'egitim_yillari', 'ogretmenler', 'siniflar', 
-      'ogrenciler', 'isletmeler', 'stajlar', 'dekontlar', 
+      'alanlar', 'egitim_yillari', 'ogretmenler', 'siniflar',
+      'ogrenciler', 'isletmeler', 'stajlar', 'dekontlar',
       'isletme_alanlar', 'system_settings', 'isletme_koordinatorler',
       'isletme_giris_denemeleri', 'ogretmen_giris_denemeleri'
     ];
 
     for (const table of tables) {
       try {
-        console.log(`📋 ${table} tablosu yedekleniyor...`);
+        console.log(`   📋 ${table} tablosu...`);
         const { data, error } = await supabase.from(table).select('*');
         
         if (error) {
-          console.warn(`⚠️ ${table} yedeklenirken hata: ${error.message}`);
+          console.warn(`   ⚠️ ${table} yedeklenirken hata: ${error.message}`);
           continue;
         }
         
@@ -143,9 +189,9 @@ class DatabaseBackupScheduler {
           lastUpdated: new Date().toISOString()
         };
         
-        console.log(`✅ ${data?.length || 0} ${table} kaydı yedeklendi`);
+        console.log(`   ✅ ${data?.length || 0} ${table} kaydı yedeklendi`);
       } catch (error) {
-        console.warn(`⚠️ ${table} yedeklenirken hata: ${error.message}`);
+        console.warn(`   ⚠️ ${table} yedeklenirken hata: ${error.message}`);
         backupData.tables[table] = {
           data: [],
           count: 0,
@@ -153,8 +199,467 @@ class DatabaseBackupScheduler {
         };
       }
     }
+  }
 
-    return backupData;
+  async backupFunctions(backupData) {
+    console.log('🔧 Fonksiyonlar ve RPC\'ler yedekleniyor...');
+    
+    try {
+      const { data: functions, error } = await supabase.rpc('exec_sql', {
+        query: `
+          SELECT
+            routine_name,
+            routine_definition,
+            routine_type,
+            data_type as return_type,
+            routine_schema,
+            security_type,
+            is_deterministic,
+            sql_data_access,
+            routine_body,
+            external_language
+          FROM information_schema.routines
+          WHERE routine_schema = 'public'
+          ORDER BY routine_name;
+        `
+      });
+
+      if (error) {
+        console.warn(`   ⚠️ Fonksiyon backup hatası: ${error.message}`);
+        return;
+      }
+
+      if (functions.data && functions.data.length > 0) {
+        functions.data.forEach(func => {
+          backupData.functions[func.routine_name] = {
+            name: func.routine_name,
+            definition: func.routine_definition,
+            type: func.routine_type,
+            returnType: func.return_type,
+            schema: func.routine_schema,
+            securityType: func.security_type,
+            isDeterministic: func.is_deterministic,
+            dataAccess: func.sql_data_access,
+            body: func.routine_body,
+            language: func.external_language,
+            backupDate: new Date().toISOString()
+          };
+        });
+        
+        console.log(`   ✅ ${functions.data.length} fonksiyon yedeklendi`);
+      } else {
+        console.log(`   ℹ️ Hiç fonksiyon bulunamadı`);
+      }
+    } catch (error) {
+      console.warn(`   ⚠️ Fonksiyon backup hatası: ${error.message}`);
+    }
+  }
+
+  async backupTriggers(backupData) {
+    console.log('⚡ Trigger\'lar yedekleniyor...');
+    
+    try {
+      const { data: triggers, error } = await supabase.rpc('exec_sql', {
+        query: `
+          SELECT
+            trigger_name,
+            trigger_schema,
+            event_object_table,
+            action_statement,
+            action_timing,
+            event_manipulation,
+            action_orientation,
+            action_condition
+          FROM information_schema.triggers
+          WHERE trigger_schema = 'public'
+          ORDER BY trigger_name;
+        `
+      });
+
+      if (error) {
+        console.warn(`   ⚠️ Trigger backup hatası: ${error.message}`);
+        return;
+      }
+
+      if (triggers.data && triggers.data.length > 0) {
+        triggers.data.forEach(trigger => {
+          const triggerKey = `${trigger.event_object_table}.${trigger.trigger_name}`;
+          backupData.triggers[triggerKey] = {
+            name: trigger.trigger_name,
+            schema: trigger.trigger_schema,
+            table: trigger.event_object_table,
+            statement: trigger.action_statement,
+            timing: trigger.action_timing,
+            event: trigger.event_manipulation,
+            orientation: trigger.action_orientation,
+            condition: trigger.action_condition,
+            backupDate: new Date().toISOString()
+          };
+        });
+        
+        console.log(`   ✅ ${triggers.data.length} trigger yedeklendi`);
+      } else {
+        console.log(`   ℹ️ Hiç trigger bulunamadı`);
+      }
+    } catch (error) {
+      console.warn(`   ⚠️ Trigger backup hatası: ${error.message}`);
+    }
+  }
+
+  async backupPolicies(backupData) {
+    console.log('🛡️ RLS Policies yedekleniyor...');
+    
+    try {
+      const { data: policies, error } = await supabase.rpc('exec_sql', {
+        query: `
+          SELECT
+            schemaname,
+            tablename,
+            policyname,
+            permissive,
+            roles,
+            cmd,
+            qual,
+            with_check
+          FROM pg_policies
+          WHERE schemaname = 'public'
+          ORDER BY tablename, policyname;
+        `
+      });
+
+      if (error) {
+        console.warn(`   ⚠️ Policy backup hatası: ${error.message}`);
+        return;
+      }
+
+      if (policies.data && policies.data.length > 0) {
+        policies.data.forEach(policy => {
+          const policyKey = `${policy.tablename}.${policy.policyname}`;
+          backupData.policies[policyKey] = {
+            schema: policy.schemaname,
+            table: policy.tablename,
+            name: policy.policyname,
+            permissive: policy.permissive,
+            roles: policy.roles,
+            command: policy.cmd,
+            using: policy.qual,
+            withCheck: policy.with_check,
+            backupDate: new Date().toISOString()
+          };
+        });
+        
+        console.log(`   ✅ ${policies.data.length} RLS policy yedeklendi`);
+      } else {
+        console.log(`   ℹ️ Hiç RLS policy bulunamadı`);
+      }
+    } catch (error) {
+      console.warn(`   ⚠️ Policy backup hatası: ${error.message}`);
+    }
+  }
+
+  async backupTypes(backupData) {
+    console.log('🏷️ Custom Types yedekleniyor...');
+    
+    try {
+      const { data: types, error } = await supabase.rpc('exec_sql', {
+        query: `
+          SELECT
+            t.typname,
+            t.typtype,
+            pg_catalog.format_type(t.oid, NULL) AS formatted_type,
+            CASE
+              WHEN t.typtype = 'e' THEN array_to_string(array_agg(e.enumlabel ORDER BY e.enumsortorder), ',')
+              ELSE NULL
+            END as enum_values
+          FROM pg_type t
+          LEFT JOIN pg_enum e ON t.oid = e.enumtypid
+          WHERE t.typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
+          AND t.typtype IN ('e', 'c', 'd')
+          GROUP BY t.typname, t.typtype, t.oid
+          ORDER BY t.typname;
+        `
+      });
+
+      if (error) {
+        console.warn(`   ⚠️ Type backup hatası: ${error.message}`);
+        return;
+      }
+
+      if (types.data && types.data.length > 0) {
+        types.data.forEach(type => {
+          backupData.types[type.typname] = {
+            name: type.typname,
+            type: type.typtype,
+            formattedType: type.formatted_type,
+            enumValues: type.enum_values ? type.enum_values.split(',') : null,
+            backupDate: new Date().toISOString()
+          };
+        });
+        
+        console.log(`   ✅ ${types.data.length} custom type yedeklendi`);
+      } else {
+        console.log(`   ℹ️ Hiç custom type bulunamadı`);
+      }
+    } catch (error) {
+      console.warn(`   ⚠️ Type backup hatası: ${error.message}`);
+    }
+  }
+
+  async backupViews(backupData) {
+    console.log('👁️ Views yedekleniyor...');
+    
+    try {
+      const { data: views, error } = await supabase.rpc('exec_sql', {
+        query: `
+          SELECT
+            table_name,
+            view_definition,
+            check_option,
+            is_updatable,
+            is_insertable_into,
+            is_trigger_updatable,
+            is_trigger_deletable,
+            is_trigger_insertable_into
+          FROM information_schema.views
+          WHERE table_schema = 'public'
+          ORDER BY table_name;
+        `
+      });
+
+      if (error) {
+        console.warn(`   ⚠️ View backup hatası: ${error.message}`);
+        return;
+      }
+
+      if (views.data && views.data.length > 0) {
+        views.data.forEach(view => {
+          backupData.views[view.table_name] = {
+            name: view.table_name,
+            definition: view.view_definition,
+            checkOption: view.check_option,
+            isUpdatable: view.is_updatable,
+            isInsertable: view.is_insertable_into,
+            isTriggerUpdatable: view.is_trigger_updatable,
+            isTriggerDeletable: view.is_trigger_deletable,
+            isTriggerInsertable: view.is_trigger_insertable_into,
+            backupDate: new Date().toISOString()
+          };
+        });
+        
+        console.log(`   ✅ ${views.data.length} view yedeklendi`);
+      } else {
+        console.log(`   ℹ️ Hiç view bulunamadı`);
+      }
+    } catch (error) {
+      console.warn(`   ⚠️ View backup hatası: ${error.message}`);
+    }
+  }
+
+  async backupSequences(backupData) {
+    console.log('🔢 Sequences yedekleniyor...');
+    
+    try {
+      const { data: sequences, error } = await supabase.rpc('exec_sql', {
+        query: `
+          SELECT
+            sequence_name,
+            data_type,
+            start_value,
+            minimum_value,
+            maximum_value,
+            increment,
+            cycle_option
+          FROM information_schema.sequences
+          WHERE sequence_schema = 'public'
+          ORDER BY sequence_name;
+        `
+      });
+
+      if (error) {
+        console.warn(`   ⚠️ Sequence backup hatası: ${error.message}`);
+        return;
+      }
+
+      if (sequences.data && sequences.data.length > 0) {
+        // Her sequence için current value'yu da al
+        for (const seq of sequences.data) {
+          try {
+            const { data: currentVal, error: valError } = await supabase.rpc('exec_sql', {
+              query: `SELECT last_value FROM ${seq.sequence_name};`
+            });
+            
+            backupData.sequences[seq.sequence_name] = {
+              name: seq.sequence_name,
+              dataType: seq.data_type,
+              startValue: seq.start_value,
+              minValue: seq.minimum_value,
+              maxValue: seq.maximum_value,
+              increment: seq.increment,
+              cycleOption: seq.cycle_option,
+              currentValue: !valError && currentVal.data ? currentVal.data[0].last_value : null,
+              backupDate: new Date().toISOString()
+            };
+          } catch (error) {
+            backupData.sequences[seq.sequence_name] = {
+              ...seq,
+              currentValue: null,
+              error: error.message,
+              backupDate: new Date().toISOString()
+            };
+          }
+        }
+        
+        console.log(`   ✅ ${sequences.data.length} sequence yedeklendi`);
+      } else {
+        console.log(`   ℹ️ Hiç sequence bulunamadı`);
+      }
+    } catch (error) {
+      console.warn(`   ⚠️ Sequence backup hatası: ${error.message}`);
+    }
+  }
+
+  async backupIndexes(backupData) {
+    console.log('📚 Indexes yedekleniyor...');
+    
+    try {
+      const { data: indexes, error } = await supabase.rpc('exec_sql', {
+        query: `
+          SELECT
+            indexname,
+            tablename,
+            indexdef
+          FROM pg_indexes
+          WHERE schemaname = 'public'
+          AND indexname NOT LIKE '%_pkey'
+          ORDER BY tablename, indexname;
+        `
+      });
+
+      if (error) {
+        console.warn(`   ⚠️ Index backup hatası: ${error.message}`);
+        return;
+      }
+
+      if (indexes.data && indexes.data.length > 0) {
+        indexes.data.forEach(index => {
+          const indexKey = `${index.tablename}.${index.indexname}`;
+          backupData.indexes[indexKey] = {
+            name: index.indexname,
+            table: index.tablename,
+            definition: index.indexdef,
+            backupDate: new Date().toISOString()
+          };
+        });
+        
+        console.log(`   ✅ ${indexes.data.length} index yedeklendi`);
+      } else {
+        console.log(`   ℹ️ Hiç custom index bulunamadı`);
+      }
+    } catch (error) {
+      console.warn(`   ⚠️ Index backup hatası: ${error.message}`);
+    }
+  }
+
+  async backupConstraints(backupData) {
+    console.log('🔒 Constraints yedekleniyor...');
+    
+    try {
+      const { data: constraints, error } = await supabase.rpc('exec_sql', {
+        query: `
+          SELECT
+            tc.table_name,
+            tc.constraint_name,
+            tc.constraint_type,
+            kcu.column_name,
+            ccu.table_name AS foreign_table_name,
+            ccu.column_name AS foreign_column_name,
+            rc.update_rule,
+            rc.delete_rule,
+            cc.check_clause
+          FROM information_schema.table_constraints tc
+          LEFT JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+          LEFT JOIN information_schema.constraint_column_usage ccu
+            ON ccu.constraint_name = tc.constraint_name
+          LEFT JOIN information_schema.referential_constraints rc
+            ON tc.constraint_name = rc.constraint_name
+          LEFT JOIN information_schema.check_constraints cc
+            ON tc.constraint_name = cc.constraint_name
+          WHERE tc.table_schema = 'public'
+          AND tc.constraint_type IN ('FOREIGN KEY', 'CHECK', 'UNIQUE')
+          ORDER BY tc.table_name, tc.constraint_name;
+        `
+      });
+
+      if (error) {
+        console.warn(`   ⚠️ Constraint backup hatası: ${error.message}`);
+        return;
+      }
+
+      if (constraints.data && constraints.data.length > 0) {
+        constraints.data.forEach(constraint => {
+          const constraintKey = `${constraint.table_name}.${constraint.constraint_name}`;
+          backupData.constraints[constraintKey] = {
+            table: constraint.table_name,
+            name: constraint.constraint_name,
+            type: constraint.constraint_type,
+            column: constraint.column_name,
+            foreignTable: constraint.foreign_table_name,
+            foreignColumn: constraint.foreign_column_name,
+            updateRule: constraint.update_rule,
+            deleteRule: constraint.delete_rule,
+            checkClause: constraint.check_clause,
+            backupDate: new Date().toISOString()
+          };
+        });
+        
+        console.log(`   ✅ ${constraints.data.length} constraint yedeklendi`);
+      } else {
+        console.log(`   ℹ️ Hiç custom constraint bulunamadı`);
+      }
+    } catch (error) {
+      console.warn(`   ⚠️ Constraint backup hatası: ${error.message}`);
+    }
+  }
+
+  async backupExtensions(backupData) {
+    console.log('🧩 Extensions yedekleniyor...');
+    
+    try {
+      const { data: extensions, error } = await supabase.rpc('exec_sql', {
+        query: `
+          SELECT
+            extname as name,
+            extversion as version,
+            extrelocatable as relocatable
+          FROM pg_extension
+          WHERE extname NOT IN ('plpgsql')
+          ORDER BY extname;
+        `
+      });
+
+      if (error) {
+        console.warn(`   ⚠️ Extension backup hatası: ${error.message}`);
+        return;
+      }
+
+      if (extensions.data && extensions.data.length > 0) {
+        extensions.data.forEach(ext => {
+          backupData.extensions[ext.name] = {
+            name: ext.name,
+            version: ext.version,
+            relocatable: ext.relocatable,
+            backupDate: new Date().toISOString()
+          };
+        });
+        
+        console.log(`   ✅ ${extensions.data.length} extension yedeklendi`);
+      } else {
+        console.log(`   ℹ️ Hiç custom extension bulunamadı`);
+      }
+    } catch (error) {
+      console.warn(`   ⚠️ Extension backup hatası: ${error.message}`);
+    }
   }
 
   createBackupSummary(backupData, timestamp, type) {

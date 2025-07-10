@@ -18,6 +18,7 @@ export function useAuth() {
     isAdmin: false,
     adminRole: undefined
   })
+  const [isManualLogout, setIsManualLogout] = useState(false)
 
   useEffect(() => {
     // Get initial session
@@ -54,7 +55,15 @@ export function useAuth() {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (session?.user) {
+        console.log('Auth state change:', event, { hasSession: !!session })
+        
+        // If this is after a manual logout, ignore any session restoration
+        if (isManualLogout && session?.user) {
+          console.log('Ignoring session restoration after manual logout')
+          return
+        }
+        
+        if (session?.user && !isManualLogout) {
           const adminStatus = await checkAdminStatus(session.user)
           setAuthState({
             user: session.user,
@@ -64,6 +73,10 @@ export function useAuth() {
           })
         } else {
           setAuthState({ user: null, loading: false, isAdmin: false, adminRole: undefined })
+          // Reset manual logout flag after processing
+          if (event === 'SIGNED_OUT') {
+            setIsManualLogout(false)
+          }
         }
       }
     )
@@ -112,8 +125,17 @@ export function useAuth() {
         if (!adminStatus.isAdmin) {
           // Sign out if not admin
           await supabase.auth.signOut()
+          setAuthState({ user: null, loading: false, isAdmin: false, adminRole: undefined })
           throw new Error('Bu hesap admin paneline erişim yetkisine sahip değil.')
         }
+        
+        // Update auth state immediately with admin status
+        setAuthState({
+          user: data.user,
+          loading: false,
+          isAdmin: adminStatus.isAdmin,
+          adminRole: adminStatus.role
+        })
       }
 
       return { data, error: null }
@@ -125,13 +147,51 @@ export function useAuth() {
 
   const signOut = async () => {
     try {
+      console.log('🔐 Starting sign out process...')
+      setIsManualLogout(true) // Set flag to prevent auto re-login
       setAuthState(prev => ({ ...prev, loading: true }))
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
-      setAuthState({ user: null, loading: false, isAdmin: false, adminRole: undefined })
+      
+      // Use the most aggressive signOut method to clear all sessions
+      const { error } = await supabase.auth.signOut({ scope: 'global' })
+      if (error) {
+        console.error('Supabase signOut error:', error)
+      }
+      
+      // Clear local storage manually to ensure no session persistence
+      localStorage.removeItem('supabase.auth.token')
+      localStorage.removeItem('sb-guqwqbxsfvddwwczwljp-auth-token') // Replace with your project ref
+      sessionStorage.clear()
+      
+      // Force clear all auth state immediately
+      setAuthState({
+        user: null,
+        loading: false,
+        isAdmin: false,
+        adminRole: undefined
+      })
+      
+      console.log('✅ Auth state and storage cleared successfully')
       return { error: null }
     } catch (error: any) {
-      setAuthState(prev => ({ ...prev, loading: false }))
+      console.error('SignOut error:', error)
+      setIsManualLogout(true) // Set flag even on error
+      
+      // Even on error, force clear everything
+      try {
+        localStorage.removeItem('supabase.auth.token')
+        localStorage.removeItem('sb-guqwqbxsfvddwwczwljp-auth-token')
+        sessionStorage.clear()
+      } catch (storageError) {
+        console.error('Storage clear error:', storageError)
+      }
+      
+      // Force clear state even on error
+      setAuthState({
+        user: null,
+        loading: false,
+        isAdmin: false,
+        adminRole: undefined
+      })
       return { error }
     }
   }

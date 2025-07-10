@@ -16,10 +16,19 @@ export default function AdminLoginPage() {
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (user && isAdmin) {
+    if (!loading && user && isAdmin) {
+      // Only redirect when loading is false and user is admin
       router.push('/admin')
+      setIsSubmitting(false) // Reset submitting state on successful redirect
+    } else if (!loading && user && !isAdmin) {
+      // User is authenticated but not admin
+      setError('Bu hesap admin paneline erişim yetkisine sahip değil.')
+      setIsSubmitting(false)
+    } else if (!loading && !user && isSubmitting) {
+      // Login failed
+      setIsSubmitting(false)
     }
-  }, [user, isAdmin, router])
+  }, [user, isAdmin, loading, router, isSubmitting])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,16 +42,14 @@ export default function AdminLoginPage() {
         throw authError
       }
 
-      if (data?.user) {
-        // Redirect will happen via useEffect when auth state updates
-        router.push('/admin')
-      }
+      // Don't redirect immediately - let useEffect handle it when auth state updates
+      // The redirect will happen automatically when isAdmin becomes true
     } catch (error: any) {
       console.error('Login error:', error)
       setError(error.message || 'Giriş sırasında bir hata oluştu.')
-    } finally {
       setIsSubmitting(false)
     }
+    // Don't set isSubmitting to false here - let auth state change handle it
   }
 
   // Show loading state while checking auth

@@ -407,57 +407,18 @@ class BackupValidationSystem {
       const check = {
         passed: true,
         tables: {},
+        schemaObjects: {},
         totalRecords: 0,
+        isFullBackup: backupData.version === '2.0.0',
         issues: []
       };
 
-      // Her tabloyu kontrol et
-      for (const [tableName, tableData] of Object.entries(backupData.tables)) {
-        const tableCheck = {
-          passed: true,
-          recordCount: 0,
-          issues: []
-        };
-
-        if (!tableData) {
-          tableCheck.passed = false;
-          tableCheck.issues.push('Table data is null or undefined');
-        } else if (!tableData.data || !Array.isArray(tableData.data)) {
-          tableCheck.passed = false;
-          tableCheck.issues.push('Table data is not an array');
-        } else {
-          tableCheck.recordCount = tableData.data.length;
-          check.totalRecords += tableCheck.recordCount;
-
-          // Minimum kayıt kontrolü
-          if (config.criticalTables.includes(tableName) && tableCheck.recordCount < config.thresholds.minRecords) {
-            tableCheck.passed = false;
-            tableCheck.issues.push(`Critical table has too few records: ${tableCheck.recordCount}`);
-          }
-
-          // Veri format kontrolü (sample check)
-          if (tableData.data.length > 0) {
-            const sampleRecord = tableData.data[0];
-            if (!sampleRecord || typeof sampleRecord !== 'object') {
-              tableCheck.passed = false;
-              tableCheck.issues.push('Invalid record format in table data');
-            }
-          }
-        }
-
-        check.tables[tableName] = tableCheck;
-        
-        if (!tableCheck.passed) {
-          check.passed = false;
-          check.issues.push(...tableCheck.issues.map(issue => `${tableName}: ${issue}`));
-        }
-      }
-
-      // Minimum tablo sayısı kontrolü
-      const tableCount = Object.keys(backupData.tables).length;
-      if (tableCount < config.thresholds.minTables) {
-        check.passed = false;
-        check.issues.push(`Too few tables in backup: ${tableCount} (min: ${config.thresholds.minTables})`);
+      // Tablo verilerini kontrol et
+      await this.validateTableData(backupData, check, config);
+      
+      // Schema objects kontrolü (v2.0.0 için)
+      if (check.isFullBackup) {
+        await this.validateSchemaObjects(backupData, check);
       }
 
       return check;
@@ -468,6 +429,268 @@ class BackupValidationSystem {
         issues: [`Data validation failed: ${error.message}`]
       };
     }
+  }
+
+  async validateTableData(backupData, check, config) {
+    // Her tabloyu kontrol et
+    for (const [tableName, tableData] of Object.entries(backupData.tables || {})) {
+      const tableCheck = {
+        passed: true,
+        recordCount: 0,
+        issues: []
+      };
+
+      if (!tableData) {
+        tableCheck.passed = false;
+        tableCheck.issues.push('Table data is null or undefined');
+      } else if (!tableData.data || !Array.isArray(tableData.data)) {
+        tableCheck.passed = false;
+        tableCheck.issues.push('Table data is not an array');
+      } else {
+        tableCheck.recordCount = tableData.data.length;
+        check.totalRecords += tableCheck.recordCount;
+
+        // Minimum kayıt kontrolü
+        if (config.criticalTables.includes(tableName) && tableCheck.recordCount < config.thresholds.minRecords) {
+          tableCheck.passed = false;
+          tableCheck.issues.push(`Critical table has too few records: ${tableCheck.recordCount}`);
+        }
+
+        // Veri format kontrolü (sample check)
+        if (tableData.data.length > 0) {
+          const sampleRecord = tableData.data[0];
+          if (!sampleRecord || typeof sampleRecord !== 'object') {
+            tableCheck.passed = false;
+            tableCheck.issues.push('Invalid record format in table data');
+          }
+        }
+      }
+
+      check.tables[tableName] = tableCheck;
+      
+      if (!tableCheck.passed) {
+        check.passed = false;
+        check.issues.push(...tableCheck.issues.map(issue => `${tableName}: ${issue}`));
+      }
+    }
+
+    // Minimum tablo sayısı kontrolü
+    const tableCount = Object.keys(backupData.tables || {}).length;
+    if (tableCount < config.thresholds.minTables) {
+      check.passed = false;
+      check.issues.push(`Too few tables in backup: ${tableCount} (min: ${config.thresholds.minTables})`);
+    }
+  }
+
+  async validateSchemaObjects(backupData, check) {
+    console.log('   🔧 Schema objects validation...');
+    
+    const schemaChecks = {
+      functions: this.validateFunctions(backupData.functions || {}),
+      triggers: this.validateTriggers(backupData.triggers || {}),
+      policies: this.validatePolicies(backupData.policies || {}),
+      types: this.validateTypes(backupData.types || {}),
+      views: this.validateViews(backupData.views || {}),
+      sequences: this.validateSequences(backupData.sequences || {}),
+      indexes: this.validateIndexes(backupData.indexes || {}),
+      constraints: this.validateConstraints(backupData.constraints || {}),
+      extensions: this.validateExtensions(backupData.extensions || {})
+    };
+
+    Object.entries(schemaChecks).forEach(([objectType, validation]) => {
+      check.schemaObjects[objectType] = validation;
+      
+      if (!validation.passed) {
+        check.issues.push(...validation.issues.map(issue => `${objectType}: ${issue}`));
+      }
+    });
+
+    // En az bir şey yedeklenmişse kabul edilir
+    const hasAnySchemaObjects = Object.values(schemaChecks).some(validation => validation.count > 0);
+    
+    if (!hasAnySchemaObjects) {
+      check.issues.push('No schema objects found in full backup');
+    }
+  }
+
+  validateFunctions(functions) {
+    const validation = {
+      passed: true,
+      count: Object.keys(functions).length,
+      issues: []
+    };
+
+    Object.entries(functions).forEach(([funcName, funcData]) => {
+      if (!funcData.definition) {
+        validation.passed = false;
+        validation.issues.push(`Function ${funcName} missing definition`);
+      }
+      
+      if (!funcData.type) {
+        validation.issues.push(`Function ${funcName} missing type information`);
+      }
+    });
+
+    return validation;
+  }
+
+  validateTriggers(triggers) {
+    const validation = {
+      passed: true,
+      count: Object.keys(triggers).length,
+      issues: []
+    };
+
+    Object.entries(triggers).forEach(([triggerKey, triggerData]) => {
+      if (!triggerData.statement) {
+        validation.passed = false;
+        validation.issues.push(`Trigger ${triggerData.name} missing statement`);
+      }
+      
+      if (!triggerData.table) {
+        validation.passed = false;
+        validation.issues.push(`Trigger ${triggerData.name} missing table reference`);
+      }
+    });
+
+    return validation;
+  }
+
+  validatePolicies(policies) {
+    const validation = {
+      passed: true,
+      count: Object.keys(policies).length,
+      issues: []
+    };
+
+    Object.entries(policies).forEach(([policyKey, policyData]) => {
+      if (!policyData.name) {
+        validation.passed = false;
+        validation.issues.push(`Policy missing name`);
+      }
+      
+      if (!policyData.table) {
+        validation.passed = false;
+        validation.issues.push(`Policy ${policyData.name} missing table reference`);
+      }
+    });
+
+    return validation;
+  }
+
+  validateTypes(types) {
+    const validation = {
+      passed: true,
+      count: Object.keys(types).length,
+      issues: []
+    };
+
+    Object.entries(types).forEach(([typeName, typeData]) => {
+      if (!typeData.type) {
+        validation.passed = false;
+        validation.issues.push(`Type ${typeName} missing type information`);
+      }
+      
+      if (typeData.type === 'e' && !typeData.enumValues) {
+        validation.passed = false;
+        validation.issues.push(`Enum type ${typeName} missing enum values`);
+      }
+    });
+
+    return validation;
+  }
+
+  validateViews(views) {
+    const validation = {
+      passed: true,
+      count: Object.keys(views).length,
+      issues: []
+    };
+
+    Object.entries(views).forEach(([viewName, viewData]) => {
+      if (!viewData.definition) {
+        validation.passed = false;
+        validation.issues.push(`View ${viewName} missing definition`);
+      }
+    });
+
+    return validation;
+  }
+
+  validateSequences(sequences) {
+    const validation = {
+      passed: true,
+      count: Object.keys(sequences).length,
+      issues: []
+    };
+
+    Object.entries(sequences).forEach(([seqName, seqData]) => {
+      if (seqData.currentValue === null || seqData.currentValue === undefined) {
+        validation.issues.push(`Sequence ${seqName} missing current value`);
+      }
+    });
+
+    return validation;
+  }
+
+  validateIndexes(indexes) {
+    const validation = {
+      passed: true,
+      count: Object.keys(indexes).length,
+      issues: []
+    };
+
+    Object.entries(indexes).forEach(([indexKey, indexData]) => {
+      if (!indexData.definition) {
+        validation.passed = false;
+        validation.issues.push(`Index ${indexData.name} missing definition`);
+      }
+      
+      if (!indexData.table) {
+        validation.passed = false;
+        validation.issues.push(`Index ${indexData.name} missing table reference`);
+      }
+    });
+
+    return validation;
+  }
+
+  validateConstraints(constraints) {
+    const validation = {
+      passed: true,
+      count: Object.keys(constraints).length,
+      issues: []
+    };
+
+    Object.entries(constraints).forEach(([constraintKey, constraintData]) => {
+      if (!constraintData.type) {
+        validation.passed = false;
+        validation.issues.push(`Constraint ${constraintData.name} missing type`);
+      }
+      
+      if (!constraintData.table) {
+        validation.passed = false;
+        validation.issues.push(`Constraint ${constraintData.name} missing table reference`);
+      }
+    });
+
+    return validation;
+  }
+
+  validateExtensions(extensions) {
+    const validation = {
+      passed: true,
+      count: Object.keys(extensions).length,
+      issues: []
+    };
+
+    Object.entries(extensions).forEach(([extName, extData]) => {
+      if (!extData.version) {
+        validation.issues.push(`Extension ${extName} missing version information`);
+      }
+    });
+
+    return validation;
   }
 
   async validateBackupSchema(filePath, config) {

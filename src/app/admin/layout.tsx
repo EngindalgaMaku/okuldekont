@@ -21,7 +21,10 @@ import {
  AlertTriangle,
  BarChart3,
  BookOpen,
- Check
+ Check,
+ ExternalLink,
+ Building2,
+ UserCheck
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
@@ -108,27 +111,38 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   // Auth check and redirect logic
   useEffect(() => {
-    if (!loading) {
+    if (!loading && !isSigningOut) {
       if (!user || !isAdmin) {
         if (pathname !== '/admin/login') {
           router.push('/admin/login')
         }
       }
     }
-  }, [user, isAdmin, loading, pathname, router])
+  }, [user, isAdmin, loading, pathname, router, isSigningOut])
   
   const handleLogout = async () => {
     setIsSigningOut(true)
+    console.log('🚪 Logout initiated...')
+    
     try {
       const { error } = await signOut()
       if (error) {
         console.error('Logout error:', error)
         // Still redirect to login even if there's an error
       }
-      router.push('/admin/login')
+      
+      console.log('✅ Sign out completed, redirecting to login...')
+      
+      // Use replace instead of push to prevent back button issues
+      await router.replace('/admin/login')
+      
+      // Clear any cached state
+      window.location.href = '/admin/login'
+      
     } catch (error) {
       console.error('Logout error:', error)
-      router.push('/admin/login')
+      // Force redirect even on error
+      window.location.href = '/admin/login'
     } finally {
       setIsSigningOut(false)
     }
@@ -343,6 +357,30 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6 justify-end">
             <div className="flex items-center gap-x-4 lg:gap-x-6">
+              {/* Quick Portal Links */}
+              <div className="flex items-center gap-x-2">
+                <Link
+                  href="/admin/isletmeler"
+                  className="flex items-center gap-x-1 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                  title="İşletme Yönetimi - Tüm işletmeleri listele, filtrele ve yönet"
+                >
+                  <Building2 className="h-4 w-4" />
+                  <span className="hidden sm:block">İşletmeler</span>
+                </Link>
+                
+                <Link
+                  href="/admin/ogretmenler"
+                  className="flex items-center gap-x-1 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                  title="Öğretmen Yönetimi - Tüm öğretmenleri listele, filtrele ve yönet"
+                >
+                  <UserCheck className="h-4 w-4" />
+                  <span className="hidden sm:block">Öğretmenler</span>
+                </Link>
+              </div>
+
+              {/* Divider */}
+              <div className="hidden sm:block w-px h-6 bg-gray-300"></div>
+              
               {/* Settings Link */}
               <Link
                 href="/admin/ayarlar"

@@ -149,6 +149,7 @@ export default function IsletmeDetayPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const params = useParams()
+  console.log('params.id:', params.id)
   const isletmeId = params.id as string
   const referrer = searchParams.get('ref')
 
@@ -388,30 +389,30 @@ export default function IsletmeDetayPage() {
         return
       }
 
-      const { data: alanData, error: alanError } = await supabase
-        .from('isletme_alanlar')
-        .select(`
-          id,
-          alan_id,
-          alanlar (id, ad)
-        `)
-        .eq('isletme_id', isletmeId)
-
-      if (alanError) {
-        console.error('İşletme alanları çekilirken hata:', alanError)
-        return
-      }
-
-      const typedIsletmeData = isletmeData as unknown as IsletmeData
-      const typedAlanData = alanData as unknown as AlanData[]
-
-      const transformedData = typedAlanData?.map(item => ({
-        id: item.id,
-        alan_id: item.alan_id,
-        alanlar: item.alanlar,
-        ogretmenler: typedIsletmeData?.ogretmenler?.alan_id === item.alan_id ? typedIsletmeData.ogretmenler : null
-      })) || []
-
+      
+            const { data: alanData, error: alanError } = await supabase
+              .from('isletme_alanlar')
+              .select(`
+                alan_id,
+                alanlar (id, ad)
+              `, { head: false })
+              .eq('isletme_id', isletmeId)
+      
+            if (alanError) {
+              console.error('İşletme alanları çekilirken hata:', alanError)
+              return
+            }
+      
+            const typedIsletmeData = isletmeData as unknown as IsletmeData
+            const typedAlanData = alanData as unknown as any[]
+      
+            const transformedData = typedAlanData?.map((item, index) => ({
+              id: index.toString(), // Assign a temporary ID
+              alan_id: item.alan_id,
+              alanlar: item.alanlar,
+              ogretmenler: typedIsletmeData?.ogretmenler?.alan_id === item.alan_id ? typedIsletmeData.ogretmenler : null
+            })) || []
+      
       setIsletmeAlanlar(transformedData)
     } catch (error) {
       console.error('İşletme alanları fetch hatası:', error)
@@ -470,7 +471,7 @@ export default function IsletmeDetayPage() {
         .from('dekontlar')
         .select('*')
         .eq('isletme_id', isletmeId)
-        .order('tarih', { ascending: false })
+        .order('created_at', { ascending: false })
 
       if (error) {
         console.error('Dekontlar çekilirken hata:', error)

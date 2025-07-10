@@ -57,12 +57,25 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
       
       if (error) {
         console.error('Admin kullanıcılar çekilirken hata:', error)
+        setAdminUsers([])
         return
       }
 
-      setAdminUsers(data || [])
+      // The function now returns JSON, so we need to parse it if it's a string
+      let adminUsersData = data
+      if (typeof data === 'string') {
+        try {
+          adminUsersData = JSON.parse(data)
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError)
+          adminUsersData = []
+        }
+      }
+
+      setAdminUsers(Array.isArray(adminUsersData) ? adminUsersData : [])
     } catch (error) {
       console.error('Admin kullanıcılar çekilirken hata:', error)
+      setAdminUsers([])
     } finally {
       setLoading(false)
     }
@@ -567,16 +580,24 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
           
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-gray-700">Aktif Durum</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={editUser.aktif}
-                onChange={(e) => setEditUser({...editUser, aktif: e.target.checked})}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-            </label>
+            <div className="flex items-center">
+              <label className={`relative inline-flex items-center ${selectedUser?.yetki_seviyesi === 'super_admin' ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                <input
+                  type="checkbox"
+                  checked={editUser.aktif}
+                  onChange={(e) => setEditUser({...editUser, aktif: e.target.checked})}
+                  disabled={selectedUser?.yetki_seviyesi === 'super_admin'}
+                  className="sr-only peer"
+                />
+                <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600 ${selectedUser?.yetki_seviyesi === 'super_admin' ? 'opacity-50 cursor-not-allowed' : ''}`}></div>
+              </label>
+            </div>
           </div>
+          {selectedUser?.yetki_seviyesi === 'super_admin' && (
+            <p className="text-xs text-red-500 mt-1">
+              Süper admin aktif durumu değiştirilemez. Güvenlik koruması aktif.
+            </p>
+          )}
           
           <div className="flex justify-end space-x-3 pt-4">
             <button
