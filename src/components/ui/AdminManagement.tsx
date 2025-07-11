@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { User, Plus, Edit, Trash2, Shield, Crown, Settings, AlertTriangle, Save, X, Check, Mail, Key, Eye, EyeOff } from 'lucide-react'
+import { User, Plus, Edit, Trash2, Shield, GraduationCap, Settings, AlertTriangle, Save, X, Check, Mail, Key, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { AdminUser, CreateAdminUser, UpdateAdminUser, YetkiSeviyeleri } from '@/types/admin'
 import { Button } from '@/components/ui/Button'
@@ -295,7 +295,7 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
                       user.yetki_seviyesi === 'admin' ? 'bg-blue-100' : 'bg-green-100'
                     }`}>
                       {user.yetki_seviyesi === 'super_admin' ? (
-                        <Crown className={`h-5 w-5 ${
+                        <GraduationCap className={`h-5 w-5 ${
                           user.yetki_seviyesi === 'super_admin' ? 'text-red-600' : 'text-gray-600'
                         }`} />
                       ) : (

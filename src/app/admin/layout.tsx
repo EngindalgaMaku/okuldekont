@@ -25,7 +25,6 @@ import {
  ExternalLink,
  Building2,
  UserCheck,
- Crown,
  Sparkles,
  User,
  ChevronDown,
@@ -221,7 +220,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="mx-auto w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
-            <Crown className="h-8 w-8 text-white animate-pulse" />
+            <GraduationCap className="h-8 w-8 text-white animate-pulse" />
           </div>
           <div className="space-y-2">
             <div className="h-6 bg-gray-200 rounded animate-pulse w-48 mx-auto"></div>
@@ -305,7 +304,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
                   <div className="flex items-center gap-3 px-4 py-6 border-b border-gray-200">
                     <div className="p-2 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-xl shadow-sm">
-                      <Crown className="w-8 h-8 text-indigo-600" />
+                      <GraduationCap className="w-8 h-8 text-indigo-600" />
                     </div>
                     <div>
                       <h1 className="text-xl font-bold text-gray-900">K-Panel</h1>
@@ -353,7 +352,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             'flex h-16 items-center gap-3 border-b border-gray-200 transition-all duration-300'
           )}>
             <div className="p-2 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-xl shadow-sm">
-              <Crown className="w-8 h-8 text-indigo-600" />
+              <GraduationCap className="w-8 h-8 text-indigo-600" />
             </div>
             {desktopSidebarOpen && (
               <div>

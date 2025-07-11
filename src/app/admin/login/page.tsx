@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Crown, Mail, Lock, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { GraduationCap, Mail, Lock, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function AdminLoginPage() {
@@ -59,7 +59,7 @@ export default function AdminLoginPage() {
         <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
           <div className="text-center">
             <div className="mx-auto w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
-              <Crown className="h-8 w-8 text-white animate-pulse" />
+              <GraduationCap className="h-8 w-8 text-white animate-pulse" />
             </div>
             <div className="space-y-2">
               <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
@@ -76,7 +76,7 @@ export default function AdminLoginPage() {
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
         <div className="text-center">
           <div className="mx-auto w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
-            <Crown className="h-8 w-8 text-white" />
+            <GraduationCap className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">
             K-Panel
