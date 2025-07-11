@@ -551,6 +551,34 @@ export default function PanelPage() {
     }
   };
 
+  // Bildirimi sil
+  const deleteNotification = async (notificationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', notificationId);
+
+      if (error) {
+        console.error('Mesaj silinirken hata:', error);
+        alert('Mesaj silinirken bir hata oluştu!');
+        return;
+      }
+
+      // State'i güncelle
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      
+      // Eğer silinmeymiş bildirimse unread count'u azalt
+      const deletedNotification = notifications.find(n => n.id === notificationId);
+      if (deletedNotification && !deletedNotification.is_read) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (error) {
+      console.error('Bildirim silme hatası:', error);
+      alert('Bir hata oluştu!');
+    }
+  };
+
   useEffect(() => {
     fetchData()
     fetchSchoolName()
@@ -1119,11 +1147,11 @@ export default function PanelPage() {
             </div>
             
             <div className="flex items-center gap-3">
-              {/* Bildirim Butonu */}
+              {/* Mesaj Butonu */}
               <button
                 onClick={() => setNotificationModalOpen(true)}
                 className="relative flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
-                title="Bildirimler"
+                title="Mesajlar"
               >
                 <Bell className="h-5 w-5 text-white" />
                 {unreadCount > 0 && (
@@ -1131,7 +1159,7 @@ export default function PanelPage() {
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
-                <span className="sr-only">Bildirimler</span>
+                <span className="sr-only">Mesajlar</span>
               </button>
               
               <button
@@ -2186,24 +2214,24 @@ export default function PanelPage() {
         </div>
       </Modal>
 
-      {/* Bildirim Modalı */}
+      {/* Mesaj Modalı */}
       <Modal
         isOpen={notificationModalOpen}
         onClose={() => setNotificationModalOpen(false)}
-        title="Bildirimler"
+        title="Mesajlar"
       >
         <div className="space-y-4">
           {notifications.length === 0 ? (
             <div className="text-center py-8">
               <Bell className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-4 text-lg font-medium text-gray-900">Bildirim Yok</h3>
-              <p className="mt-2 text-sm text-gray-500">Henüz hiç bildirim almadınız.</p>
+              <h3 className="mt-4 text-lg font-medium text-gray-900">Mesaj Yok</h3>
+              <p className="mt-2 text-sm text-gray-500">Henüz hiç mesaj almadınız.</p>
             </div>
           ) : (
             <>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">
-                  {notifications.length} bildirim ({unreadCount} okunmamış)
+                  {notifications.length} mesaj ({unreadCount} okunmamış)
                 </span>
                 {unreadCount > 0 && (
                   <button
@@ -2216,78 +2244,93 @@ export default function PanelPage() {
               </div>
               
               <div className="max-h-96 overflow-y-auto space-y-3">
-                {notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`p-4 rounded-lg border transition-all cursor-pointer ${
-                      notification.is_read
-                        ? 'bg-gray-50 border-gray-200'
-                        : 'bg-blue-50 border-blue-200 shadow-sm'
-                    }`}
-                    onClick={() => !notification.is_read && markAsRead(notification.id)}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className={`font-medium ${
-                            notification.is_read ? 'text-gray-900' : 'text-blue-900'
-                          }`}>
-                            {notification.title}
-                          </h4>
-                          
-                          {/* Öncelik Badge'i */}
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                            notification.priority === 'high'
-                              ? 'bg-red-100 text-red-700'
-                              : notification.priority === 'normal'
-                              ? 'bg-yellow-100 text-yellow-700'
-                              : 'bg-green-100 text-green-700'
-                          }`}>
-                            {notification.priority === 'high' ? 'Yüksek' :
-                             notification.priority === 'normal' ? 'Normal' : 'Düşük'}
-                          </span>
-                          
-                          {!notification.is_read && (
-                            <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                          )}
-                        </div>
-                        
-                        <p className={`mt-2 text-sm ${
-                          notification.is_read ? 'text-gray-600' : 'text-blue-800'
-                        }`}>
-                          {notification.content}
-                        </p>
-                        
-                        <div className="flex items-center justify-between mt-3">
-                          <span className="text-xs text-gray-500">
-                            Gönderen: {notification.sent_by}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {new Date(notification.created_at).toLocaleString('tr-TR', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </span>
-                        </div>
-                        
-                        {notification.is_read && notification.read_at && (
-                          <div className="text-xs text-gray-400 mt-1">
-                            Okunma: {new Date(notification.read_at).toLocaleString('tr-TR', {
-                              day: '2-digit',
-                              month: 'short',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+               {notifications.map((notification) => (
+                 <div
+                   key={notification.id}
+                   className={`p-4 rounded-lg border transition-all ${
+                     notification.is_read
+                       ? 'bg-gray-50 border-gray-200'
+                       : 'bg-blue-50 border-blue-200 shadow-sm'
+                   }`}
+                 >
+                   <div className="flex items-start justify-between">
+                     <div className="flex-1 cursor-pointer" onClick={() => !notification.is_read && markAsRead(notification.id)}>
+                       <div className="flex items-center gap-2">
+                         <h4 className={`font-medium ${
+                           notification.is_read ? 'text-gray-900' : 'text-blue-900'
+                         }`}>
+                           {notification.title}
+                         </h4>
+                         
+                         {/* Öncelik Badge'i */}
+                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                           notification.priority === 'high'
+                             ? 'bg-red-100 text-red-700'
+                             : notification.priority === 'normal'
+                             ? 'bg-yellow-100 text-yellow-700'
+                             : 'bg-green-100 text-green-700'
+                         }`}>
+                           {notification.priority === 'high' ? 'Yüksek' :
+                            notification.priority === 'normal' ? 'Normal' : 'Düşük'}
+                         </span>
+                         
+                         {!notification.is_read && (
+                           <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                         )}
+                       </div>
+                       
+                       <p className={`mt-2 text-sm ${
+                         notification.is_read ? 'text-gray-600' : 'text-blue-800'
+                       }`}>
+                         {notification.content}
+                       </p>
+                       
+                       <div className="flex items-center justify-between mt-3">
+                         <span className="text-xs text-gray-500">
+                           Gönderen: {notification.sent_by}
+                         </span>
+                         <span className="text-xs text-gray-500">
+                           {new Date(notification.created_at).toLocaleString('tr-TR', {
+                             day: '2-digit',
+                             month: 'short',
+                             year: 'numeric',
+                             hour: '2-digit',
+                             minute: '2-digit'
+                           })}
+                         </span>
+                       </div>
+                       
+                       {notification.is_read && notification.read_at && (
+                         <div className="text-xs text-gray-400 mt-1">
+                           Okunma: {new Date(notification.read_at).toLocaleString('tr-TR', {
+                             day: '2-digit',
+                             month: 'short',
+                             hour: '2-digit',
+                             minute: '2-digit'
+                           })}
+                         </div>
+                       )}
+                     </div>
+                     
+                     {/* Silme Butonu */}
+                     <div className="flex items-center ml-3">
+                       <button
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           if (window.confirm('Bu mesajı silmek istediğinize emin misiniz?')) {
+                             deleteNotification(notification.id);
+                           }
+                         }}
+                         className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                         title="Mesajı Sil"
+                       >
+                         <Trash2 className="h-4 w-4" />
+                       </button>
+                     </div>
+                   </div>
+                 </div>
+               ))}
+             </div>
             </>
           )}
           

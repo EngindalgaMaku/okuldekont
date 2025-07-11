@@ -28,7 +28,8 @@ import {
  Crown,
  Sparkles,
  User,
- ChevronDown
+ ChevronDown,
+ MessageCircle
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
@@ -439,6 +440,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 >
                   <UserCheck className="h-4 w-4" />
                   <span className="hidden sm:block">Öğretmenler</span>
+                </Link>
+                
+                <Link
+                  href="/admin/mesajlar"
+                  className="flex items-center gap-x-1 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                  title="Mesajlaşma Merkezi - İşletme ve öğretmen mesajlaşma sistemi"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  <span className="hidden sm:block">Mesajlar</span>
                 </Link>
               </div>
 
