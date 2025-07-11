@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, FileText, LogOut, Loader, User, Receipt, GraduationCap, CheckCircle, Clock, XCircle, Download, Plus, Upload, Trash2, Calendar, Loader2, AlertTriangle, Search, Filter } from 'lucide-react'
+import { Building2, FileText, LogOut, Loader, User, Receipt, GraduationCap, CheckCircle, Clock, XCircle, Download, Plus, Upload, Trash2, Calendar, Loader2, AlertTriangle, Search, Filter, Bell } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/ui/Modal'
 import DekontUploadForm from '@/components/ui/DekontUpload'
@@ -53,6 +53,26 @@ interface Belge {
   yukleyen_kisi?: string;
 }
 
+interface Notification {
+  id: string;
+  title: string;
+  content: string;
+  priority: 'low' | 'normal' | 'high';
+  sent_by: string;
+  is_read: boolean;
+  read_at?: string;
+  created_at: string;
+}
+
+// Dosya adı kısaltma fonksiyonu
+const truncateFileName = (fileName: string, maxLength: number = 40) => {
+  if (fileName.length <= maxLength) return fileName;
+  const extension = fileName.split('.').pop();
+  const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+  const truncatedName = nameWithoutExt.substring(0, maxLength - extension!.length - 4);
+  return `${truncatedName}...${extension}`;
+};
+
 const TeacherPanel = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [selectedDekont, setSelectedDekont] = useState<Dekont | null>(null);
@@ -79,6 +99,14 @@ const TeacherPanel = () => {
   const [errorModal, setErrorModal] = useState({ isOpen: false, title: '', message: '' });
   const [belgeSilModalOpen, setBelgeSilModalOpen] = useState(false);
   const [selectedBelge, setSelectedBelge] = useState<Belge | null>(null);
+  const [schoolName, setSchoolName] = useState('Hüsniye Özdilek MTAL');
+  const [ogrenciSecimModalOpen, setOgrenciSecimModalOpen] = useState(false);
+  const [isletmeSecimModalOpen, setIsletmeSecimModalOpen] = useState(false);
+  
+  // Bildirim states
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationModalOpen, setNotificationModalOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const getCurrentMonth = () => new Date().getMonth() + 1;
   const getCurrentYear = () => new Date().getFullYear();
@@ -140,6 +168,7 @@ const TeacherPanel = () => {
         const teacherData = JSON.parse(storedOgretmen);
         setTeacher(teacherData);
         fetchOgretmenData(teacherData.id);
+        fetchNotifications(teacherData.id);
       } catch (error) {
         console.error('localStorage verisi geçersiz:', error);
         localStorage.removeItem('ogretmen');
@@ -147,7 +176,118 @@ const TeacherPanel = () => {
       }
     };
     checkLocalStorage();
+    fetchSchoolName();
   }, [router]);
+
+  // Bildirimleri getir
+  const fetchNotifications = async (teacherId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('recipient_id', teacherId)
+        .eq('recipient_type', 'ogretmen')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Bildirimler getirilirken hata:', error);
+        return;
+      }
+
+      setNotifications(data || []);
+      const unreadNotifications = data?.filter(n => !n.is_read) || [];
+      setUnreadCount(unreadNotifications.length);
+    } catch (error) {
+      console.error('Bildirimler getirme hatası:', error);
+    }
+  };
+
+  // Bildirimi okundu olarak işaretle
+  const markAsRead = async (notificationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({
+          is_read: true,
+          read_at: new Date().toISOString()
+        })
+        .eq('id', notificationId);
+
+      if (error) {
+        console.error('Bildirim okundu olarak işaretlenirken hata:', error);
+        return;
+      }
+
+      // State'i güncelle
+      setNotifications(prev =>
+        prev.map(n =>
+          n.id === notificationId
+            ? { ...n, is_read: true, read_at: new Date().toISOString() }
+            : n
+        )
+      );
+      
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Bildirim güncelleme hatası:', error);
+    }
+  };
+
+  // Tüm bildirimleri okundu olarak işaretle
+  const markAllAsRead = async () => {
+    if (!teacher) return;
+
+    try {
+      const unreadIds = notifications
+        .filter(n => !n.is_read)
+        .map(n => n.id);
+
+      if (unreadIds.length === 0) return;
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({
+          is_read: true,
+          read_at: new Date().toISOString()
+        })
+        .in('id', unreadIds);
+
+      if (error) {
+        console.error('Tüm bildirimler okundu olarak işaretlenirken hata:', error);
+        return;
+      }
+
+      // State'i güncelle
+      const now = new Date().toISOString();
+      setNotifications(prev =>
+        prev.map(n =>
+          !n.is_read
+            ? { ...n, is_read: true, read_at: now }
+            : n
+        )
+      );
+      
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Tüm bildirimler güncelleme hatası:', error);
+    }
+  };
+
+  const fetchSchoolName = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'school_name')
+        .single();
+
+      if (data?.value) {
+        setSchoolName(data.value);
+      }
+    } catch (error) {
+      console.error('Okul adı alınırken hata:', error);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === 'dekontlar') setDekontPage(1);
@@ -803,14 +943,32 @@ const TeacherPanel = () => {
                 <p className="text-indigo-200 text-sm">Staj Takip Sistemi</p>
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
-              title="Çıkış Yap"
-            >
-              <LogOut className="h-5 w-5 text-white" />
-              <span className="sr-only">Çıkış Yap</span>
-            </button>
+            
+            <div className="flex items-center gap-3">
+              {/* Bildirim Butonu */}
+              <button
+                onClick={() => setNotificationModalOpen(true)}
+                className="relative flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
+                title="Bildirimler"
+              >
+                <Bell className="h-5 w-5 text-white" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+                <span className="sr-only">Bildirimler</span>
+              </button>
+              
+              <button
+                onClick={handleLogout}
+                className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
+                title="Çıkış Yap"
+              >
+                <LogOut className="h-5 w-5 text-white" />
+                <span className="sr-only">Çıkış Yap</span>
+              </button>
+            </div>
           </div>
 
           {/* Tabs */}
@@ -941,21 +1099,22 @@ const TeacherPanel = () => {
 
           <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black ring-opacity-5">
           {activeTab === 'isletmeler' && (
-            <div className="space-y-0">
+            <div className="space-y-6 p-6">
               {isletmeler.map((isletme, index) => (
-                <div key={isletme.id} className={`p-6 ${index > 0 ? 'border-t border-gray-200' : ''} ${index % 2 !== 0 ? 'bg-gray-50' : ''}`}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center">
-                      <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center">
-                        <Building2 className="h-6 w-6 text-indigo-600" />
-                      </div>
-                      <div className="ml-4">
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {isletme.ad}
-                        </h3>
-                        <p className="text-sm text-gray-500">Yetkili: {isletme.yukleyen_kisi}</p>
-                      </div>
+                <div key={isletme.id} className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200 hover:border-indigo-300 p-6">
+                  <div className="flex items-center">
+                    <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center">
+                      <Building2 className="h-6 w-6 text-indigo-600" />
                     </div>
+                    <div className="ml-4">
+                      <h3 className="text-lg font-medium text-gray-900">
+                        {isletme.ad}
+                      </h3>
+                      <p className="text-sm text-gray-500">Yetkili: {isletme.yukleyen_kisi}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-3 flex justify-end">
                     <button
                       onClick={() => handleBelgeYukle(isletme)}
                       className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
@@ -973,7 +1132,7 @@ const TeacherPanel = () => {
                     </h4>
                     
                     {isletme.ogrenciler.map((ogrenci, index) => (
-                      <div key={ogrenci.id} className={`flex items-center justify-between bg-gray-50 rounded-lg p-4 ${index < isletme.ogrenciler.length - 1 ? 'border-b border-gray-200' : ''}`}>
+                      <div key={ogrenci.id} className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 space-y-3 border border-blue-100 hover:border-blue-200 transition-all duration-200 hover:shadow-md">
                         <div className="flex items-center">
                           <div className="h-10 w-10 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg flex items-center justify-center">
                             <User className="h-5 w-5 text-indigo-600" />
@@ -988,29 +1147,27 @@ const TeacherPanel = () => {
                                 No: {ogrenci.no}
                               </div>
                               <div className="flex items-center gap-1 text-gray-500">
-                                <GraduationCap className="h-3 w-3" />
-                                <span>{ogrenci.alan}</span>
-                              </div>
-                              <div className="flex items-center gap-1 text-gray-500">
                                 <Calendar className="h-3 w-3" />
                                 <span>Başlangıç: {new Date(ogrenci.baslangic_tarihi).toLocaleDateString('tr-TR')}</span>
                               </div>
                             </div>
                           </div>
                         </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleOpenDekontUpload(ogrenci, isletme); }}
-                          className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                          title="Dekont Yükle"
-                        >
-                          <Upload className="h-4 w-4 mr-1.5" />
-                          Dekont Yükle
-                        </button>
+                        <div className="flex justify-end">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleOpenDekontUpload(ogrenci, isletme); }}
+                            className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                            title="Dekont Yükle"
+                          >
+                            <Upload className="h-4 w-4 mr-1.5" />
+                            Dekont Yükle
+                          </button>
+                        </div>
                       </div>
                     ))}
                     
                     {isletme.ogrenciler.length === 0 && (
-                      <div className="text-center py-8">
+                      <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
                         <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
                           <User className="h-8 w-8 text-gray-400" />
                         </div>
@@ -1027,6 +1184,13 @@ const TeacherPanel = () => {
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row gap-4 items-center justify-between mb-6">
                 <h2 className="text-2xl font-semibold text-gray-900">Dekontlar</h2>
+                <button
+                  onClick={() => setOgrenciSecimModalOpen(true)}
+                  className="flex items-center px-4 py-2 text-sm text-white bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-colors shadow-sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Yeni Dekont Ekle
+                </button>
               </div>
 
               {dekontlar.length === 0 ? (
@@ -1160,6 +1324,13 @@ const TeacherPanel = () => {
                 <h2 className="text-lg font-medium text-gray-900">
                   Tüm İşletme Belgeleri ({filteredBelgeler.length})
                 </h2>
+                <button
+                  onClick={() => setIsletmeSecimModalOpen(true)}
+                  className="flex items-center px-4 py-2 text-sm text-white bg-gradient-to-r from-indigo-600 to-blue-600 rounded-lg hover:from-indigo-700 hover:to-blue-700 transition-colors shadow-sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Yeni Belge Ekle
+                </button>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -1192,17 +1363,18 @@ const TeacherPanel = () => {
               {filteredBelgeler.length > 0 ? (
                 <div className="space-y-6">
                   {filteredBelgeler.map((belge) => (
-                    <div key={belge.id} className="pt-6 first:pt-0">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center">
-                          <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center">
+                    <div key={belge.id} className="pt-6 first:pt-0 bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
+                      <div className="flex flex-col">
+                        {/* Üst kısım: İkon ve bilgiler */}
+                        <div className="flex items-start">
+                          <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
                             <FileText className="h-6 w-6 text-indigo-600" />
                           </div>
-                          <div className="ml-4">
-                            <h3 className="text-lg font-medium text-gray-900">
+                          <div className="ml-4 flex-1 min-w-0">
+                            <h3 className="text-lg font-medium text-gray-900 truncate" title={belge.dosya_adi}>
                               {belge.dosya_adi}
                             </h3>
-                            <div className="flex items-center space-x-3 mt-2 text-sm">
+                            <div className="flex flex-wrap gap-2 mt-2 text-sm">
                               <div className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg font-medium">
                                 {belge.isletme_ad}
                               </div>
@@ -1215,16 +1387,21 @@ const TeacherPanel = () => {
                                 </div>
                               )}
                             </div>
+                            <p className="text-sm text-gray-500 mt-2">
+                              Yüklenme Tarihi: {new Date(belge.yukleme_tarihi).toLocaleDateString('tr-TR')}
+                            </p>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
+                        
+                        {/* Alt kısım: Butonlar */}
+                        <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-3 border-t border-gray-100">
                           {belge.dosya_url && (
                             <button
                               onClick={() => handleFileView(belge.dosya_url, 'belgeler')}
-                              className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                              className="flex items-center justify-center px-4 py-2 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
                             >
-                              <Download className="h-4 w-4 mr-1.5" />
-                              İndir
+                              <Download className="h-4 w-4 mr-2" />
+                              Dosyayı İndir
                             </button>
                           )}
                           <button
@@ -1232,17 +1409,12 @@ const TeacherPanel = () => {
                               setSelectedBelge(belge);
                               setBelgeSilModalOpen(true);
                             }}
-                            className="flex items-center px-3 py-1.5 text-sm text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                            className="flex items-center justify-center px-4 py-2 text-sm text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
                           >
-                            <Trash2 className="h-4 w-4 mr-1.5" />
-                            Sil
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Belgeyi Sil
                           </button>
                         </div>
-                      </div>
-                      <div className="mt-4">
-                        <p className="text-sm text-gray-500">
-                          Yüklenme Tarihi: {new Date(belge.yukleme_tarihi).toLocaleDateString('tr-TR')}
-                        </p>
                       </div>
                     </div>
                   ))}
@@ -1307,9 +1479,9 @@ const TeacherPanel = () => {
           <div className="flex items-center justify-center">
             <div className="flex items-center space-x-2">
               <div className="font-bold bg-white text-indigo-900 w-6 h-6 flex items-center justify-center rounded-md">
-                H
+                {schoolName.charAt(0)}
               </div>
-              <span className="text-sm">&copy; {new Date().getFullYear()} Hüsniye Özdilek MTAL</span>
+              <span className="text-sm">&copy; {new Date().getFullYear()} {schoolName}</span>
             </div>
           </div>
         </div>
@@ -1467,6 +1639,253 @@ const TeacherPanel = () => {
           </div>
         )}
       </Modal>
+
+      {/* Öğrenci Seçim Modalı */}
+      <Modal isOpen={ogrenciSecimModalOpen} onClose={() => setOgrenciSecimModalOpen(false)} title="Dekont Ekle - Öğrenci Seçin">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 mb-4">
+            Dekont yüklemek istediğiniz öğrenciyi seçin:
+          </p>
+          
+          {isletmeler.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                <User className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className="mt-4 text-sm font-medium text-gray-900">Öğrenci Bulunamadı</h3>
+              <p className="mt-2 text-xs text-gray-500">Henüz size atanmış öğrenci bulunmamaktadır.</p>
+            </div>
+          ) : (
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {isletmeler.map((isletme) => (
+                <div key={isletme.id} className="border rounded-lg p-4">
+                  <h3 className="font-medium text-gray-900 mb-3 flex items-center">
+                    <Building2 className="h-4 w-4 mr-2 text-indigo-600" />
+                    {isletme.ad}
+                  </h3>
+                  
+                  {isletme.ogrenciler.length === 0 ? (
+                    <p className="text-sm text-gray-500 ml-6">Bu işletmede öğrenci bulunmuyor</p>
+                  ) : (
+                    <div className="space-y-2 ml-6">
+                      {isletme.ogrenciler.map((ogrenci) => (
+                        <button
+                          key={ogrenci.id}
+                          onClick={() => {
+                            handleOpenDekontUpload(ogrenci, isletme);
+                            setOgrenciSecimModalOpen(false);
+                          }}
+                          className="w-full text-left p-3 rounded-lg border hover:bg-indigo-50 hover:border-indigo-200 transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-gray-900">
+                                {ogrenci.ad} {ogrenci.soyad}
+                              </p>
+                              <div className="flex items-center space-x-2 mt-1 text-xs text-gray-500">
+                                <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">
+                                  {ogrenci.sinif}
+                                </span>
+                                <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                                  No: {ogrenci.no}
+                                </span>
+                              </div>
+                            </div>
+                            <Upload className="h-4 w-4 text-indigo-600" />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div className="flex justify-end pt-4">
+            <button
+              onClick={() => setOgrenciSecimModalOpen(false)}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              İptal
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* İşletme Seçim Modalı (Belge Eklemek İçin) */}
+      <Modal isOpen={isletmeSecimModalOpen} onClose={() => setIsletmeSecimModalOpen(false)} title="Belge Ekle - İşletme Seçin">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 mb-4">
+            Belge yüklemek istediğiniz işletmeyi seçin:
+          </p>
+          
+          {isletmeler.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                <Building2 className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className="mt-4 text-sm font-medium text-gray-900">İşletme Bulunamadı</h3>
+              <p className="mt-2 text-xs text-gray-500">Henüz size atanmış işletme bulunmamaktadır.</p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {isletmeler.map((isletme) => (
+                <button
+                  key={isletme.id}
+                  onClick={() => {
+                    handleBelgeYukle(isletme);
+                    setIsletmeSecimModalOpen(false);
+                  }}
+                  className="w-full text-left p-4 rounded-lg border hover:bg-indigo-50 hover:border-indigo-200 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-gray-900 flex items-center">
+                        <Building2 className="h-4 w-4 mr-2 text-indigo-600" />
+                        {isletme.ad}
+                      </h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Yetkili: {isletme.yukleyen_kisi}
+                      </p>
+                      <div className="flex items-center mt-2 text-xs text-gray-500">
+                        <GraduationCap className="h-3 w-3 mr-1" />
+                        <span>{isletme.ogrenciler.length} öğrenci</span>
+                      </div>
+                    </div>
+                    <FileText className="h-5 w-5 text-indigo-600" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          
+          <div className="flex justify-end pt-4">
+            <button
+              onClick={() => setIsletmeSecimModalOpen(false)}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              İptal
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Bildirim Modalı */}
+      <Modal
+        isOpen={notificationModalOpen}
+        onClose={() => setNotificationModalOpen(false)}
+        title="Bildirimler"
+      >
+        <div className="space-y-4">
+          {notifications.length === 0 ? (
+            <div className="text-center py-8">
+              <Bell className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-4 text-lg font-medium text-gray-900">Bildirim Yok</h3>
+              <p className="mt-2 text-sm text-gray-500">Henüz hiç bildirim almadınız.</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">
+                  {notifications.length} bildirim ({unreadCount} okunmamış)
+                </span>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllAsRead}
+                    className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                  >
+                    Tümünü Okundu İşaretle
+                  </button>
+                )}
+              </div>
+              
+              <div className="max-h-96 overflow-y-auto space-y-3">
+                {notifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className={`p-4 rounded-lg border transition-all cursor-pointer ${
+                      notification.is_read
+                        ? 'bg-gray-50 border-gray-200'
+                        : 'bg-blue-50 border-blue-200 shadow-sm'
+                    }`}
+                    onClick={() => !notification.is_read && markAsRead(notification.id)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className={`font-medium ${
+                            notification.is_read ? 'text-gray-900' : 'text-blue-900'
+                          }`}>
+                            {notification.title}
+                          </h4>
+                          
+                          {/* Öncelik Badge'i */}
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                            notification.priority === 'high'
+                              ? 'bg-red-100 text-red-700'
+                              : notification.priority === 'normal'
+                              ? 'bg-yellow-100 text-yellow-700'
+                              : 'bg-green-100 text-green-700'
+                          }`}>
+                            {notification.priority === 'high' ? 'Yüksek' :
+                             notification.priority === 'normal' ? 'Normal' : 'Düşük'}
+                          </span>
+                          
+                          {!notification.is_read && (
+                            <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                          )}
+                        </div>
+                        
+                        <p className={`mt-2 text-sm ${
+                          notification.is_read ? 'text-gray-600' : 'text-blue-800'
+                        }`}>
+                          {notification.content}
+                        </p>
+                        
+                        <div className="flex items-center justify-between mt-3">
+                          <span className="text-xs text-gray-500">
+                            Gönderen: {notification.sent_by}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(notification.created_at).toLocaleString('tr-TR', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        
+                        {notification.is_read && notification.read_at && (
+                          <div className="text-xs text-gray-400 mt-1">
+                            Okunma: {new Date(notification.read_at).toLocaleString('tr-TR', {
+                              day: '2-digit',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          
+          <div className="flex justify-end pt-4">
+            <button
+              onClick={() => setNotificationModalOpen(false)}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Kapat
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -1607,7 +2026,9 @@ const BelgeUploadModal = ({
                     <div className="flex items-center space-x-3">
                       <FileText className="h-6 w-6 text-gray-400" />
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{belge.dosya_adi}</p>
+                        <p className="text-sm font-medium text-gray-900" title={belge.dosya_adi}>
+                          {truncateFileName(belge.dosya_adi, 30)}
+                        </p>
                         <p className="text-xs text-gray-500">{new Date(belge.created_at).toLocaleDateString('tr-TR')}</p>
                       </div>
                     </div>

@@ -1,7 +1,7 @@
 import { ArrowLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { cookies } from 'next/headers'
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createServerClient } from '@supabase/ssr'
 import OgrenciTablosu from '@/components/ui/OgrenciTablosu'
 
 type PageParams = { id: string; sinifId: string }
@@ -14,7 +14,20 @@ export default async function SinifDetayPage({
   const { id: alanId, sinifId } = await params
 
   const cookieStore = await cookies()
-  const supabase = createServerComponentClient({ cookies: () => cookieStore } as any)
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+        },
+      },
+    }
+  )
 
   try {
     const { data: sinif, error: sinifError } = await supabase

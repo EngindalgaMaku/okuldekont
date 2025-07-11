@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, Users, FileText, LogOut, User, Upload, Plus, Download, Eye, Search, Filter, Receipt, Loader, GraduationCap, Calendar, CheckCircle, Clock, XCircle, Trash2 } from 'lucide-react'
+import { Building2, Users, FileText, LogOut, User, Upload, Plus, Download, Eye, Search, Filter, Receipt, Loader, GraduationCap, Calendar, CheckCircle, Clock, XCircle, Trash2, Bell } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useEgitimYili } from '@/lib/context/EgitimYiliContext'
 import Modal from '@/components/ui/Modal'
@@ -38,7 +38,7 @@ interface Dekont {
   onay_durumu: 'bekliyor' | 'onaylandi' | 'reddedildi'
   aciklama?: string
   dosya_url?: string
-  ay: string
+  ay: number
   yil: number | string
   staj_id: string | number
   yukleyen_kisi?: string
@@ -66,6 +66,17 @@ interface Belge {
   yukleyen_kisi?: string
 }
 
+interface Notification {
+  id: string;
+  title: string;
+  content: string;
+  priority: 'low' | 'normal' | 'high';
+  sent_by: string;
+  is_read: boolean;
+  read_at?: string;
+  created_at: string;
+}
+
 type ActiveTab = 'ogrenciler' | 'dekontlar' | 'belgeler'
 
 export default function PanelPage() {
@@ -73,6 +84,7 @@ export default function PanelPage() {
   const { egitimYili, okulAdi } = useEgitimYili()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isletme, setIsletme] = useState<Isletme | null>(null)
+  const [schoolName, setSchoolName] = useState<string>('Hüsniye Özdilek MTAL')
   const [activeTab, setActiveTab] = useState<ActiveTab>('ogrenciler')
   const [ogrenciler, setOgrenciler] = useState<Ogrenci[]>([])
   const [dekontlar, setDekontlar] = useState<Dekont[]>([])
@@ -109,6 +121,11 @@ export default function PanelPage() {
   // Başarılı dekont yükleme modalı için
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [errorModal, setErrorModal] = useState({ isOpen: false, title: '', message: '' });
+  
+  // Bildirim states
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationModalOpen, setNotificationModalOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Dekont takip sistemi için yardımcı fonksiyonlar
   const getCurrentMonth = () => new Date().getMonth() + 1;
@@ -126,7 +143,7 @@ export default function PanelPage() {
     return ogrenciler.filter(ogrenci => {
       const ogrenciDekontlari = dekontlar.filter(d =>
         String(d.staj_id) === String(ogrenci.staj_id) &&
-        d.ay === currentMonthName &&
+        d.ay === currentMonth &&
         String(d.yil) === String(currentYear)
       );
       return ogrenciDekontlari.length === 0;
@@ -213,6 +230,27 @@ export default function PanelPage() {
     }
   };
 
+  const fetchSchoolName = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'school_name')
+        .single()
+      
+      if (error) {
+        console.error('Okul adı getirme hatası:', error)
+        return
+      }
+      
+      if (data?.value) {
+        setSchoolName(data.value)
+      }
+    } catch (error) {
+      console.error('Okul adı getirme hatası:', error)
+    }
+  }
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true)
@@ -252,6 +290,9 @@ export default function PanelPage() {
 
       console.log('İşletme verisi:', isletmeData)
       setIsletme(isletmeData)
+      
+      // İşletme bildirimleri getir
+      fetchNotifications(isletmeData.id)
 
       // İşletmenin öğrencilerini getir
       const { data: ogrenciData, error: ogrenciError } = await supabase
@@ -354,7 +395,7 @@ export default function PanelPage() {
             onay_durumu: dekont.onay_durumu || 'bekliyor',
             aciklama: dekont.aciklama || '',
             dosya_url: dekont.dekont_dosyasi || dekont.dosya_url || dekont.file_url || null,
-            ay: dekont.ay?.toString() || '',
+            ay: dekont.ay,
             yil: dekont.yil?.toString() || '',
             gonderen: dekont.gonderen || 'isletme',
             yukleyen_kisi: yukleyenKisi,
@@ -395,7 +436,7 @@ export default function PanelPage() {
           const formattedBelgeler = belgeData.map((belge: any) => ({
             ...belge,
             yukleme_tarihi: belge.created_at || belge.yukleme_tarihi,
-            yukleyen_kisi: belge.isletme_yukleyen ? 'İşletme' : 'Yönetici'
+            yukleyen_kisi: 'İşletme'
           }));
           setBelgeler(formattedBelgeler)
           setFilteredBelgeler(formattedBelgeler)
@@ -416,8 +457,103 @@ export default function PanelPage() {
     }
   }, [router, egitimYili])
 
+  // Bildirimleri getir
+  const fetchNotifications = async (isletmeId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('recipient_id', isletmeId)
+        .eq('recipient_type', 'isletme')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Bildirimler getirilirken hata:', error);
+        return;
+      }
+
+      setNotifications(data || []);
+      const unreadNotifications = data?.filter(n => !n.is_read) || [];
+      setUnreadCount(unreadNotifications.length);
+    } catch (error) {
+      console.error('Bildirimler getirme hatası:', error);
+    }
+  };
+
+  // Bildirimi okundu olarak işaretle
+  const markAsRead = async (notificationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({
+          is_read: true,
+          read_at: new Date().toISOString()
+        })
+        .eq('id', notificationId);
+
+      if (error) {
+        console.error('Bildirim okundu olarak işaretlenirken hata:', error);
+        return;
+      }
+
+      // State'i güncelle
+      setNotifications(prev =>
+        prev.map(n =>
+          n.id === notificationId
+            ? { ...n, is_read: true, read_at: new Date().toISOString() }
+            : n
+        )
+      );
+      
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Bildirim güncelleme hatası:', error);
+    }
+  };
+
+  // Tüm bildirimleri okundu olarak işaretle
+  const markAllAsRead = async () => {
+    if (!isletme) return;
+
+    try {
+      const unreadIds = notifications
+        .filter(n => !n.is_read)
+        .map(n => n.id);
+
+      if (unreadIds.length === 0) return;
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({
+          is_read: true,
+          read_at: new Date().toISOString()
+        })
+        .in('id', unreadIds);
+
+      if (error) {
+        console.error('Tüm bildirimler okundu olarak işaretlenirken hata:', error);
+        return;
+      }
+
+      // State'i güncelle
+      const now = new Date().toISOString();
+      setNotifications(prev =>
+        prev.map(n =>
+          !n.is_read
+            ? { ...n, is_read: true, read_at: now }
+            : n
+        )
+      );
+      
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Tüm bildirimler güncelleme hatası:', error);
+    }
+  };
+
   useEffect(() => {
     fetchData()
+    fetchSchoolName()
   }, [fetchData])
 
   // Belge filtreleme
@@ -482,7 +618,8 @@ export default function PanelPage() {
       const otomatikBelgeAdi = `${isletmeAdi}_${belgeTuruAdi}_${belgeNo}`;
 
       const file = belgeFormData.dosya;
-      const fileName = `${Date.now()}-${file.name.replace(/\s/g, '_')}`;
+      const cleanFileName = file.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_').replace(/__+/g, '_');
+      const fileName = `${Date.now()}-${cleanFileName}`;
       const filePath = `${isletme.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -508,8 +645,7 @@ export default function PanelPage() {
           isletme_id: isletme.id,
           ad: otomatikBelgeAdi,
           tur: belgeTuru,
-          dosya_url: dosyaUrl,
-          isletme_yukleyen: true
+          dosya_url: dosyaUrl
         })
         .select()
 
@@ -611,7 +747,7 @@ export default function PanelPage() {
       // Aynı öğrenci ve ay için daha önce dekont var mı kontrolü
       const mevcutDekontlar = dekontlar.filter(d => {
         // d.staj_id hem string hem number olabilir, hepsini stringe çevir
-        return String(d.staj_id) === String(selectedOgrenci?.staj_id) && d.ay === ayAdi && String(d.yil) === String(dekontFormData.yil);
+        return String(d.staj_id) === String(selectedOgrenci?.staj_id) && d.ay === dekontFormData.ay && String(d.yil) === String(dekontFormData.yil);
       });
 
       // Onaylanmış dekont kontrolü
@@ -718,12 +854,13 @@ export default function PanelPage() {
             ogrenci_id: selectedOgrenci!.id,
             isletme_id: isletme!.id,
             odeme_tarihi: new Date().toISOString().split('T')[0],
-            ay: ayAdi,
+            ay: dekontFormData.ay,
             yil: dekontFormData.yil,
             aciklama: dekontFormData.aciklama || null,
             miktar: dekontFormData.miktar ? parseFloat(dekontFormData.miktar) : null,
             dosya_url: dosyaUrl,
-            onay_durumu: 'bekliyor'
+            onay_durumu: 'bekliyor',
+            odeme_son_tarihi: new Date(new Date().setDate(new Date().getDate() + 10)).toISOString().split('T')[0]
           })
           .select()
           .single()
@@ -757,7 +894,7 @@ export default function PanelPage() {
               onay_durumu: dekontData.onay_durumu || 'bekliyor',
               aciklama: dekontData.aciklama || '',
               dosya_url: dekontData.dekont_dosyasi || dekontData.dosya_url || dekontData.file_url || null,
-              ay: dekontData.ay?.toString() || '',
+              ay: dekontData.ay,
               yil: dekontData.yil?.toString() || '',
               gonderen: dekontData.gonderen || 'isletme',
               odeme_tarihi: dekontData.odeme_tarihi || null,
@@ -866,7 +1003,7 @@ export default function PanelPage() {
           onay_durumu: dekont.onay_durumu || 'bekliyor',
           aciklama: dekont.aciklama || '',
           dosya_url: dekont.dekont_dosyasi || dekont.dosya_url || dekont.file_url || null,
-          ay: dekont.ay?.toString() || '',
+          ay: dekont.ay,
           yil: dekont.yil?.toString() || '',
           gonderen: dekont.gonderen || 'isletme',
           odeme_tarihi: dekont.odeme_tarihi || null,
@@ -980,14 +1117,32 @@ export default function PanelPage() {
                 <p className="text-indigo-200 text-sm">İşletme Paneli</p>
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
-              title="Çıkış Yap"
-            >
-              <LogOut className="h-5 w-5 text-white" />
-              <span className="sr-only">Çıkış Yap</span>
-            </button>
+            
+            <div className="flex items-center gap-3">
+              {/* Bildirim Butonu */}
+              <button
+                onClick={() => setNotificationModalOpen(true)}
+                className="relative flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
+                title="Bildirimler"
+              >
+                <Bell className="h-5 w-5 text-white" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+                <span className="sr-only">Bildirimler</span>
+              </button>
+              
+              <button
+                onClick={handleLogout}
+                className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
+                title="Çıkış Yap"
+              >
+                <LogOut className="h-5 w-5 text-white" />
+                <span className="sr-only">Çıkış Yap</span>
+              </button>
+            </div>
           </div>
 
           {/* Tabs */}
@@ -1272,8 +1427,8 @@ export default function PanelPage() {
                                     const sorted = [...sameDekonts].sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
                                     const ekIndex = sorted.findIndex(d => d.id == dekont.id);
                                     
-                                    // Ay adını görüntüle - dekont.ay zaten ay adı olarak geliyor
-                                    const ayAdi = dekont.ay;
+                                    // Ay adını görüntüle - dekont.ay artık sayı olarak geliyor
+                                    const ayAdi = aylar[dekont.ay - 1] || dekont.ay;
                                     return ayAdi + (ekIndex > 0 ? ` (ek-${ekIndex+1})` : '') + ' ' + dekont.yil;
                                   })()}
                                 </span>
@@ -1775,7 +1930,7 @@ export default function PanelPage() {
                           </h5>
                           {dekont.ay && (
                             <p className="text-xs text-blue-600 font-medium mt-1">
-                              {dekont.ay} Ayı
+                              {aylar[dekont.ay - 1]} Ayı
                             </p>
                           )}
                         </div>
@@ -2031,14 +2186,130 @@ export default function PanelPage() {
         </div>
       </Modal>
 
+      {/* Bildirim Modalı */}
+      <Modal
+        isOpen={notificationModalOpen}
+        onClose={() => setNotificationModalOpen(false)}
+        title="Bildirimler"
+      >
+        <div className="space-y-4">
+          {notifications.length === 0 ? (
+            <div className="text-center py-8">
+              <Bell className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-4 text-lg font-medium text-gray-900">Bildirim Yok</h3>
+              <p className="mt-2 text-sm text-gray-500">Henüz hiç bildirim almadınız.</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">
+                  {notifications.length} bildirim ({unreadCount} okunmamış)
+                </span>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllAsRead}
+                    className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                  >
+                    Tümünü Okundu İşaretle
+                  </button>
+                )}
+              </div>
+              
+              <div className="max-h-96 overflow-y-auto space-y-3">
+                {notifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className={`p-4 rounded-lg border transition-all cursor-pointer ${
+                      notification.is_read
+                        ? 'bg-gray-50 border-gray-200'
+                        : 'bg-blue-50 border-blue-200 shadow-sm'
+                    }`}
+                    onClick={() => !notification.is_read && markAsRead(notification.id)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className={`font-medium ${
+                            notification.is_read ? 'text-gray-900' : 'text-blue-900'
+                          }`}>
+                            {notification.title}
+                          </h4>
+                          
+                          {/* Öncelik Badge'i */}
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                            notification.priority === 'high'
+                              ? 'bg-red-100 text-red-700'
+                              : notification.priority === 'normal'
+                              ? 'bg-yellow-100 text-yellow-700'
+                              : 'bg-green-100 text-green-700'
+                          }`}>
+                            {notification.priority === 'high' ? 'Yüksek' :
+                             notification.priority === 'normal' ? 'Normal' : 'Düşük'}
+                          </span>
+                          
+                          {!notification.is_read && (
+                            <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                          )}
+                        </div>
+                        
+                        <p className={`mt-2 text-sm ${
+                          notification.is_read ? 'text-gray-600' : 'text-blue-800'
+                        }`}>
+                          {notification.content}
+                        </p>
+                        
+                        <div className="flex items-center justify-between mt-3">
+                          <span className="text-xs text-gray-500">
+                            Gönderen: {notification.sent_by}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(notification.created_at).toLocaleString('tr-TR', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        
+                        {notification.is_read && notification.read_at && (
+                          <div className="text-xs text-gray-400 mt-1">
+                            Okunma: {new Date(notification.read_at).toLocaleString('tr-TR', {
+                              day: '2-digit',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          
+          <div className="flex justify-end pt-4">
+            <button
+              onClick={() => setNotificationModalOpen(false)}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Kapat
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       <footer className="w-full bg-gradient-to-br from-indigo-900 to-indigo-800 text-white py-4 fixed bottom-0 left-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-center">
             <div className="flex items-center space-x-2">
               <div className="font-bold bg-white text-indigo-900 w-6 h-6 flex items-center justify-center rounded-md">
-                N
+                {schoolName.charAt(0)}
               </div>
-              <span className="text-sm">&copy; {new Date().getFullYear()} {okulAdi}</span>
+              <span className="text-sm">&copy; {new Date().getFullYear()} {schoolName}</span>
             </div>
           </div>
         </div>

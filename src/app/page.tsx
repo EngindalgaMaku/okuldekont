@@ -78,13 +78,15 @@ export default function LoginPage() {
       if (loginType === 'isletme') {
         const { data, error } = await supabase
           .from('isletmeler')
-          .select('id, ad, yetkili_kisi')
+          .select('id, ad, yetkili_kisi, stajlar!inner(id)')
+          .eq('stajlar.durum', 'aktif')
           .ilike('ad', `%${term}%`)
           .limit(10)
           .order('ad')
 
         if (data && !error) {
-          setSearchResults(data)
+          const uniqueIsletmeler = Array.from(new Map(data.map(item => [item.id, item])).values());
+          setSearchResults(uniqueIsletmeler);
         }
       } else {
         const { data, error } = await supabase

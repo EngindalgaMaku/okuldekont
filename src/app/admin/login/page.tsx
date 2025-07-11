@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Shield, Mail, Lock, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { Crown, Mail, Lock, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function AdminLoginPage() {
@@ -59,7 +59,7 @@ export default function AdminLoginPage() {
         <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
           <div className="text-center">
             <div className="mx-auto w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
-              <Shield className="h-8 w-8 text-white animate-pulse" />
+              <Crown className="h-8 w-8 text-white animate-pulse" />
             </div>
             <div className="space-y-2">
               <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
@@ -75,11 +75,11 @@ export default function AdminLoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
         <div className="text-center">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
-            <Shield className="h-8 w-8 text-white" />
+          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+            <Crown className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Admin Paneli
+            K-Panel
           </h1>
           <p className="text-gray-600 mt-1">Güvenli yönetici girişi</p>
         </div>

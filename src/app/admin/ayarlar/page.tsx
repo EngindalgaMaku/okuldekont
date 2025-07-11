@@ -428,29 +428,27 @@ export default function AyarlarPage() {
             </div>
           </div>
 
-          {/* Quick Actions */}
+          {/* License Information */}
           <div className="space-y-6">
             <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-6">
               <div className="flex items-center mb-4">
                 <Shield className="h-6 w-6 text-indigo-600 mr-3" />
-                <h2 className="text-lg font-semibold text-gray-900">Hızlı İşlemler</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Lisans</h2>
               </div>
               
-              <div className="space-y-3">
-                <button
-                  onClick={() => router.push('/admin/kullanicilar')}
-                  className="w-full text-left px-4 py-3 text-sm text-gray-700 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all duration-200"
-                >
-                  <Users className="h-4 w-4 inline mr-2" />
-                  Kullanıcı Yönetimi
-                </button>
-                <button
-                  onClick={() => router.push('/admin/dekontlar')}
-                  className="w-full text-left px-4 py-3 text-sm text-gray-700 bg-gray-50 rounded-xl hover:bg-gray-100 transition-all duration-200"
-                >
-                  <Database className="h-4 w-4 inline mr-2" />
-                  Dekont Yönetimi
-                </button>
+              <div className="space-y-4">
+                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-100">
+                  <h3 className="text-sm font-medium text-gray-900 mb-3">Geliştirme Bilgileri</h3>
+                  <p className="text-sm text-gray-700 leading-relaxed mb-3">
+                    Hüsniye Özdilek Ticaret MTAL için okulun bilişim teknolojileri alan öğretmenleri tarafından yapılmıştır.
+                  </p>
+                  <div className="flex items-center">
+                    <Mail className="h-4 w-4 text-indigo-600 mr-2" />
+                    <span className="text-sm text-indigo-600 font-medium">
+                      İletişim: mackaengin@gmail.com
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 

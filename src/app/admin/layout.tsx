@@ -3,7 +3,7 @@
 import { useEffect, useState, Fragment, ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Dialog, Transition } from '@headlessui/react'
+import { Dialog, Transition, Menu as MenuDropdown } from '@headlessui/react'
 import {
   Home,
   Menu,
@@ -24,7 +24,11 @@ import {
  Check,
  ExternalLink,
  Building2,
- UserCheck
+ UserCheck,
+ Crown,
+ Sparkles,
+ User,
+ ChevronDown
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
@@ -90,6 +94,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true)
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [schoolName, setSchoolName] = useState('Hüsniye Özdilek MTAL')
+  const [adminUserName, setAdminUserName] = useState<string>('')
   
   // Tablet ve daha küçük ekranlar için media query
   const isTabletOrSmaller = useMediaQuery('(max-width: 1279px)')
@@ -104,10 +109,66 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }, [isTabletOrSmaller])
 
   // Okul ismini ayarlardan çek
-  // Okul ismini geçici olarak sabit bir değerle ayarla
+  const fetchSchoolName = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'school_name')
+        .single()
+      
+      if (error) {
+        console.error('Okul adı getirme hatası:', error)
+        return
+      }
+      
+      if (data?.value) {
+        setSchoolName(data.value)
+      }
+    } catch (error) {
+      console.error('Okul adı getirme hatası:', error)
+    }
+  }
+
+  // Admin kullanıcı adını getir
+  const fetchAdminUserName = async () => {
+    if (!user?.id) return
+    
+    try {
+      console.log('🔍 Fetching admin user name for ID:', user.id)
+      const { data, error } = await supabase
+        .from('admin_kullanicilar')
+        .select('ad, soyad, email')
+        .eq('id', user.id)
+        .eq('aktif', true)
+        .single()
+      
+      if (error) {
+        console.error('Admin kullanıcı adı getirme hatası:', error)
+        return
+      }
+      
+      console.log('📊 Admin user data:', data)
+      
+      if (data?.ad && data?.soyad) {
+        const fullName = `${data.ad} ${data.soyad}`
+        console.log('✅ Setting admin user name:', fullName)
+        setAdminUserName(fullName)
+      }
+    } catch (error) {
+      console.error('Admin kullanıcı adı getirme hatası:', error)
+    }
+  }
+
   useEffect(() => {
-    setSchoolName('Hüsniye Özdilek MTAL');
-  }, []);
+    fetchSchoolName()
+  }, [])
+
+  useEffect(() => {
+    if (user?.id && isAdmin) {
+      fetchAdminUserName()
+    }
+  }, [user?.id, isAdmin])
 
   // Auth check and redirect logic
   useEffect(() => {
@@ -159,7 +220,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="mx-auto w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
-            <Shield className="h-8 w-8 text-white animate-pulse" />
+            <Crown className="h-8 w-8 text-white animate-pulse" />
           </div>
           <div className="space-y-2">
             <div className="h-6 bg-gray-200 rounded animate-pulse w-48 mx-auto"></div>
@@ -192,7 +253,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50 pb-16">
+    <div className={classNames(
+      'flex min-h-screen bg-gray-50',
+      desktopSidebarOpen ? 'pb-16' : 'pb-0'
+    )}>
       {/* Mobile Sidebar */}
       <Transition.Root show={sidebarOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50 lg:hidden" onClose={setSidebarOpen}>
@@ -239,11 +303,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 {/* Sidebar component for mobile */}
                 <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
                   <div className="flex items-center gap-3 px-4 py-6 border-b border-gray-200">
-                    <div className="p-2 bg-indigo-100 rounded-xl">
-                      <Shield className="w-8 h-8 text-indigo-600" />
+                    <div className="p-2 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-xl shadow-sm">
+                      <Crown className="w-8 h-8 text-indigo-600" />
                     </div>
                     <div>
-                      <h1 className="text-xl font-bold text-gray-900">Admin Paneli</h1>
+                      <h1 className="text-xl font-bold text-gray-900">K-Panel</h1>
                       <p className="text-sm text-gray-500">Koordinatörlük Yönetimi</p>
                     </div>
                   </div>
@@ -287,12 +351,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             desktopSidebarOpen ? 'justify-start px-6' : 'justify-center px-2',
             'flex h-16 items-center gap-3 border-b border-gray-200 transition-all duration-300'
           )}>
-            <div className="p-2 bg-indigo-100 rounded-xl">
-              <Shield className="w-8 h-8 text-indigo-600" />
+            <div className="p-2 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-xl shadow-sm">
+              <Crown className="w-8 h-8 text-indigo-600" />
             </div>
             {desktopSidebarOpen && (
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Admin Paneli</h1>
+                <h1 className="text-xl font-bold text-gray-900">K-Panel</h1>
                 <p className="text-sm text-gray-500">Koordinatörlük Yönetimi</p>
               </div>
             )}
@@ -378,54 +442,102 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 </Link>
               </div>
 
-              {/* Divider */}
-              <div className="hidden sm:block w-px h-6 bg-gray-300"></div>
-              
-              {/* Settings Link */}
-              <Link
-                href="/admin/ayarlar"
-                className="-m-2.5 p-2.5 text-gray-400 hover:text-gray-500 transition-colors"
-                title="Sistem Ayarları"
-              >
-                <span className="sr-only">Ayarlar</span>
-                <Settings className="h-6 w-6" aria-hidden="true" />
-              </Link>
-              
-              {/* User info */}
+              {/* User dropdown */}
               {user && (
-                <div className="hidden sm:flex sm:items-center sm:gap-x-2">
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">
-                      {user.user_metadata?.full_name || user.email?.split('@')[0]}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {adminRole === 'super_admin' ? 'Süper Admin' :
-                       adminRole === 'admin' ? 'Admin' :
-                       adminRole === 'operator' ? 'Operatör' : 'Admin'}
-                    </p>
-                  </div>
-                  <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium text-indigo-600">
-                      {(user.user_metadata?.full_name || user.email || 'A').charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                </div>
+                <MenuDropdown as="div" className="relative hidden sm:block">
+                  <MenuDropdown.Button className="flex items-center gap-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div className="text-right">
+                      <p className="text-sm font-medium text-gray-900">
+                        {adminUserName ||
+                         user.user_metadata?.full_name ||
+                         user.user_metadata?.name ||
+                         user.email?.split('@')[0] ||
+                         'Admin Kullanıcı'}
+                      </p>
+                      <p className="text-xs font-medium bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                        {adminRole === 'super_admin' ? 'K. Mud. Yard.' :
+                         adminRole === 'admin' ? 'K. Mud. Yard.' :
+                         adminRole === 'operator' ? 'Operatör' : 'K. Mud. Yard.'}
+                      </p>
+                    </div>
+                    <div className="w-8 h-8 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center shadow-sm">
+                      <span className="text-sm font-medium text-indigo-600">
+                        {(adminUserName ||
+                          user.user_metadata?.full_name ||
+                          user.user_metadata?.name ||
+                          user.email ||
+                          'A').charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-gray-400" />
+                  </MenuDropdown.Button>
+
+                  <Transition
+                    as={Fragment}
+                    enter="transition ease-out duration-100"
+                    enterFrom="transform opacity-0 scale-95"
+                    enterTo="transform opacity-100 scale-100"
+                    leave="transition ease-in duration-75"
+                    leaveFrom="transform opacity-100 scale-100"
+                    leaveTo="transform opacity-0 scale-95"
+                  >
+                    <MenuDropdown.Items className="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-xl bg-white py-2 shadow-xl ring-1 ring-gray-200 focus:outline-none">
+                      <MenuDropdown.Item>
+                        {({ active }) => (
+                          <Link
+                            href="/admin/profil"
+                            className={classNames(
+                              active ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700',
+                              'flex items-center px-4 py-3 text-sm font-medium transition-colors'
+                            )}
+                          >
+                            <User className="mr-3 h-5 w-5" />
+                            Profil Ayarları
+                          </Link>
+                        )}
+                      </MenuDropdown.Item>
+                      
+                      <MenuDropdown.Item>
+                        {({ active }) => (
+                          <Link
+                            href="/admin/ayarlar"
+                            className={classNames(
+                              active ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700',
+                              'flex items-center px-4 py-3 text-sm font-medium transition-colors'
+                            )}
+                          >
+                            <Settings className="mr-3 h-5 w-5" />
+                            Sistem Ayarları
+                          </Link>
+                        )}
+                      </MenuDropdown.Item>
+                      
+                      <div className="my-1 h-px bg-gray-200" />
+                      
+                      <MenuDropdown.Item>
+                        {({ active }) => (
+                          <button
+                            onClick={handleLogout}
+                            disabled={isSigningOut}
+                            className={classNames(
+                              active ? 'bg-red-50 text-red-700' : 'text-gray-700',
+                              'flex w-full items-center px-4 py-3 text-sm font-medium transition-colors disabled:opacity-50'
+                            )}
+                          >
+                            {isSigningOut ? (
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-400 mr-3"></div>
+                            ) : (
+                              <LogOut className="mr-3 h-5 w-5" />
+                            )}
+                            {isSigningOut ? 'Çıkış Yapılıyor...' : 'Güvenli Çıkış'}
+                          </button>
+                        )}
+                      </MenuDropdown.Item>
+                    </MenuDropdown.Items>
+                  </Transition>
+                </MenuDropdown>
               )}
               
-              <button
-                type="button"
-                onClick={handleLogout}
-                disabled={isSigningOut}
-                className="-m-2.5 p-2.5 text-gray-400 hover:text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                title="Güvenli Çıkış"
-              >
-                <span className="sr-only">Çıkış Yap</span>
-                {isSigningOut ? (
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400"></div>
-                ) : (
-                  <LogOut className="h-6 w-6" aria-hidden="true" />
-                )}
-              </button>
             </div>
           </div>
         </div>
@@ -437,19 +549,21 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      {/* Footer */}
-      <footer className="w-full bg-gradient-to-br from-indigo-900 to-indigo-800 text-white py-4 fixed bottom-0 left-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center">
-            <div className="flex items-center space-x-2">
-              <div className="font-bold bg-white text-indigo-900 w-6 h-6 flex items-center justify-center rounded-md">
-                A
+      {/* Footer - Sadece sidebar açıkken göster */}
+      {desktopSidebarOpen && (
+        <footer className="w-full bg-gradient-to-br from-indigo-900 to-indigo-800 text-white py-4 fixed bottom-0 left-0 z-30 transition-all duration-300">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-center">
+              <div className="flex items-center space-x-2">
+                <div className="font-bold bg-white text-indigo-900 w-6 h-6 flex items-center justify-center rounded-md">
+                  {schoolName.charAt(0)}
+                </div>
+                <span className="text-sm">&copy; {new Date().getFullYear()} {schoolName}</span>
               </div>
-              <span className="text-sm">&copy; {new Date().getFullYear()} {schoolName}</span>
             </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   )
 }

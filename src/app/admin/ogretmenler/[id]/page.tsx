@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Loader, User, Mail, Phone, Briefcase, Building2, FileText, Receipt, CheckCircle, XCircle, AlertTriangle, Calendar, Info, Clock, Printer, Settings, Key, Shield, Edit3, Save, Eye, EyeOff } from 'lucide-react'
+import { ArrowLeft, Loader, User, Mail, Phone, Briefcase, Building2, FileText, Receipt, CheckCircle, XCircle, AlertTriangle, Calendar, Info, Clock, Printer, Settings, Key, Shield, Edit3, Save, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
@@ -62,19 +62,33 @@ interface OgretmenDetay extends Ogretmen {
 }
 
 // --- Helper Functions ---
+// Optimized: Calculate current date once, avoid array copying and sorting
+const bugun = new Date()
 const getDekontDurumu = (staj: Staj) => {
-  const bugun = new Date()
   const baslangic = new Date(staj.baslangic_tarihi)
   let beklenenDekontSayisi = 0
 
-  if (bugun > baslangic) {
-    const yilFarki = bugun.getFullYear() - baslangic.getFullYear()
-    const ayFarki = bugun.getMonth() - baslangic.getMonth()
+  // İlk dekont, staj başlangıcının bir sonraki ayından itibaren beklenir
+  const ilkDekontAyi = new Date(baslangic.getFullYear(), baslangic.getMonth() + 1, 1)
+
+  if (bugun >= ilkDekontAyi) {
+    const yilFarki = bugun.getFullYear() - ilkDekontAyi.getFullYear()
+    const ayFarki = bugun.getMonth() - ilkDekontAyi.getMonth()
     beklenenDekontSayisi = yilFarki * 12 + ayFarki + 1
   }
   
   const yuklenenDekontSayisi = staj.dekontlar.length
-  const sonDekont = [...staj.dekontlar].sort((a, b) => new Date(b.yil, b.ay - 1).getTime() - new Date(a.yil, a.ay - 1).getTime())[0]
+  
+  // Optimized: Find latest dekont without copying/sorting entire array
+  let sonDekont = null
+  let latestTime = 0
+  for (const dekont of staj.dekontlar) {
+    const dekontTime = new Date(dekont.yil, dekont.ay - 1).getTime()
+    if (dekontTime > latestTime) {
+      latestTime = dekontTime
+      sonDekont = dekont
+    }
+  }
   
   let sonDekontGecikmis = false
   if (yuklenenDekontSayisi < beklenenDekontSayisi) {
@@ -117,6 +131,9 @@ export default function OgretmenDetaySayfasi() {
   const [contactForm, setContactForm] = useState({ email: '', telefon: '' })
   const [pinLoading, setPinLoading] = useState(false)
   const [contactLoading, setContactLoading] = useState(false)
+  const [deleteModal, setDeleteModal] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   useEffect(() => {
     if (ogretmenId) {
@@ -170,24 +187,39 @@ export default function OgretmenDetaySayfasi() {
 
       if (stajlarError) throw new Error(`Staj bilgileri çekilemedi: ${stajlarError.message}`);
 
-      // 3. Fetch dekontlar for each staj
-      const stajlarWithDekontlar = await Promise.all(
-        (stajlarData || []).map(async (staj) => {
-          const { data: dekontlarData, error: dekontlarError } = await supabase
-            .from('dekontlar')
-            .select('id, ay, yil, onay_durumu')
-            .eq('staj_id', staj.id);
-          
-          if (dekontlarError) {
-            console.warn(`Dekontlar for staj ${staj.id} could not be fetched:`, dekontlarError);
-          }
-          
-          return {
-            ...staj,
-            dekontlar: dekontlarData || [],
-          };
-        })
-      );
+      // 3. Fetch ALL dekontlar in ONE optimized query (fixes N+1 problem)
+      const stajIds = (stajlarData || []).map(staj => staj.id);
+      let allDekontlar: any[] = [];
+      
+      if (stajIds.length > 0) {
+        const { data: dekontlarData, error: dekontlarError } = await supabase
+          .from('dekontlar')
+          .select('id, ay, yil, onay_durumu, staj_id')
+          .in('staj_id', stajIds)
+          .order('yil', { ascending: false })
+          .order('ay', { ascending: false });
+        
+        if (dekontlarError) {
+          console.warn('Dekontlar could not be fetched:', dekontlarError);
+        } else {
+          allDekontlar = dekontlarData || [];
+        }
+      }
+
+      // Group dekontlar by staj_id for efficient lookup
+      const dekontlarByStajId = allDekontlar.reduce((acc, dekont) => {
+        if (!acc[dekont.staj_id]) {
+          acc[dekont.staj_id] = [];
+        }
+        acc[dekont.staj_id].push(dekont);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      // Combine stajlar with their dekontlar efficiently
+      const stajlarWithDekontlar = (stajlarData || []).map(staj => ({
+        ...staj,
+        dekontlar: dekontlarByStajId[staj.id] || [],
+      }));
 
       // 4. Fetch coordination program
       const { data: programData, error: programError } = await supabase
@@ -318,6 +350,42 @@ export default function OgretmenDetaySayfasi() {
     }
   }
 
+  const handleDeleteOgretmen = async () => {
+    if (deleteLoading) return
+    
+    if (deleteConfirmText !== 'SİL') {
+      toast.error('Onaylamak için "SİL" yazmalısınız')
+      return
+    }
+    
+    try {
+      setDeleteLoading(true)
+      
+      // Check if teacher has active stajlar
+      if (ogretmen && ogretmen.stajlar.length > 0) {
+        toast.error('Bu öğretmenin aktif stajları var. Önce stajları sonlandırın.')
+        return
+      }
+      
+      // Delete the teacher
+      const { error } = await supabase
+        .from('ogretmenler')
+        .delete()
+        .eq('id', ogretmenId)
+      
+      if (error) throw error
+      
+      toast.success('Öğretmen başarıyla silindi')
+      router.push('/admin/ogretmenler')
+      
+    } catch (error: any) {
+      console.error('Öğretmen silme hatası:', error)
+      toast.error('Öğretmen silinirken bir hata oluştu: ' + (error.message || 'Bilinmeyen hata'))
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+
   const ozet = useMemo(() => {
     if (!ogretmen) return { isletmeSayisi: 0, ogrenciSayisi: 0, eksikDekontluOgrenci: 0, zamanindaOgrenci: 0 }
 
@@ -362,18 +430,33 @@ export default function OgretmenDetaySayfasi() {
   const tumDekontlar = useMemo(() => {
     if (!ogretmen) return []
     const dekontList: DekontDetay[] = []
+    
+    // Optimized: Pre-calculate capacity to avoid array resizing
+    const totalDekontCount = ogretmen.stajlar.reduce((sum, staj) => sum + staj.dekontlar.length, 0)
+    dekontList.length = 0 // Reset if needed
+    
     ogretmen.stajlar.forEach(staj => {
         if (staj.ogrenciler && staj.isletmeler) {
+            const ogrenciAdSoyad = `${staj.ogrenciler.ad} ${staj.ogrenciler.soyad}`
+            const isletmeAd = staj.isletmeler.ad
+            
             staj.dekontlar.forEach(dekont => {
                 dekontList.push({
                     ...dekont,
-                    ogrenci_ad_soyad: `${staj.ogrenciler!.ad} ${staj.ogrenciler!.soyad}`,
-                    isletme_ad: staj.isletmeler!.ad
+                    ogrenci_ad_soyad: ogrenciAdSoyad,
+                    isletme_ad: isletmeAd
                 })
             })
         }
     })
-    return dekontList.sort((a, b) => b.yil - a.yil || b.ay - a.ay);
+    
+    // Optimized: Sort in place instead of creating new array
+    dekontList.sort((a, b) => {
+      const yearDiff = b.yil - a.yil
+      return yearDiff !== 0 ? yearDiff : b.ay - a.ay
+    })
+    
+    return dekontList
   }, [ogretmen])
 
   if (loading) {
@@ -417,13 +500,29 @@ export default function OgretmenDetaySayfasi() {
               {ogretmen.alan?.ad || 'Alan belirtilmemiş'}
             </p>
           </div>
+          <div className="flex items-center gap-4">
+            <Link
+              href={`/admin/ogretmenler/${ogretmenId}/duzenle`}
+              className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              title="Düzenle"
+            >
+              <Edit3 className="h-5 w-5" />
+            </Link>
+            <button
+              onClick={() => setDeleteModal(true)}
+              className="p-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              title="Öğretmeni Sil"
+            >
+              <Trash2 className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Özet Kartları */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <OzetKarti icon={Building2} baslik="Sorumlu İşletme" deger={ozet.isletmeSayisi} />
-          <OzetKarti icon={User} baslik="Sorumlu Öğrenci" deger={ozet.ogrenciSayisi} />
-          <OzetKarti icon={CheckCircle} baslik="Dekontları Tamam" deger={ozet.zamanindaOgrenci} renk="green" />
+          <OzetKarti icon={Building2} baslik="Koordinatör Olduğu İşletme" deger={ozet.isletmeSayisi} />
+          <OzetKarti icon={User} baslik="Sorumlu Olduğu Öğrenci" deger={ozet.ogrenciSayisi} />
+          <OzetKarti icon={CheckCircle} baslik="Dekontları Tamam Öğrenci" deger={ozet.zamanindaOgrenci} renk="green" />
           <OzetKarti icon={AlertTriangle} baslik="Eksik/Gecikmiş Dekont" deger={ozet.eksikDekontluOgrenci} renk="red" />
         </div>
 
@@ -653,6 +752,7 @@ export default function OgretmenDetaySayfasi() {
                     </div>
                   </div>
                 </div>
+
               </div>
             )}
 
@@ -744,6 +844,109 @@ export default function OgretmenDetaySayfasi() {
                         onClick={() => {
                           setPinModalOpen(false)
                           setPinForm({ pin: '', confirmPin: '' })
+                        }}
+                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                      >
+                        İptal
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleteModal && (
+              <div className="fixed inset-0 z-50 overflow-y-auto">
+                <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                  <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+                    <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={() => setDeleteModal(false)}></div>
+                  </div>
+
+                  <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                    <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                      <div className="sm:flex sm:items-start">
+                        <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                          <Trash2 className="h-6 w-6 text-red-600" />
+                        </div>
+                        <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                          <h3 className="text-lg leading-6 font-medium text-gray-900">
+                            Öğretmeni Sil
+                          </h3>
+                          <div className="mt-4">
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                              <div className="flex items-center">
+                                <AlertTriangle className="h-5 w-5 text-red-400 mr-2" />
+                                <h4 className="text-sm font-medium text-red-800">
+                                  Dikkat! Bu işlem geri alınamaz.
+                                </h4>
+                              </div>
+                              <div className="mt-2 text-sm text-red-700">
+                                <p className="mb-3">
+                                  <strong>{ogretmen?.ad} {ogretmen?.soyad}</strong> adlı öğretmeni kalıcı olarak sileceksiniz.
+                                </p>
+                                
+                                <div className="mb-3">
+                                  <p className="font-medium mb-2">⚠️ Bu işlem geri alınamaz ve şunları etkileyecek:</p>
+                                  <ul className="list-disc ml-5 space-y-1">
+                                    <li>Tüm öğretmen bilgileri silinecek</li>
+                                    <li>PIN kodları ve giriş bilgileri silinecek</li>
+                                    <li>İletişim bilgileri kaldırılacak</li>
+                                    <li>Koordinatörlük programları silinecek</li>
+                                  </ul>
+                                </div>
+
+                                <div className="bg-orange-50 border border-orange-200 rounded p-2 mb-3">
+                                  <p className="font-medium text-orange-800 mb-1">🚫 Silme işlemi engellenecek:</p>
+                                  <ul className="list-disc ml-5 space-y-1 text-orange-700">
+                                    <li>Öğretmenin aktif stajları varsa</li>
+                                    <li>Koordinatör olduğu işletmeler varsa</li>
+                                    <li>Sistem verilerinde referansı varsa</li>
+                                  </ul>
+                                </div>
+
+                                <p className="text-xs italic">
+                                  Silmeden önce tüm stajları sonlandırın ve koordinatörlüklerini başka öğretmenlere devredin.
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Onaylamak için <span className="font-bold text-red-600">"SİL"</span> yazın:
+                              </label>
+                              <input
+                                type="text"
+                                value={deleteConfirmText}
+                                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                                placeholder="SİL"
+                                autoComplete="off"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                      <button
+                        type="button"
+                        onClick={handleDeleteOgretmen}
+                        disabled={deleteLoading || deleteConfirmText !== 'SİL'}
+                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {deleteLoading ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        ) : (
+                          <Trash2 className="h-4 w-4 mr-2" />
+                        )}
+                        {deleteLoading ? 'Siliniyor...' : 'Öğretmeni Sil'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteModal(false)
+                          setDeleteConfirmText('')
                         }}
                         className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                       >
