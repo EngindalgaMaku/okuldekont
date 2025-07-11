@@ -13,6 +13,8 @@
     "seed": "node scripts/create-demo-seed.js",
     "seed:ogretmenler": "node scripts/seed-ogretmenler.js",
     "create-admin": "node scripts/create-admin.js",
+    "backup:simple": "bash scripts/database_backup.sh",
+    "backup:simple-win": "scripts/database_backup.bat",
     "backup:daily": "node scripts/database-backup-scheduler.js daily",
     "backup:weekly": "node scripts/database-backup-scheduler.js weekly",
     "backup:monthly": "node scripts/database-backup-scheduler.js monthly",
