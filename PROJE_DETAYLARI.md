@@ -1,8 +1,8 @@
-# Okul Dekont Yönetim Sistemi - Kapsamlı Proje Dokümantasyonu
+# Koordinatörlük Yönetim Sistemi - Kapsamlı Proje Dokümantasyonu
 
 ## 📋 Proje Özeti
 
-**Okul Dekont Yönetim Sistemi**, meslek lisesi staj koordinatörlüğü için geliştirilmiş modern bir dijital platformdur. Sistem, öğrencilerin staj süreçlerini, işletme ilişkilerini ve ödeme dekontlarını merkezi bir noktada yönetmeyi amaçlar.
+**Koordinatörlük Yönetim Sistemi**, meslek lisesi staj koordinatörlüğü için geliştirilmiş modern bir dijital platformdur. Sistem, öğrencilerin staj süreçlerini, işletme ilişkilerini ve ödeme dekontlarını merkezi bir noktada yönetmeyi amaçlar.
 
 ## 🎯 Projenin Temel Amacı
 
@@ -277,13 +277,13 @@ Geleneksel kağıt tabanlı staj takip süreçlerini dijitalleştirerek:
 
 ## 🌟 Sonuç
 
-Okul Dekont Yönetim Sistemi, modern eğitim kurumlarının dijital dönüşüm ihtiyaçlarını karşılamak üzere geliştirilmiş kapsamlı bir platformdur. Sistem, öğretmenler, okul idaresi ve işletmeler için önemli faydalar sağlarken, geleneksel süreçleri modernize eder ve verimliliği artırır.
+Koordinatörlük Yönetim Sistemi, modern eğitim kurumlarının dijital dönüşüm ihtiyaçlarını karşılamak üzere geliştirilmiş kapsamlı bir platformdur. Sistem, öğretmenler, okul idaresi ve işletmeler için önemli faydalar sağlarken, geleneksel süreçleri modernize eder ve verimliliği artırır.
 
 Projenin güçlü teknik altyapısı, kullanıcı dostu arayüzü ve sürekli gelişim odaklı yaklaşımı, onu eğitim sektöründe öncü bir teknoloji haline getirmektedir. Gelecekte planlanan geliştirmeler ve genişleme stratejileri ile sistem, sadece yerel değil, ulusal ve uluslararası düzeyde de etkili bir çözüm olma potansiyeline sahiptir.
 
 ---
 
-*Bu dokümantasyon, Okul Dekont Yönetim Sistemi'nin mevcut durumunu ve gelecek vizyonunu detaylı bir şekilde açıklamaktadır. Sistem sürekli geliştirilmekte olup, bu doküman da düzenli olarak güncellenecektir.*
+*Bu dokümantasyon, Koordinatörlük Yönetim Sistemi'nin mevcut durumunu ve gelecek vizyonunu detaylı bir şekilde açıklamaktadır. Sistem sürekli geliştirilmekte olup, bu doküman da düzenli olarak güncellenecektir.*
 
 **Proje Durumu:** ✅ Aktif Geliştirme
 **Son Güncelleme:** 10 Ocak 2025

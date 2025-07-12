@@ -1,0 +1,578 @@
+{
+  "timestamp": "2025-07-12T07:51:32.345Z",
+  "total_functions": 11,
+  "working_functions": [
+    "get_admin_users",
+    "create_admin_user",
+    "update_admin_user",
+    "delete_admin_user",
+    "get_system_setting",
+    "update_system_setting",
+    "check_isletme_pin_giris",
+    "check_ogretmen_pin_giris",
+    "get_gorev_belgeleri_detayli",
+    "exec_sql"
+  ],
+  "available_functions": [
+    "is_user_admin"
+  ],
+  "unavailable_functions": [],
+  "function_details": {
+    "get_admin_users": {
+      "status": "working",
+      "parameters": [],
+      "return_type": "json",
+      "security": "SECURITY DEFINER",
+      "description": "Tüm admin kullanıcılarını JSON formatında listeler",
+      "test_parameters": {},
+      "error": null,
+      "test_date": "2025-07-12T07:51:32.578Z",
+      "parameter_signature": "()"
+    },
+    "create_admin_user": {
+      "status": "working",
+      "parameters": [
+        {
+          "name": "p_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "p_ad",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "p_soyad",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "p_email",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "p_yetki_seviyesi",
+          "type": "varchar",
+          "required": false,
+          "default": "operator"
+        }
+      ],
+      "return_type": "boolean",
+      "security": "SECURITY DEFINER",
+      "description": "Yeni admin kullanıcı oluşturur",
+      "test_parameters": {
+        "p_id": "00000000-0000-0000-0000-000000000000",
+        "p_ad": "Test",
+        "p_soyad": "User",
+        "p_email": "test@example.com",
+        "p_yetki_seviyesi": "operator"
+      },
+      "error": null,
+      "test_date": "2025-07-12T07:51:32.831Z",
+      "parameter_signature": "(p_id uuid, p_ad varchar, p_soyad varchar, p_email varchar, p_yetki_seviyesi varchar DEFAULT operator)"
+    },
+    "update_admin_user": {
+      "status": "working",
+      "parameters": [
+        {
+          "name": "p_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "p_ad",
+          "type": "varchar",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "p_soyad",
+          "type": "varchar",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "p_yetki_seviyesi",
+          "type": "varchar",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "p_aktif",
+          "type": "boolean",
+          "required": false,
+          "default": null
+        }
+      ],
+      "return_type": "boolean",
+      "security": "SECURITY DEFINER",
+      "description": "Admin kullanıcı bilgilerini günceller",
+      "test_parameters": {
+        "p_id": "00000000-0000-0000-0000-000000000000",
+        "p_ad": "Updated Test"
+      },
+      "error": null,
+      "test_date": "2025-07-12T07:51:33.067Z",
+      "parameter_signature": "(p_id uuid, p_ad varchar DEFAULT NULL, p_soyad varchar DEFAULT NULL, p_yetki_seviyesi varchar DEFAULT NULL, p_aktif boolean DEFAULT NULL)"
+    },
+    "delete_admin_user": {
+      "status": "working",
+      "parameters": [
+        {
+          "name": "p_user_id",
+          "type": "uuid",
+          "required": true
+        }
+      ],
+      "return_type": "json",
+      "security": "SECURITY DEFINER",
+      "description": "Admin kullanıcı siler (Süper admin silinemez)",
+      "test_parameters": {
+        "p_user_id": "00000000-0000-0000-0000-000000000000"
+      },
+      "error": null,
+      "test_date": "2025-07-12T07:51:33.300Z",
+      "parameter_signature": "(p_user_id uuid)"
+    },
+    "is_user_admin": {
+      "status": "available",
+      "parameters": [
+        {
+          "name": "p_user_id",
+          "type": "uuid",
+          "required": true
+        }
+      ],
+      "return_type": "TABLE(is_admin boolean, yetki_seviyesi varchar)",
+      "security": "SECURITY DEFINER",
+      "description": "Kullanıcının admin olup olmadığını kontrol eder",
+      "test_parameters": {
+        "p_user_id": "00000000-0000-0000-0000-000000000000"
+      },
+      "error": "structure of query does not match function result type",
+      "test_date": "2025-07-12T07:51:33.533Z",
+      "parameter_signature": "(p_user_id uuid)"
+    },
+    "get_system_setting": {
+      "status": "working",
+      "parameters": [
+        {
+          "name": "p_setting_key",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "return_type": "text",
+      "security": "SECURITY DEFINER",
+      "description": "Belirtilen anahtarın sistem ayar değerini getirir",
+      "test_parameters": {
+        "p_setting_key": "test_key"
+      },
+      "error": null,
+      "test_date": "2025-07-12T07:51:33.760Z",
+      "parameter_signature": "(p_setting_key text)"
+    },
+    "update_system_setting": {
+      "status": "working",
+      "parameters": [
+        {
+          "name": "p_setting_key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "p_setting_value",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "return_type": "boolean",
+      "security": "SECURITY DEFINER",
+      "description": "Sistem ayarını günceller veya oluşturur (upsert)",
+      "test_parameters": {
+        "p_setting_key": "test_key",
+        "p_setting_value": "test_value"
+      },
+      "error": null,
+      "test_date": "2025-07-12T07:51:34.001Z",
+      "parameter_signature": "(p_setting_key text, p_setting_value text)"
+    },
+    "check_isletme_pin_giris": {
+      "status": "working",
+      "parameters": [
+        {
+          "name": "p_isletme_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "p_girilen_pin",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "p_ip_adresi",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "p_user_agent",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "return_type": "json",
+      "security": "SECURITY DEFINER",
+      "description": "İşletme PIN giriş kontrolü yapar ve log kaydı tutar",
+      "test_parameters": {
+        "p_isletme_id": "00000000-0000-0000-0000-000000000000",
+        "p_girilen_pin": "1234",
+        "p_ip_adresi": "127.0.0.1",
+        "p_user_agent": "test-agent"
+      },
+      "error": null,
+      "test_date": "2025-07-12T07:51:34.239Z",
+      "parameter_signature": "(p_isletme_id uuid, p_girilen_pin text, p_ip_adresi text, p_user_agent text)"
+    },
+    "check_ogretmen_pin_giris": {
+      "status": "working",
+      "parameters": [
+        {
+          "name": "p_ogretmen_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "p_girilen_pin",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "p_ip_adresi",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "p_user_agent",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "return_type": "json",
+      "security": "SECURITY DEFINER",
+      "description": "Öğretmen PIN giriş kontrolü yapar ve log kaydı tutar",
+      "test_parameters": {
+        "p_ogretmen_id": "00000000-0000-0000-0000-000000000000",
+        "p_girilen_pin": "1234",
+        "p_ip_adresi": "127.0.0.1",
+        "p_user_agent": "test-agent"
+      },
+      "error": null,
+      "test_date": "2025-07-12T07:51:34.476Z",
+      "parameter_signature": "(p_ogretmen_id uuid, p_girilen_pin text, p_ip_adresi text, p_user_agent text)"
+    },
+    "get_gorev_belgeleri_detayli": {
+      "status": "working",
+      "parameters": [
+        {
+          "name": "p_status_filter",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "p_alan_id_filter",
+          "type": "uuid",
+          "required": false
+        },
+        {
+          "name": "p_search_term",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "p_limit",
+          "type": "integer",
+          "required": false
+        },
+        {
+          "name": "p_offset",
+          "type": "integer",
+          "required": false
+        }
+      ],
+      "return_type": "TABLE(...)",
+      "security": "SECURITY INVOKER",
+      "description": "Görev belgelerini filtreleme ve sayfalama ile detaylı getirir",
+      "test_parameters": {
+        "p_status_filter": null,
+        "p_alan_id_filter": null,
+        "p_search_term": null,
+        "p_limit": 10,
+        "p_offset": 0
+      },
+      "error": null,
+      "test_date": "2025-07-12T07:51:34.704Z",
+      "parameter_signature": "(p_status_filter text, p_alan_id_filter uuid, p_search_term text, p_limit integer, p_offset integer)"
+    },
+    "exec_sql": {
+      "status": "working",
+      "parameters": [
+        {
+          "name": "query",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "return_type": "text",
+      "security": "SECURITY DEFINER",
+      "description": "Yönetici SQL komutları çalıştırır - SADECE GÜVENİLİR KAYNAKLARDAN!",
+      "test_parameters": {
+        "query": "SELECT 1 as test"
+      },
+      "error": null,
+      "test_date": "2025-07-12T07:51:34.945Z",
+      "parameter_signature": "(query text)"
+    }
+  },
+  "documented_functions": [
+    {
+      "name": "get_admin_users",
+      "parameters": [],
+      "return_type": "json",
+      "security": "SECURITY DEFINER",
+      "description": "Tüm admin kullanıcılarını JSON formatında listeler"
+    },
+    {
+      "name": "create_admin_user",
+      "parameters": [
+        {
+          "name": "p_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "p_ad",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "p_soyad",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "p_email",
+          "type": "varchar",
+          "required": true
+        },
+        {
+          "name": "p_yetki_seviyesi",
+          "type": "varchar",
+          "required": false,
+          "default": "operator"
+        }
+      ],
+      "return_type": "boolean",
+      "security": "SECURITY DEFINER",
+      "description": "Yeni admin kullanıcı oluşturur"
+    },
+    {
+      "name": "update_admin_user",
+      "parameters": [
+        {
+          "name": "p_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "p_ad",
+          "type": "varchar",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "p_soyad",
+          "type": "varchar",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "p_yetki_seviyesi",
+          "type": "varchar",
+          "required": false,
+          "default": null
+        },
+        {
+          "name": "p_aktif",
+          "type": "boolean",
+          "required": false,
+          "default": null
+        }
+      ],
+      "return_type": "boolean",
+      "security": "SECURITY DEFINER",
+      "description": "Admin kullanıcı bilgilerini günceller"
+    },
+    {
+      "name": "delete_admin_user",
+      "parameters": [
+        {
+          "name": "p_user_id",
+          "type": "uuid",
+          "required": true
+        }
+      ],
+      "return_type": "json",
+      "security": "SECURITY DEFINER",
+      "description": "Admin kullanıcı siler (Süper admin silinemez)"
+    },
+    {
+      "name": "is_user_admin",
+      "parameters": [
+        {
+          "name": "p_user_id",
+          "type": "uuid",
+          "required": true
+        }
+      ],
+      "return_type": "TABLE(is_admin boolean, yetki_seviyesi varchar)",
+      "security": "SECURITY DEFINER",
+      "description": "Kullanıcının admin olup olmadığını kontrol eder"
+    },
+    {
+      "name": "get_system_setting",
+      "parameters": [
+        {
+          "name": "p_setting_key",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "return_type": "text",
+      "security": "SECURITY DEFINER",
+      "description": "Belirtilen anahtarın sistem ayar değerini getirir"
+    },
+    {
+      "name": "update_system_setting",
+      "parameters": [
+        {
+          "name": "p_setting_key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "p_setting_value",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "return_type": "boolean",
+      "security": "SECURITY DEFINER",
+      "description": "Sistem ayarını günceller veya oluşturur (upsert)"
+    },
+    {
+      "name": "check_isletme_pin_giris",
+      "parameters": [
+        {
+          "name": "p_isletme_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "p_girilen_pin",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "p_ip_adresi",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "p_user_agent",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "return_type": "json",
+      "security": "SECURITY DEFINER",
+      "description": "İşletme PIN giriş kontrolü yapar ve log kaydı tutar"
+    },
+    {
+      "name": "check_ogretmen_pin_giris",
+      "parameters": [
+        {
+          "name": "p_ogretmen_id",
+          "type": "uuid",
+          "required": true
+        },
+        {
+          "name": "p_girilen_pin",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "p_ip_adresi",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "p_user_agent",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "return_type": "json",
+      "security": "SECURITY DEFINER",
+      "description": "Öğretmen PIN giriş kontrolü yapar ve log kaydı tutar"
+    },
+    {
+      "name": "get_gorev_belgeleri_detayli",
+      "parameters": [
+        {
+          "name": "p_status_filter",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "p_alan_id_filter",
+          "type": "uuid",
+          "required": false
+        },
+        {
+          "name": "p_search_term",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "p_limit",
+          "type": "integer",
+          "required": false
+        },
+        {
+          "name": "p_offset",
+          "type": "integer",
+          "required": false
+        }
+      ],
+      "return_type": "TABLE(...)",
+      "security": "SECURITY INVOKER",
+      "description": "Görev belgelerini filtreleme ve sayfalama ile detaylı getirir"
+    },
+    {
+      "name": "exec_sql",
+      "parameters": [
+        {
+          "name": "query",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "return_type": "text",
+      "security": "SECURITY DEFINER",
+      "description": "Yönetici SQL komutları çalıştırır - SADECE GÜVENİLİR KAYNAKLARDAN!"
+    }
+  ]
+}

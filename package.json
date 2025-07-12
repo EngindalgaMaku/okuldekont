@@ -15,6 +15,7 @@
     "create-admin": "node scripts/create-admin.js",
     "backup:simple": "bash scripts/database_backup.sh",
     "backup:simple-win": "scripts/database_backup.bat",
+    "backup:node": "node scripts/node_backup.js",
     "backup:daily": "node scripts/database-backup-scheduler.js daily",
     "backup:weekly": "node scripts/database-backup-scheduler.js weekly",
     "backup:monthly": "node scripts/database-backup-scheduler.js monthly",
@@ -46,7 +47,12 @@
     "staging:history": "node scripts/staging-environment-manager.js history",
     "staging:refresh": "node scripts/staging-environment-manager.js refresh-staging",
     "staging:setup-dev": "node scripts/staging-environment-manager.js setup-dev",
-    "staging:cleanup": "node scripts/staging-environment-manager.js cleanup"
+    "staging:cleanup": "node scripts/staging-environment-manager.js cleanup",
+    "auth:cleanup": "node scripts/cleanup-auth-users.js",
+    "auth:stats": "node scripts/get-auth-stats.js",
+    "auth:setup": "node scripts/create-auth-cleanup-functions.js",
+    "auth:stats": "node scripts/cleanup-auth-users.js --stats-only",
+    "auth:setup": "node scripts/create-auth-cleanup-function.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",

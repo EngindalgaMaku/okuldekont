@@ -1,0 +1,33 @@
+
+=================================================================
+GELİŞTİRİLMİŞ VERİTABANI GERİ YÜKLEME TALİMATLARI
+=================================================================
+Tarih: 2025-07-12T07:51:34.951Z
+Yedek Dosyaları: 2025-07-12_07
+
+YEDEK DOSYALARI:
+- data_backup_2025-07-12_07.json              (Tablo verileri JSON)
+- enhanced_rpc_backup_2025-07-12_07.json      (RPC fonksiyonları - parametrelerle)
+- rpc_summary_report_2025-07-12_07.md         (RPC özet raporu)
+
+ÖNEMLİ: Bu backup RPC fonksiyonlarının parametrelerini içerir!
+
+1. TABLO VERİLERİNİ GERİ YÜKLEME:
+   JSON formatından:
+   node scripts/restore-from-json.js data_backup_2025-07-12_07.json
+
+2. RPC FONKSİYONLARINI GERİ YÜKLEME:
+   - enhanced_rpc_backup_2025-07-12_07.json dosyasını açın
+   - function_details bölümünde her fonksiyonun parametreleri var
+   - Çalışmayan fonksiyonlar için scripts/ klasöründeki .sql dosyalarını çalıştırın
+   - Parametreleri rpc_summary_report_2025-07-12_07.md dosyasından kontrol edin
+
+3. RPC FONKSİYON KULLANIM ÖRNEKLERİ:
+   Özet raporda her fonksiyon için JavaScript kullanım örnekleri var
+
+UYARI:
+- Bu backup parametreli RPC fonksiyon bilgilerini içerir
+- Geri yükleme işlemi öncesinde mevcut verileri yedekleyin
+- RPC fonksiyonları doğru parametrelerle test edin
+
+=================================================================

@@ -2,10 +2,11 @@ import './globals.css'
 import type { Metadata } from 'next'
 import { EgitimYiliProvider } from '@/lib/context/EgitimYiliContext'
 import { ToastProvider } from '@/components/ui/Toast'
+import { InstallationCheck } from '@/components/InstallationCheck'
 
 export const metadata: Metadata = {
-  title: 'Hüsniye Özdilek MTAL - Koordinatörlük Yönetimi',
-  description: 'Hüsniye Özdilek MTAL için koordinatörlük yönetim sistemi',
+  title: 'Koordinatörlük Yönetim Sistemi',
+  description: 'Mesleki ve Teknik Anadolu Lisesi için koordinatörlük yönetim sistemi',
 }
 
 export const viewport = {
@@ -25,9 +26,11 @@ export default function RootLayout({
       <body className="min-h-full">
         <EgitimYiliProvider>
           <ToastProvider>
-            <div className="min-h-screen">
-              {children}
-            </div>
+            <InstallationCheck>
+              <div className="min-h-screen">
+                {children}
+              </div>
+            </InstallationCheck>
           </ToastProvider>
         </EgitimYiliProvider>
       </body>

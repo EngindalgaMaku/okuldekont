@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Loader, User, Mail, Phone, Briefcase, Building2, FileText, Receipt, CheckCircle, XCircle, AlertTriangle, Calendar, Info, Clock, Printer, Settings, Key, Shield, Edit3, Save, Eye, EyeOff, Trash2 } from 'lucide-react'
+import { ArrowLeft, Loader, User, Mail, Phone, Briefcase, Building2, FileText, Receipt, CheckCircle, XCircle, AlertTriangle, Calendar, Info, Clock, Printer, Settings, Key, Shield, Edit3, Save, Eye, EyeOff, Trash2, Unlock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
@@ -134,10 +134,16 @@ export default function OgretmenDetaySayfasi() {
   const [deleteModal, setDeleteModal] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleteLoading, setDeleteLoading] = useState(false)
+  
+  // Kilit durumu state'leri
+  const [lockStatus, setLockStatus] = useState<any>(null)
+  const [lockStatusLoading, setLockStatusLoading] = useState(false)
+  const [unlockLoading, setUnlockLoading] = useState(false)
 
   useEffect(() => {
     if (ogretmenId) {
       fetchOgretmenDetay()
+      fetchLockStatus()
     }
   }, [ogretmenId])
   
@@ -386,6 +392,167 @@ export default function OgretmenDetaySayfasi() {
     }
   }
 
+  const fetchLockStatus = async () => {
+    if (!ogretmenId) return
+    
+    try {
+      setLockStatusLoading(true)
+      
+      // Önce RPC fonksiyonunu oluştur
+      const createFunctionSQL = `
+        CREATE OR REPLACE FUNCTION check_ogretmen_kilit_durumu(
+          p_ogretmen_id UUID
+        ) RETURNS JSON AS $$
+        DECLARE
+          v_ogretmen RECORD;
+          v_kilitlenme_tarihi TIMESTAMP;
+          v_yanlis_giris_sayisi INTEGER;
+          v_kilitlenme_suresi INTERVAL := INTERVAL '30 minutes';
+          v_kilitli BOOLEAN := false;
+          v_son_yanlis_giris TIMESTAMP;
+        BEGIN
+          SELECT * INTO v_ogretmen
+          FROM ogretmenler
+          WHERE id = p_ogretmen_id;
+          
+          IF NOT FOUND THEN
+            RETURN json_build_object(
+              'basarili', false,
+              'mesaj', 'Öğretmen bulunamadı.',
+              'kilitli', false
+            );
+          END IF;
+          
+          SELECT
+            COUNT(*) as yanlis_giris,
+            MAX(CASE WHEN kilitlenme_tarihi IS NOT NULL THEN kilitlenme_tarihi END) as kilit_tarihi,
+            MAX(giris_tarihi) as son_deneme
+          INTO v_yanlis_giris_sayisi, v_kilitlenme_tarihi, v_son_yanlis_giris
+          FROM ogretmen_giris_denemeleri
+          WHERE ogretmen_id = p_ogretmen_id
+            AND giris_tarihi > NOW() - v_kilitlenme_suresi
+            AND basarili = false;
+          
+          IF v_kilitlenme_tarihi IS NOT NULL AND v_kilitlenme_tarihi + v_kilitlenme_suresi > NOW() THEN
+            v_kilitli := true;
+          END IF;
+          
+          RETURN json_build_object(
+            'basarili', true,
+            'kilitli', v_kilitli,
+            'kilitlenme_tarihi', v_kilitlenme_tarihi,
+            'yanlis_giris_sayisi', COALESCE(v_yanlis_giris_sayisi, 0),
+            'son_yanlis_giris', v_son_yanlis_giris,
+            'mesaj', CASE
+              WHEN v_kilitli THEN 'Hesap kilitli'
+              ELSE 'Hesap aktif'
+            END
+          );
+          
+        EXCEPTION
+          WHEN OTHERS THEN
+            RETURN json_build_object(
+              'basarili', false,
+              'mesaj', 'Kilit durumu kontrol edilirken hata oluştu: ' || SQLERRM,
+              'kilitli', false
+            );
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+      `
+      
+      await supabase.rpc('exec_sql', { query: createFunctionSQL })
+      
+      // Şimdi kilit durumunu kontrol et
+      const { data, error } = await supabase.rpc('check_ogretmen_kilit_durumu', {
+        p_ogretmen_id: ogretmenId
+      })
+      
+      if (error) throw error
+      
+      setLockStatus(data)
+      
+    } catch (error: any) {
+      console.error('Kilit durumu kontrolü hatası:', error)
+      setLockStatus(null)
+    } finally {
+      setLockStatusLoading(false)
+    }
+  }
+
+  const handleUnlockAccount = async () => {
+    if (!ogretmenId || unlockLoading) return
+    
+    try {
+      setUnlockLoading(true)
+      
+      // Önce unlock fonksiyonunu oluştur
+      const createUnlockFunctionSQL = `
+        CREATE OR REPLACE FUNCTION unlock_ogretmen_hesabi(
+          p_ogretmen_id UUID
+        ) RETURNS JSON AS $$
+        DECLARE
+          v_ogretmen RECORD;
+          v_silinen_kayit_sayisi INTEGER := 0;
+        BEGIN
+          SELECT * INTO v_ogretmen
+          FROM ogretmenler
+          WHERE id = p_ogretmen_id;
+          
+          IF NOT FOUND THEN
+            RETURN json_build_object(
+              'basarili', false,
+              'mesaj', 'Öğretmen bulunamadı.',
+              'silinen_kayit_sayisi', 0
+            );
+          END IF;
+          
+          DELETE FROM ogretmen_giris_denemeleri
+          WHERE ogretmen_id = p_ogretmen_id
+            AND (basarili = false OR kilitlenme_tarihi IS NOT NULL);
+          
+          GET DIAGNOSTICS v_silinen_kayit_sayisi = ROW_COUNT;
+          
+          RETURN json_build_object(
+            'basarili', true,
+            'mesaj', 'Öğretmen hesabı başarıyla kilidi açıldı.',
+            'silinen_kayit_sayisi', v_silinen_kayit_sayisi
+          );
+          
+        EXCEPTION
+          WHEN OTHERS THEN
+            RETURN json_build_object(
+              'basarili', false,
+              'mesaj', 'Kilit açılırken bir hata oluştu: ' || SQLERRM,
+              'silinen_kayit_sayisi', 0
+            );
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+      `
+      
+      await supabase.rpc('exec_sql', { query: createUnlockFunctionSQL })
+      
+      // Kilit açma işlemini gerçekleştir
+      const { data, error } = await supabase.rpc('unlock_ogretmen_hesabi', {
+        p_ogretmen_id: ogretmenId
+      })
+      
+      if (error) throw error
+      
+      if (data.basarili) {
+        toast.success(`Hesap kilidi açıldı! ${data.silinen_kayit_sayisi} kayıt temizlendi.`)
+        fetchLockStatus() // Durumu yeniden yükle
+      } else {
+        toast.error(data.mesaj || 'Kilit açılırken bir hata oluştu')
+      }
+      
+    } catch (error: any) {
+      console.error('Kilit açma hatası:', error)
+      toast.error('Kilit açılırken bir hata oluştu: ' + (error.message || 'Bilinmeyen hata'))
+    } finally {
+      setUnlockLoading(false)
+    }
+  }
+
   const ozet = useMemo(() => {
     if (!ogretmen) return { isletmeSayisi: 0, ogrenciSayisi: 0, eksikDekontluOgrenci: 0, zamanindaOgrenci: 0 }
 
@@ -624,6 +791,116 @@ export default function OgretmenDetaySayfasi() {
                     <p className="text-xs text-gray-500 mt-2">
                       Öğretmen bu PIN ile sistem giriş yapabilir. Güvenlik için PIN'i düzenli olarak değiştirin.
                     </p>
+                  </div>
+                </div>
+
+                {/* Hesap Güvenliği ve Kilit Durumu */}
+                <div className="bg-gray-50 rounded-lg p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900 flex items-center">
+                        <Shield className="h-5 w-5 mr-2 text-indigo-600" />
+                        Hesap Güvenliği
+                      </h3>
+                      <p className="text-sm text-gray-600">PIN giriş güvenliği ve hesap kilit durumu</p>
+                    </div>
+                    {lockStatus?.kilitli && (
+                      <button
+                        onClick={handleUnlockAccount}
+                        disabled={unlockLoading}
+                        className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                      >
+                        {unlockLoading ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        ) : (
+                          <Unlock className="h-4 w-4" />
+                        )}
+                        <span>{unlockLoading ? 'Açılıyor...' : 'Kilidi Aç'}</span>
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="bg-white rounded-lg p-4 border border-gray-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">Hesap Durumu:</span>
+                      {lockStatusLoading ? (
+                        <div className="flex items-center">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600 mr-2"></div>
+                          <span className="text-sm text-gray-500">Kontrol ediliyor...</span>
+                        </div>
+                      ) : lockStatus ? (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          lockStatus.kilitli
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {lockStatus.kilitli ? (
+                            <>
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Kilitli
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Aktif
+                            </>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-500">Bilinmiyor</span>
+                      )}
+                    </div>
+                    
+                    {lockStatus && lockStatus.kilitli && (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-700">Kilitlenme Tarihi:</span>
+                          <span className="text-sm text-red-600">
+                            {lockStatus.kilitlenme_tarihi ? new Date(lockStatus.kilitlenme_tarihi).toLocaleString('tr-TR') : 'Bilinmiyor'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-700">Başarısız Giriş:</span>
+                          <span className="text-sm text-red-600">{lockStatus.yanlis_giris_sayisi || 0} deneme</span>
+                        </div>
+                        <div className="bg-red-50 border border-red-200 rounded p-3 mt-3">
+                          <div className="flex items-center">
+                            <AlertTriangle className="h-4 w-4 text-red-400 mr-2" />
+                            <p className="text-sm text-red-700">
+                              <strong>Hesap kilitlendi!</strong> 5 kez hatalı PIN girişi yapılmış.
+                              Kilit otomatik olarak 30 dakika sonra açılacak veya yukarıdaki butonla manuel olarak açabilirsiniz.
+                            </p>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                    
+                    {lockStatus && !lockStatus.kilitli && lockStatus.yanlis_giris_sayisi > 0 && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
+                        <div className="flex items-center">
+                          <Info className="h-4 w-4 text-yellow-400 mr-2" />
+                          <p className="text-sm text-yellow-700">
+                            Son 30 dakikada {lockStatus.yanlis_giris_sayisi} başarısız giriş denemesi var.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {lockStatus && !lockStatus.kilitli && lockStatus.yanlis_giris_sayisi === 0 && (
+                      <div className="bg-green-50 border border-green-200 rounded p-3">
+                        <div className="flex items-center">
+                          <CheckCircle className="h-4 w-4 text-green-400 mr-2" />
+                          <p className="text-sm text-green-700">
+                            Hesap güvenli. Son 30 dakikada başarısız giriş denemesi yok.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                      <span className="text-sm font-medium text-gray-700">Güvenlik Seviyesi:</span>
+                      <span className="text-sm text-gray-600">PIN Korumalı</span>
+                    </div>
                   </div>
                 </div>
 

@@ -1,0 +1,467 @@
+{
+  "timestamp": "2025-07-11T21:46:33.588Z",
+  "real_data": true,
+  "triggers": [
+    {
+      "trigger_name": "protect_super_admin_status",
+      "table_name": "admin_kullanicilar",
+      "function_name": "prevent_super_admin_deactivation",
+      "timing": "BEFORE",
+      "event": "UPDATE"
+    }
+  ],
+  "indexes": [
+    {
+      "index_name": "admin_kullanicilar_email_key",
+      "table_name": "admin_kullanicilar",
+      "index_definition": "CREATE UNIQUE INDEX admin_kullanicilar_email_key ON public.admin_kullanicilar USING btree (email)",
+      "is_unique": true
+    },
+    {
+      "index_name": "alanlar_ad_key",
+      "table_name": "alanlar",
+      "index_definition": "CREATE UNIQUE INDEX alanlar_ad_key ON public.alanlar USING btree (ad)",
+      "is_unique": true
+    },
+    {
+      "index_name": "idx_dekontlar_ay_yil",
+      "table_name": "dekontlar",
+      "index_definition": "CREATE INDEX idx_dekontlar_ay_yil ON public.dekontlar USING btree (ay, yil)",
+      "is_unique": false
+    },
+    {
+      "index_name": "idx_dekontlar_isletme",
+      "table_name": "dekontlar",
+      "index_definition": "CREATE INDEX idx_dekontlar_isletme ON public.dekontlar USING btree (isletme_id)",
+      "is_unique": false
+    },
+    {
+      "index_name": "idx_dekontlar_ogrenci",
+      "table_name": "dekontlar",
+      "index_definition": "CREATE INDEX idx_dekontlar_ogrenci ON public.dekontlar USING btree (ogrenci_id)",
+      "is_unique": false
+    },
+    {
+      "index_name": "idx_dekontlar_onay_durumu",
+      "table_name": "dekontlar",
+      "index_definition": "CREATE INDEX idx_dekontlar_onay_durumu ON public.dekontlar USING btree (onay_durumu)",
+      "is_unique": false
+    },
+    {
+      "index_name": "egitim_yillari_yil_key",
+      "table_name": "egitim_yillari",
+      "index_definition": "CREATE UNIQUE INDEX egitim_yillari_yil_key ON public.egitim_yillari USING btree (yil)",
+      "is_unique": true
+    },
+    {
+      "index_name": "isletme_koordinatorler_isletme_id_alan_id_key",
+      "table_name": "isletme_koordinatorler",
+      "index_definition": "CREATE UNIQUE INDEX isletme_koordinatorler_isletme_id_alan_id_key ON public.isletme_koordinatorler USING btree (isletme_id, alan_id)",
+      "is_unique": true
+    },
+    {
+      "index_name": "system_settings_key_key",
+      "table_name": "system_settings",
+      "index_definition": "CREATE UNIQUE INDEX system_settings_key_key ON public.system_settings USING btree (key)",
+      "is_unique": true
+    }
+  ],
+  "policies": [
+    {
+      "schema_name": "public",
+      "table_name": "admin_kullanicilar",
+      "policy_name": "Allow admin operations",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "alanlar",
+      "policy_name": "Alanlar herkes tarafından görüntülenebilir",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "alanlar",
+      "policy_name": "Allow all for authenticated users",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "(auth.role() = 'authenticated'::text)",
+      "with_check": "(auth.role() = 'authenticated'::text)"
+    },
+    {
+      "schema_name": "public",
+      "table_name": "belgeler",
+      "policy_name": "Authenticated users can manage belgeler",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "(auth.role() = 'authenticated'::text)",
+      "with_check": "(auth.role() = 'authenticated'::text)"
+    },
+    {
+      "schema_name": "public",
+      "table_name": "dekontlar",
+      "policy_name": "Allow all for authenticated users",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "(auth.role() = 'authenticated'::text)",
+      "with_check": "(auth.role() = 'authenticated'::text)"
+    },
+    {
+      "schema_name": "public",
+      "table_name": "dekontlar",
+      "policy_name": "Dekontlar herkes tarafından görüntülenebilir",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "dekontlar",
+      "policy_name": "Öğretmenler kendi öğrencilerinin dekontlarını sadece gör",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM ((stajlar s\n     JOIN ogrenciler o ON ((o.id = s.ogrenci_id)))\n     JOIN ogretmenler og ON ((og.id = auth.uid())))\n  WHERE ((s.ogrenci_id = dekontlar.ogrenci_id) AND (s.ogretmen_id = og.id))))",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "dekontlar",
+      "policy_name": "Öğretmenler kendi öğrencilerinin dekontlarını yönetebili",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (stajlar s\n     JOIN ogretmenler og ON ((s.ogretmen_id = og.id)))\n  WHERE ((s.ogrenci_id = dekontlar.ogrenci_id) AND (og.pin = ((current_setting('request.jwt.claims'::text, true))::jsonb ->> 'pin'::text)))))",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "dekontlar",
+      "policy_name": "İşletmeler kendi dekontlarını ekleyebilir",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(isletme_id = auth.uid())"
+    },
+    {
+      "schema_name": "public",
+      "table_name": "dekontlar",
+      "policy_name": "İşletmeler kendi dekontlarını görebilir",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "SELECT",
+      "qual": "(isletme_id = auth.uid())",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "dekontlar",
+      "policy_name": "İşletmeler kendi dekontlarını yönetebilir",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "(EXISTS ( SELECT 1\n   FROM isletmeler i\n  WHERE ((i.id = dekontlar.isletme_id) AND (i.pin = ((current_setting('request.jwt.claims'::text, true))::jsonb ->> 'pin'::text)))))",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "egitim_yillari",
+      "policy_name": "Allow all for authenticated users",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "(auth.role() = 'authenticated'::text)",
+      "with_check": "(auth.role() = 'authenticated'::text)"
+    },
+    {
+      "schema_name": "public",
+      "table_name": "egitim_yillari",
+      "policy_name": "Allow anonymous read access to egitim_yillari",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "anon"
+      ],
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "egitim_yillari",
+      "policy_name": "Egitim yillari guncelleme",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "egitim_yillari",
+      "policy_name": "Egitim yillari okuma",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "egitim_yillari",
+      "policy_name": "Eğitim yılları herkes tarafından görüntülenebilir",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "gorev_belgeleri",
+      "policy_name": "Adminler tüm görev belgelerini görebilir",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM admin_kullanicilar\n  WHERE ((admin_kullanicilar.id = auth.uid()) AND (admin_kullanicilar.aktif = true))))",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "gorev_belgeleri",
+      "policy_name": "Öğretmenler kendi görev belgelerini görebilir",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "SELECT",
+      "qual": "(ogretmen_id = auth.uid())",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "isletme_koordinatorler",
+      "policy_name": "Authenticated kullanıcılar tüm işlemleri yapabilir",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "ALL",
+      "qual": "true",
+      "with_check": "true"
+    },
+    {
+      "schema_name": "public",
+      "table_name": "isletme_koordinatorler",
+      "policy_name": "Öğretmenler kendi koordinatör kayıtlarını görebilir",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "SELECT",
+      "qual": "(ogretmen_id = auth.uid())",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "isletmeler",
+      "policy_name": "Allow all for authenticated users",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "(auth.role() = 'authenticated'::text)",
+      "with_check": "(auth.role() = 'authenticated'::text)"
+    },
+    {
+      "schema_name": "public",
+      "table_name": "isletmeler",
+      "policy_name": "Allow anonymous read access to isletmeler",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "anon"
+      ],
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "isletmeler",
+      "policy_name": "İşletmeler herkes tarafından görüntülenebilir",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "ogrenciler",
+      "policy_name": "Allow all for authenticated users",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "(auth.role() = 'authenticated'::text)",
+      "with_check": "(auth.role() = 'authenticated'::text)"
+    },
+    {
+      "schema_name": "public",
+      "table_name": "ogrenciler",
+      "policy_name": "Öğrenciler herkes tarafından görüntülenebilir",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "ogretmenler",
+      "policy_name": "Allow all for authenticated users",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "(auth.role() = 'authenticated'::text)",
+      "with_check": "(auth.role() = 'authenticated'::text)"
+    },
+    {
+      "schema_name": "public",
+      "table_name": "ogretmenler",
+      "policy_name": "Allow anonymous read access to ogretmenler",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "anon"
+      ],
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "ogretmenler",
+      "policy_name": "Öğretmenler herkes tarafından görüntülenebilir",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "siniflar",
+      "policy_name": "Siniflar okuma",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "siniflar",
+      "policy_name": "Siniflar yonetim",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "stajlar",
+      "policy_name": "Allow all for authenticated users",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "(auth.role() = 'authenticated'::text)",
+      "with_check": "(auth.role() = 'authenticated'::text)"
+    },
+    {
+      "schema_name": "public",
+      "table_name": "stajlar",
+      "policy_name": "Stajlar herkes tarafından görüntülenebilir",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema_name": "public",
+      "table_name": "system_settings",
+      "policy_name": "Allow all operations on system_settings",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "true",
+      "with_check": null
+    }
+  ]
+}

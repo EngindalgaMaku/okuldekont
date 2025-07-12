@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { User, Lock, Building, ChevronDown, Loader, AlertTriangle } from 'lucide-react'
+import PinPad from '@/components/ui/PinPad'
 import { checkMaintenanceMode } from '@/lib/maintenance'
 
 interface Ogretmen {
@@ -20,6 +21,7 @@ export default function OgretmenLoginPage() {
   const [pinError, setPinError] = useState('')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   
   // Maintenance mode state
@@ -101,29 +103,41 @@ export default function OgretmenLoginPage() {
     }
   }
 
+  // PIN 4 hane olduğunda otomatik giriş yap
+  useEffect(() => {
+    if (pinInput.length === 4 && !isLoggingIn) {
+      handlePinSubmit()
+    }
+  }, [pinInput, isLoggingIn])
+
   // Arama fonksiyonu - öğretmen adı ve soyadında arama yapar
   const filteredOgretmenler = ogretmenler.filter(ogretmen => {
     const fullName = `${ogretmen.ad} ${ogretmen.soyad}`.toLowerCase()
     return fullName.includes(searchTerm.toLowerCase())
   })
 
-  const handlePinSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handlePinSubmit = async () => {
+    if (isLoggingIn) return
+    
+    setIsLoggingIn(true)
     
     // Check maintenance mode before login attempt
     const { isMaintenanceMode: currentMaintenanceStatus } = await checkMaintenanceMode()
     if (currentMaintenanceStatus) {
       setPinError('Sistem şu anda bakım modunda. Giriş yapılamaz.')
+      setIsLoggingIn(false)
       return
     }
     
     if (!selectedOgretmen) {
       setPinError('Lütfen bir öğretmen seçin')
+      setIsLoggingIn(false)
       return
     }
 
     if (!pinInput.trim() || pinInput.length !== 4) {
       setPinError('PIN kodu 4 haneli olmalıdır')
+      setIsLoggingIn(false)
       return
     }
 
@@ -141,11 +155,13 @@ export default function OgretmenLoginPage() {
 
       if (pinError) {
         setPinError('Sistem hatası: ' + pinError.message)
+        setIsLoggingIn(false)
         return
       }
 
       if (!pinResult) {
         setPinError('PIN kontrol fonksiyonu yanıt vermedi')
+        setIsLoggingIn(false)
         return
       }
 
@@ -248,7 +264,7 @@ export default function OgretmenLoginPage() {
             )}
           </div>
 
-          <form onSubmit={handlePinSubmit} className="space-y-6">
+          <div className="space-y-6">
           {/* Öğretmen Seçimi */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -327,26 +343,20 @@ export default function OgretmenLoginPage() {
             </div>
           </div>
 
-            {/* PIN Girişi */}
+            {/* PIN Pad */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                PIN Kodu
+              <label className="block text-sm font-medium text-gray-700 mb-4 text-center">
+                PIN Kodunuzu Girin
               </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                <input
-                  type="password"
-                  value={pinInput}
-                  onChange={(e) => {
-                    setPinInput(e.target.value)
-                    setPinError('')
-                  }}
-                  maxLength={4}
-                  placeholder="PIN kodunuzu girin"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center text-lg tracking-widest"
-                  disabled={!selectedOgretmen}
-                />
-              </div>
+              <PinPad
+                value={pinInput}
+                onChange={(value) => {
+                  setPinInput(value)
+                  setPinError('')
+                }}
+                maxLength={4}
+                disabled={!selectedOgretmen || isLoggingIn}
+              />
             </div>
 
             {pinError && (
@@ -355,14 +365,13 @@ export default function OgretmenLoginPage() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={!selectedOgretmen || !pinInput}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Giriş Yap
-            </button>
-          </form>
+            {isLoggingIn && (
+              <div className="flex items-center justify-center space-x-2 text-blue-600 p-3">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+                <span className="text-sm">Giriş yapılıyor...</span>
+              </div>
+            )}
+          </div>
 
           <div className="mt-6 text-center">
             <button

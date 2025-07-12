@@ -1,4 +1,4 @@
-# Okul Dekont Yönetim Sistemi
+# Koordinatörlük Yönetim Sistemi
 
 Meslek lisesi staj koordinatörlüğü için dekont ve staj yönetim sistemi.
 

@@ -7,6 +7,7 @@ import { ChevronDownIcon, MagnifyingGlassIcon, BuildingOfficeIcon, AcademicCapIc
 import { useToast } from '@/components/ui/Toast'
 import { checkMaintenanceMode } from '@/lib/maintenance'
 import { getSchoolName } from '@/lib/settings'
+import PinPad from '@/components/ui/PinPad'
 
 interface Isletme {
     id: string
@@ -182,8 +183,7 @@ export default function LoginPage() {
     })
   }
 
-  const handlePinSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handlePinSubmit = async () => {
     if (isLoggingIn) return
     
     // Check maintenance mode before login attempt
@@ -342,6 +342,13 @@ export default function LoginPage() {
     }
   }
 
+  // PIN 4 hane olduğunda otomatik giriş yap
+  useEffect(() => {
+    if (pinInput.length === 4 && step === 2 && !isLoggingIn) {
+      handlePinSubmit()
+    }
+  }, [pinInput, step, isLoggingIn])
+
   const handleItemSelect = (item: Isletme | Ogretmen) => {
     if (loginType === 'isletme') {
       setSelectedIsletme(item as Isletme)
@@ -463,7 +470,7 @@ export default function LoginPage() {
   }
 
   const renderPinInput = () => (
-    <form onSubmit={handlePinSubmit} className="space-y-6">
+    <div className="space-y-6">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-gray-800">PIN Girişi</h2>
           <div className="mt-2 p-3 bg-gray-50 rounded-lg">
@@ -473,13 +480,11 @@ export default function LoginPage() {
           </div>
         </div>
         
-        <input
-            type="password"
-            value={pinInput}
-            onChange={(e) => setPinInput(e.target.value)}
-            className="w-full px-4 py-3 text-center text-lg tracking-widest border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-            placeholder="• • • •"
-            maxLength={4}
+        <PinPad
+          value={pinInput}
+          onChange={setPinInput}
+          disabled={isLoggingIn}
+          maxLength={4}
         />
         
         {pinError && (
@@ -488,30 +493,22 @@ export default function LoginPage() {
           </div>
         )}
         
-        <div className="flex justify-between items-center">
-            <button 
-              type="button" 
-              onClick={() => { setStep(1); setPinInput(''); setPinError(''); }} 
+        <div className="flex justify-center items-center">
+            <button
+              type="button"
+              onClick={() => { setStep(1); setPinInput(''); setPinError(''); }}
               className="text-sm text-gray-600 hover:text-gray-800 transition-colors duration-200"
             >
               ← Geri dön
             </button>
-            <button
-              type="submit"
-              disabled={isLoggingIn || !pinInput}
-              className={`px-6 py-2 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg flex items-center space-x-2 ${
-                isLoggingIn || !pinInput
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700'
-              }`}
-            >
-              {isLoggingIn && (
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-              )}
-              <span>{isLoggingIn ? 'Giriş Yapılıyor...' : 'Giriş Yap'}</span>
-            </button>
+            {isLoggingIn && (
+              <div className="ml-4 flex items-center space-x-2 text-indigo-600">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>
+                <span className="text-sm">Giriş yapılıyor...</span>
+              </div>
+            )}
         </div>
-    </form>
+    </div>
   )
 
   // Loading state for maintenance check

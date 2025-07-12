@@ -1,0 +1,163 @@
+{
+  "timestamp": "2025-07-11T19:24:48.351Z",
+  "tables": {},
+  "functions": [
+    {
+      "function_name": "check_isletme_pin_giris",
+      "status": "known_function",
+      "source": "scripts/"
+    },
+    {
+      "function_name": "check_ogretmen_pin_giris",
+      "status": "known_function",
+      "source": "scripts/"
+    },
+    {
+      "function_name": "update_system_setting",
+      "status": "known_function",
+      "source": "scripts/"
+    },
+    {
+      "function_name": "get_system_setting",
+      "status": "known_function",
+      "source": "scripts/"
+    },
+    {
+      "function_name": "get_admin_users",
+      "status": "known_function",
+      "source": "scripts/"
+    },
+    {
+      "function_name": "create_admin_user",
+      "status": "known_function",
+      "source": "scripts/"
+    },
+    {
+      "function_name": "update_admin_user",
+      "status": "known_function",
+      "source": "scripts/"
+    },
+    {
+      "function_name": "delete_admin_user",
+      "status": "known_function",
+      "source": "scripts/"
+    },
+    {
+      "function_name": "is_user_admin",
+      "status": "known_function",
+      "source": "scripts/"
+    },
+    {
+      "function_name": "get_gorev_belgeleri_detayli",
+      "status": "known_function",
+      "source": "scripts/"
+    },
+    {
+      "function_name": "prevent_super_admin_deactivation",
+      "status": "known_function",
+      "source": "scripts/"
+    },
+    {
+      "function_name": "update_dekont_onay_tarihi",
+      "status": "known_function",
+      "source": "scripts/"
+    },
+    {
+      "function_name": "set_default_dekont_values",
+      "status": "known_function",
+      "source": "scripts/"
+    },
+    {
+      "function_name": "set_default_odeme_son_tarihi",
+      "status": "known_function",
+      "source": "scripts/"
+    }
+  ],
+  "triggers": [
+    {
+      "trigger_name": "dekont_onay_durumu_degistiginde",
+      "table_name": "dekontlar",
+      "function_name": "update_dekont_onay_tarihi",
+      "description": "Dekont onay durumu değiştiğinde otomatik tarih güncelleme"
+    },
+    {
+      "trigger_name": "tr_set_default_dekont_values",
+      "table_name": "dekontlar",
+      "function_name": "set_default_dekont_values",
+      "description": "Dekont ekleme/güncelleme sırasında varsayılan değerleri ayarlama"
+    },
+    {
+      "trigger_name": "tr_set_default_odeme_son_tarihi",
+      "table_name": "dekontlar",
+      "function_name": "set_default_odeme_son_tarihi",
+      "description": "Ödeme son tarihi otomatik hesaplama"
+    },
+    {
+      "trigger_name": "protect_super_admin_status",
+      "table_name": "admin_kullanicilar",
+      "function_name": "prevent_super_admin_deactivation",
+      "description": "Super admin deaktivasyonunu engelleme"
+    }
+  ],
+  "indexes": [
+    {
+      "index_name": "idx_dekontlar_ogrenci",
+      "table_name": "dekontlar",
+      "columns": [
+        "ogrenci_id"
+      ],
+      "description": "Dekontlar tablosu öğrenci performans index'i"
+    },
+    {
+      "index_name": "idx_dekontlar_isletme",
+      "table_name": "dekontlar",
+      "columns": [
+        "isletme_id"
+      ],
+      "description": "Dekontlar tablosu işletme performans index'i"
+    },
+    {
+      "index_name": "idx_dekontlar_ay_yil",
+      "table_name": "dekontlar",
+      "columns": [
+        "ay",
+        "yil"
+      ],
+      "description": "Dekontlar tablosu tarih performans index'i"
+    },
+    {
+      "index_name": "idx_dekontlar_onay_durumu",
+      "table_name": "dekontlar",
+      "columns": [
+        "onay_durumu"
+      ],
+      "description": "Dekontlar tablosu onay durumu performans index'i"
+    }
+  ],
+  "policies": [
+    {
+      "policy_name": "Öğretmenler kendi öğrencilerinin dekontlarını görebilir",
+      "table_name": "dekontlar",
+      "command": "SELECT",
+      "description": "Öğretmenler sadece kendi öğrencilerinin dekontlarını görebilir"
+    },
+    {
+      "policy_name": "İşletmeler kendi dekontlarını görebilir",
+      "table_name": "dekontlar",
+      "command": "SELECT",
+      "description": "İşletmeler sadece kendi dekontlarını görebilir"
+    },
+    {
+      "policy_name": "Admin tüm dekontları görebilir",
+      "table_name": "dekontlar",
+      "command": "ALL",
+      "description": "Admin kullanıcıları tüm dekontlara erişebilir"
+    },
+    {
+      "policy_name": "System settings admin erişimi",
+      "table_name": "system_settings",
+      "command": "ALL",
+      "description": "Sistem ayarlarına sadece admin erişimi"
+    }
+  ]
+}

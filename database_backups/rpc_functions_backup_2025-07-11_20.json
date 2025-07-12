@@ -1,0 +1,77 @@
+{
+  "timestamp": "2025-07-11T20:56:37.640Z",
+  "total_functions": 11,
+  "working_functions": [
+    "get_admin_users",
+    "get_system_setting"
+  ],
+  "available_functions": [
+    "create_admin_user",
+    "update_admin_user",
+    "delete_admin_user",
+    "is_user_admin",
+    "update_system_setting",
+    "check_isletme_pin_giris",
+    "check_ogretmen_pin_giris",
+    "get_gorev_belgeleri_detayli",
+    "exec_sql"
+  ],
+  "function_details": {
+    "get_admin_users": {
+      "status": "working",
+      "error": null,
+      "test_date": "2025-07-11T20:56:37.894Z"
+    },
+    "create_admin_user": {
+      "status": "available",
+      "error": "Could not find the function public.create_admin_user without parameters in the schema cache",
+      "test_date": "2025-07-11T20:56:38.500Z"
+    },
+    "update_admin_user": {
+      "status": "available",
+      "error": "Could not find the function public.update_admin_user without parameters in the schema cache",
+      "test_date": "2025-07-11T20:56:38.757Z"
+    },
+    "delete_admin_user": {
+      "status": "available",
+      "error": "Could not find the function public.delete_admin_user without parameters in the schema cache",
+      "test_date": "2025-07-11T20:56:38.998Z"
+    },
+    "is_user_admin": {
+      "status": "available",
+      "error": "structure of query does not match function result type",
+      "test_date": "2025-07-11T20:56:39.251Z"
+    },
+    "get_system_setting": {
+      "status": "working",
+      "error": null,
+      "test_date": "2025-07-11T20:56:39.501Z"
+    },
+    "update_system_setting": {
+      "status": "available",
+      "error": "Could not find the function public.update_system_setting without parameters in the schema cache",
+      "test_date": "2025-07-11T20:56:39.767Z"
+    },
+    "check_isletme_pin_giris": {
+      "status": "available",
+      "error": "Could not find the function public.check_isletme_pin_giris without parameters in the schema cache",
+      "test_date": "2025-07-11T20:56:40.075Z"
+    },
+    "check_ogretmen_pin_giris": {
+      "status": "available",
+      "error": "Could not find the function public.check_ogretmen_pin_giris without parameters in the schema cache",
+      "test_date": "2025-07-11T20:56:40.745Z"
+    },
+    "get_gorev_belgeleri_detayli": {
+      "status": "available",
+      "error": "Could not find the function public.get_gorev_belgeleri_detayli without parameters in the schema cache",
+      "test_date": "2025-07-11T20:56:40.991Z"
+    },
+    "exec_sql": {
+      "status": "available",
+      "error": "Could not find the function public.exec_sql without parameters in the schema cache",
+      "test_date": "2025-07-11T20:56:41.235Z"
+    }
+  },
+  "sql_definitions_raw": "success"
+}

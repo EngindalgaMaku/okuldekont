@@ -183,7 +183,14 @@ export default function IsletmeDetayPage() {
     telefon: '',
     email: '',
     yetkili_kisi: '',
-    pin: ''
+    pin: '',
+    faaliyet_alani: '',
+    vergi_numarasi: '',
+    banka_hesap_no: '',
+    calisan_sayisi: '',
+    katki_payi_talebi: '',
+    usta_ogretici_adi: '',
+    usta_ogretici_telefon: ''
   })
 
   const [ogrenciFormData, setOgrenciFormData] = useState({
@@ -242,7 +249,14 @@ export default function IsletmeDetayPage() {
         telefon: data.telefon || '',
         email: data.email || '',
         yetkili_kisi: data.yetkili_kisi || '',
-        pin: data.pin || ''
+        pin: data.pin || '',
+        faaliyet_alani: data.faaliyet_alani || '',
+        vergi_numarasi: data.vergi_numarasi || '',
+        banka_hesap_no: data.banka_hesap_no || '',
+        calisan_sayisi: data.calisan_sayisi || '',
+        katki_payi_talebi: data.katki_payi_talebi || '',
+        usta_ogretici_adi: data.usta_ogretici_adi || '',
+        usta_ogretici_telefon: data.usta_ogretici_telefon || ''
       })
     } catch (error) {
       console.error('Genel hata:', error)
@@ -564,6 +578,7 @@ export default function IsletmeDetayPage() {
     if (!isletme) return
 
     try {
+      // Save all fields including new extended fields
       const { error } = await supabase
         .from('isletmeler')
         .update({
@@ -572,7 +587,14 @@ export default function IsletmeDetayPage() {
           telefon: formData.telefon.trim() || null,
           email: formData.email.trim() || null,
           yetkili_kisi: formData.yetkili_kisi.trim() || null,
-          pin: formData.pin.trim() || null
+          pin: formData.pin.trim() || null,
+          faaliyet_alani: formData.faaliyet_alani.trim() || null,
+          vergi_numarasi: formData.vergi_numarasi.trim() || null,
+          banka_hesap_no: formData.banka_hesap_no.trim() || null,
+          calisan_sayisi: formData.calisan_sayisi.trim() || null,
+          katki_payi_talebi: formData.katki_payi_talebi.trim() || null,
+          usta_ogretici_adi: formData.usta_ogretici_adi.trim() || null,
+          usta_ogretici_telefon: formData.usta_ogretici_telefon.trim() || null
         })
         .eq('id', isletme.id)
 
@@ -581,6 +603,7 @@ export default function IsletmeDetayPage() {
         return
       }
 
+      alert('İşletme bilgileri başarıyla güncellendi!')
       setEditMode(false)
       fetchIsletme()
     } catch (error) {
@@ -1005,7 +1028,14 @@ export default function IsletmeDetayPage() {
                       telefon: isletme.telefon || '',
                       email: isletme.email || '',
                       yetkili_kisi: isletme.yetkili_kisi || '',
-                      pin: isletme.pin || ''
+                      pin: isletme.pin || '',
+                      faaliyet_alani: (isletme as any).faaliyet_alani || '',
+                      vergi_numarasi: (isletme as any).vergi_numarasi || '',
+                      banka_hesap_no: (isletme as any).banka_hesap_no || '',
+                      calisan_sayisi: (isletme as any).calisan_sayisi || '',
+                      katki_payi_talebi: (isletme as any).katki_payi_talebi || '',
+                      usta_ogretici_adi: (isletme as any).usta_ogretici_adi || '',
+                      usta_ogretici_telefon: (isletme as any).usta_ogretici_telefon || ''
                     })
                   }}
                   className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200"
@@ -1667,12 +1697,12 @@ function BelgelerPanel({
 
 
 // Temel Bilgiler Paneli
-function TemelBilgilerPanel({ 
-  isletme, 
-  formData, 
-  setFormData, 
-  editMode 
-}: { 
+function TemelBilgilerPanel({
+  isletme,
+  formData,
+  setFormData,
+  editMode
+}: {
   isletme: Isletme
   formData: {
     ad: string;
@@ -1681,6 +1711,13 @@ function TemelBilgilerPanel({
     email: string;
     yetkili_kisi: string;
     pin: string;
+    faaliyet_alani: string;
+    vergi_numarasi: string;
+    banka_hesap_no: string;
+    calisan_sayisi: string;
+    katki_payi_talebi: string;
+    usta_ogretici_adi: string;
+    usta_ogretici_telefon: string;
   }
   setFormData: React.Dispatch<React.SetStateAction<{
     ad: string;
@@ -1689,15 +1726,28 @@ function TemelBilgilerPanel({
     email: string;
     yetkili_kisi: string;
     pin: string;
+    faaliyet_alani: string;
+    vergi_numarasi: string;
+    banka_hesap_no: string;
+    calisan_sayisi: string;
+    katki_payi_talebi: string;
+    usta_ogretici_adi: string;
+    usta_ogretici_telefon: string;
   }>>
   editMode: boolean
 }) {
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-4">
+    <div className="space-y-8">
+      {/* İşletme Temel Bilgileri */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+        <div className="flex items-center mb-4">
+          <Building2 className="h-6 w-6 text-blue-600 mr-3" />
+          <h3 className="text-lg font-semibold text-blue-900">İşletme Bilgileri</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-blue-800 mb-2">
               İşletme Adı
             </label>
             {editMode ? (
@@ -1705,17 +1755,78 @@ function TemelBilgilerPanel({
                 type="text"
                 value={formData.ad}
                 onChange={(e) => setFormData(prev => ({ ...prev, ad: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
               />
             ) : (
-              <div className="px-4 py-3 bg-gray-50 rounded-lg text-gray-900">
+              <div className="px-4 py-3 bg-white/70 rounded-lg text-blue-900 font-medium">
                 {isletme.ad}
               </div>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-blue-800 mb-2">
+              İşletme Yetkilisi
+            </label>
+            {editMode ? (
+              <input
+                type="text"
+                value={formData.yetkili_kisi}
+                onChange={(e) => setFormData(prev => ({ ...prev, yetkili_kisi: e.target.value }))}
+                className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                placeholder="Yetkili kişi adı soyadı"
+              />
+            ) : (
+              <div className="px-4 py-3 bg-white/70 rounded-lg text-blue-900">
+                {isletme.yetkili_kisi || 'Belirtilmemiş'}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* İşletme Detayı */}
+      <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
+        <div className="flex items-center mb-4">
+          <FileText className="h-6 w-6 text-green-600 mr-3" />
+          <h3 className="text-lg font-semibold text-green-900">İşletme Detayı</h3>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-green-800 mb-2">
+            İşletmenin Faaliyet Alanı / Öğrenci Verilme Temeli
+          </label>
+          {editMode ? (
+            <textarea
+              value={formData.faaliyet_alani}
+              onChange={(e) => setFormData(prev => ({ ...prev, faaliyet_alani: e.target.value }))}
+              placeholder="İşletmenin ne iş yaptığı, hangi alanda faaliyet gösterdiği ve öğrencilere hangi becerileri kazandıracağı..."
+              rows={4}
+              className="w-full px-4 py-3 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
+            />
+          ) : (
+            <div className="px-4 py-3 bg-white/70 rounded-lg text-green-900 min-h-[100px] flex items-center">
+              {(isletme as any).faaliyet_alani ? (
+                <span className="text-green-900">{(isletme as any).faaliyet_alani}</span>
+              ) : (
+                <span className="text-green-600 italic">Bu bilgi henüz girilmemiş</span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* İletişim Bilgileri */}
+      <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
+        <div className="flex items-center mb-4">
+          <Phone className="h-6 w-6 text-purple-600 mr-3" />
+          <h3 className="text-lg font-semibold text-purple-900">İletişim Bilgileri</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-purple-800 mb-2">
+              <MapPin className="h-4 w-4 inline mr-1" />
               Adres
             </label>
             {editMode ? (
@@ -1723,37 +1834,19 @@ function TemelBilgilerPanel({
                 value={formData.adres}
                 onChange={(e) => setFormData(prev => ({ ...prev, adres: e.target.value }))}
                 rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
+                placeholder="İşletme adresi"
               />
             ) : (
-              <div className="px-4 py-3 bg-gray-50 rounded-lg text-gray-900 min-h-[84px]">
+              <div className="px-4 py-3 bg-white/70 rounded-lg text-purple-900 min-h-[84px]">
                 {isletme.adres || 'Belirtilmemiş'}
               </div>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Yetkili Kişi
-            </label>
-            {editMode ? (
-              <input
-                type="text"
-                value={formData.yetkili_kisi}
-                onChange={(e) => setFormData(prev => ({ ...prev, yetkili_kisi: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            ) : (
-              <div className="px-4 py-3 bg-gray-50 rounded-lg text-gray-900">
-                {isletme.yetkili_kisi || 'Belirtilmemiş'}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-purple-800 mb-2">
+              <Phone className="h-4 w-4 inline mr-1" />
               Telefon
             </label>
             {editMode ? (
@@ -1761,17 +1854,19 @@ function TemelBilgilerPanel({
                 type="tel"
                 value={formData.telefon}
                 onChange={(e) => setFormData(prev => ({ ...prev, telefon: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
+                placeholder="0555 123 45 67"
               />
             ) : (
-              <div className="px-4 py-3 bg-gray-50 rounded-lg text-gray-900">
+              <div className="px-4 py-3 bg-white/70 rounded-lg text-purple-900">
                 {isletme.telefon || 'Belirtilmemiş'}
               </div>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-purple-800 mb-2">
+              <Mail className="h-4 w-4 inline mr-1" />
               E-posta
             </label>
             {editMode ? (
@@ -1779,18 +1874,183 @@ function TemelBilgilerPanel({
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
+                placeholder="ornek@sirket.com"
               />
             ) : (
-              <div className="px-4 py-3 bg-gray-50 rounded-lg text-gray-900">
+              <div className="px-4 py-3 bg-white/70 rounded-lg text-purple-900">
                 {isletme.email || 'Belirtilmemiş'}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Devlet Katkı Payı Bilgileri */}
+      <div className="bg-gradient-to-r from-orange-50 to-yellow-50 rounded-xl p-6 border border-orange-200">
+        <div className="flex items-center mb-4">
+          <Receipt className="h-6 w-6 text-orange-600 mr-3" />
+          <h3 className="text-lg font-semibold text-orange-900">Devlet Katkı Payı Ödemesi Bilgileri</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-orange-800 mb-2">
+              Vergi Numarası
+            </label>
+            {editMode ? (
+              <input
+                type="text"
+                value={formData.vergi_numarasi}
+                onChange={(e) => setFormData(prev => ({ ...prev, vergi_numarasi: e.target.value }))}
+                className="w-full px-4 py-3 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
+                placeholder="1234567890"
+              />
+            ) : (
+              <div className="px-4 py-3 bg-white/70 rounded-lg text-orange-900">
+                {(isletme as any).vergi_numarasi ? (
+                  <span className="text-orange-900">{(isletme as any).vergi_numarasi}</span>
+                ) : (
+                  <span className="text-orange-600 italic">Belirtilmemiş</span>
+                )}
               </div>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              PIN Kodu
+            <label className="block text-sm font-medium text-orange-800 mb-2">
+              Banka Hesap No
+            </label>
+            {editMode ? (
+              <input
+                type="text"
+                value={formData.banka_hesap_no}
+                onChange={(e) => setFormData(prev => ({ ...prev, banka_hesap_no: e.target.value }))}
+                className="w-full px-4 py-3 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
+                placeholder="TR00 0000 0000 0000 0000 00"
+              />
+            ) : (
+              <div className="px-4 py-3 bg-white/70 rounded-lg text-orange-900">
+                {(isletme as any).banka_hesap_no ? (
+                  <span className="text-orange-900">{(isletme as any).banka_hesap_no}</span>
+                ) : (
+                  <span className="text-orange-600 italic">Belirtilmemiş</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-orange-800 mb-2">
+              Çalışan Sayısı
+            </label>
+            {editMode ? (
+              <input
+                type="number"
+                value={formData.calisan_sayisi}
+                onChange={(e) => setFormData(prev => ({ ...prev, calisan_sayisi: e.target.value }))}
+                className="w-full px-4 py-3 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
+                placeholder="0"
+                min="0"
+              />
+            ) : (
+              <div className="px-4 py-3 bg-white/70 rounded-lg text-orange-900">
+                {(isletme as any).calisan_sayisi ? (
+                  <span className="text-orange-900">{(isletme as any).calisan_sayisi}</span>
+                ) : (
+                  <span className="text-orange-600 italic">Belirtilmemiş</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-orange-800 mb-2">
+              Katkı Payı Talebi
+            </label>
+            {editMode ? (
+              <select
+                value={formData.katki_payi_talebi}
+                onChange={(e) => setFormData(prev => ({ ...prev, katki_payi_talebi: e.target.value }))}
+                className="w-full px-4 py-3 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
+              >
+                <option value="">Seçiniz</option>
+                <option value="evet">Evet</option>
+                <option value="hayir">Hayır</option>
+              </select>
+            ) : (
+              <div className="px-4 py-3 bg-white/70 rounded-lg text-orange-900">
+                {(isletme as any).katki_payi_talebi ? (
+                  <span className="text-orange-900">
+                    {(isletme as any).katki_payi_talebi === 'evet' ? 'Evet' : 'Hayır'}
+                  </span>
+                ) : (
+                  <span className="text-orange-600 italic">Belirtilmemiş</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Teknik Bilgiler - Usta Öğretici */}
+      <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-200">
+        <div className="flex items-center mb-4">
+          <User className="h-6 w-6 text-indigo-600 mr-3" />
+          <h3 className="text-lg font-semibold text-indigo-900">Teknik Bilgiler</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-indigo-800 mb-2">
+              Usta Öğretici Adı Soyadı
+            </label>
+            {editMode ? (
+              <input
+                type="text"
+                value={formData.usta_ogretici_adi}
+                onChange={(e) => setFormData(prev => ({ ...prev, usta_ogretici_adi: e.target.value }))}
+                className="w-full px-4 py-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                placeholder="Usta öğretici adı soyadı"
+              />
+            ) : (
+              <div className="px-4 py-3 bg-white/70 rounded-lg text-indigo-900">
+                {(isletme as any).usta_ogretici_adi ? (
+                  <span className="text-indigo-900">{(isletme as any).usta_ogretici_adi}</span>
+                ) : (
+                  <span className="text-indigo-600 italic">Belirtilmemiş</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-indigo-800 mb-2">
+              Usta Öğretici Telefon
+            </label>
+            {editMode ? (
+              <input
+                type="tel"
+                value={formData.usta_ogretici_telefon}
+                onChange={(e) => setFormData(prev => ({ ...prev, usta_ogretici_telefon: e.target.value }))}
+                className="w-full px-4 py-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                placeholder="0555 123 45 67"
+              />
+            ) : (
+              <div className="px-4 py-3 bg-white/70 rounded-lg text-indigo-900">
+                {(isletme as any).usta_ogretici_telefon ? (
+                  <span className="text-indigo-900">{(isletme as any).usta_ogretici_telefon}</span>
+                ) : (
+                  <span className="text-indigo-600 italic">Belirtilmemiş</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-indigo-800 mb-2">
+              <Key className="h-4 w-4 inline mr-1" />
+              Sistem PIN Kodu
             </label>
             {editMode ? (
               <input
@@ -1798,16 +2058,15 @@ function TemelBilgilerPanel({
                 value={formData.pin}
                 onChange={(e) => setFormData(prev => ({ ...prev, pin: e.target.value }))}
                 maxLength={4}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+                className="w-full px-4 py-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white font-mono"
+                placeholder="0000"
               />
             ) : (
-              <div className="px-4 py-3 bg-gray-50 rounded-lg text-gray-900 font-mono">
+              <div className="px-4 py-3 bg-white/70 rounded-lg text-indigo-900 font-mono">
                 {isletme.pin || 'Belirtilmemiş'}
               </div>
             )}
           </div>
-
-
         </div>
       </div>
     </div>

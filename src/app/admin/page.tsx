@@ -183,9 +183,11 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
         {loading ? (
           <>
+            <StatCardSkeleton />
+            <StatCardSkeleton />
             <StatCardSkeleton />
             <StatCardSkeleton />
             <StatCardSkeleton />
@@ -253,6 +255,40 @@ export default function AdminDashboard() {
               </div>
               <div className="mt-4 flex items-center">
                 <span className="text-sm text-gray-500">Bu hafta</span>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow duration-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Aktif Öğretmen</p>
+                  <p className="text-3xl font-bold text-purple-600">{stats.totalOgretmenler}</p>
+                </div>
+                <div className="p-3 bg-purple-50 rounded-xl">
+                  <Users className="h-6 w-6 text-purple-600" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <Link href="/admin/ogretmenler" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors duration-200">
+                  Yönet →
+                </Link>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow duration-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Kayıtlı İşletme</p>
+                  <p className="text-3xl font-bold text-orange-600">{stats.totalIsletmeler}</p>
+                </div>
+                <div className="p-3 bg-orange-50 rounded-xl">
+                  <Building className="h-6 w-6 text-orange-600" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <Link href="/admin/isletmeler" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors duration-200">
+                  Görüntüle →
+                </Link>
               </div>
             </div>
           </>

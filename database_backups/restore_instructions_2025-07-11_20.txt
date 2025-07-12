@@ -1,0 +1,35 @@
+
+=================================================================
+VERİTABANI GERİ YÜKLEME TALİMATLARI (Geliştirilmiş)
+=================================================================
+Tarih: 2025-07-11T20:56:43.212Z
+Yedek Dosyaları: 2025-07-11_20
+
+YEDEK DOSYALARI:
+- data_backup_2025-07-11_20.json          (Tablo verileri JSON)
+- data_backup_2025-07-11_20.sql           (Tablo verileri SQL)
+- rpc_functions_backup_2025-07-11_20.json (RPC fonksiyonları)
+- schema_backup_2025-07-11_20.json        (Schema bilgileri JSON)
+- schema_backup_2025-07-11_20.sql         (Schema bilgileri SQL)
+
+1. TABLO VERİLERİNİ GERİ YÜKLEME:
+   JSON formatından:
+   node scripts/restore-from-json.js data_backup_2025-07-11_20.json
+   
+   SQL formatından:
+   psql -h your-host -p 5432 -U postgres -d postgres -f data_backup_2025-07-11_20.sql
+
+2. RPC FONKSİYONLARINI GERİ YÜKLEME:
+   - rpc_functions_backup_2025-07-11_20.json dosyasını açın
+   - Çalışan fonksiyonları kontrol edin
+   - scripts/ klasöründeki ilgili .sql dosyalarını çalıştırın
+
+3. SCHEMA BİLGİLERİNİ GERİ YÜKLEME:
+   psql -h your-host -p 5432 -U postgres -d postgres -f schema_backup_2025-07-11_20.sql
+
+UYARI:
+- Geri yükleme işlemi öncesinde mevcut verileri yedekleyin
+- RLS (Row Level Security) politikalarını kontrol edin
+- RPC fonksiyonları doğru parametrelerle test edin
+
+=================================================================
