@@ -374,9 +374,9 @@ Bu hatayı çözmek için aşağıdaki adımları takip edin:
         notes: newBackupNotes.trim() || null
       })
 
-      // Create a timeout promise
+      // Create a timeout promise with longer duration
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Backup oluşturma işlemi 60 saniyede tamamlanmadı. Lütfen tekrar deneyin.')), 60000)
+        setTimeout(() => reject(new Error('Backup oluşturma işlemi 3 dakikada tamamlanmadı. Bu normal değil - sistem yöneticisine başvurun.')), 180000)
       })
 
       // Create backup promise with new safe function
@@ -386,7 +386,7 @@ Bu hatayı çözmek için aşağıdaki adımları takip edin:
         p_notes: newBackupNotes.trim() || null
       })
 
-      console.log('⏱️ Güvenli RPC çağrısı başlatıldı, 60 saniye timeout ile bekliyor...')
+      console.log('⏱️ Güvenli RPC çağrısı başlatıldı, 3 dakika timeout ile bekliyor...')
       
       // Race between backup and timeout
       const { data, error } = await Promise.race([backupPromise, timeoutPromise]) as any
@@ -1495,7 +1495,7 @@ sekmesinden "Restore" butonunu kullanabilirsiniz.
                 {creatingBackup ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Oluşturuluyor... (Max 60sn)
+                    Oluşturuluyor... (Max 3dk)
                   </>
                 ) : (
                   <>
