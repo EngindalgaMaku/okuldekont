@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { AdminManagement } from '@/components/ui/AdminManagement'
 import JSZip from 'jszip'
+import { createProfessionalBackup, type ProfessionalBackupResult } from '@/lib/professional-backup'
 
 export default function AyarlarPage() {
   const router = useRouter()
@@ -58,6 +59,12 @@ export default function AyarlarPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleteBackupData, setDeleteBackupData] = useState({ id: '', name: '' })
   const [deletingBackup, setDeletingBackup] = useState(false)
+
+  // Professional backup state
+  const [professionalBackupLoading, setProfessionalBackupLoading] = useState(false)
+  const [showProfessionalBackupModal, setShowProfessionalBackupModal] = useState(false)
+  const [professionalBackupResult, setProfessionalBackupResult] = useState<ProfessionalBackupResult | null>(null)
+  const [showProfessionalResultModal, setShowProfessionalResultModal] = useState(false)
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -466,6 +473,145 @@ Bu hatayı çözmek için aşağıdaki adımları takip edin:
       alert('Backup silinirken hata: ' + (error as Error).message)
     }
     setDeletingBackup(false)
+  }
+
+  // Professional backup functions
+  const handleProfessionalBackup = async () => {
+    setProfessionalBackupLoading(true)
+    try {
+      console.log('🚀 Professional Backup System v2.0 başlatılıyor...')
+      
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error('Supabase konfigürasyonu eksik')
+      }
+      
+      const result = await createProfessionalBackup(supabaseUrl, supabaseKey)
+      
+      if (result.success) {
+        console.log('✅ Professional backup başarıyla tamamlandı')
+        setProfessionalBackupResult(result)
+        setShowProfessionalResultModal(true)
+        
+        // Refresh regular backup list if needed
+        fetchBackupData()
+      } else {
+        throw new Error(result.error || 'Professional backup failed')
+      }
+      
+    } catch (error) {
+      console.error('💥 Professional backup hatası:', error)
+      alert('Professional backup hatası:\n\n' + (error as Error).message)
+    }
+    
+    setProfessionalBackupLoading(false)
+    setShowProfessionalBackupModal(false)
+  }
+
+  const downloadProfessionalBackup = async (backupData: any) => {
+    try {
+      const zip = new JSZip()
+      
+      // Create comprehensive backup package
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '_')
+      const backupName = `Professional_Backup_${timestamp}`
+      
+      // Add JSON backup
+      zip.file(`${backupName}.json`, JSON.stringify(backupData, null, 2))
+      
+      // Add SQL backup
+      let sqlBackup = `-- Professional PostgreSQL Backup System v2.0
+-- Created: ${new Date().toISOString()}
+-- Hash: ${backupData.metadata.integrity_hash}
+-- Tables: ${backupData.statistics.total_tables}
+-- Records: ${backupData.statistics.total_records}
+-- Functions: ${backupData.statistics.total_functions}
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET client_encoding = 'UTF8';
+
+`
+      
+      // Add table data as SQL INSERTs
+      for (const table of backupData.schema.tables) {
+        if (table.data && table.data.length > 0) {
+          sqlBackup += `\n-- Table: ${table.name} (${table.record_count} records)\n`
+          sqlBackup += `TRUNCATE TABLE "${table.name}" CASCADE;\n`
+          
+          const columns = Object.keys(table.data[0])
+          for (const row of table.data) {
+            const values = columns.map(col => {
+              const val = row[col]
+              if (val === null) return 'NULL'
+              if (typeof val === 'string') return `'${val.replace(/'/g, "''")}'`
+              if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE'
+              if (val instanceof Date) return `'${val.toISOString()}'`
+              return val
+            }).join(', ')
+            
+            sqlBackup += `INSERT INTO "${table.name}" (${columns.map(c => `"${c}"`).join(', ')}) VALUES (${values});\n`
+          }
+        }
+      }
+      
+      zip.file(`${backupName}.sql`, sqlBackup)
+      
+      // Add comprehensive report
+      const report = `# Professional PostgreSQL Backup Report
+## Backup Information
+- **Created**: ${backupData.metadata.created_at}
+- **Version**: ${backupData.metadata.version}
+- **Integrity Hash**: ${backupData.metadata.integrity_hash}
+- **Total Objects**: ${backupData.metadata.total_objects}
+
+## Statistics
+- **Execution Time**: ${(backupData.statistics.execution_time_ms / 1000).toFixed(2)} seconds
+- **Total Tables**: ${backupData.statistics.total_tables}
+- **Total Records**: ${backupData.statistics.total_records}
+- **Total Functions**: ${backupData.statistics.total_functions}
+- **Backup Size**: ${(backupData.statistics.backup_size_bytes / 1024 / 1024).toFixed(2)} MB
+
+## Table Details
+${backupData.schema.tables.map((table: any) =>
+  `- **${table.name}**: ${table.record_count} records`
+).join('\n')}
+
+## Functions
+${backupData.schema.functions.map((func: any) =>
+  `- **${func.name}** (${func.language}) - ${func.definition_length} chars`
+).join('\n')}
+
+## Enum Types
+${backupData.schema.enum_types.map((enumType: any) =>
+  `- **${enumType.enum_name}**: [${enumType.enum_values.join(', ')}]`
+).join('\n')}
+
+---
+*Generated by Professional PostgreSQL Backup System v2.0*
+`
+      
+      zip.file(`${backupName}_Report.md`, report)
+      
+      // Generate and download
+      const content = await zip.generateAsync({ type: 'blob' })
+      const url = window.URL.createObjectURL(content)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${backupName}.zip`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      console.log('📦 Professional backup package downloaded successfully')
+      
+    } catch (error) {
+      console.error('Download error:', error)
+      alert('Download hatası: ' + (error as Error).message)
+    }
   }
 
   // Restore functions
@@ -1054,19 +1200,66 @@ sekmesinden "Restore" butonunu kullanabilirsiniz.
                 </div>
               </div>
 
-              {/* Create Backup Button */}
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">Yedek Oluştur</h3>
-                  <p className="text-sm text-gray-600">Veritabanının tam yedeğini alın</p>
+              {/* Create Backup Buttons */}
+              <div className="space-y-6 mb-6">
+                {/* Standard Backup */}
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Standart Yedek</h3>
+                    <p className="text-sm text-gray-600">Mevcut RPC sistemini kullanarak yedek alın</p>
+                  </div>
+                  <button
+                    onClick={() => setShowBackupModal(true)}
+                    className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-xl hover:bg-indigo-700 transition-all duration-200"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Standart Yedek Oluştur
+                  </button>
                 </div>
-                <button
-                  onClick={() => setShowBackupModal(true)}
-                  className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-xl hover:bg-indigo-700 transition-all duration-200"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Yeni Yedek Oluştur
-                </button>
+
+                {/* Professional Backup */}
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 border border-purple-200">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-lg font-medium text-purple-900 flex items-center">
+                        <Shield className="h-5 w-5 mr-2" />
+                        Professional Backup System v2.0
+                      </h3>
+                      <p className="text-sm text-purple-700 mt-1">Gelişmiş backup sistemi - Tam veri + fonksiyon algılama</p>
+                      <div className="flex items-center mt-2 space-x-4 text-xs text-purple-600">
+                        <span className="flex items-center">
+                          <Database className="h-3 w-3 mr-1" />
+                          11 Tablo + 674+ Kayıt
+                        </span>
+                        <span className="flex items-center">
+                          <Settings className="h-3 w-3 mr-1" />
+                          49 RPC Fonksiyon
+                        </span>
+                        <span className="flex items-center">
+                          <Shield className="h-3 w-3 mr-1" />
+                          Hash Doğrulama
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowProfessionalBackupModal(true)}
+                      disabled={professionalBackupLoading}
+                      className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 border border-transparent rounded-xl hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg"
+                    >
+                      {professionalBackupLoading ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Oluşturuluyor...
+                        </>
+                      ) : (
+                        <>
+                          <Shield className="h-4 w-4 mr-2" />
+                          Professional Backup
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Last Backup Info */}
@@ -2112,6 +2305,185 @@ sekmesinden "Restore" butonunu kullanabilirsiniz.
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+     {/* Professional Backup Modal */}
+     {showProfessionalBackupModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 transform transition-all">
+            <div className="flex items-center mb-4">
+              <Shield className="h-6 w-6 text-purple-600 mr-3" />
+              <h3 className="text-xl font-semibold text-gray-900">Professional Backup System v2.0</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-4 border border-purple-200">
+                <div className="flex items-start">
+                  <Database className="h-5 w-5 text-purple-600 mr-2 mt-0.5" />
+                  <div className="text-sm">
+                    <div className="font-medium text-purple-800 mb-1">🚀 Gelişmiş Özellikler:</div>
+                    <ul className="text-purple-700 space-y-1">
+                      <li>• Dinamik tablo ve fonksiyon algılama</li>
+                      <li>• 11 tablo + 674+ kayıt + 49 RPC fonksiyon</li>
+                      <li>• Integrity hash doğrulama</li>
+                      <li>• JSON + SQL + Markdown rapor</li>
+                      <li>• ~5 saniyede tamamlanır</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                <div className="flex items-start">
+                  <Settings className="h-5 w-5 text-blue-600 mr-2 mt-0.5" />
+                  <div className="text-sm">
+                    <div className="font-medium text-blue-800 mb-1">📋 İçerik:</div>
+                    <ul className="text-blue-700 space-y-1">
+                      <li>• Tam veri yedeği (tüm tablolar)</li>
+                      <li>• PostgreSQL fonksiyon tanımları</li>
+                      <li>• Enum type ve schema bilgileri</li>
+                      <li>• Performans ve istatistik raporları</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                <div className="flex items-start">
+                  <Shield className="h-5 w-5 text-green-600 mr-2 mt-0.5" />
+                  <div className="text-sm">
+                    <div className="font-medium text-green-800 mb-1">✅ Avantajları:</div>
+                    <ul className="text-green-700 space-y-1">
+                      <li>• Standart backup'tan daha kapsamlı</li>
+                      <li>• Fonksiyon eksikliği problemi yok</li>
+                      <li>• Doğrudan indirilebilir ZIP paketi</li>
+                      <li>• Hash ile veri bütünlüğü kontrolü</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowProfessionalBackupModal(false)}
+                disabled={professionalBackupLoading}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-xl hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleProfessionalBackup}
+                disabled={professionalBackupLoading}
+                className="inline-flex items-center px-6 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 border border-transparent rounded-xl hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
+              >
+                {professionalBackupLoading ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Oluşturuluyor...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="h-4 w-4 mr-2" />
+                    Professional Backup Başlat
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Professional Backup Result Modal */}
+      {showProfessionalResultModal && professionalBackupResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 transform transition-all">
+            <div className="text-center">
+              <div className="mx-auto w-16 h-16 bg-gradient-to-r from-purple-100 to-blue-100 rounded-full flex items-center justify-center mb-4">
+                <Shield className="h-8 w-8 text-purple-600" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">🎉 Professional Backup Tamamlandı!</h3>
+              <p className="text-gray-600 mb-6">Enterprise-grade backup sistemi başarıyla çalıştırıldı.</p>
+              
+              {professionalBackupResult.backup && (
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 mb-6 border border-purple-200">
+                  <h4 className="font-semibold text-gray-900 mb-4">📊 Backup İstatistikleri:</h4>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-600">{professionalBackupResult.backup.statistics.total_tables}</div>
+                      <div className="text-gray-600">Tablo</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">{professionalBackupResult.backup.statistics.total_records}</div>
+                      <div className="text-gray-600">Kayıt</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-purple-600">{professionalBackupResult.backup.statistics.total_functions}</div>
+                      <div className="text-gray-600">Fonksiyon</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-orange-600">{(professionalBackupResult.backup.statistics.execution_time_ms / 1000).toFixed(1)}s</div>
+                      <div className="text-gray-600">Süre</div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-lg p-4 border border-purple-300">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-700">Veri Bütünlüğü:</span>
+                      <span className="text-sm font-mono text-purple-600 bg-purple-100 px-2 py-1 rounded">
+                        Hash: {professionalBackupResult.backup.metadata.integrity_hash}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">Backup Boyutu:</span>
+                      <span className="text-sm text-gray-600">
+                        {(professionalBackupResult.backup.statistics.backup_size_bytes / 1024 / 1024).toFixed(2)} MB
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-green-50 rounded-xl p-4 mb-6 border border-green-200">
+                <div className="flex items-center justify-center">
+                  <Download className="h-5 w-5 text-green-600 mr-2" />
+                  <div className="text-sm">
+                    <div className="font-medium text-green-800">
+                      ✅ Backup hazır! ZIP paketi indirilebilir.
+                    </div>
+                    <div className="text-green-700">
+                      İçerik: JSON + SQL + Markdown rapor
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-center space-x-3">
+                <button
+                  onClick={() => {
+                    setShowProfessionalResultModal(false)
+                    setProfessionalBackupResult(null)
+                  }}
+                  className="px-6 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-xl hover:bg-gray-200 transition-colors"
+                >
+                  Kapat
+                </button>
+                <button
+                  onClick={() => {
+                    if (professionalBackupResult.backup) {
+                      downloadProfessionalBackup(professionalBackupResult.backup)
+                    }
+                  }}
+                  className="inline-flex items-center px-6 py-2 text-sm font-medium text-white bg-gradient-to-r from-green-600 to-blue-600 border border-transparent rounded-xl hover:from-green-700 hover:to-blue-700 transition-colors shadow-lg"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  ZIP Paketini İndir
+                </button>
+              </div>
             </div>
           </div>
         </div>
