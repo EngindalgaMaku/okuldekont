@@ -67,19 +67,31 @@ class ProfessionalBackupSystem {
       if (error) throw error;
       return data.map((row: any) => ({ tablename: row.table_name }));
     } catch (error) {
-      // Fallback to known tables
+      // Fallback to ALL known tables - COMPLETE LIST (23 tables)
       return [
         { tablename: 'admin_kullanicilar' },
         { tablename: 'alanlar' },
+        { tablename: 'backup_data' },
+        { tablename: 'backup_history' },
+        { tablename: 'backups' },
         { tablename: 'belgeler' },
         { tablename: 'dekontlar' },
+        { tablename: 'error_logs' },
+        { tablename: 'file_uploads' },
         { tablename: 'gorev_belgeleri' },
         { tablename: 'isletmeler' },
+        { tablename: 'mesajlar' },
+        { tablename: 'notification_logs' },
         { tablename: 'ogretmenler' },
         { tablename: 'ogrenciler' },
+        { tablename: 'permissions' },
+        { tablename: 'restore_operations' },
+        { tablename: 'restore_status' },
+        { tablename: 'settings_history' },
         { tablename: 'siniflar' },
         { tablename: 'stajlar' },
-        { tablename: 'system_settings' }
+        { tablename: 'system_settings' },
+        { tablename: 'user_sessions' }
       ];
     }
   }

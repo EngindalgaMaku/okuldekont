@@ -1229,7 +1229,7 @@ sekmesinden "Restore" butonunu kullanabilirsiniz.
                       <div className="flex items-center mt-2 space-x-4 text-xs text-purple-600">
                         <span className="flex items-center">
                           <Database className="h-3 w-3 mr-1" />
-                          11 Tablo + 674+ Kayıt
+                          23 Tablo + 1000+ Kayıt
                         </span>
                         <span className="flex items-center">
                           <Settings className="h-3 w-3 mr-1" />
