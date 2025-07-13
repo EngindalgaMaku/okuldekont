@@ -33,4 +33,21 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts 
+next-env.d.ts
+
+# Database backups and monitoring
+/database_backups/
+/backups/
+/monitoring/
+
+# Backup files
+*.backup
+*_backup_*
+backup-*
+emergency-backup-*
+emergency-summary-*
+
+# Reports and logs
+*-report-*.md
+*-report-*.json
+monitoring-report-*.json
