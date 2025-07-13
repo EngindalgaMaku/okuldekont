@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { FileText, Eye, Trash2, Loader, Search, Filter, Calendar, Building, User, CheckCircle, XCircle, Clock, Download } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fetchDekontlarOptimized } from '@/lib/optimized-queries'
+import { QueryPerformanceMonitor } from '@/lib/performance-monitoring'
 import Modal from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import DekontIndirModal from '@/components/ui/DekontIndirModal'
@@ -131,63 +133,62 @@ export default function DekontYonetimiPage() {
   async function fetchDekontlar(page: number = 1) {
     setLoading(true)
     
-    // İlk önce toplam sayıyı al
-    const { count } = await supabase
-      .from('dekontlar')
-      .select('*', { count: 'exact', head: true })
-    
-    setTotalCount(count || 0)
-    setTotalPages(Math.ceil((count || 0) / itemsPerPage))
-    
-    // Sayfalı veriyi al
-    const start = (page - 1) * itemsPerPage
-    const end = start + itemsPerPage - 1
-    
-    const { data, error } = await supabase
-      .from('dekontlar')
-      .select(`
-        *,
-        stajlar!dekontlar_staj_id_fkey (
-          baslangic_tarihi,
-          bitis_tarihi,
-          ogrenci_id,
-          isletme_id,
-          ogretmen_id,
-          ogrenciler!stajlar_ogrenci_id_fkey (
-            ad,
-            soyad,
-            alan_id,
-            alanlar!ogrenciler_alan_id_fkey (ad)
-          ),
-          isletmeler!stajlar_isletme_id_fkey (ad),
-          ogretmenler!stajlar_ogretmen_id_fkey (ad, soyad)
-        )
-      `)
-      .order('created_at', { ascending: false })
-      .range(start, end);
+    try {
+      // Use optimized query with performance monitoring
+      const result = await QueryPerformanceMonitor.measureQuery(
+        'fetchDekontlar',
+        () => fetchDekontlarOptimized(page, itemsPerPage, {
+          status: statusFilter,
+          alan_id: alanFilter,
+          ogretmen_id: ogretmenFilter,
+          search: searchTerm
+        })
+      )
       
-    if (error) {
+      const { data, error, count } = result
+      
+      if (error) {
         console.error('Dekontlar çekilirken hata:', error)
         alert('Dekontlar yüklenirken bir hata oluştu.')
-    } else {
-        // Ay ve yıl bilgisini odeme_tarihi'nden çıkar ve gönderen tipini belirle
-        const processedData = (data || []).map(dekont => {
-          // Basit mantık: şimdilik ogretmen_id varsa ogretmen, yoksa isletme olarak kabul et
-          // Gerçek uygulamada bu bilgi veritabanından gelmelidir
-          const gonderenTip = Math.random() > 0.5 ? 'ogretmen' : 'isletme' // Geçici çözüm
-          
-          return {
-            ...dekont,
-            ay: dekont.odeme_tarihi ? new Date(dekont.odeme_tarihi).getMonth() + 1 : undefined,
-            yil: dekont.odeme_tarihi ? new Date(dekont.odeme_tarihi).getFullYear() : undefined,
-            gonderen_tip: gonderenTip
-          }
-        })
-        
-        setDekontlar(processedData)
-        setFilteredDekontlar(processedData)
+        return
+      }
+      
+      // Set pagination info
+      setTotalCount(count || 0)
+      setTotalPages(Math.ceil((count || 0) / itemsPerPage))
+      
+      // Process data for UI requirements - map to expected interface
+      const processedData = (data || []).map(dekont => {
+        const staj = Array.isArray(dekont.stajlar) ? dekont.stajlar[0] : dekont.stajlar
+        return {
+          id: dekont.id,
+          miktar: dekont.miktar,
+          odeme_tarihi: dekont.odeme_tarihi,
+          dosya_url: dekont.dosya_url,
+          onay_durumu: dekont.onay_durumu,
+          created_at: dekont.created_at,
+          ay: dekont.odeme_tarihi ? new Date(dekont.odeme_tarihi).getMonth() + 1 : undefined,
+          yil: dekont.odeme_tarihi ? new Date(dekont.odeme_tarihi).getFullYear() : undefined,
+          gonderen_tip: (Math.random() > 0.5 ? 'ogretmen' : 'isletme') as 'ogretmen' | 'isletme',
+          stajlar: staj ? {
+            ogrenciler: staj.ogrenciler || null,
+            isletmeler: staj.isletmeler || null,
+            ogretmenler: staj.ogretmenler || null,
+            baslangic_tarihi: staj.baslangic_tarihi,
+            bitis_tarihi: staj.bitis_tarihi
+          } : undefined
+        } as Dekont
+      })
+      
+      setDekontlar(processedData)
+      setFilteredDekontlar(processedData)
+      
+    } catch (error) {
+      console.error('Optimized dekont fetch error:', error)
+      alert('Dekontlar yüklenirken bir hata oluştu.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   async function fetchFilterOptions() {
