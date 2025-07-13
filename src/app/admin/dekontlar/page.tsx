@@ -40,6 +40,7 @@ export default function DekontYonetimiPage() {
   const [dekontlar, setDekontlar] = useState<Dekont[]>([])
   const [filteredDekontlar, setFilteredDekontlar] = useState<Dekont[]>([])
   const [loading, setLoading] = useState(true)
+  const [queryTime, setQueryTime] = useState<number>(0)
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('')
@@ -134,16 +135,18 @@ export default function DekontYonetimiPage() {
     setLoading(true)
     
     try {
-      // Use optimized query with performance monitoring
-      const result = await QueryPerformanceMonitor.measureQuery(
-        'fetchDekontlar',
-        () => fetchDekontlarOptimized(page, itemsPerPage, {
-          status: statusFilter,
-          alan_id: alanFilter,
-          ogretmen_id: ogretmenFilter,
-          search: searchTerm
-        })
-      )
+      const startTime = performance.now()
+      
+      const result = await fetchDekontlarOptimized(page, itemsPerPage, {
+        status: statusFilter,
+        alan_id: alanFilter,
+        ogretmen_id: ogretmenFilter,
+        search: searchTerm
+      })
+      
+      const endTime = performance.now()
+      const duration = endTime - startTime
+      setQueryTime(duration)
       
       const { data, error, count } = result
       
@@ -488,22 +491,15 @@ export default function DekontYonetimiPage() {
           <div className="flex items-center space-x-4">
             <button
               onClick={() => {
-                const metrics = QueryPerformanceMonitor.getMetrics()
-                console.log('Performance metrics:', metrics)
-                
-                if (Object.keys(metrics).length === 0) {
-                  alert('No performance metrics available yet. Try refreshing the page first.')
+                if (queryTime === 0) {
+                  alert('No query data yet. Refresh the page to see performance metrics.')
                   return
                 }
-                
-                const report = Object.entries(metrics)
-                  .map(([query, data]) => `${query}: ${data.average}ms avg (${data.count} calls, max: ${data.max}ms)`)
-                  .join('\n')
-                alert(`Query Performance Metrics:\n\n${report}`)
+                alert(`Last Query Performance:\n\nDekont fetch: ${queryTime.toFixed(2)}ms\nTotal results: ${totalCount} dekontlar`)
               }}
               className="inline-flex items-center px-3 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 border border-indigo-300 rounded-lg hover:bg-indigo-200 transition-all duration-200"
             >
-              📊 Performance
+              📊 Performance ({queryTime > 0 ? `${queryTime.toFixed(0)}ms` : '?'})
             </button>
             <div className="text-sm text-gray-500">
               Toplam: {totalCount} dekont | Sayfa {currentPage} / {totalPages}
