@@ -31,7 +31,8 @@ export default function AyarlarPage() {
     autoApproval: false,
     maxFileSize: 5, // MB
     allowedFileTypes: 'pdf,jpg,png',
-    systemMaintenance: false
+    systemMaintenance: false,
+    showPerformanceMonitoring: false
   })
   const [settingsLoading, setSettingsLoading] = useState(true)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
@@ -119,7 +120,8 @@ export default function AyarlarPage() {
         autoApproval: settingsMap.auto_approval === 'true',
         maxFileSize: parseInt(settingsMap.max_file_size || '5'),
         allowedFileTypes: settingsMap.allowed_file_types || 'pdf,jpg,png',
-        systemMaintenance: settingsMap.maintenance_mode === 'true'
+        systemMaintenance: settingsMap.maintenance_mode === 'true',
+        showPerformanceMonitoring: settingsMap.show_performance_monitoring === 'true'
       })
     } catch (error) {
       console.error('Ayarlar çekilirken hata:', error)
@@ -138,7 +140,8 @@ export default function AyarlarPage() {
         { key: 'auto_approval', value: settings.autoApproval.toString() },
         { key: 'max_file_size', value: settings.maxFileSize.toString() },
         { key: 'allowed_file_types', value: settings.allowedFileTypes },
-        { key: 'maintenance_mode', value: settings.systemMaintenance.toString() }
+        { key: 'maintenance_mode', value: settings.systemMaintenance.toString() },
+        { key: 'show_performance_monitoring', value: settings.showPerformanceMonitoring.toString() }
       ]
       for (const setting of settingsToUpdate) {
         const { error } = await supabase.rpc('update_system_setting', {
@@ -399,6 +402,10 @@ export default function AyarlarPage() {
                   <div className="flex items-center justify-between">
                     <div><h3 className="text-sm font-medium text-gray-900">Bakım Modu</h3><p className="text-sm text-gray-500">Sistemi geçici olarak kullanıma kapat</p></div>
                     <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked={settings.systemMaintenance} onChange={(e) => setSettings({ ...settings, systemMaintenance: e.target.checked })} className="sr-only peer" /><div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div></label>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div><h3 className="text-sm font-medium text-gray-900">Performans İzleme</h3><p className="text-sm text-gray-500">Sayfalarda performans butonu göster</p></div>
+                    <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked={settings.showPerformanceMonitoring} onChange={(e) => setSettings({ ...settings, showPerformanceMonitoring: e.target.checked })} className="sr-only peer" /><div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div></label>
                   </div>
                 </div>
                 <div className="flex justify-end mt-8 pt-6 border-t border-gray-200">
