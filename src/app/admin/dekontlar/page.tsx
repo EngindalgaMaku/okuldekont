@@ -157,28 +157,19 @@ export default function DekontYonetimiPage() {
       setTotalCount(count || 0)
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
       
-      // Process data for UI requirements - map to expected interface
-      const processedData = (data || []).map(dekont => {
-        const staj = Array.isArray(dekont.stajlar) ? dekont.stajlar[0] : dekont.stajlar
-        return {
-          id: dekont.id,
-          miktar: dekont.miktar,
-          odeme_tarihi: dekont.odeme_tarihi,
-          dosya_url: dekont.dosya_url,
-          onay_durumu: dekont.onay_durumu,
-          created_at: dekont.created_at,
-          ay: dekont.odeme_tarihi ? new Date(dekont.odeme_tarihi).getMonth() + 1 : undefined,
-          yil: dekont.odeme_tarihi ? new Date(dekont.odeme_tarihi).getFullYear() : undefined,
-          gonderen_tip: (Math.random() > 0.5 ? 'ogretmen' : 'isletme') as 'ogretmen' | 'isletme',
-          stajlar: staj ? {
-            ogrenciler: staj.ogrenciler || null,
-            isletmeler: staj.isletmeler || null,
-            ogretmenler: staj.ogretmenler || null,
-            baslangic_tarihi: staj.baslangic_tarihi,
-            bitis_tarihi: staj.bitis_tarihi
-          } : undefined
-        } as Dekont
-      })
+      // Process data for UI requirements - the optimized query already returns properly joined data
+      const processedData = (data || []).map(dekont => ({
+        id: dekont.id,
+        miktar: dekont.miktar,
+        odeme_tarihi: dekont.odeme_tarihi,
+        dosya_url: dekont.dosya_url,
+        onay_durumu: dekont.onay_durumu,
+        created_at: dekont.created_at,
+        ay: dekont.odeme_tarihi ? new Date(dekont.odeme_tarihi).getMonth() + 1 : undefined,
+        yil: dekont.odeme_tarihi ? new Date(dekont.odeme_tarihi).getFullYear() : undefined,
+        gonderen_tip: (Math.random() > 0.5 ? 'ogretmen' : 'isletme') as 'ogretmen' | 'isletme',
+        stajlar: dekont.stajlar // Use the already enriched data from optimized query
+      })) as Dekont[]
       
       setDekontlar(processedData)
       setFilteredDekontlar(processedData)
