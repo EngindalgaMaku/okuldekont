@@ -114,12 +114,12 @@ const TeacherPanel = () => {
   
   const aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
   
-  const previousMonth = getCurrentMonth() === 1 ? 12 : getCurrentMonth() - 1;
-  const previousMonthYear = getCurrentMonth() === 1 ? getCurrentYear() - 1 : getCurrentYear();
-
-  // Bu ay için dekont eksik olan öğrencileri tespit et
+  // Bu ay için dekont eksik olan öğrencileri tespit et (İşletme sistemini adapte ettik)
   const getEksikDekontOgrenciler = () => {
-    const tumOgrenciler: Array<{id: string, ad: string, soyad: string, sinif: string, no: string, isletme_ad: string, baslangic_tarihi: string}> = [];
+    const currentMonth = getCurrentMonth();
+    const currentYear = getCurrentYear();
+    const tumOgrenciler: Array<{id: string, ad: string, soyad: string, sinif: string, no: string, isletme_ad: string, baslangic_tarihi: string, staj_id?: string}> = [];
+    
     isletmeler.forEach(isletme => {
       isletme.ogrenciler.forEach(ogrenci => {
         tumOgrenciler.push({
@@ -130,17 +130,10 @@ const TeacherPanel = () => {
     });
     
     return tumOgrenciler.filter(ogrenci => {
-      const stajBaslangic = new Date(ogrenci.baslangic_tarihi);
-      const kontrolTarihi = new Date(previousMonthYear, previousMonth - 1);
-
-      if (kontrolTarihi < stajBaslangic) {
-        return false;
-      }
-
       const ogrenciDekontlari = dekontlar.filter(d =>
         d.ogrenci_ad === `${ogrenci.ad} ${ogrenci.soyad}` &&
-        d.ay === previousMonth &&
-        d.yil === previousMonthYear
+        d.ay === currentMonth &&
+        d.yil === currentYear
       );
       return ogrenciDekontlari.length === 0;
     });
@@ -158,26 +151,44 @@ const TeacherPanel = () => {
   const eksikDekontOgrenciler = getEksikDekontOgrenciler();
 
   useEffect(() => {
-    const checkLocalStorage = () => {
-      const storedOgretmen = localStorage.getItem('ogretmen');
-      if (!storedOgretmen) {
+    const checkSessionStorage = () => {
+      const storedOgretmenId = sessionStorage.getItem('ogretmen_id');
+      if (!storedOgretmenId) {
         router.push('/');
         return;
       }
-      try {
-        const teacherData = JSON.parse(storedOgretmen);
-        setTeacher(teacherData);
-        fetchOgretmenData(teacherData.id);
-        fetchNotifications(teacherData.id);
-      } catch (error) {
-        console.error('localStorage verisi geçersiz:', error);
-        localStorage.removeItem('ogretmen');
-        router.push('/');
-      }
+      
+      // Öğretmen verilerini veritabanından getir
+      fetchOgretmenById(storedOgretmenId);
     };
-    checkLocalStorage();
+    checkSessionStorage();
     fetchSchoolName();
   }, [router]);
+
+  const fetchOgretmenById = async (ogretmenId: string) => {
+    try {
+      const { data: ogretmenData, error } = await supabase
+        .from('ogretmenler')
+        .select('id, ad, soyad')
+        .eq('id', ogretmenId)
+        .single();
+
+      if (error || !ogretmenData) {
+        console.error('Öğretmen bulunamadı:', error);
+        sessionStorage.removeItem('ogretmen_id');
+        router.push('/');
+        return;
+      }
+
+      setTeacher(ogretmenData);
+      fetchOgretmenData(ogretmenData.id);
+      fetchNotifications(ogretmenData.id);
+    } catch (error) {
+      console.error('Öğretmen verisi getirme hatası:', error);
+      sessionStorage.removeItem('ogretmen_id');
+      router.push('/');
+    }
+  };
 
   // Bildirimleri getir
   const fetchNotifications = async (teacherId: string) => {
@@ -470,7 +481,7 @@ const TeacherPanel = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('ogretmen');
+    sessionStorage.removeItem('ogretmen_id');
     router.push('/');
   };
 
@@ -1045,10 +1056,10 @@ const TeacherPanel = () => {
                   }`}>
                     <p className="font-medium mb-2">
                       {isGecikme()
-                        ? `${aylar[previousMonth - 1]} ayı dekont yükleme süresi geçti! İşletmeler devlet katkı payı alamayabilir.`
+                        ? `${aylar[getCurrentMonth() - 1]} ayı dekont yükleme süresi geçti! İşletmeler devlet katkı payı alamayabilir.`
                         : isKritikSure()
-                        ? `${aylar[previousMonth - 1]} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
-                        : `${aylar[previousMonth - 1]} ayı için eksik dekontlar var.`
+                        ? `${aylar[getCurrentMonth() - 1]} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
+                        : `${aylar[getCurrentMonth() - 1]} ayı için eksik dekontlar var.`
                       }
                     </p>
                     <p className="mb-3">

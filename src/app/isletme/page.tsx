@@ -253,42 +253,45 @@ export default function PanelPage() {
 
   const fetchData = useCallback(async () => {
     try {
+      console.log('🔍 fetchData başlatıldı')
       setLoading(true)
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/')
-        return
-      }
-      console.log('Kullanıcı bilgileri:', user)
-      console.log('Kullanıcı metadata:', user.user_metadata)
-      setUser(user)
-
-      if (!user.user_metadata?.isletme_id) {
-        console.error('İşletme ID bulunamadı')
+      
+      // Tarayıcı session'ından işletme bilgilerini al
+      const sessionIsletmeId = sessionStorage.getItem('isletme_id')
+      console.log('📋 SessionStorage isletme_id:', sessionIsletmeId)
+      
+      if (!sessionIsletmeId) {
+        console.error('❌ Session\'da işletme ID bulunamadı - giriş yapılmamış')
         router.push('/')
         return
       }
 
+      console.log('🔗 Veritabanından işletme verisi getiriliyor...')
+      // İşletme verilerini veritabanından getir
       const { data: isletmeData, error: isletmeError } = await supabase
         .from('isletmeler')
         .select('*')
-        .eq('id', user.user_metadata.isletme_id)
+        .eq('id', sessionIsletmeId)
         .single()
 
+      console.log('📊 Supabase Response:', { isletmeData, isletmeError })
+
       if (isletmeError) {
-        console.error('İşletme verisi getirme hatası:', isletmeError)
-        console.error('İşletme ID:', user.user_metadata.isletme_id)
+        console.error('❌ İşletme verisi getirme hatası:', isletmeError)
+        console.error('🆔 İşletme ID:', sessionIsletmeId)
+        sessionStorage.removeItem('isletme_id') // Geçersiz session'ı temizle
         router.push('/')
         return
       }
 
       if (!isletmeData) {
-        console.error('İşletme bulunamadı')
+        console.error('❌ İşletme bulunamadı')
+        sessionStorage.removeItem('isletme_id') // Geçersiz session'ı temizle
         router.push('/')
         return
       }
 
-      console.log('İşletme verisi:', isletmeData)
+      console.log('✅ İşletme verisi başarıyla getirildi:', isletmeData)
       setIsletme(isletmeData)
       
       // İşletme bildirimleri getir
@@ -1089,7 +1092,7 @@ export default function PanelPage() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('isletme')
+    sessionStorage.removeItem('isletme_id')
     router.push('/')
   }
 

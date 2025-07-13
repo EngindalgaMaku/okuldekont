@@ -179,29 +179,7 @@ export default function OgretmenLoginPage() {
         return
       }
 
-      // 2. Başarılı Giriş -> Oturum Yönetimi
-      const { data: { session }, error: sessionError } = await supabase.auth.signInAnonymously()
-      if (sessionError || !session) {
-        setPinError(`Oturum başlatılamadı: ${sessionError?.message || 'Geçici oturum oluşturulamadı.'}`)
-        setIsLoggingIn(false)
-        return
-      }
-
-      // 3. Kullanıcı Metadatasını Güncelle (RLS için önemli)
-      const updateUserPayload = {
-        data: { ogretmen_id: selectedOgretmen.id, role: 'ogretmen' }
-      }
-      const { error: updateError } = await supabase.auth.updateUser(updateUserPayload)
-      if (updateError) {
-        setPinError(`Kullanıcı bilgileri güncellenemedi: ${updateError.message}`)
-        setIsLoggingIn(false)
-        return
-      }
-
-      // 4. Başarılı giriş - localStorage'a kaydet
-      localStorage.setItem('ogretmen', JSON.stringify(selectedOgretmen))
-      
-      // 5. Kısa delay ile yönlendirme
+      // 2. Başarılı giriş - direkt redirect
       setTimeout(() => {
         router.push('/ogretmen/panel')
       }, 1000)
