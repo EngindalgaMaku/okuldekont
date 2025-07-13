@@ -4,6 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
 import QuickPinButton from './QuickPinButton'
+import { fetchOgretmenlerOptimized } from '@/lib/optimized-queries'
 
 interface SearchParams {
   page?: string
@@ -35,124 +36,21 @@ interface Alan {
 }
 
 async function getOgretmenlerData(searchParams: SearchParams) {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // Ignore cookie setting errors in server components
-          }
-        },
-      },
-    }
-  )
-
-  const page = parseInt(searchParams.page || '1')
-  const perPage = parseInt(searchParams.per_page || '10')
-  const search = searchParams.search || ''
-  const alanFilter = searchParams.alan || ''
-
-  // Calculate offset
-  const from = (page - 1) * perPage
-  const to = from + perPage - 1
-
-  // Build query
-  let query = supabase
-    .from('ogretmenler')
-    .select(`
-      id,
-      ad,
-      soyad,
-      email,
-      telefon,
-      pin,
-      alan_id,
-      alanlar (
-        id,
-        ad
-      )
-    `, { count: 'exact' })
-
-  // Add search filter
-  if (search) {
-    query = query.or(`ad.ilike.%${search}%,soyad.ilike.%${search}%,email.ilike.%${search}%,telefon.ilike.%${search}%`)
-  }
-
-  // Add alan filter
-  if (alanFilter && alanFilter !== 'all') {
-    query = query.eq('alan_id', parseInt(alanFilter))
-  }
-
-  // Add pagination and ordering
-  query = query
-    .order('ad', { ascending: true })
-    .range(from, to)
-
-  const { data: ogretmenler, error, count } = await query
-
-  if (error) {
-    throw new Error('Öğretmenler yüklenirken bir hata oluştu: ' + error.message)
-  }
-
-  // Get additional statistics for each teacher (matching detail page logic)
-  const ogretmenlerWithStats = await Promise.all(
-    (ogretmenler || []).map(async (ogretmen) => {
-      // Get stajlar with their isletmeler and baslangic_tarihi (same as detail page)
-      const { data: stajlarData } = await supabase
-        .from('stajlar')
-        .select(`
-          id,
-          isletme_id,
-          baslangic_tarihi,
-          isletmeler ( id )
-        `)
-        .eq('ogretmen_id', ogretmen.id)
-
-      // Calculate unique companies (same logic as detail page)
-      const isletmeIdleri = new Set<string>()
-      if (stajlarData) {
-        stajlarData.forEach(staj => {
-          if (staj.isletmeler) {
-            const isletmeId = Array.isArray(staj.isletmeler)
-              ? staj.isletmeler[0]?.id
-              : (staj.isletmeler as any).id
-            if (isletmeId) isletmeIdleri.add(isletmeId)
-          }
-        })
+  try {
+    // Use optimized function that eliminates N+1 query problem
+    return await fetchOgretmenlerOptimized(searchParams)
+  } catch (error) {
+    console.error('Teacher data fetch error:', error)
+    // Fallback to basic structure
+    return {
+      ogretmenler: [],
+      alanlar: [],
+      pagination: {
+        page: parseInt(searchParams.page || '1'),
+        perPage: parseInt(searchParams.per_page || '10'),
+        total: 0,
+        totalPages: 0
       }
-
-      return {
-        ...ogretmen,
-        stajlarCount: stajlarData?.length || 0,
-        koordinatorlukCount: isletmeIdleri.size
-      }
-    })
-  )
-
-  // Get all alanlar for filter dropdown
-  const { data: alanlar } = await supabase
-    .from('alanlar')
-    .select('id, ad')
-    .order('ad', { ascending: true })
-
-  return {
-    ogretmenler: ogretmenlerWithStats,
-    alanlar: alanlar || [],
-    pagination: {
-      page,
-      perPage,
-      total: count || 0,
-      totalPages: Math.ceil((count || 0) / perPage)
     }
   }
 }

@@ -117,6 +117,134 @@ export async function fetchDekontlarOptimized(page: number = 1, itemsPerPage: nu
   }
 }
 
+// Optimized teacher list fetching with statistics
+export async function fetchOgretmenlerOptimized(searchParams: any) {
+  try {
+    const page = parseInt(searchParams.page || '1')
+    const perPage = parseInt(searchParams.per_page || '10')
+    const search = searchParams.search || ''
+    const alanFilter = searchParams.alan || ''
+
+    // Calculate offset
+    const from = (page - 1) * perPage
+    const to = from + perPage - 1
+
+    // Build main query for teachers
+    let query = supabase
+      .from('ogretmenler')
+      .select(`
+        id,
+        ad,
+        soyad,
+        email,
+        telefon,
+        pin,
+        alan_id,
+        alanlar (
+          id,
+          ad
+        )
+      `, { count: 'exact' })
+
+    // Add search filter
+    if (search) {
+      query = query.or(`ad.ilike.%${search}%,soyad.ilike.%${search}%,email.ilike.%${search}%,telefon.ilike.%${search}%`)
+    }
+
+    // Add alan filter
+    if (alanFilter && alanFilter !== 'all') {
+      query = query.eq('alan_id', parseInt(alanFilter))
+    }
+
+    // Add pagination and ordering
+    query = query
+      .order('ad', { ascending: true })
+      .range(from, to)
+
+    const { data: ogretmenler, error, count } = await query
+
+    if (error) {
+      throw new Error('Öğretmenler yüklenirken bir hata oluştu: ' + error.message)
+    }
+
+    if (!ogretmenler || ogretmenler.length === 0) {
+      return {
+        ogretmenler: [],
+        alanlar: [],
+        pagination: {
+          page,
+          perPage,
+          total: count || 0,
+          totalPages: Math.ceil((count || 0) / perPage)
+        }
+      }
+    }
+
+    // Batch fetch all stajlar for these teachers in one query
+    const ogretmenIds = ogretmenler.map(o => o.id)
+    const { data: allStajlarData } = await supabase
+      .from('stajlar')
+      .select(`
+        id,
+        ogretmen_id,
+        isletme_id,
+        baslangic_tarihi,
+        isletmeler ( id )
+      `)
+      .in('ogretmen_id', ogretmenIds)
+
+    // Group stajlar by ogretmen_id for efficient lookup
+    const stajlarByOgretmen = (allStajlarData || []).reduce((acc, staj) => {
+      if (!acc[staj.ogretmen_id]) acc[staj.ogretmen_id] = []
+      acc[staj.ogretmen_id].push(staj)
+      return acc
+    }, {} as Record<string, any[]>)
+
+    // Process statistics efficiently
+    const ogretmenlerWithStats = ogretmenler.map(ogretmen => {
+      const teacherStajlar = stajlarByOgretmen[ogretmen.id] || []
+      
+      // Calculate unique companies
+      const isletmeIdleri = new Set<string>()
+      teacherStajlar.forEach(staj => {
+        if (staj.isletmeler) {
+          const isletmeId = Array.isArray(staj.isletmeler)
+            ? staj.isletmeler[0]?.id
+            : (staj.isletmeler as any).id
+          if (isletmeId) isletmeIdleri.add(isletmeId)
+        }
+      })
+
+      return {
+        ...ogretmen,
+        stajlarCount: teacherStajlar.length,
+        koordinatorlukCount: isletmeIdleri.size
+      }
+    })
+
+    // Get all alanlar for filter dropdown
+    const { data: alanlar } = await supabase
+      .from('alanlar')
+      .select('id, ad')
+      .order('ad', { ascending: true })
+
+    return {
+      ogretmenler: ogretmenlerWithStats,
+      alanlar: alanlar || [],
+      pagination: {
+        page,
+        perPage,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / perPage)
+      }
+    }
+
+  } catch (error) {
+    console.error('fetchOgretmenlerOptimized error:', error)
+    throw error
+  }
+}
+
 // Optimized staj fetching
 export async function fetchStajlarOptimized(filters: any = {}) {
   let query = supabase
