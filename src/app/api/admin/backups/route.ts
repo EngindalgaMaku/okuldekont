@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-export async function GET(request: Request) {
+export async function GET(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
   const filenameToDownload = searchParams.get('download');
   const backupDir = path.join(process.cwd(), 'database_backups');
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(request: Request): Promise<Response> {
     const { filename } = await request.json();
 
     if (!filename) {

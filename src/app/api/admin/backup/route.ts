@@ -3,7 +3,7 @@ import { exec } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 
-export async function POST() {
+export async function POST(): Promise<Response> {
   try {
     // Use ultimate complete backup - 22 tables + schema + RPC functions
     const scriptPath = path.join(process.cwd(), 'scripts', 'ultimate-complete-backup.js');
@@ -18,7 +18,7 @@ export async function POST() {
     // Execute the professional backup script
     const command = `node "${scriptPath}"`;
     
-    return new Promise((resolve) => {
+    return new Promise<Response>((resolve) => {
       const backupProcess = exec(command, { maxBuffer: 10 * 1024 * 1024 }); // 10MB buffer for large outputs
 
       let stdout = '';
