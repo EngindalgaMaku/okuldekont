@@ -1,106 +1,67 @@
 import { supabase } from './supabase'
 
-// Optimized dekont fetching with proper pagination
+// Simplified dekont fetching - start with basic working version
 export async function fetchDekontlarOptimized(page: number = 1, itemsPerPage: number = 20, filters: any = {}) {
-  const start = (page - 1) * itemsPerPage
-  const end = start + itemsPerPage - 1
-  
-  // Build query with minimal data selection
-  let query = supabase
-    .from('dekontlar')
-    .select(`
-      id,
-      miktar,
-      odeme_tarihi,
-      dosya_url,
-      onay_durumu,
-      created_at,
-      ay,
-      yil,
-      staj_id,
-      stajlar!inner (
-        id,
-        baslangic_tarihi,
-        bitis_tarihi,
-        ogrenci_id,
-        isletme_id,
-        ogretmen_id
-      )
-    `)
-    .order('created_at', { ascending: false })
-    .range(start, end)
-
-  // Apply filters at database level
-  if (filters.status && filters.status !== 'all') {
-    query = query.eq('onay_durumu', filters.status)
-  }
-  
-  if (filters.alan_id) {
-    query = query.eq('stajlar.ogrenciler.alan_id', filters.alan_id)
-  }
-
-  const { data, error, count } = await query
-
-  // Fetch related data separately and efficiently
-  if (data && data.length > 0) {
-    // Extract staj info (handle both single object and array cases)
-    const stajInfo = data.map(d => {
-      const staj = Array.isArray(d.stajlar) ? d.stajlar[0] : d.stajlar
-      return {
-        dekont_id: d.id,
-        staj_id: staj.id,
-        ogrenci_id: staj.ogrenci_id,
-        isletme_id: staj.isletme_id,
-        ogretmen_id: staj.ogretmen_id
-      }
-    })
+  try {
+    console.log('fetchDekontlarOptimized called with:', { page, itemsPerPage, filters })
     
-    // Get unique IDs for batch fetching
-    const ogrenciIds = Array.from(new Set(stajInfo.map(s => s.ogrenci_id)))
-    const isletmeIds = Array.from(new Set(stajInfo.map(s => s.isletme_id)))
-    const ogretmenIds = Array.from(new Set(stajInfo.map(s => s.ogretmen_id)))
+    const start = (page - 1) * itemsPerPage
+    const end = start + itemsPerPage - 1
     
-    // Fetch related data in parallel
-    const [ogrencilerData, isletmelerData, ogretmenlerData] = await Promise.all([
-      supabase
-        .from('ogrenciler')
-        .select('id, ad, soyad, sinif, no, alan_id, alanlar!inner(ad)')
-        .in('id', ogrenciIds),
-      
-      supabase
-        .from('isletmeler')
-        .select('id, ad, yetkili_kisi')
-        .in('id', isletmeIds),
-        
-      supabase
-        .from('ogretmenler')
-        .select('id, ad, soyad')
-        .in('id', ogretmenIds)
-    ])
+    // Start with a simple query to ensure it works
+    let query = supabase
+      .from('dekontlar')
+      .select(`
+        *,
+        stajlar!inner (
+          id,
+          baslangic_tarihi,
+          bitis_tarihi,
+          ogrenci_id,
+          isletme_id,
+          ogretmen_id,
+          ogrenciler (
+            id,
+            ad,
+            soyad,
+            alanlar (
+              ad
+            )
+          ),
+          isletmeler (
+            id,
+            ad
+          ),
+          ogretmenler (
+            id,
+            ad,
+            soyad
+          )
+        )
+      `, { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(start, end)
 
-    // Create lookup maps for efficient joining
-    const ogrencilerMap = new Map(ogrencilerData.data?.map(o => [o.id, o]) || [])
-    const isletmelerMap = new Map(isletmelerData.data?.map(i => [i.id, i]) || [])
-    const ogretmenlerMap = new Map(ogretmenlerData.data?.map(og => [og.id, og]) || [])
+    // Apply filters at database level
+    if (filters.status && filters.status !== 'all') {
+      query = query.eq('onay_durumu', filters.status)
+    }
 
-    // Join data efficiently
-    const enrichedData = data.map(dekont => {
-      const staj = Array.isArray(dekont.stajlar) ? dekont.stajlar[0] : dekont.stajlar
-      return {
-        ...dekont,
-        stajlar: {
-          ...staj,
-          ogrenciler: ogrencilerMap.get(staj.ogrenci_id),
-          isletmeler: isletmelerMap.get(staj.isletme_id),
-          ogretmenler: ogretmenlerMap.get(staj.ogretmen_id)
-        }
-      }
-    })
+    const { data, error, count } = await query
+    
+    console.log('Query result:', { data: data?.length, error, count })
+    
+    if (error) {
+      console.error('Dekont query error:', error)
+      return { data: null, error, count: 0 }
+    }
 
-    return { data: enrichedData, error, count }
+    return { data, error, count }
+    
+  } catch (error) {
+    console.error('fetchDekontlarOptimized error:', error)
+    return { data: null, error, count: 0 }
   }
-
-  return { data, error, count }
 }
 
 // Optimized staj fetching
