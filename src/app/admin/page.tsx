@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { FileText, Users, Building, TrendingUp, CheckCircle, Clock, XCircle, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { fetchDashboardStatsOptimized } from '@/lib/optimized-queries'
+import { isPerformanceMonitoringEnabled } from '@/lib/admin-settings'
 import { StatCardSkeleton, ListSkeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/components/ui/Toast'
 
@@ -20,6 +22,8 @@ export default function AdminDashboard() {
   const [schoolName, setSchoolName] = useState('Hüsniye Özdilek Ticaret MTAL')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [queryTime, setQueryTime] = useState<number>(0)
+  const [showPerformanceButton, setShowPerformanceButton] = useState(false)
   const { showToast } = useToast()
 
   // Okul ismini ayarlardan çek
@@ -37,7 +41,7 @@ export default function AdminDashboard() {
     }
   }
 
-  // Veritabanından istatistikleri çek
+  // Veritabanından istatistikleri çek - OPTIMIZED VERSION
   const fetchStats = async (isRefresh = false) => {
     try {
       if (isRefresh) {
@@ -51,50 +55,20 @@ export default function AdminDashboard() {
         await fetchSchoolName()
       }
       
-      // Dekontlar
-      const { data: dekontlar, error: dekontError } = await supabase
-        .from('dekontlar')
-        .select('onay_durumu')
-      
-      // İşletmeler
-      const { data: isletmeler, error: isletmeError } = await supabase
-        .from('isletmeler')
-        .select('id')
-      
-      // Öğretmenler
-      const { data: ogretmenler, error: ogretmenError } = await supabase
-        .from('ogretmenler')
-        .select('id')
-      
-      // Öğrenciler
-      const { data: ogrenciler, error: ogrenciError } = await supabase
-        .from('ogrenciler')
-        .select('id')
-
-      // Hata kontrolü
-      if (dekontError || isletmeError || ogretmenError || ogrenciError) {
-        throw new Error('Veritabanı sorgusu başarısız')
-      }
-      
-      // İstatistikleri hesapla
-      const totalDekontlar = dekontlar?.length || 0
-      const bekleyenDekontlar = dekontlar?.filter(d => d.onay_durumu === 'bekliyor')?.length || 0
-      const onaylananDekontlar = dekontlar?.filter(d => d.onay_durumu === 'onaylandi')?.length || 0
-      const rededilenDekontlar = dekontlar?.filter(d => d.onay_durumu === 'reddedildi')?.length || 0
-      
-      const totalIsletmeler = isletmeler?.length || 0
-      const totalOgretmenler = ogretmenler?.length || 0
-      const totalOgrenciler = ogrenciler?.length || 0
+      // Use optimized dashboard stats function
+      const optimizedStats = await fetchDashboardStatsOptimized()
       
       setStats({
-        totalDekontlar,
-        bekleyenDekontlar,
-        onaylananDekontlar,
-        rededilenDekontlar,
-        totalIsletmeler,
-        totalOgretmenler,
-        totalOgrenciler
+        totalDekontlar: optimizedStats.totalDekontlar,
+        bekleyenDekontlar: optimizedStats.bekleyenDekontlar,
+        onaylananDekontlar: optimizedStats.onaylananDekontlar,
+        rededilenDekontlar: optimizedStats.rededilenDekontlar,
+        totalIsletmeler: optimizedStats.totalIsletmeler,
+        totalOgretmenler: optimizedStats.totalOgretmenler,
+        totalOgrenciler: optimizedStats.totalOgrenciler
       })
+      
+      setQueryTime(optimizedStats.queryTime)
 
       if (isRefresh) {
         showToast({
@@ -121,6 +95,13 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchStats()
+    
+    // Check if performance monitoring is enabled
+    const checkPerformanceSettings = async () => {
+      const enabled = await isPerformanceMonitoringEnabled()
+      setShowPerformanceButton(enabled)
+    }
+    checkPerformanceSettings()
   }, [])
 
   const quickActions = [
@@ -171,14 +152,30 @@ export default function AdminDashboard() {
             <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
             <p className="text-indigo-100">{schoolName} - Koordinatörlük Yönetimi</p>
           </div>
-          <button
-            onClick={() => fetchStats(true)}
-            disabled={refreshing}
-            className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Yenile</span>
-          </button>
+          <div className="flex items-center space-x-3">
+            {showPerformanceButton && (
+              <button
+                onClick={() => {
+                  if (queryTime === 0) {
+                    alert('Henüz veri yok. Sayfayı yenileyerek performans metriklerini görebilirsiniz.')
+                    return
+                  }
+                  alert(`Dashboard Performansı:\n\nSon sorgu: ${queryTime.toFixed(2)}ms\nToplam istatistik: ${stats.totalDekontlar + stats.totalIsletmeler + stats.totalOgretmenler} kayıt`)
+                }}
+                className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg transition-all duration-200 text-sm"
+              >
+                📊 {queryTime > 0 ? `${queryTime.toFixed(0)}ms` : 'Perf'}
+              </button>
+            )}
+            <button
+              onClick={() => fetchStats(true)}
+              disabled={refreshing}
+              className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Yenile</span>
+            </button>
+          </div>
         </div>
       </div>
 

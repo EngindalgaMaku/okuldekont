@@ -354,6 +354,52 @@ export async function fetchOgretmenDetayOptimized(ogretmenId: string) {
   }
 }
 
+// Optimized dashboard statistics fetching
+export async function fetchDashboardStatsOptimized() {
+  try {
+    console.log('fetchDashboardStatsOptimized called')
+    const startTime = performance.now()
+    
+    // Use parallel queries with count-only selects for better performance
+    const [dekontlarResult, isletmelerResult, ogretmenlerResult, ogrencilerResult] = await Promise.all([
+      supabase.from('dekontlar').select('onay_durumu', { count: 'exact' }),
+      supabase.from('isletmeler').select('*', { count: 'exact', head: true }),
+      supabase.from('ogretmenler').select('*', { count: 'exact', head: true }),
+      supabase.from('ogrenciler').select('*', { count: 'exact', head: true })
+    ])
+    
+    const endTime = performance.now()
+    console.log(`Dashboard stats fetched in ${(endTime - startTime).toFixed(2)}ms`)
+    
+    // Check for errors
+    if (dekontlarResult.error || isletmelerResult.error || ogretmenlerResult.error || ogrencilerResult.error) {
+      throw new Error('Veritabanı sorgusu başarısız')
+    }
+    
+    // Process dekont statistics efficiently
+    const dekontlar = dekontlarResult.data || []
+    const totalDekontlar = dekontlar.length
+    const bekleyenDekontlar = dekontlar.filter(d => d.onay_durumu === 'bekliyor').length
+    const onaylananDekontlar = dekontlar.filter(d => d.onay_durumu === 'onaylandi').length
+    const rededilenDekontlar = dekontlar.filter(d => d.onay_durumu === 'reddedildi').length
+    
+    return {
+      totalDekontlar,
+      bekleyenDekontlar,
+      onaylananDekontlar,
+      rededilenDekontlar,
+      totalIsletmeler: isletmelerResult.count || 0,
+      totalOgretmenler: ogretmenlerResult.count || 0,
+      totalOgrenciler: ogrencilerResult.count || 0,
+      queryTime: endTime - startTime
+    }
+    
+  } catch (error) {
+    console.error('fetchDashboardStatsOptimized error:', error)
+    throw error
+  }
+}
+
 // Optimized count queries using estimated counts for large tables
 export async function getEstimatedCount(tableName: string, filters: any = {}) {
   // For large tables, use estimated counts instead of exact counts
