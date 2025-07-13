@@ -1,22 +1,27 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
-// Service role client for admin operations
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
+// Create Supabase admin client (moved inside functions to avoid build-time execution)
+function createSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
     }
-  }
-)
+  )
+}
 
 export async function POST(request: NextRequest) {
   console.log('🚀 Admin user creation API called')
   
   try {
+    // Create Supabase admin client at runtime
+    const supabaseAdmin = createSupabaseAdmin()
+    
     const { email, ad, soyad, yetki_seviyesi, password } = await request.json()
     console.log('📝 Request data:', { email, ad, soyad, yetki_seviyesi, hasPassword: !!password })
 
@@ -208,6 +213,9 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    // Create Supabase admin client at runtime
+    const supabaseAdmin = createSupabaseAdmin()
+    
     const { userId, password, ad, soyad, yetki_seviyesi, aktif } = await request.json()
 
     // Validate required fields
