@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { User, Lock, Building, ChevronDown, Loader, AlertTriangle } from 'lucide-react'
+import { User, Lock, Building, ChevronDown, Loader, AlertTriangle, Search } from 'lucide-react'
 import PinPad from '@/components/ui/PinPad'
 import { checkMaintenanceMode } from '@/lib/maintenance'
 
@@ -13,22 +13,72 @@ interface Ogretmen {
   soyad: string
 }
 
+// Debounce hook
+function useDebounce(value: string, delay: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
+
+    return () => {
+      clearTimeout(handler)
+    }
+  }, [value, delay])
+
+  return debouncedValue
+}
+
 export default function OgretmenLoginPage() {
   const router = useRouter()
-  const [ogretmenler, setOgretmenler] = useState<Ogretmen[]>([])
   const [selectedOgretmen, setSelectedOgretmen] = useState<Ogretmen | null>(null)
   const [pinInput, setPinInput] = useState('')
   const [pinError, setPinError] = useState('')
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [searchResults, setSearchResults] = useState<Ogretmen[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
   
   // Maintenance mode state
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false)
   const [maintenanceCheckLoading, setMaintenanceCheckLoading] = useState(true)
-  const [debugInfo, setDebugInfo] = useState('')
 
+  // Debounced search term - 300ms bekle
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
+
+  // Server-side arama fonksiyonu
+  const searchOgretmenler = useCallback(async (term: string) => {
+    if (term.length < 2) {
+      setSearchResults([])
+      return
+    }
+
+    setIsSearching(true)
+
+    try {
+      const { data, error } = await supabase
+        .from('ogretmenler')
+        .select('id, ad, soyad')
+        .or(`ad.ilike.%${term}%,soyad.ilike.%${term}%`)
+        .limit(10)
+        .order('ad')
+
+      if (data && !error) {
+        setSearchResults(data)
+      } else {
+        setSearchResults([])
+      }
+    } catch (error) {
+      console.error('Öğretmen arama hatası:', error)
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }, [])
+
+  // Check maintenance mode on component mount
   useEffect(() => {
     const checkMaintenance = async () => {
       setMaintenanceCheckLoading(true)
@@ -38,70 +88,16 @@ export default function OgretmenLoginPage() {
     }
     
     checkMaintenance()
-    fetchOgretmenler()
   }, [])
 
-  const fetchOgretmenler = async () => {
-    try {
-      setLoading(true)
-      setDebugInfo('Öğretmenler getiriliyor...')
-      console.log('Öğretmenler getiriliyor...')
-
-      // Önce Supabase bağlantısını test edelim
-      try {
-        const testConnection = await supabase.from('ogretmenler').select('count').limit(1)
-        console.log('Bağlantı testi:', testConnection)
-        setDebugInfo(`Bağlantı OK. Test: ${JSON.stringify(testConnection)}`)
-      } catch (connError) {
-        console.error('Bağlantı hatası:', connError)
-        setDebugInfo('Supabase bağlantı hatası: ' + connError)
-      }
-
-      const { data, error } = await supabase
-        .from('ogretmenler')
-        .select('id, ad, soyad')
-        .order('ad', { ascending: true })
-      
-      console.log('Supabase yanıtı:', { data, error })
-      console.log('Gelen veri sayısı:', data?.length || 0)
-      setDebugInfo(`Yanıt: ${data?.length || 0} öğretmen, Hata: ${error?.message || 'yok'}`)
-
-      if (error) {
-        console.error('Öğretmenler getirilemedi:', error)
-        console.error('Hata detayı:', error.message, error.code, error.hint)
-        setDebugInfo(`HATA: ${error.message} (${error.code})`)
-        alert('Öğretmen listesi alınamadı: ' + error.message)
-        return
-      }
-
-      if (!data || data.length === 0) {
-        console.log('Hiç öğretmen bulunamadı')
-        setDebugInfo('Veri yok - RLS veya DB sorunu')
-        
-        // Test verileri ekleyelim geçici olarak
-        const testOgretmenler = [
-          { id: 'test1', ad: 'Engin', soyad: 'Dalga' },
-          { id: 'test2', ad: 'Ali', soyad: 'Veli' },
-          { id: 'test3', ad: 'Ayşe', soyad: 'Fatma' }
-        ]
-        
-        console.log('Test verileri yükleniyor:', testOgretmenler)
-        setOgretmenler(testOgretmenler)
-        setDebugInfo('Test verileri yüklendi (3 öğretmen)')
-        return
-      }
-
-      console.log('Öğretmenler başarıyla yüklendi:', data)
-      setOgretmenler(data)
-      setDebugInfo(`${data.length} öğretmen yüklendi`)
-    } catch (error) {
-      console.error('Beklenmeyen hata:', error)
-      setDebugInfo('Beklenmeyen hata: ' + (error as Error).message)
-      alert('Bir hata oluştu: ' + (error as Error).message)
-    } finally {
-      setLoading(false)
+  // Debounced search term değiştiğinde arama yap
+  useEffect(() => {
+    if (debouncedSearchTerm) {
+      searchOgretmenler(debouncedSearchTerm)
+    } else {
+      setSearchResults([])
     }
-  }
+  }, [debouncedSearchTerm, searchOgretmenler])
 
   // PIN 4 hane olduğunda otomatik giriş yap
   useEffect(() => {
@@ -110,11 +106,19 @@ export default function OgretmenLoginPage() {
     }
   }, [pinInput, isLoggingIn])
 
-  // Arama fonksiyonu - öğretmen adı ve soyadında arama yapar
-  const filteredOgretmenler = ogretmenler.filter(ogretmen => {
-    const fullName = `${ogretmen.ad} ${ogretmen.soyad}`.toLowerCase()
-    return fullName.includes(searchTerm.toLowerCase())
-  })
+  const handleItemSelect = (ogretmen: Ogretmen) => {
+    setSelectedOgretmen(ogretmen)
+    setSearchTerm(`${ogretmen.ad} ${ogretmen.soyad}`)
+    setIsDropdownOpen(false)
+    setSearchResults([])
+  }
+
+  const resetSelection = () => {
+    setSelectedOgretmen(null)
+    setSearchTerm('')
+    setIsDropdownOpen(false)
+    setSearchResults([])
+  }
 
   const handlePinSubmit = async () => {
     if (isLoggingIn) return
@@ -175,24 +179,47 @@ export default function OgretmenLoginPage() {
         return
       }
 
-      // Başarılı giriş - localStorage'a kaydet
+      // 2. Başarılı Giriş -> Oturum Yönetimi
+      const { data: { session }, error: sessionError } = await supabase.auth.signInAnonymously()
+      if (sessionError || !session) {
+        setPinError(`Oturum başlatılamadı: ${sessionError?.message || 'Geçici oturum oluşturulamadı.'}`)
+        setIsLoggingIn(false)
+        return
+      }
+
+      // 3. Kullanıcı Metadatasını Güncelle (RLS için önemli)
+      const updateUserPayload = {
+        data: { ogretmen_id: selectedOgretmen.id, role: 'ogretmen' }
+      }
+      const { error: updateError } = await supabase.auth.updateUser(updateUserPayload)
+      if (updateError) {
+        setPinError(`Kullanıcı bilgileri güncellenemedi: ${updateError.message}`)
+        setIsLoggingIn(false)
+        return
+      }
+
+      // 4. Başarılı giriş - localStorage'a kaydet
       localStorage.setItem('ogretmen', JSON.stringify(selectedOgretmen))
-      router.push('/ogretmen/panel')
+      
+      // 5. Kısa delay ile yönlendirme
+      setTimeout(() => {
+        router.push('/ogretmen/panel')
+      }, 1000)
 
     } catch (error) {
       setPinError('Beklenmeyen bir hata oluştu: ' + (error as Error).message)
+    } finally {
+      setIsLoggingIn(false)
     }
   }
 
   // Loading state for maintenance check
-  if (maintenanceCheckLoading || loading) {
+  if (maintenanceCheckLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="bg-white p-8 rounded-xl shadow-lg">
           <Loader className="h-8 w-8 animate-spin text-blue-500 mx-auto" />
-          <p className="text-gray-600 mt-4 text-center">
-            {maintenanceCheckLoading ? 'Sistem kontrol ediliyor...' : 'Yükleniyor...'}
-          </p>
+          <p className="text-gray-600 mt-4 text-center">Sistem kontrol ediliyor...</p>
         </div>
       </div>
     )
@@ -256,12 +283,7 @@ export default function OgretmenLoginPage() {
               <User className="h-8 w-8 text-blue-600" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Öğretmen Girişi</h1>
-            <p className="text-gray-600">Kimliğinizi seçin ve PIN kodunuzu girin</p>
-            {debugInfo && (
-              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-                Debug: {debugInfo}
-              </div>
-            )}
+            <p className="text-gray-600">Öğretmen adınızı arayın ve PIN kodunuzu girin</p>
           </div>
 
           <div className="space-y-6">
@@ -273,7 +295,7 @@ export default function OgretmenLoginPage() {
             <div className="relative">
               {/* Arama input'u */}
               <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <input
                   type="text"
                   value={searchTerm}
@@ -281,13 +303,30 @@ export default function OgretmenLoginPage() {
                     setSearchTerm(e.target.value)
                     setIsDropdownOpen(true)
                     if (e.target.value === '') {
-                      setSelectedOgretmen(null)
+                      resetSelection()
                     }
                   }}
-                  onFocus={() => setIsDropdownOpen(true)}
-                  placeholder="Öğretmen adı yazın..."
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  onFocus={() => {
+                    setIsDropdownOpen(true)
+                    if (searchTerm.length >= 2) {
+                      searchOgretmenler(searchTerm)
+                    }
+                  }}
+                  onBlur={() => {
+                    // Timeout ile kapat ki item seçimi çalışsın
+                    setTimeout(() => setIsDropdownOpen(false), 150)
+                  }}
+                  placeholder="Öğretmen adı yazın (min. 2 karakter)..."
+                  className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center">
+                  {isSearching && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent mr-2"></div>
+                  )}
+                  <ChevronDown
+                    className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`}
+                  />
+                </div>
               </div>
 
               {/* Seçilen öğretmen gösterimi */}
@@ -301,8 +340,7 @@ export default function OgretmenLoginPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        setSelectedOgretmen(null)
-                        setSearchTerm('')
+                        resetSelection()
                         setPinError('')
                       }}
                       className="text-blue-600 hover:text-blue-800 text-sm"
@@ -314,28 +352,39 @@ export default function OgretmenLoginPage() {
               )}
 
               {/* Arama sonuçları */}
-              {isDropdownOpen && searchTerm && !selectedOgretmen && (
+              {isDropdownOpen && (searchResults.length > 0 || isSearching || (searchTerm.length >= 2 && searchResults.length === 0)) && (
                 <div className="absolute z-10 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  {filteredOgretmenler.length > 0 ? (
-                    filteredOgretmenler.map((ogretmen) => (
+                  {isSearching ? (
+                    <div className="px-4 py-3 text-gray-500 text-center">
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent mr-2"></div>
+                        Aranıyor...
+                      </div>
+                    </div>
+                  ) : searchResults.length > 0 ? (
+                    searchResults.map((ogretmen) => (
                       <button
                         key={ogretmen.id}
                         type="button"
-                        onClick={() => {
-                          setSelectedOgretmen(ogretmen)
-                          setSearchTerm(`${ogretmen.ad} ${ogretmen.soyad}`)
-                          setIsDropdownOpen(false)
-                          setPinError('')
-                        }}
-                        className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none flex items-center gap-2"
+                        onClick={() => handleItemSelect(ogretmen)}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none flex items-center gap-2 border-b border-gray-100 last:border-b-0"
                       >
                         <User className="h-4 w-4 text-gray-400" />
-                        {ogretmen.ad} {ogretmen.soyad}
+                        <div>
+                          <div className="font-medium text-gray-900">{ogretmen.ad} {ogretmen.soyad}</div>
+                        </div>
                       </button>
                     ))
-                  ) : (
+                  ) : searchTerm.length >= 2 ? (
                     <div className="px-4 py-3 text-gray-500 text-center">
-                      Arama sonucu bulunamadı
+                      <div className="flex flex-col items-center">
+                        <Search className="h-8 w-8 text-gray-300 mb-2" />
+                        <span>"{searchTerm}" için sonuç bulunamadı</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="px-4 py-3 text-gray-400 text-center text-sm">
+                      Arama yapmak için en az 2 karakter yazın
                     </div>
                   )}
                 </div>

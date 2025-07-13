@@ -257,15 +257,15 @@ export default function AyarlarPage() {
       });
       const result = await response.json();
       if (response.ok && result.success) {
-        alert(`Yedek başarıyla oluşturuldu!\n\nBackup Dosyası: ${result.backupFile}\nRapor Dosyası: ${result.reportFile}`);
+        alert(`Veri yedeği başarıyla oluşturuldu!\n\nYedek Dosyası: ${result.backupFile}\nRapor Dosyası: ${result.reportFile}\n\nNot: Bu yedek sadece tablo verilerini içerir.`);
         fetchBackupData();
       } else {
-        const errorMessage = result.error || result.message || 'Yedek oluşturma başarısız oldu.';
+        const errorMessage = result.error || result.message || 'Veri yedekleme başarısız oldu.';
         throw new Error(errorMessage);
       }
     } catch (error) {
-      console.error('Yedek oluşturma hatası:', error);
-      alert(`Yedek oluşturma hatası:\n\n${(error as Error).message}`);
+      console.error('Veri yedekleme hatası:', error);
+      alert(`Veri yedekleme hatası:\n\n${(error as Error).message}`);
     } finally {
       setBackupCreationLoading(false);
     }
@@ -443,11 +443,11 @@ export default function AyarlarPage() {
                 <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200"><div className="text-2xl font-bold text-purple-600">{Math.round((backupStats.total_size_kb || 0) / 1024)}MB</div><div className="text-sm text-purple-700 mt-1">Toplam Boyut</div></div>
               </div>
               <div className="space-y-6 mb-6">
-                <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 border border-purple-200">
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
                   <div className="flex justify-between items-center">
-                    <div><h3 className="text-lg font-medium text-purple-900 flex items-center"><Shield className="h-5 w-5 mr-2" />Veritabanı Yedekle</h3><p className="text-sm text-purple-700 mt-1">Tüm veritabanını (schema, data, functions) güvenli bir şekilde yedekler.</p></div>
-                    <button onClick={handleCreateBackup} disabled={backupCreationLoading} className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 border border-transparent rounded-xl hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 shadow-lg">
-                      {backupCreationLoading ? (<><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Oluşturuluyor...</>) : (<><Database className="h-4 w-4 mr-2" />Yedek Oluştur</>)}
+                    <div><h3 className="text-lg font-medium text-green-900 flex items-center"><Database className="h-5 w-5 mr-2" />Veri Yedekle</h3><p className="text-sm text-green-700 mt-1">Tüm tablo verilerini güvenli bir şekilde yedekler (SQL yapısı dahil değil).</p></div>
+                    <button onClick={handleCreateBackup} disabled={backupCreationLoading} className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-green-600 to-emerald-600 border border-transparent rounded-xl hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 shadow-lg">
+                      {backupCreationLoading ? (<><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Oluşturuluyor...</>) : (<><Database className="h-4 w-4 mr-2" />Veri Yedekle</>)}
                     </button>
                   </div>
                 </div>
