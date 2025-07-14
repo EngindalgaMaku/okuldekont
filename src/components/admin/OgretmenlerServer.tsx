@@ -122,10 +122,10 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
 
           <Link
             href="/admin/ogretmenler/yeni"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            className="inline-flex items-center justify-center w-10 h-10 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            title="Öğretmen Ekle"
           >
-            <Plus className="w-4 h-4" />
-            Yeni Öğretmen
+            <Plus className="w-5 h-5" />
           </Link>
         </div>
       </div>
@@ -209,7 +209,7 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
                   Alan
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  PIN
+                  PIN Yönetimi
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   İstatistikler
@@ -269,11 +269,7 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
                     )}
                   </td>
                   <td className="px-6 py-4 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="text-sm font-mono font-medium text-gray-900">
-                        {ogretmen.pin || '-'}
-                      </div>
-                      {/* Hızlı PIN atama butonu */}
+                    <div className="flex items-center justify-center">
                       <QuickPinButton
                         ogretmen={{
                           id: ogretmen.id,
@@ -326,10 +322,10 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
             <div className="mt-6">
               <Link
                 href="/admin/ogretmenler/yeni"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                title="Öğretmen Ekle"
               >
-                <Plus className="w-4 h-4" />
-                İlk Öğretmeni Ekle
+                <Plus className="w-5 h-5" />
               </Link>
             </div>
           </div>

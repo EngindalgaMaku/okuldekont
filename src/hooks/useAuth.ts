@@ -151,24 +151,37 @@ export function useAuth() {
       setIsManualLogout(true) // Set flag to prevent auto re-login
       setAuthState(prev => ({ ...prev, loading: true }))
       
-      // Use the most aggressive signOut method to clear all sessions
-      const { error } = await supabase.auth.signOut({ scope: 'global' })
-      if (error) {
-        console.error('Supabase signOut error:', error)
-      }
-      
-      // Clear local storage manually to ensure no session persistence
-      localStorage.removeItem('supabase.auth.token')
-      localStorage.removeItem('sb-guqwqbxsfvddwwczwljp-auth-token') // Replace with your project ref
-      sessionStorage.clear()
-      
-      // Force clear all auth state immediately
+      // Clear auth state immediately to prevent UI flickering
       setAuthState({
         user: null,
         loading: false,
         isAdmin: false,
         adminRole: undefined
       })
+      
+      // Clear storage first
+      try {
+        localStorage.removeItem('supabase.auth.token')
+        // Try to find the correct Supabase project key
+        const keys = Object.keys(localStorage)
+        keys.forEach(key => {
+          if (key.includes('supabase') || key.includes('sb-')) {
+            localStorage.removeItem(key)
+          }
+        })
+        sessionStorage.clear()
+      } catch (storageError) {
+        console.error('Storage clear error:', storageError)
+      }
+      
+      // Then sign out from Supabase
+      const { error } = await supabase.auth.signOut({ scope: 'global' })
+      if (error) {
+        console.error('Supabase signOut error:', error)
+      }
+      
+      // Add a small delay to ensure cleanup is complete
+      await new Promise(resolve => setTimeout(resolve, 100))
       
       console.log('✅ Auth state and storage cleared successfully')
       return { error: null }
@@ -178,8 +191,12 @@ export function useAuth() {
       
       // Even on error, force clear everything
       try {
-        localStorage.removeItem('supabase.auth.token')
-        localStorage.removeItem('sb-guqwqbxsfvddwwczwljp-auth-token')
+        const keys = Object.keys(localStorage)
+        keys.forEach(key => {
+          if (key.includes('supabase') || key.includes('sb-')) {
+            localStorage.removeItem(key)
+          }
+        })
         sessionStorage.clear()
       } catch (storageError) {
         console.error('Storage clear error:', storageError)

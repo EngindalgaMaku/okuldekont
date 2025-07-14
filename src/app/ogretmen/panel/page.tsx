@@ -6,6 +6,7 @@ import { Building2, FileText, LogOut, Loader, User, Receipt, GraduationCap, Chec
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/ui/Modal'
 import DekontUploadForm from '@/components/ui/DekontUpload'
+import PinChangeModal from '@/components/ui/PinChangeModal'
 import { DekontFormData } from '@/types/dekont'
 
 // TypeScript Arayüzleri
@@ -107,6 +108,10 @@ const TeacherPanel = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationModalOpen, setNotificationModalOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  
+  // PIN change modal state
+  const [pinChangeModalOpen, setPinChangeModalOpen] = useState(false);
+  const [teacherPin, setTeacherPin] = useState('');
 
   const getCurrentMonth = () => new Date().getMonth() + 1;
   const getCurrentYear = () => new Date().getFullYear();
@@ -169,7 +174,7 @@ const TeacherPanel = () => {
     try {
       const { data: ogretmenData, error } = await supabase
         .from('ogretmenler')
-        .select('id, ad, soyad')
+        .select('id, ad, soyad, pin')
         .eq('id', ogretmenId)
         .single();
 
@@ -181,8 +186,15 @@ const TeacherPanel = () => {
       }
 
       setTeacher(ogretmenData);
-      fetchOgretmenData(ogretmenData.id);
-      fetchNotifications(ogretmenData.id);
+      setTeacherPin(ogretmenData.pin || '');
+      
+      // Check if PIN needs to be changed
+      if (ogretmenData.pin === '2025') {
+        setPinChangeModalOpen(true);
+      } else {
+        fetchOgretmenData(ogretmenData.id);
+        fetchNotifications(ogretmenData.id);
+      }
     } catch (error) {
       console.error('Öğretmen verisi getirme hatası:', error);
       sessionStorage.removeItem('ogretmen_id');
@@ -478,6 +490,14 @@ const TeacherPanel = () => {
       return null;
     }
     return data.id;
+  };
+
+  const handlePinChangeSuccess = () => {
+    setPinChangeModalOpen(false);
+    if (teacher) {
+      fetchOgretmenData(teacher.id);
+      fetchNotifications(teacher.id);
+    }
   };
 
   const handleLogout = () => {
@@ -1897,6 +1917,15 @@ const TeacherPanel = () => {
           </div>
         </div>
       </Modal>
+      
+      {/* PIN Change Modal */}
+      <PinChangeModal
+        isOpen={pinChangeModalOpen}
+        onClose={() => {}} // Cannot close until PIN is changed
+        onSuccess={handlePinChangeSuccess}
+        teacherId={teacher?.id || ''}
+        teacherName={teacher ? `${teacher.ad} ${teacher.soyad}` : ''}
+      />
     </div>
   );
 }

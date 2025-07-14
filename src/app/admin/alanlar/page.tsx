@@ -133,6 +133,7 @@ const getAlanIconAndColor = (alanAd: string) => {
 export default function AlanlarPage() {
   const [alanlar, setAlanlar] = useState<Alan[]>([])
   const [loading, setLoading] = useState(true)
+  const [countsLoading, setCountsLoading] = useState(false)
 
   useEffect(() => {
     fetchAlanlar()
@@ -142,7 +143,7 @@ export default function AlanlarPage() {
     try {
       setLoading(true)
       
-      // First get the alanlar
+      // İlk önce sadece alanları hızlıca yükle
       const { data: alanlarData, error: alanlarError } = await supabase
         .from('alanlar')
         .select('*')
@@ -150,34 +151,64 @@ export default function AlanlarPage() {
 
       if (alanlarError) throw alanlarError
 
-      // Get counts separately for each alan
-      const alanlarWithCounts = await Promise.all(
-        alanlarData.map(async (alan) => {
-          // Count ogretmenler for this alan
-          const { count: ogretmenCount } = await supabase
-            .from('ogretmenler')
-            .select('*', { count: 'exact', head: true })
-            .eq('alan_id', alan.id)
+      // Alanları hemen göster (sayılar olmadan)
+      const alanlarWithoutCounts = alanlarData.map(alan => ({
+        ...alan,
+        ogretmen_sayisi: undefined,
+        ogrenci_sayisi: undefined,
+      }))
+      
+      setAlanlar(alanlarWithoutCounts)
+      setLoading(false)
 
-          // Count ogrenciler for this alan
-          const { count: ogrenciCount } = await supabase
-            .from('ogrenciler')
-            .select('*', { count: 'exact', head: true })
-            .eq('alan_id', alan.id)
+      // Sayıları arka planda lazy load et
+      loadCounts(alanlarData)
+    } catch (error) {
+      console.error('Alanları getirme hatası:', error)
+      setLoading(false)
+    }
+  }
 
-          return {
-            ...alan,
-            ogretmen_sayisi: ogretmenCount || 0,
-            ogrenci_sayisi: ogrenciCount || 0,
-          }
-        })
-      )
+  const loadCounts = async (alanlarData: any[]) => {
+    try {
+      setCountsLoading(true)
+
+      // Tek sorguda tüm sayıları al (çok daha hızlı)
+      const [ogretmenResult, ogrenciResult] = await Promise.all([
+        supabase
+          .from('ogretmenler')
+          .select('alan_id')
+          .not('alan_id', 'is', null),
+        supabase
+          .from('ogrenciler')
+          .select('alan_id')
+          .not('alan_id', 'is', null)
+      ])
+
+      // Sayıları manuel olarak say
+      const ogretmenCounts: Record<string, number> = {}
+      const ogrenciCounts: Record<string, number> = {}
+
+      ogretmenResult.data?.forEach(item => {
+        ogretmenCounts[item.alan_id] = (ogretmenCounts[item.alan_id] || 0) + 1
+      })
+
+      ogrenciResult.data?.forEach(item => {
+        ogrenciCounts[item.alan_id] = (ogrenciCounts[item.alan_id] || 0) + 1
+      })
+
+      // Alanları sayılarla güncelle
+      const alanlarWithCounts = alanlarData.map(alan => ({
+        ...alan,
+        ogretmen_sayisi: ogretmenCounts[alan.id] || 0,
+        ogrenci_sayisi: ogrenciCounts[alan.id] || 0,
+      }))
 
       setAlanlar(alanlarWithCounts)
     } catch (error) {
-      console.error('Alanları getirme hatası:', error)
+      console.error('Sayıları getirme hatası:', error)
     } finally {
-      setLoading(false)
+      setCountsLoading(false)
     }
   }
 
@@ -255,11 +286,29 @@ export default function AlanlarPage() {
                       <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
                         <div className="flex items-center gap-1">
                           <GraduationCap className="h-4 w-4" />
-                          <span>{alan.ogretmen_sayisi || 0} Öğretmen</span>
+                          {alan.ogretmen_sayisi !== undefined ? (
+                            <span>{alan.ogretmen_sayisi} Öğretmen</span>
+                          ) : countsLoading ? (
+                            <div className="flex items-center gap-1">
+                              <div className="animate-pulse bg-gray-200 h-4 w-12 rounded"></div>
+                              <span>Öğretmen</span>
+                            </div>
+                          ) : (
+                            <span>- Öğretmen</span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1">
                           <Users className="h-4 w-4" />
-                          <span>{alan.ogrenci_sayisi || 0} Öğrenci</span>
+                          {alan.ogrenci_sayisi !== undefined ? (
+                            <span>{alan.ogrenci_sayisi} Öğrenci</span>
+                          ) : countsLoading ? (
+                            <div className="flex items-center gap-1">
+                              <div className="animate-pulse bg-gray-200 h-4 w-12 rounded"></div>
+                              <span>Öğrenci</span>
+                            </div>
+                          ) : (
+                            <span>- Öğrenci</span>
+                          )}
                         </div>
                       </div>
                     </div>

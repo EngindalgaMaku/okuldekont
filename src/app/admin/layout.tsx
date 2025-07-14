@@ -182,30 +182,36 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }, [user, isAdmin, loading, pathname, router, isSigningOut])
   
   const handleLogout = async () => {
+    if (isSigningOut) return // Prevent multiple simultaneous logout attempts
+    
     setIsSigningOut(true)
     console.log('🚪 Logout initiated...')
     
     try {
+      // Clear auth state immediately to prevent UI issues
       const { error } = await signOut()
       if (error) {
         console.error('Logout error:', error)
-        // Still redirect to login even if there's an error
       }
       
       console.log('✅ Sign out completed, redirecting to login...')
       
-      // Use replace instead of push to prevent back button issues
-      await router.replace('/admin/login')
-      
-      // Clear any cached state
-      window.location.href = '/admin/login'
+      // Use a more forceful redirect approach
+      setTimeout(() => {
+        window.location.href = '/admin/login'
+      }, 100)
       
     } catch (error) {
       console.error('Logout error:', error)
       // Force redirect even on error
-      window.location.href = '/admin/login'
+      setTimeout(() => {
+        window.location.href = '/admin/login'
+      }, 100)
     } finally {
-      setIsSigningOut(false)
+      // Reset the signing out state after a delay to prevent race conditions
+      setTimeout(() => {
+        setIsSigningOut(false)
+      }, 1000)
     }
   }
 

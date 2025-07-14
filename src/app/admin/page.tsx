@@ -8,6 +8,7 @@ import { fetchDashboardStatsOptimized } from '@/lib/optimized-queries'
 import { isPerformanceMonitoringEnabled } from '@/lib/admin-settings'
 import { StatCardSkeleton, ListSkeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/components/ui/Toast'
+import DataIntegrityChecker from '@/components/admin/DataIntegrityChecker'
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -408,6 +409,9 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
+
+      {/* Data Integrity Checker */}
+      <DataIntegrityChecker />
     </div>
   )
-} 
+}
