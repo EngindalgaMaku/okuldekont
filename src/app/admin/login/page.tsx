@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { GraduationCap, Mail, Lock, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { DatabaseStatusHeader } from '@/components/ui/DatabaseStatus'
 
 export default function AdminLoginPage() {
   const router = useRouter()
@@ -84,6 +85,7 @@ export default function AdminLoginPage() {
           <p className="text-gray-600 mt-1">Güvenli yönetici girişi</p>
         </div>
         
+        <DatabaseStatusHeader />
 
         <form className="space-y-6" onSubmit={handleLogin}>
           <div>

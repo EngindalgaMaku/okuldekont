@@ -7,6 +7,7 @@ import { ChevronDownIcon, MagnifyingGlassIcon, BuildingOfficeIcon, AcademicCapIc
 import { useToast } from '@/components/ui/Toast'
 import { getSchoolName } from '@/lib/settings'
 import PinPad from '@/components/ui/PinPad'
+import { DatabaseStatusHeader } from '@/components/ui/DatabaseStatus'
 
 interface Isletme {
     id: string
@@ -481,6 +482,8 @@ export default function LoginPage() {
                 <h1 className="text-2xl font-bold text-gray-900">Koordinatörlük Yönetimi</h1>
                 <p className="text-gray-600 mt-1">{schoolName}</p>
             </div>
+            
+            <DatabaseStatusHeader />
             
             {step === 1 && (
                 <div className="space-y-6">

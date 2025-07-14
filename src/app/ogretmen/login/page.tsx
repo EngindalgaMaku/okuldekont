@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { User, Lock, Building, ChevronDown, Loader, AlertTriangle, Search } from 'lucide-react'
 import PinPad from '@/components/ui/PinPad'
 import { checkMaintenanceMode } from '@/lib/maintenance'
+import { DatabaseStatusHeader } from '@/components/ui/DatabaseStatus'
 
 interface Ogretmen {
   id: string
@@ -265,6 +266,8 @@ export default function OgretmenLoginPage() {
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Öğretmen Girişi</h1>
             <p className="text-gray-600">Öğretmen adınızı arayın ve PIN kodunuzu girin</p>
           </div>
+          
+          <DatabaseStatusHeader />
 
           <div className="space-y-6">
           {/* Öğretmen Seçimi */}
