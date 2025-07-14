@@ -41,7 +41,7 @@ export default function AdminDashboard() {
     }
   }
 
-  // Veritabanından istatistikleri çek - OPTIMIZED VERSION
+  // Veritabanından istatistikleri çek - OPTIMIZED VERSION with timeout protection
   const fetchStats = async (isRefresh = false) => {
     try {
       if (isRefresh) {
@@ -50,13 +50,22 @@ export default function AdminDashboard() {
         setLoading(true)
       }
       
-      // Okul ismini de çek
-      if (!isRefresh) {
-        await fetchSchoolName()
-      }
+      // Create timeout promise for the entire operation
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Dashboard loading timeout after 15 seconds')), 15000)
+      })
       
-      // Use optimized dashboard stats function
-      const optimizedStats = await fetchDashboardStatsOptimized()
+      // Execute school name and stats fetching in parallel with timeout protection
+      const dataPromise = Promise.all([
+        !isRefresh ? fetchSchoolName() : Promise.resolve(),
+        fetchDashboardStatsOptimized()
+      ])
+      
+      // Race between data fetching and timeout
+      const [_, optimizedStats] = await Promise.race([
+        dataPromise,
+        timeoutPromise
+      ]) as [void, any]
       
       setStats({
         totalDekontlar: optimizedStats.totalDekontlar,
@@ -81,12 +90,44 @@ export default function AdminDashboard() {
       
     } catch (error) {
       console.error('İstatistikler yüklenirken hata:', error)
+      
+      // Enhanced error handling with specific timeout messaging
+      let errorMessage = 'İstatistikler yüklenirken bir hata oluştu'
+      let errorTitle = 'Veri yükleme hatası'
+      
+      if (error instanceof Error) {
+        if (error.message.includes('timeout')) {
+          errorTitle = 'Bağlantı zaman aşımı'
+          errorMessage = 'Dashboard verileri yüklenirken zaman aşımı oluştu. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.'
+        } else if (error.message.includes('CORS')) {
+          errorTitle = 'Bağlantı hatası'
+          errorMessage = 'Sunucuya bağlanırken bir hata oluştu. Lütfen tekrar deneyin.'
+        } else if (error.message.includes('network')) {
+          errorTitle = 'Ağ hatası'
+          errorMessage = 'İnternet bağlantısı sorunu. Lütfen bağlantınızı kontrol edin.'
+        } else {
+          errorMessage = `Veritabanı hatası: ${error.message}`
+        }
+      }
+      
       showToast({
         type: 'error',
-        title: 'Veri yükleme hatası',
-        message: 'İstatistikler yüklenirken bir hata oluştu',
-        duration: 5000
+        title: errorTitle,
+        message: errorMessage,
+        duration: 8000
       })
+      
+      // Set default empty stats on error to prevent skeleton loading state
+      setStats({
+        totalDekontlar: 0,
+        bekleyenDekontlar: 0,
+        onaylananDekontlar: 0,
+        rededilenDekontlar: 0,
+        totalIsletmeler: 0,
+        totalOgretmenler: 0,
+        totalOgrenciler: 0
+      })
+      
     } finally {
       setLoading(false)
       setRefreshing(false)

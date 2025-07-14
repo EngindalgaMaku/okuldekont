@@ -354,34 +354,46 @@ export async function fetchOgretmenDetayOptimized(ogretmenId: string) {
   }
 }
 
-// Optimized dashboard statistics fetching
+// Optimized dashboard statistics fetching with timeout protection
 export async function fetchDashboardStatsOptimized() {
   try {
     console.log('fetchDashboardStatsOptimized called')
     const startTime = performance.now()
     
+    // Create timeout promise
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Dashboard stats query timeout after 15 seconds')), 15000)
+    })
+    
     // Use parallel queries with count-only selects for better performance
-    const [dekontlarResult, isletmelerResult, ogretmenlerResult, ogrencilerResult] = await Promise.all([
+    const queryPromise = Promise.all([
       supabase.from('dekontlar').select('onay_durumu', { count: 'exact' }),
       supabase.from('isletmeler').select('*', { count: 'exact', head: true }),
       supabase.from('ogretmenler').select('*', { count: 'exact', head: true }),
       supabase.from('ogrenciler').select('*', { count: 'exact', head: true })
     ])
     
+    // Race between query and timeout
+    const [dekontlarResult, isletmelerResult, ogretmenlerResult, ogrencilerResult] = await Promise.race([
+      queryPromise,
+      timeoutPromise
+    ]) as any[]
+    
     const endTime = performance.now()
     console.log(`Dashboard stats fetched in ${(endTime - startTime).toFixed(2)}ms`)
     
     // Check for errors
     if (dekontlarResult.error || isletmelerResult.error || ogretmenlerResult.error || ogrencilerResult.error) {
-      throw new Error('Veritabanı sorgusu başarısız')
+      const firstError = dekontlarResult.error || isletmelerResult.error || ogretmenlerResult.error || ogrencilerResult.error
+      throw new Error(`Veritabanı sorgusu başarısız: ${firstError.message}`)
     }
     
     // Process dekont statistics efficiently
     const dekontlar = dekontlarResult.data || []
     const totalDekontlar = dekontlar.length
-    const bekleyenDekontlar = dekontlar.filter(d => d.onay_durumu === 'bekliyor').length
-    const onaylananDekontlar = dekontlar.filter(d => d.onay_durumu === 'onaylandi').length
-    const rededilenDekontlar = dekontlar.filter(d => d.onay_durumu === 'reddedildi').length
+    const bekleyenDekontlar = dekontlar.filter((d: any) => d.onay_durumu === 'bekliyor').length
+    const onaylananDekontlar = dekontlar.filter((d: any) => d.onay_durumu === 'onaylandi').length
+    const rededilenDekontlar = dekontlar.filter((d: any) => d.onay_durumu === 'reddedildi').length
     
     return {
       totalDekontlar,
@@ -396,7 +408,11 @@ export async function fetchDashboardStatsOptimized() {
     
   } catch (error) {
     console.error('fetchDashboardStatsOptimized error:', error)
-    throw error
+    // Re-throw with more specific error message
+    if (error instanceof Error && error.message.includes('timeout')) {
+      throw new Error('Dashboard istatistikleri yüklenirken zaman aşımı oluştu. Lütfen tekrar deneyin.')
+    }
+    throw new Error(`Dashboard istatistikleri yüklenemedi: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`)
   }
 }
 
