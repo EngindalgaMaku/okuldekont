@@ -267,6 +267,7 @@ export default function PanelPage() {
       }
 
       console.log('🔗 Veritabanından işletme verisi getiriliyor...')
+      
       // İşletme verilerini veritabanından getir
       const { data: isletmeData, error: isletmeError } = await supabase
         .from('isletmeler')
@@ -274,18 +275,39 @@ export default function PanelPage() {
         .eq('id', sessionIsletmeId)
         .single()
 
-      console.log('📊 Supabase Response:', { isletmeData, isletmeError })
+      console.log('📊 Supabase Response:', {
+        isletmeData,
+        isletmeError,
+        dataType: typeof isletmeData,
+        errorDetails: isletmeError ? {
+          code: isletmeError.code,
+          message: isletmeError.message,
+          details: isletmeError.details,
+          hint: isletmeError.hint
+        } : null
+      })
 
       if (isletmeError) {
         console.error('❌ İşletme verisi getirme hatası:', isletmeError)
         console.error('🆔 İşletme ID:', sessionIsletmeId)
+        console.error('📋 Hata Detayları:', {
+          code: isletmeError.code,
+          message: isletmeError.message,
+          details: isletmeError.details,
+          hint: isletmeError.hint
+        })
+        
+        // Production'da farklı hata mesajları göster
+        alert(`İşletme verisi getirilemedi!\n\nHata: ${isletmeError.message}\nKod: ${isletmeError.code || 'Bilinmiyor'}\n\nLütfen tekrar giriş yapmayı deneyin.`)
+        
         sessionStorage.removeItem('isletme_id') // Geçersiz session'ı temizle
         router.push('/')
         return
       }
 
       if (!isletmeData) {
-        console.error('❌ İşletme bulunamadı')
+        console.error('❌ İşletme bulunamadı - data null/undefined')
+        alert('İşletme kaydı bulunamadı! Lütfen tekrar giriş yapın.')
         sessionStorage.removeItem('isletme_id') // Geçersiz session'ı temizle
         router.push('/')
         return

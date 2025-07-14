@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Settings, Database, Users, Mail, Shield, Save, RefreshCw, HardDrive, Download, Trash2, Clock, UserX, AlertTriangle } from 'lucide-react'
+import { Settings, Database, Users, Mail, Shield, Save, RefreshCw, HardDrive, Download, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { AdminManagement } from '@/components/ui/AdminManagement'
@@ -12,7 +12,7 @@ export default function AyarlarPage() {
   const { adminRole } = useAuth()
   const [loading, setLoading] = useState(false)
   const [saveLoading, setSaveLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'genel' | 'admin' | 'backup' | 'auth'>('genel')
+  const [activeTab, setActiveTab] = useState<'genel' | 'admin' | 'backup'>('genel')
 
   // System stats
   const [stats, setStats] = useState({
@@ -58,26 +58,12 @@ export default function AyarlarPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
 
-  // Auth management state
-  const [authStats, setAuthStats] = useState({
-    total_users: 0,
-    anonymous_users: 0,
-    authenticated_users: 0,
-    expired_anonymous: 0,
-    last_cleanup_date: null
-  })
-  const [authLoading, setAuthLoading] = useState(false)
-  const [cleaningAuth, setCleaningAuth] = useState(false)
-  const [showAuthCleanupModal, setShowAuthCleanupModal] = useState(false)
 
   useEffect(() => {
     fetchStats()
     fetchSettings()
     if (activeTab === 'backup') {
       fetchBackupData()
-    }
-    if (activeTab === 'auth') {
-      fetchAuthStats()
     }
   }, [activeTab])
 
@@ -159,41 +145,6 @@ export default function AyarlarPage() {
     setSaveLoading(false)
   }
 
-  const fetchAuthStats = async () => {
-    setAuthLoading(true)
-    try {
-      const { data, error } = await supabase.rpc('get_auth_user_statistics')
-      if (error) throw new Error(`Auth fonksiyonu bulunamadı: ${error.message}\n\nÇözüm: Lütfen AUTH_DEPLOYMENT_INSTRUCTIONS.md dosyasındaki SQL komutlarını Supabase SQL Editor'da çalıştırın.`)
-      setAuthStats(data || { total_users: 0, anonymous_users: 0, authenticated_users: 0, expired_anonymous: 0, last_cleanup_date: null })
-    } catch (error) {
-      console.error('Auth istatistikleri çekilirken hata:', error)
-      alert(`❌ Auth Sistemi Hatası:\n\n${(error as Error).message}`)
-    }
-    setAuthLoading(false)
-  }
-
-  const handleAuthCleanup = async () => {
-    setCleaningAuth(true)
-    try {
-      const { data, error } = await supabase.rpc('cleanup_expired_anonymous_users')
-      if (error) throw error
-      if (data?.success) {
-        alert(`✅ Auth temizliği tamamlandı!\n\n${data.deleted_count || 0} adet süresi geçmiş anonim kullanıcı silindi.`)
-        fetchAuthStats()
-      } else {
-        throw new Error(data?.error || 'Auth temizliği başarısız')
-      }
-    } catch (error) {
-      console.error('Auth temizliği hatası:', error)
-      alert('Auth temizliği sırasında hata: ' + (error as Error).message)
-    }
-    setCleaningAuth(false)
-    setShowAuthCleanupModal(false)
-  }
-
-  const deployAuthFunctions = async () => {
-    alert(`🚀 Auth Fonksiyonları Deploy Rehberi...`)
-  }
 
   const fetchBackupData = async () => {
     setBackupLoading(true);
@@ -344,9 +295,6 @@ export default function AyarlarPage() {
               </button>
               <button onClick={() => setActiveTab('backup')} className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'backup' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
                 <HardDrive className="h-4 w-4 inline mr-2" /> Veri Yedekleme
-              </button>
-              <button onClick={() => setActiveTab('auth')} className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'auth' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-                <UserX className="h-4 w-4 inline mr-2" /> Auth Yönetimi
               </button>
             </nav>
           </div>
@@ -523,71 +471,6 @@ export default function AyarlarPage() {
           </div>
         )}
 
-        {activeTab === 'auth' && (
-          <div className="space-y-8">
-            <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center"><UserX className="h-6 w-6 text-indigo-600 mr-3" /><h2 className="text-xl font-semibold text-gray-900">Authentication Yönetimi</h2></div>
-                <button onClick={fetchAuthStats} disabled={authLoading} className="inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 border border-indigo-300 rounded-xl hover:bg-indigo-200 disabled:opacity-50"><RefreshCw className={`h-4 w-4 mr-2 ${authLoading ? 'animate-spin' : ''}`} />Yenile</button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200"><div className="text-2xl font-bold text-blue-600">{authStats.total_users}</div><div className="text-sm text-blue-700 mt-1">Toplam Kullanıcı</div></div>
-                <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-xl p-4 border border-yellow-200"><div className="text-2xl font-bold text-yellow-600">{authStats.anonymous_users}</div><div className="text-sm text-yellow-700 mt-1">Anonim Kullanıcı</div></div>
-                <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-4 border border-green-200"><div className="text-2xl font-bold text-green-600">{authStats.authenticated_users}</div><div className="text-sm text-green-700 mt-1">Kayıtlı Kullanıcı</div></div>
-                <div className="bg-gradient-to-r from-red-50 to-red-100 rounded-xl p-4 border border-red-200"><div className="text-2xl font-bold text-red-600">{authStats.expired_anonymous}</div><div className="text-sm text-red-700 mt-1">Süresi Geçmiş</div></div>
-              </div>
-              {authStats.total_users === 0 && authStats.anonymous_users === 0 && authStats.authenticated_users === 0 && (
-                <div className="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-6 border border-red-200 mb-8">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center">
-                      <AlertTriangle className="h-6 w-6 text-red-600 mr-3" />
-                      <div><h3 className="text-lg font-medium text-red-900 mb-2">⚠️ Auth Fonksiyonları Eksik</h3><p className="text-sm text-red-700">Auth yönetimi için gerekli fonksiyonlar henüz deploy edilmemiş</p></div>
-                    </div>
-                    <button onClick={deployAuthFunctions} className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-red-600 border border-transparent rounded-xl hover:bg-red-700"><Database className="h-4 w-4 mr-2" />Deploy Rehberi</button>
-                  </div>
-                  <div className="bg-red-100 rounded-xl p-4 border border-red-300">
-                    <div className="flex items-start">
-                      <Database className="h-5 w-5 text-red-600 mr-2 mt-0.5" />
-                      <div className="text-sm">
-                        <div className="font-medium text-red-800 mb-1">📋 Deploy Edilmesi Gereken Fonksiyonlar:</div>
-                        <ul className="text-red-700 space-y-1">
-                          <li>• get_auth_user_statistics() - Auth istatistiklerini getirir</li>
-                          <li>• cleanup_expired_anonymous_users() - Eski anonim kullanıcıları temizler</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-6 border border-orange-200">
-                <div className="flex items-center justify-between mb-4">
-                  <div><h3 className="text-lg font-medium text-gray-900 mb-2">🧹 Otomatik Temizlik</h3><p className="text-sm text-gray-600">1 günden eski anonim kullanıcıları temizleyin</p></div>
-                  <button onClick={() => setShowAuthCleanupModal(true)} disabled={cleaningAuth || authStats.expired_anonymous === 0} className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-xl hover:bg-orange-700 disabled:opacity-50"><UserX className="h-4 w-4 mr-2" />Temizlik Başlat</button>
-                </div>
-                {authStats.expired_anonymous > 0 && (
-                  <div className="bg-orange-100 rounded-xl p-4 border border-orange-300">
-                    <div className="flex items-center"><Clock className="h-5 w-5 text-orange-600 mr-2" /><span className="text-sm text-orange-700"><strong>{authStats.expired_anonymous}</strong> adet süresi geçmiş anonim kullanıcı temizlenmeyi bekliyor</span></div>
-                  </div>
-                )}
-                {authStats.last_cleanup_date && (<div className="mt-4 text-xs text-gray-500">Son temizlik: {new Date(authStats.last_cleanup_date).toLocaleString('tr-TR')}</div>)}
-              </div>
-              <div className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-200">
-                <div className="flex items-start">
-                  <Database className="h-5 w-5 text-blue-600 mr-2 mt-0.5" />
-                  <div className="text-sm">
-                    <div className="font-medium text-blue-800 mb-1">ℹ️ Auth Yönetimi Hakkında:</div>
-                    <ul className="text-blue-700 space-y-1">
-                      <li>• Sistem girişlerinde otomatik anonim kullanıcılar oluşur</li>
-                      <li>• Bu kullanıcılar geçici olup 7 gün sonra temizlenebilir</li>
-                      <li>• Temizlik işlemi yalnızca süresi geçmiş kayıtları siler</li>
-                      <li>• Aktif oturumlar korunur ve etkilenmez</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {showDeleteModal && (
@@ -632,36 +515,6 @@ export default function AyarlarPage() {
         </div>
       )}
 
-      {showAuthCleanupModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
-            <div className="flex items-center mb-4"><UserX className="h-6 w-6 text-orange-600 mr-3" /><h3 className="text-xl font-semibold text-gray-900">Auth Temizlik Onayı</h3></div>
-            <div className="mb-6">
-              <p className="text-gray-700 mb-4"><strong>{authStats.expired_anonymous}</strong> adet süresi geçmiş anonim kullanıcıyı silmek istediğinizden emin misiniz?</p>
-              <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
-                <div className="flex items-start">
-                  <Clock className="h-5 w-5 text-orange-600 mr-2 mt-0.5" />
-                  <div className="text-sm">
-                    <div className="font-medium text-orange-800 mb-1">⚠️ Temizlik Kriterleri:</div>
-                    <ul className="text-orange-700 space-y-1">
-                      <li>• 7 günden eski anonim kullanıcılar silinecek</li>
-                      <li>• Aktif oturumlar korunacak</li>
-                      <li>• Kayıtlı kullanıcılar etkilenmeyecek</li>
-                      <li>• Bu işlem geri alınamaz</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button onClick={() => setShowAuthCleanupModal(false)} disabled={cleaningAuth} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-xl hover:bg-gray-200 disabled:opacity-50">İptal</button>
-              <button onClick={handleAuthCleanup} disabled={cleaningAuth} className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-xl hover:bg-orange-700 disabled:opacity-50">
-                {cleaningAuth ? (<><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Temizleniyor...</>) : (<><UserX className="h-4 w-4 mr-2" />Evet, Temizle</>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

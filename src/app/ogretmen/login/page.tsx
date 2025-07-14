@@ -179,7 +179,9 @@ export default function OgretmenLoginPage() {
         return
       }
 
-      // 2. Başarılı giriş - direkt redirect
+      // 2. Başarılı giriş - session kaydet ve redirect
+      sessionStorage.setItem('ogretmen_id', selectedOgretmen.id)
+      
       setTimeout(() => {
         router.push('/ogretmen/panel')
       }, 1000)

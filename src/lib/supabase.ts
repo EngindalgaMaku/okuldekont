@@ -3,6 +3,29 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
+// Debug: Environment variable'ları kontrol et
+console.log('🔐 Supabase Environment Check:')
+console.log('URL:', supabaseUrl)
+console.log('URL Protocol:', supabaseUrl ? new URL(supabaseUrl).protocol : 'undefined')
+console.log('Key exists:', !!supabaseAnonKey)
+console.log('Key length:', supabaseAnonKey?.length || 0)
+
+// HTTPS kontrolü ve uyarı
+if (supabaseUrl && !supabaseUrl.startsWith('https://')) {
+  console.error('🚨 CRITICAL: Supabase URL must use HTTPS in production!')
+  console.error('Current URL:', supabaseUrl)
+  console.error('Expected format: https://your-project.supabase.co')
+}
+
+// Environment variable'ları doğrula
+if (!supabaseUrl) {
+  console.error('❌ NEXT_PUBLIC_SUPABASE_URL is missing!')
+}
+
+if (!supabaseAnonKey) {
+  console.error('❌ NEXT_PUBLIC_SUPABASE_ANON_KEY is missing!')
+}
+
 // Tüm işlemler için standart, güvenli client'ı kullan
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 

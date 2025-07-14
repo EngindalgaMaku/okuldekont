@@ -69,9 +69,11 @@ export default function LoginPage() {
     }
 
     setIsSearching(true)
+    console.log(`🔍 [${loginType}] Arama başlatıldı:`, term)
 
     try {
       if (loginType === 'isletme') {
+        console.log('🏢 İşletme arama query çalıştırılıyor...')
         const { data, error } = await supabase
           .from('isletmeler')
           .select('id, ad, yetkili_kisi, stajlar!inner(id)')
@@ -80,11 +82,21 @@ export default function LoginPage() {
           .limit(10)
           .order('ad')
 
-        if (data && !error) {
+        console.log('🏢 İşletme arama sonucu:', { data, error, count: data?.length })
+        
+        if (error) {
+          console.error('❌ İşletme arama hatası:', error)
+          setSearchResults([])
+        } else if (data) {
           const uniqueIsletmeler = Array.from(new Map(data.map(item => [item.id, item])).values());
+          console.log('✅ İşletme sonuçları:', uniqueIsletmeler.length, 'adet')
           setSearchResults(uniqueIsletmeler);
+        } else {
+          console.log('⚠️ İşletme verisi null')
+          setSearchResults([])
         }
       } else {
+        console.log('👨‍🏫 Öğretmen arama query çalıştırılıyor...')
         const { data, error } = await supabase
           .from('ogretmenler')
           .select('id, ad, soyad')
@@ -92,15 +104,25 @@ export default function LoginPage() {
           .limit(10)
           .order('ad')
 
-        if (data && !error) {
+        console.log('👨‍🏫 Öğretmen arama sonucu:', { data, error, count: data?.length })
+
+        if (error) {
+          console.error('❌ Öğretmen arama hatası:', error)
+          setSearchResults([])
+        } else if (data) {
+          console.log('✅ Öğretmen sonuçları:', data.length, 'adet')
           setSearchResults(data)
+        } else {
+          console.log('⚠️ Öğretmen verisi null')
+          setSearchResults([])
         }
       }
     } catch (error) {
-      console.error('Arama hatası:', error)
+      console.error('💥 Beklenmeyen arama hatası:', error)
       setSearchResults([])
     } finally {
       setIsSearching(false)
+      console.log('🔍 Arama tamamlandı')
     }
   }, [loginType])
 
