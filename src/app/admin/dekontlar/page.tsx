@@ -137,24 +137,34 @@ export default function DekontYonetimiPage() {
     setLoading(true)
     
     try {
-      const startTime = performance.now()
+      // Set timeout for long-running queries
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Query timeout')), 15000)
+      )
       
-      const result = await fetchDekontlarOptimized(page, itemsPerPage, {
-        status: statusFilter,
-        alan_id: alanFilter,
-        ogretmen_id: ogretmenFilter,
-        search: searchTerm
-      })
+      const queryPromise = (async () => {
+        const startTime = performance.now()
+        
+        const result = await fetchDekontlarOptimized(page, itemsPerPage, {
+          status: statusFilter,
+          alan_id: alanFilter,
+          ogretmen_id: ogretmenFilter,
+          search: searchTerm
+        })
+        
+        const endTime = performance.now()
+        const duration = endTime - startTime
+        setQueryTime(duration)
+        
+        return result
+      })()
       
-      const endTime = performance.now()
-      const duration = endTime - startTime
-      setQueryTime(duration)
-      
-      const { data, error, count } = result
+      const result = await Promise.race([queryPromise, timeoutPromise])
+      const { data, error, count } = result as any
       
       if (error) {
         console.error('Dekontlar çekilirken hata:', error)
-        alert('Dekontlar yüklenirken bir hata oluştu.')
+        alert('Dekontlar yüklenirken bir hata oluştu: ' + error.message)
         return
       }
       
@@ -163,7 +173,7 @@ export default function DekontYonetimiPage() {
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
       
       // Process data for UI requirements - the optimized query already returns properly joined data
-      const processedData = (data || []).map(dekont => ({
+      const processedData = (data || []).map((dekont: any) => ({
         id: dekont.id,
         miktar: dekont.miktar,
         odeme_tarihi: dekont.odeme_tarihi,
@@ -179,42 +189,63 @@ export default function DekontYonetimiPage() {
       setDekontlar(processedData)
       setFilteredDekontlar(processedData)
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Optimized dekont fetch error:', error)
-      alert('Dekontlar yüklenirken bir hata oluştu.')
+      if (error.message === 'Query timeout') {
+        alert('Sorgu zaman aşımına uğradı. Lütfen sayfayı yenileyin.')
+      } else {
+        alert('Dekontlar yüklenirken bir hata oluştu: ' + error.message)
+      }
     } finally {
       setLoading(false)
     }
   }
 
   async function fetchFilterOptions() {
-    // Alanları çek
-    const { data: alanlarData } = await supabase
-      .from('alanlar')
-      .select('id, ad')
-      .order('ad')
-    
-    if (alanlarData) setAlanlar(alanlarData)
-
-    // Öğretmenleri çek
-    const { data: ogretmenlerData } = await supabase
-      .from('ogretmenler')
-      .select('id, ad, soyad')
-      .order('ad')
-    
-    if (ogretmenlerData) setOgretmenler(ogretmenlerData)
+    try {
+      // Use Promise.all for parallel execution with error handling
+      const [alanlarResult, ogretmenlerResult] = await Promise.all([
+        supabase.from('alanlar').select('id, ad').order('ad'),
+        supabase.from('ogretmenler').select('id, ad, soyad').order('ad')
+      ])
+      
+      if (alanlarResult.data) setAlanlar(alanlarResult.data)
+      if (ogretmenlerResult.data) setOgretmenler(ogretmenlerResult.data)
+      
+      if (alanlarResult.error) {
+        console.error('Alanlar fetch error:', alanlarResult.error)
+      }
+      if (ogretmenlerResult.error) {
+        console.error('Öğretmenler fetch error:', ogretmenlerResult.error)
+      }
+    } catch (error) {
+      console.error('Filter options fetch error:', error)
+    }
   }
 
   useEffect(() => {
-    fetchDekontlar(currentPage)
-    fetchFilterOptions()
-    
-    // Check if performance monitoring is enabled
-    const checkPerformanceSettings = async () => {
-      const enabled = await isPerformanceMonitoringEnabled()
-      setShowPerformanceButton(enabled)
+    const initializePage = async () => {
+      try {
+        // Run main data fetch and filter options in parallel
+        await Promise.all([
+          fetchDekontlar(currentPage),
+          fetchFilterOptions()
+        ])
+        
+        // Check performance monitoring settings (non-critical)
+        try {
+          const enabled = await isPerformanceMonitoringEnabled()
+          setShowPerformanceButton(enabled)
+        } catch (perfError) {
+          console.error('Performance monitoring check failed:', perfError)
+          setShowPerformanceButton(false)
+        }
+      } catch (error) {
+        console.error('Page initialization error:', error)
+      }
     }
-    checkPerformanceSettings()
+    
+    initializePage()
   }, [currentPage])
 
   // Filter dekontlar
@@ -650,10 +681,10 @@ export default function DekontYonetimiPage() {
         {/* Dekont List */}
         <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full table-fixed divide-y divide-gray-200">
+            <table className="w-full table-auto divide-y divide-gray-200">
               <thead className="bg-gradient-to-r from-indigo-50 to-purple-50">
                 <tr>
-                  <th className="w-16 px-4 py-5 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  <th className="w-12 px-3 py-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
                     <input
                       type="checkbox"
                       checked={selectedDekontlar.length === filteredDekontlar.length && filteredDekontlar.length > 0}
@@ -661,25 +692,28 @@ export default function DekontYonetimiPage() {
                       className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                     />
                   </th>
-                  <th className="w-1/4 px-8 py-5 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Öğrenci / İşletme
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Öğrenci
                   </th>
-                  <th className="w-1/8 px-6 py-5 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Ay / Yıl
+                  <th className="px-4 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    İşletme
                   </th>
-                  <th className="w-1/5 px-8 py-5 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Alan / Öğretmen
+                  <th className="px-4 py-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Dönem
                   </th>
-                  <th className="w-1/8 px-6 py-5 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Gönderen
+                  <th className="px-4 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Alan
                   </th>
-                  <th className="w-1/6 px-8 py-5 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                    Ödeme Tarihi / Miktar
+                  <th className="px-4 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Öğretmen
                   </th>
-                  <th className="w-1/8 px-6 py-5 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  <th className="px-4 py-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    Miktar
+                  </th>
+                  <th className="px-4 py-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
                     Durum
                   </th>
-                  <th className="w-1/6 px-8 py-5 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">
                     İşlemler
                   </th>
                 </tr>
@@ -687,7 +721,7 @@ export default function DekontYonetimiPage() {
               <tbody className="bg-white/60 divide-y divide-gray-200">
                 {filteredDekontlar.map((dekont) => (
                   <tr key={dekont.id} className="hover:bg-indigo-50/50 transition-colors duration-200">
-                    <td className="w-16 px-4 py-5 text-center">
+                    <td className="w-12 px-3 py-4 text-center">
                       <input
                         type="checkbox"
                         checked={selectedDekontlar.includes(dekont.id)}
@@ -695,81 +729,61 @@ export default function DekontYonetimiPage() {
                         className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                       />
                     </td>
-                    <td className="w-1/4 px-8 py-5">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900 flex items-center">
-                          <User className="h-4 w-4 mr-2 text-gray-400" />
-                          {dekont.stajlar?.ogrenciler?.ad} {dekont.stajlar?.ogrenciler?.soyad}
-                        </div>
-                        <div className="text-sm text-gray-500 flex items-center mt-1">
-                          <Building className="h-4 w-4 mr-2 text-gray-400" />
-                          {dekont.stajlar?.isletmeler?.ad}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="w-1/8 px-6 py-5">
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-indigo-600">
-                          {dekont.ay && dekont.yil ? `${['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'][dekont.ay - 1]} ${dekont.yil}` : '-'}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="w-1/5 px-8 py-5">
-                      <div>
-                        <div className="text-sm text-gray-900">
-                          📚 {dekont.stajlar?.ogrenciler?.alanlar?.ad}
-                        </div>
-                        <div className="text-sm text-gray-500 mt-1">
-                          👨‍🏫 {dekont.stajlar?.ogretmenler?.ad} {dekont.stajlar?.ogretmenler?.soyad}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="w-1/8 px-6 py-5">
-                      <div className="text-center">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
-                          dekont.gonderen_tip === 'ogretmen'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-orange-100 text-orange-800'
-                        }`}>
-                          {dekont.gonderen_tip === 'ogretmen' ? '👨‍🏫 Öğretmen' : '🏢 İşletme'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="w-1/6 px-8 py-5">
-                      <div>
-                        <div className="text-sm text-gray-900 flex items-center">
-                          <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                          {new Date(dekont.odeme_tarihi).toLocaleString('tr-TR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </div>
-                        <div className="text-sm font-medium text-green-600 mt-1">
-                          {dekont.miktar ? `${dekont.miktar.toLocaleString('tr-TR')} ₺` : '-'}
-                        </div>
-                        {dekont.dosya_url && (
-                          <div className="mt-2">
-                            <button
-                              onClick={() => handleFileDownload(dekont.dosya_url, 'dekontlar', `dekont_${dekont.id}.pdf`)}
-                              className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 font-medium"
-                            >
-                              <Download className="h-3 w-3 mr-1" />
-                              Dekont İndir
-                            </button>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center">
+                        <User className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {dekont.stajlar?.ogrenciler?.ad}
                           </div>
-                        )}
+                          <div className="text-sm text-gray-500">
+                            {dekont.stajlar?.ogrenciler?.soyad}
+                          </div>
+                        </div>
                       </div>
                     </td>
-                    <td className="w-1/8 px-6 py-5">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusClass(dekont.onay_durumu)}`}>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center">
+                        <Building className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
+                        <div className="text-sm text-gray-900 truncate max-w-32" title={dekont.stajlar?.isletmeler?.ad}>
+                          {dekont.stajlar?.isletmeler?.ad || 'Bilinmeyen'}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <div className="text-sm font-semibold text-indigo-600">
+                        {dekont.ay && dekont.yil ? (
+                          <>
+                            <div>{dekont.ay?.toString().padStart(2, '0')}/{dekont.yil}</div>
+                            <div className="text-xs text-gray-500">
+                              {['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'][dekont.ay - 1]}
+                            </div>
+                          </>
+                        ) : '-'}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="text-sm text-gray-900 truncate max-w-24" title={dekont.stajlar?.ogrenciler?.alanlar?.ad}>
+                        {dekont.stajlar?.ogrenciler?.alanlar?.ad || 'Bilinmeyen'}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="text-sm text-gray-900 truncate max-w-28" title={`${dekont.stajlar?.ogretmenler?.ad} ${dekont.stajlar?.ogretmenler?.soyad}`}>
+                        {dekont.stajlar?.ogretmenler?.ad} {dekont.stajlar?.ogretmenler?.soyad}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <div className="text-sm font-medium text-green-600">
+                        {dekont.miktar ? `${dekont.miktar.toLocaleString('tr-TR')} ₺` : '-'}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusClass(dekont.onay_durumu)}`}>
                         {getStatusIcon(dekont.onay_durumu)}
                         <span className="ml-1">{getStatusText(dekont.onay_durumu)}</span>
                       </span>
                     </td>
-                    <td className="w-1/6 px-8 py-5 whitespace-nowrap text-right text-sm font-medium">
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
                         <button
                           onClick={() => handleView(dekont)}
