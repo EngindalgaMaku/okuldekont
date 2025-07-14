@@ -267,8 +267,6 @@ export default function OgretmenLoginPage() {
             <p className="text-gray-600">Öğretmen adınızı arayın ve PIN kodunuzu girin</p>
           </div>
           
-          <DatabaseStatusHeader />
-
           <div className="space-y-6">
           {/* Öğretmen Seçimi */}
           <div>
@@ -404,6 +402,8 @@ export default function OgretmenLoginPage() {
               </div>
             )}
           </div>
+
+          <DatabaseStatusHeader />
 
           <div className="mt-6 text-center">
             <button

@@ -85,8 +85,6 @@ export default function AdminLoginPage() {
           <p className="text-gray-600 mt-1">Güvenli yönetici girişi</p>
         </div>
         
-        <DatabaseStatusHeader />
-
         <form className="space-y-6" onSubmit={handleLogin}>
           <div>
             <label
@@ -173,6 +171,8 @@ export default function AdminLoginPage() {
             )}
           </button>
         </form>
+        
+        <DatabaseStatusHeader />
         
       </div>
     </div>

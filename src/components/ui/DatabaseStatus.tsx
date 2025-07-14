@@ -17,10 +17,10 @@ export default function DatabaseStatus({ className = '', showText = true }: Data
     try {
       const startTime = performance.now()
       
-      // Simple health check - try to get Supabase service role info
+      // Simple health check - try to get from a basic table
       const { data, error } = await supabase
-        .from('system_settings')
-        .select('key')
+        .from('ogretmenler')
+        .select('id')
         .limit(1)
         .maybeSingle()
       
@@ -122,9 +122,10 @@ export function DatabaseStatusHeader() {
   useEffect(() => {
     const checkConnection = async () => {
       try {
+        // Use a more basic table that's likely to exist
         const { error } = await supabase
-          .from('system_settings')
-          .select('key')
+          .from('ogretmenler')
+          .select('id')
           .limit(1)
           .maybeSingle()
         
