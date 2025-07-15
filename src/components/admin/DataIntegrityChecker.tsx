@@ -25,24 +25,21 @@ export default function DataIntegrityChecker() {
       // 1. Koordinatör referansları kontrolü
       const { data: isletmeler } = await supabase
         .from('isletmeler')
-        .select('id, ad, koordinator_id')
-        .not('koordinator_id', 'is', null)
+        .select('id, ad, ogretmen_id')
+        .not('ogretmen_id', 'is', null)
 
       if (isletmeler) {
         let missingCoordinators = 0
-        let inactiveCoordinators = 0
 
         for (const isletme of isletmeler) {
           const { data: teacher } = await supabase
             .from('ogretmenler')
-            .select('id, ad, soyad, aktif')
-            .eq('id', isletme.koordinator_id)
+            .select('id, ad, soyad')
+            .eq('id', isletme.ogretmen_id)
             .single()
 
           if (!teacher) {
             missingCoordinators++
-          } else if (!teacher.aktif) {
-            inactiveCoordinators++
           }
         }
 
@@ -56,15 +53,7 @@ export default function DataIntegrityChecker() {
           })
         }
 
-        if (inactiveCoordinators > 0) {
-          foundIssues.push({
-            type: 'INACTIVE_COORDINATORS',
-            severity: 'medium',
-            description: `${inactiveCoordinators} işletmede pasif öğretmen koordinatör olarak tanımlı`,
-            affectedRecords: inactiveCoordinators,
-            fixable: true
-          })
-        }
+
       }
 
       // 2. Staj-öğretmen referansları kontrolü
@@ -77,21 +66,17 @@ export default function DataIntegrityChecker() {
       if (stajlar) {
         const teacherIds = Array.from(new Set(stajlar.map(s => s.ogretmen_id)))
         let missingTeachers = 0
-        let inactiveTeachers = 0
 
         for (const teacherId of teacherIds) {
           const { data: teacher } = await supabase
             .from('ogretmenler')
-            .select('id, ad, soyad, aktif')
+            .select('id, ad, soyad')
             .eq('id', teacherId)
             .single()
 
           if (!teacher) {
             const affectedStajlar = stajlar.filter(s => s.ogretmen_id === teacherId)
             missingTeachers += affectedStajlar.length
-          } else if (!teacher.aktif) {
-            const affectedStajlar = stajlar.filter(s => s.ogretmen_id === teacherId)
-            inactiveTeachers += affectedStajlar.length
           }
         }
 
@@ -105,15 +90,7 @@ export default function DataIntegrityChecker() {
           })
         }
 
-        if (inactiveTeachers > 0) {
-          foundIssues.push({
-            type: 'INACTIVE_TEACHERS_IN_STAJ',
-            severity: 'medium',
-            description: `${inactiveTeachers} staj kaydında pasif öğretmen tanımlı`,
-            affectedRecords: inactiveTeachers,
-            fixable: true
-          })
-        }
+
       }
 
       // 3. Orphaned öğrenciler

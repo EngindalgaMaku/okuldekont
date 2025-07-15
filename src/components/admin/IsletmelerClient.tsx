@@ -305,9 +305,6 @@ export default function IsletmelerClient({ isletmeler, fullIsletmeler, searchPar
                           Aktif Öğrenciler
                         </th>
                         <th className="px-6 py-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
-                          PIN
-                        </th>
-                        <th className="px-6 py-4 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
                           Detay
                         </th>
                       </tr>

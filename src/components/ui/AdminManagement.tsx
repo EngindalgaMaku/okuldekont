@@ -53,7 +53,11 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
   const fetchAdminUsers = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase.rpc('get_admin_users')
+      // Doğrudan admin_kullanicilar tablosundan veri çek
+      const { data, error } = await supabase
+        .from('admin_kullanicilar')
+        .select('*')
+        .order('created_at', { ascending: false })
       
       if (error) {
         console.error('Admin kullanıcılar çekilirken hata:', error)
@@ -61,18 +65,8 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
         return
       }
 
-      // The function now returns JSON, so we need to parse it if it's a string
-      let adminUsersData = data
-      if (typeof data === 'string') {
-        try {
-          adminUsersData = JSON.parse(data)
-        } catch (parseError) {
-          console.error('JSON parse error:', parseError)
-          adminUsersData = []
-        }
-      }
-
-      setAdminUsers(Array.isArray(adminUsersData) ? adminUsersData : [])
+      console.log('Admin users data:', data) // Debug için
+      setAdminUsers(data || [])
     } catch (error) {
       console.error('Admin kullanıcılar çekilirken hata:', error)
       setAdminUsers([])

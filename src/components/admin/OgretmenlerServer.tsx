@@ -209,9 +209,6 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
                   Alan
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  PIN Yönetimi
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   İstatistikler
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -268,17 +265,6 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
                       <div className="text-sm text-gray-400">Atanmamış</div>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-center">
-                    <div className="flex items-center justify-center">
-                      <QuickPinButton
-                        ogretmen={{
-                          id: ogretmen.id,
-                          ad: ogretmen.ad,
-                          soyad: ogretmen.soyad
-                        }}
-                      />
-                    </div>
-                  </td>
                   <td className="px-6 py-4">
                     <div className="text-center space-y-1">
                       <div className="text-xs text-gray-600">
@@ -300,6 +286,13 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
                       >
                         <Info className="w-4 h-4" />
                       </Link>
+                      <QuickPinButton
+                        ogretmen={{
+                          id: ogretmen.id,
+                          ad: ogretmen.ad,
+                          soyad: ogretmen.soyad
+                        }}
+                      />
                     </div>
                   </td>
                 </tr>

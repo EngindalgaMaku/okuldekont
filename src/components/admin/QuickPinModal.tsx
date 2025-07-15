@@ -129,18 +129,23 @@ export default function QuickPinModal({ ogretmenId, ogretmenAd, ogretmenSoyad, i
                       <span className="text-sm font-medium text-gray-700">Mevcut PIN:</span>
                       <button
                         type="button"
-                        onClick={() => setShowCurrentPin(!showCurrentPin)}
-                        className="text-gray-500 hover:text-gray-700"
+                        onClick={() => {
+                          console.log('Toggle clicked, current state:', showCurrentPin);
+                          console.log('Current PIN:', currentPin);
+                          setShowCurrentPin(!showCurrentPin);
+                        }}
+                        className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-md transition-colors"
+                        title={showCurrentPin ? 'PIN\'i gizle' : 'PIN\'i göster'}
                       >
                         {showCurrentPin ? (
-                          <EyeOff className="h-4 w-4" />
+                          <EyeOff className="h-5 w-5" />
                         ) : (
-                          <Eye className="h-4 w-4" />
+                          <Eye className="h-5 w-5" />
                         )}
                       </button>
                     </div>
                     <div className="mt-2 text-lg font-mono text-gray-900">
-                      {showCurrentPin ? currentPin : '****'}
+                      {showCurrentPin ? (currentPin || 'PIN bulunamadı') : '****'}
                     </div>
                   </div>
                   

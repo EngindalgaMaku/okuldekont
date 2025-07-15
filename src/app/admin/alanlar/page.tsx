@@ -229,10 +229,9 @@ export default function AlanlarPage() {
         </div>
         <Link
           href="/admin/alanlar/yeni"
-          className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          className="flex items-center p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
         >
-          <Plus className="h-5 w-5 mr-2" />
-          Yeni Alan
+          <Plus className="h-5 w-5" />
         </Link>
       </div>
 
@@ -248,74 +247,108 @@ export default function AlanlarPage() {
             <p className="mt-2 text-gray-500">İlk meslek alanını oluşturmak için yeni alan ekleyin.</p>
             <Link
               href="/admin/alanlar/yeni"
-              className="mt-4 inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              className="mt-4 inline-flex items-center p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
-              <Plus className="h-5 w-5 mr-2" />
-              Yeni Alan
+              <Plus className="h-5 w-5" />
             </Link>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
-            {alanlar.map((alan) => {
-              const { icon: IconComponent, color, bgColor, borderColor } = getAlanIconAndColor(alan.ad)
-              
-              return (
-                <Link
-                  key={alan.id}
-                  href={`/admin/alanlar/${alan.id}`}
-                  className={`block px-6 py-4 hover:shadow-md transition-all duration-200 ${bgColor} border-l-4 ${borderColor} hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg bg-gradient-to-r ${color}`}>
-                          <IconComponent className="h-5 w-5 text-white" />
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {alanlar.map((alan) => {
+                const { icon: IconComponent, color, bgColor, borderColor } = getAlanIconAndColor(alan.ad)
+                
+                return (
+                  <Link
+                    key={alan.id}
+                    href={`/admin/alanlar/${alan.id}`}
+                    className={`group relative bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-xl hover:border-indigo-300 transition-all duration-300 transform hover:-translate-y-1 overflow-hidden ${!alan.aktif ? 'opacity-50 grayscale' : ''}`}
+                  >
+                    {/* Gradient overlay */}
+                    <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`}></div>
+                    
+                    {/* Content */}
+                    <div className="relative p-6">
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-4">
+                        <div className={`p-3 rounded-xl bg-gradient-to-r ${color} shadow-lg`}>
+                          <IconComponent className="h-6 w-6 text-white" />
                         </div>
-                        <h3 className="text-lg font-medium text-gray-900 hover:text-indigo-600 transition-colors">{alan.ad}</h3>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          alan.aktif
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {alan.aktif ? 'Aktif' : 'Pasif'}
-                        </span>
+                        {!alan.aktif && (
+                          <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 border border-red-200">
+                            Pasif
+                          </span>
+                        )}
                       </div>
-                      {alan.aciklama && (
-                        <p className="mt-1 text-gray-600">{alan.aciklama}</p>
+
+                      {/* Title */}
+                      <h3 className="text-lg font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors duration-200 mb-2">
+                        {alan.ad}
+                      </h3>
+
+                      {/* Description */}
+                      {alan.aciklama ? (
+                        <p className="text-gray-600 text-sm mb-4 line-clamp-2">{alan.aciklama}</p>
+                      ) : (
+                        <p className="text-gray-400 text-sm mb-4 italic">Açıklama bulunmuyor</p>
                       )}
-                      <div className="mt-2 flex items-center gap-4 text-sm text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <GraduationCap className="h-4 w-4" />
+
+                      {/* Stats */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <GraduationCap className="h-4 w-4" />
+                            <span className="text-sm font-medium">Öğretmen</span>
+                          </div>
                           {alan.ogretmen_sayisi !== undefined ? (
-                            <span>{alan.ogretmen_sayisi} Öğretmen</span>
+                            <span className="text-sm font-bold text-gray-900">{alan.ogretmen_sayisi}</span>
                           ) : countsLoading ? (
-                            <div className="flex items-center gap-1">
-                              <div className="animate-pulse bg-gray-200 h-4 w-12 rounded"></div>
-                              <span>Öğretmen</span>
-                            </div>
+                            <div className="animate-pulse bg-gray-200 h-4 w-8 rounded"></div>
                           ) : (
-                            <span>- Öğretmen</span>
+                            <span className="text-sm text-gray-400">-</span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Users className="h-4 w-4" />
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <Users className="h-4 w-4" />
+                            <span className="text-sm font-medium">Öğrenci</span>
+                          </div>
                           {alan.ogrenci_sayisi !== undefined ? (
-                            <span>{alan.ogrenci_sayisi} Öğrenci</span>
+                            <span className="text-sm font-bold text-gray-900">{alan.ogrenci_sayisi}</span>
                           ) : countsLoading ? (
-                            <div className="flex items-center gap-1">
-                              <div className="animate-pulse bg-gray-200 h-4 w-12 rounded"></div>
-                              <span>Öğrenci</span>
-                            </div>
+                            <div className="animate-pulse bg-gray-200 h-4 w-8 rounded"></div>
                           ) : (
-                            <span>- Öğrenci</span>
+                            <span className="text-sm text-gray-400">-</span>
                           )}
                         </div>
+
+                        {/* Progress bar for total capacity */}
+                        {alan.ogretmen_sayisi !== undefined && alan.ogrenci_sayisi !== undefined && (
+                          <div className="pt-3 border-t border-gray-100">
+                            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                              <span>Toplam</span>
+                              <span>{alan.ogretmen_sayisi + alan.ogrenci_sayisi} kişi</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-1.5">
+                              <div
+                                className={`bg-gradient-to-r ${color} h-1.5 rounded-full transition-all duration-500`}
+                                style={{
+                                  width: `${Math.min(100, ((alan.ogretmen_sayisi + alan.ogrenci_sayisi) / 100) * 100)}%`
+                                }}
+                              ></div>
+                            </div>
+                          </div>
+                        )}
                       </div>
+
+                      {/* Hover indicator */}
+                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
                     </div>
-                  </div>
-                </Link>
-              )
-            })}
+                  </Link>
+                )
+              })}
+            </div>
           </div>
         )}
       </div>

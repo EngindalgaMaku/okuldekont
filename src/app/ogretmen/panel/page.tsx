@@ -188,12 +188,13 @@ const TeacherPanel = () => {
       setTeacher(ogretmenData);
       setTeacherPin(ogretmenData.pin || '');
       
-      // Check if PIN needs to be changed
+      // Always fetch data regardless of PIN
+      fetchOgretmenData(ogretmenData.id);
+      fetchNotifications(ogretmenData.id);
+      
+      // Check if PIN needs to be changed after data is loaded
       if (ogretmenData.pin === '2025') {
         setPinChangeModalOpen(true);
-      } else {
-        fetchOgretmenData(ogretmenData.id);
-        fetchNotifications(ogretmenData.id);
       }
     } catch (error) {
       console.error('Öğretmen verisi getirme hatası:', error);

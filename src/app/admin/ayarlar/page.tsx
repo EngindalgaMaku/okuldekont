@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Settings, Database, Users, Mail, Shield, Save, RefreshCw, HardDrive, Download, Trash2 } from 'lucide-react'
+import { Settings, Database, Users, Mail, Shield, Save, RefreshCw, HardDrive, Download, Trash2, Key, RotateCcw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { AdminManagement } from '@/components/ui/AdminManagement'
@@ -12,7 +12,14 @@ export default function AyarlarPage() {
   const { adminRole } = useAuth()
   const [loading, setLoading] = useState(false)
   const [saveLoading, setSaveLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'genel' | 'admin' | 'backup'>('genel')
+  const [activeTab, setActiveTab] = useState<'genel' | 'admin' | 'backup' | 'pin'>('genel')
+  
+  // PIN Reset state
+  const [pinResetLoading, setPinResetLoading] = useState(false)
+  const [teacherPinValue, setTeacherPinValue] = useState('2025')
+  const [businessPinValue, setBusinessPinValue] = useState('1234')
+  const [showTeacherResetModal, setShowTeacherResetModal] = useState(false)
+  const [showBusinessResetModal, setShowBusinessResetModal] = useState(false)
 
   // System stats
   const [stats, setStats] = useState({
@@ -256,6 +263,73 @@ export default function AyarlarPage() {
   const goToPreviousPage = () => { if (currentPage > 1) setCurrentPage(currentPage - 1) }
   const goToNextPage = () => { if (currentPage < totalPages) setCurrentPage(currentPage + 1) }
 
+  // PIN Reset Functions
+  const handleTeacherResetClick = () => {
+    if (!teacherPinValue || teacherPinValue.length !== 4) {
+      alert('PIN 4 haneli olmalıdır')
+      return
+    }
+    setShowTeacherResetModal(true)
+  }
+
+  const confirmTeacherReset = async () => {
+    try {
+      setPinResetLoading(true)
+      
+      const { data, error } = await supabase
+        .from('ogretmenler')
+        .update({ pin: teacherPinValue })
+        .neq('id', '00000000-0000-0000-0000-000000000000') // Fake condition to update all
+        .select('id, ad, soyad')
+      
+      if (error) {
+        throw error
+      }
+      
+      setShowTeacherResetModal(false)
+      alert(`${data?.length || 0} öğretmenin PINi "${teacherPinValue}" olarak güncellendi. İlk girişlerinde PIN değiştirmeleri istenecek.`)
+      
+    } catch (error: any) {
+      console.error('Öğretmen PIN resetleme hatası:', error)
+      alert('Öğretmen PINleri resetlenirken bir hata oluştu')
+    } finally {
+      setPinResetLoading(false)
+    }
+  }
+
+  const handleBusinessResetClick = () => {
+    if (!businessPinValue || businessPinValue.length !== 4) {
+      alert('PIN 4 haneli olmalıdır')
+      return
+    }
+    setShowBusinessResetModal(true)
+  }
+
+  const confirmBusinessReset = async () => {
+    try {
+      setPinResetLoading(true)
+      
+      const { data, error } = await supabase
+        .from('isletmeler')
+        .update({ pin: businessPinValue })
+        .neq('id', '00000000-0000-0000-0000-000000000000') // Fake condition to update all
+        .select('id, ad')
+      
+      if (error) {
+        throw error
+      }
+      
+      setShowBusinessResetModal(false)
+      alert(`${data?.length || 0} işletmenin PINi "${businessPinValue}" olarak güncellendi. İlk girişlerinde PIN değiştirmeleri istenecek.`)
+      
+    } catch (error: any) {
+      console.error('İşletme PIN resetleme hatası:', error)
+      alert('İşletme PINleri resetlenirken bir hata oluştu')
+    } finally {
+      setPinResetLoading(false)
+    }
+  }
+
   if (settingsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -295,6 +369,9 @@ export default function AyarlarPage() {
               </button>
               <button onClick={() => setActiveTab('backup')} className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'backup' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
                 <HardDrive className="h-4 w-4 inline mr-2" /> Veri Yedekleme
+              </button>
+              <button onClick={() => setActiveTab('pin')} className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'pin' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+                <Key className="h-4 w-4 inline mr-2" /> PIN Yönetimi
               </button>
             </nav>
           </div>
@@ -471,7 +548,265 @@ export default function AyarlarPage() {
           </div>
         )}
 
+        {activeTab === 'pin' && (
+          <div className="space-y-8">
+            <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center">
+                  <Key className="h-6 w-6 text-red-600 mr-3" />
+                  <h2 className="text-xl font-semibold text-gray-900">PIN Yönetimi</h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-red-600" />
+                  <span className="text-sm font-medium text-red-600">Güvenlik</span>
+                </div>
+              </div>
+
+              <p className="text-gray-600 mb-8">
+                Öğretmen ve işletme PIN kodlarını toplu olarak resetleyin. Bu işlem sonrasında tüm kullanıcılar ilk girişlerinde yeni PIN belirlemek zorunda kalacaklar.
+              </p>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Teacher PIN Reset */}
+                <div className="bg-blue-50 rounded-2xl p-6 border border-blue-200">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                      <Users className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-blue-900">Öğretmen PIN Reset</h3>
+                      <p className="text-sm text-blue-700">Tüm öğretmenlerin PIN kodlarını resetle</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-medium text-blue-700 mb-3">
+                        Yeni PIN Değeri (4 haneli)
+                      </label>
+                      <input
+                        type="text"
+                        value={teacherPinValue}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 4)
+                          setTeacherPinValue(value)
+                        }}
+                        className="w-full px-4 py-3 border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-lg text-center font-mono tracking-widest"
+                        placeholder="2025"
+                        maxLength={4}
+                        disabled={pinResetLoading}
+                      />
+                    </div>
+                    
+                    <button
+                      onClick={handleTeacherResetClick}
+                      disabled={pinResetLoading || !teacherPinValue || teacherPinValue.length !== 4}
+                      className="w-full flex items-center justify-center gap-3 bg-blue-600 text-white px-6 py-4 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                    >
+                      {pinResetLoading ? (
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <RotateCcw className="w-5 h-5" />
+                      )}
+                      {pinResetLoading ? 'Resetleniyor...' : 'Öğretmen PINleri Resetle'}
+                    </button>
+                  </div>
+                  
+                  <div className="mt-6 p-4 bg-blue-100 rounded-xl">
+                    <p className="text-xs text-blue-800">
+                      <strong>⚠️ Uyarı:</strong> Bu işlem tüm öğretmenlerin PIN kodlarını değiştirir. İlk girişlerinde yeni PIN belirlemeye zorlanacaklar.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Business PIN Reset */}
+                <div className="bg-green-50 rounded-2xl p-6 border border-green-200">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                      <Shield className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-green-900">İşletme PIN Reset</h3>
+                      <p className="text-sm text-green-700">Tüm işletmelerin PIN kodlarını resetle</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-medium text-green-700 mb-3">
+                        Yeni PIN Değeri (4 haneli)
+                      </label>
+                      <input
+                        type="text"
+                        value={businessPinValue}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 4)
+                          setBusinessPinValue(value)
+                        }}
+                        className="w-full px-4 py-3 border border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-lg text-center font-mono tracking-widest"
+                        placeholder="1234"
+                        maxLength={4}
+                        disabled={pinResetLoading}
+                      />
+                    </div>
+                    
+                    <button
+                      onClick={handleBusinessResetClick}
+                      disabled={pinResetLoading || !businessPinValue || businessPinValue.length !== 4}
+                      className="w-full flex items-center justify-center gap-3 bg-green-600 text-white px-6 py-4 rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                    >
+                      {pinResetLoading ? (
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <RotateCcw className="w-5 h-5" />
+                      )}
+                      {pinResetLoading ? 'Resetleniyor...' : 'İşletme PINleri Resetle'}
+                    </button>
+                  </div>
+                  
+                  <div className="mt-6 p-4 bg-green-100 rounded-xl">
+                    <p className="text-xs text-green-800">
+                      <strong>⚠️ Uyarı:</strong> Bu işlem tüm işletmelerin PIN kodlarını değiştirir. İlk girişlerinde yeni PIN belirlemeye zorlanacaklar.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 p-6 bg-red-50 border-2 border-red-200 rounded-2xl">
+                <div className="flex items-start gap-4">
+                  <div className="w-8 h-8 text-red-600 text-2xl">
+                    🚨
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-red-900 text-lg mb-2">Kritik Güvenlik Uyarısı!</h4>
+                    <ul className="text-sm text-red-800 space-y-2">
+                      <li>• PIN resetleme işlemi <strong>geri alınamaz</strong></li>
+                      <li>• Tüm kullanıcılar bir sonraki girişlerinde <strong>zorunlu olarak PIN değiştirmek</strong> zorunda kalacaklar</li>
+                      <li>• Bu işlemi yapmadan önce kullanıcıları <strong>bilgilendirmeniz önerilir</strong></li>
+                      <li>• Sistem geçici olarak erişilemez hale gelebilir</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
+
+      {/* Teacher PIN Reset Modal */}
+      {showTeacherResetModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
+            <div className="flex items-center mb-4">
+              <Key className="h-6 w-6 text-blue-600 mr-3" />
+              <h3 className="text-xl font-semibold text-gray-900">Öğretmen PIN Reset Onayı</h3>
+            </div>
+            <div className="mb-6">
+              <p className="text-gray-700 mb-4">
+                <strong>Tüm öğretmenlerin PIN kodlarını "{teacherPinValue}" olarak resetlemek</strong> istediğinizden emin misiniz?
+              </p>
+              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                <div className="flex items-start">
+                  <Users className="h-5 w-5 text-blue-600 mr-2 mt-0.5" />
+                  <div className="text-sm">
+                    <div className="font-medium text-blue-800 mb-2">📋 Bu işlem sonucunda:</div>
+                    <ul className="text-blue-700 space-y-1">
+                      <li>• Sistemdeki <strong>tüm öğretmenlerin</strong> PIN kodu resetlenecek</li>
+                      <li>• Her öğretmen <strong>ilk girişinde yeni PIN oluşturmaya zorlanacak</strong></li>
+                      <li>• Eski PIN kodları <strong>geçersiz hale gelecek</strong></li>
+                      <li>• Bu işlem <strong>geri alınamaz</strong></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowTeacherResetModal(false)}
+                disabled={pinResetLoading}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-xl hover:bg-gray-200 disabled:opacity-50"
+              >
+                İptal
+              </button>
+              <button
+                onClick={confirmTeacherReset}
+                disabled={pinResetLoading}
+                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-xl hover:bg-blue-700 disabled:opacity-50"
+              >
+                {pinResetLoading ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Resetleniyor...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Evet, Resetle
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Business PIN Reset Modal */}
+      {showBusinessResetModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
+            <div className="flex items-center mb-4">
+              <Key className="h-6 w-6 text-green-600 mr-3" />
+              <h3 className="text-xl font-semibold text-gray-900">İşletme PIN Reset Onayı</h3>
+            </div>
+            <div className="mb-6">
+              <p className="text-gray-700 mb-4">
+                <strong>Tüm işletmelerin PIN kodlarını "{businessPinValue}" olarak resetlemek</strong> istediğinizden emin misiniz?
+              </p>
+              <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                <div className="flex items-start">
+                  <Shield className="h-5 w-5 text-green-600 mr-2 mt-0.5" />
+                  <div className="text-sm">
+                    <div className="font-medium text-green-800 mb-2">🏢 Bu işlem sonucunda:</div>
+                    <ul className="text-green-700 space-y-1">
+                      <li>• Sistemdeki <strong>tüm işletmelerin</strong> PIN kodu resetlenecek</li>
+                      <li>• Her işletme <strong>ilk girişinde yeni PIN oluşturmaya zorlanacak</strong></li>
+                      <li>• Eski PIN kodları <strong>geçersiz hale gelecek</strong></li>
+                      <li>• Bu işlem <strong>geri alınamaz</strong></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowBusinessResetModal(false)}
+                disabled={pinResetLoading}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-xl hover:bg-gray-200 disabled:opacity-50"
+              >
+                İptal
+              </button>
+              <button
+                onClick={confirmBusinessReset}
+                disabled={pinResetLoading}
+                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-xl hover:bg-green-700 disabled:opacity-50"
+              >
+                {pinResetLoading ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Resetleniyor...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Evet, Resetle
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">

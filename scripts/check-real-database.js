@@ -9,7 +9,6 @@ const supabase = createClient(
 
 async function checkRealDatabase() {
   console.log('🔍 GERÇEK VERİTABANI KONTROLÜ')
-  console.log('URL: https://okuldb.run.place/')
   console.log('═══════════════════════════════════════════════')
   
   try {

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Building, CheckSquare, Square } from 'lucide-react'
 import Link from 'next/link'
 import IsletmeQuickPinButton from './IsletmeQuickPinButton'
+import IsletmePinDisplay from './IsletmePinDisplay'
 
 interface Isletme {
   id: string
@@ -130,24 +131,17 @@ export default function IsletmeRow({ isletme, isSelected, onSelectionChange }: P
         </div>
       </td>
       <td className="px-6 py-4">
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-sm font-mono font-medium text-gray-900">
-            {isletme.pin || '-'}
-          </span>
-          {/* Hızlı PIN atama butonu */}
-          <IsletmeQuickPinButton
-            isletme={{
-              id: isletme.id,
-              ad: isletme.ad
-            }}
+        <div className="flex justify-center gap-2">
+          {/* PIN görüntüleme butonu */}
+          <IsletmePinDisplay
+            isletmeId={isletme.id}
+            isletmeAd={isletme.ad}
+            pin={isletme.pin || ''}
           />
-        </div>
-      </td>
-      <td className="px-6 py-4">
-        <div className="flex justify-center">
+          {/* İşletme detay butonu */}
           <Link
             href={`/admin/isletmeler/${isletme.id}`}
-            className="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all duration-200"
+            className="p-2 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-all duration-200"
             title="İşletme Detayı"
           >
             <Building className="h-4 w-4" />

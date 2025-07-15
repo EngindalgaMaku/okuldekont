@@ -14,7 +14,6 @@ function generateUUID() {
 
 async function createSimpleRealMockData() {
   console.log('🏗️  BASİT GERÇEK VERİTABANI MOCK VERİ OLUŞTURMA')
-  console.log('URL: https://okuldb.run.place/')
   console.log('═══════════════════════════════════════════════')
   
   try {

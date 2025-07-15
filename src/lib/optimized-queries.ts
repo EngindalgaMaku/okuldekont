@@ -418,17 +418,8 @@ export async function fetchDashboardStatsOptimized() {
 
 // Optimized count queries using estimated counts for large tables
 export async function getEstimatedCount(tableName: string, filters: any = {}) {
-  // For large tables, use estimated counts instead of exact counts
-  const { data, error } = await supabase
-    .rpc('get_estimated_count', { table_name: tableName })
-  
-  if (error) {
-    // Fallback to exact count for smaller result sets
-    const { count } = await supabase
-      .from(tableName)
-      .select('*', { count: 'exact', head: true })
-    return count
-  }
-  
-  return data
+  const { count } = await supabase
+    .from(tableName)
+    .select('*', { count: 'exact', head: true })
+  return count
 }

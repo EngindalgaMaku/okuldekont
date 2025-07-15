@@ -1,8 +1,15 @@
 const { createClient } = require('@supabase/supabase-js')
+require('dotenv').config({ path: '.env.local' })
 
-// Supabase credentials
-const supabaseUrl = 'https://okuldb.run.place/'
-const supabaseKey = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc1MjQ0ODM4MCwiZXhwIjo0OTA4MTIxOTgwLCJyb2xlIjoic2VydmljZV9yb2xlIn0.Vxawkp1LV45wbWtbWKBfU2d6JtsYEgxt9cbZNEKo4ds'
+// Supabase credentials from environment variables
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('❌ Environment variables gerekli! .env.local dosyasını kontrol edin.')
+  console.error('   NEXT_PUBLIC_SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY olmalı.')
+  process.exit(1)
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey)
 

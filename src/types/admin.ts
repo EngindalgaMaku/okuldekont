@@ -25,7 +25,7 @@ export interface UpdateAdminUser {
 
 export const YetkiSeviyeleri = {
   'super_admin': {
-    label: 'Süper Admin',
+    label: 'K. Müd. Yard.',
     description: 'Tüm yetkilere sahip, diğer adminleri yönetebilir',
     color: 'bg-red-100 text-red-800'
   },
@@ -35,7 +35,7 @@ export const YetkiSeviyeleri = {
     color: 'bg-blue-100 text-blue-800'
   },
   'operator': {
-    label: 'Operatör',
+    label: 'Admin',
     description: 'Temel işlemleri yapabilir, kısıtlı yetkiler',
     color: 'bg-green-100 text-green-800'
   }

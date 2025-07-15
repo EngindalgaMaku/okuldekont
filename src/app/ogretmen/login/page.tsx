@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabase'
 import { User, Lock, Building, ChevronDown, Loader, AlertTriangle, Search } from 'lucide-react'
 import PinPad from '@/components/ui/PinPad'
 import { checkMaintenanceMode } from '@/lib/maintenance'
-import { DatabaseStatusHeader } from '@/components/ui/DatabaseStatus'
 
 interface Ogretmen {
   id: string
@@ -402,8 +401,6 @@ export default function OgretmenLoginPage() {
               </div>
             )}
           </div>
-
-          <DatabaseStatusHeader />
 
           <div className="mt-6 text-center">
             <button

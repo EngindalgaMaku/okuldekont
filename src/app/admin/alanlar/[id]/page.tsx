@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Fragment, ReactNode } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
-import { Briefcase, Plus, Edit, Trash2, User, Users, ArrowLeft, GraduationCap, School, UserCheck, Settings, AlertTriangle, Lock, Building2, ChevronRight } from 'lucide-react'
+import { Briefcase, Plus, Edit, Trash2, User, Users, ArrowLeft, GraduationCap, School, UserCheck, Settings, AlertTriangle, Lock, Building2, ChevronRight, Eye } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
@@ -41,8 +41,11 @@ interface Ogrenci {
   soyad: string
   no: string
   sinif: string
-  isletme_adi?: string
+  isletme_adi?: string | null
   staj_durumu?: string
+  baslama_tarihi?: string | null
+  bitis_tarihi?: string | null
+  koordinator_ogretmen?: string | null
 }
 
 interface OgrenciFormData {
@@ -67,6 +70,22 @@ interface Isletme {
   ad: string
   adres?: string
   telefon?: string
+  students?: {
+    id: string
+    ad: string
+    soyad: string
+    no: string
+    sinif: string
+    baslangic_tarihi: string
+    bitis_tarihi: string
+  }[]
+  koordinatorOgretmen?: {
+    id: string
+    ad: string
+    soyad: string
+    email: string
+    telefon: string
+  } | null
 }
 
 export default function AlanDetayPage() {
@@ -76,6 +95,12 @@ export default function AlanDetayPage() {
   const searchParams = useSearchParams()
   const initialTab = searchParams.get('tab') || 'ogretmenler'
   const [activeTab, setActiveTab] = useState(initialTab)
+  
+  // Update activeTab when URL changes
+  useEffect(() => {
+    const urlTab = searchParams.get('tab') || 'ogretmenler'
+    setActiveTab(urlTab)
+  }, [searchParams])
 
   const [alan, setAlan] = useState<Alan | null>(null)
   const [siniflar, setSiniflar] = useState<Sinif[]>([])
@@ -83,8 +108,24 @@ export default function AlanDetayPage() {
   const [ogretmenler, setOgretmenler] = useState<Ogretmen[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSinifFilter, setSelectedSinifFilter] = useState('')
-  const [filteredOgrenciler, setFilteredOgrenciler] = useState<Ogrenci[]>([])
   const [isletmeler, setIsletmeler] = useState<Isletme[]>([])
+  const [selectedIsletme, setSelectedIsletme] = useState<Isletme | null>(null)
+  const [isletmeListesi, setIsletmeListesi] = useState<{id: string, ad: string, telefon?: string}[]>([])
+  const [loadingSelectedIsletme, setLoadingSelectedIsletme] = useState(false)
+  const [dataError, setDataError] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [selectedStajFilter, setSelectedStajFilter] = useState('')
+  
+  // Sayfalama state'leri
+  const [ogrenciCurrentPage, setOgrenciCurrentPage] = useState(1)
+  const [ogrenciTotalPages, setOgrenciTotalPages] = useState(1)
+  const [totalOgrenciler, setTotalOgrenciler] = useState(0)
+  const [ogrenciLoading, setOgrenciLoading] = useState(false)
+  const [sinifCurrentPage, setSinifCurrentPage] = useState(1)
+  const [sinifTotalPages, setSinifTotalPages] = useState(1)
+  const [totalSiniflar, setTotalSiniflar] = useState(0)
+  const [sinifLoading, setSinifLoading] = useState(false)
+  const pageSize = 10
 
   // Modal states
   const [sinifModalOpen, setSinifModalOpen] = useState(false)
@@ -93,6 +134,8 @@ export default function AlanDetayPage() {
   const [deleteSinifModal, setDeleteSinifModal] = useState(false)
   const [editOgrenciModal, setEditOgrenciModal] = useState(false)
   const [deleteOgrenciModal, setDeleteOgrenciModal] = useState(false)
+  const [ogrenciDetayModal, setOgrenciDetayModal] = useState(false)
+  const [ogrenciEditMode, setOgrenciEditMode] = useState(false)
   const [selectedSinif, setSelectedSinif] = useState<Sinif | null>(null)
   const [selectedOgrenci, setSelectedOgrenci] = useState<Ogrenci | null>(null)
 
@@ -165,12 +208,25 @@ export default function AlanDetayPage() {
   useEffect(() => {
     if (alanId) {
       fetchAlanDetay()
-      fetchSiniflar()
-      fetchOgrenciler()
+      fetchSiniflar(1)
+      fetchOgrenciler(1)
       fetchOgretmenler()
-      fetchIsletmeler()
+      fetchIsletmeListesi()
     }
-  }, [alanId])
+  }, [alanId]) // Only depend on alanId
+  
+  // Sayfa değiştiğinde öğrencileri yeniden yükle
+  useEffect(() => {
+    if (alanId) {
+      fetchOgrenciler(ogrenciCurrentPage)
+    }
+  }, [ogrenciCurrentPage, alanId])
+
+  useEffect(() => {
+    if (alanId) {
+      fetchSiniflar(sinifCurrentPage)
+    }
+  }, [sinifCurrentPage, alanId])
 
   useEffect(() => {
     if (alan) {
@@ -182,45 +238,62 @@ export default function AlanDetayPage() {
     }
   }, [alan])
 
-  // Öğrencileri filtreleme useEffect'i
+  // Sınıf filtresi değiştiğinde sayfayı 1'e sıfırla ve öğrencileri yeniden yükle
   useEffect(() => {
-    if (selectedSinifFilter) {
-      setFilteredOgrenciler(ogrenciler.filter(ogrenci => ogrenci.sinif === selectedSinifFilter))
-    } else {
-      setFilteredOgrenciler(ogrenciler)
+    if (alanId) {
+      setOgrenciCurrentPage(1)
+      fetchOgrenciler(1)
     }
-  }, [ogrenciler, selectedSinifFilter])
+  }, [selectedSinifFilter, alanId])
 
   const fetchAlanDetay = async () => {
-    const { data, error } = await supabase
-      .from('alanlar')
-      .select('*')
-      .eq('id', alanId)
-      .single()
+    try {
+      const { data, error } = await supabase
+        .from('alanlar')
+        .select('*')
+        .eq('id', alanId)
+        .single()
 
-    if (error) {
-      console.error('Alan detayları alınırken hata:', error)
-      router.push('/admin/alanlar')
-    } else {
+      if (error) {
+        console.error('Alan detayları alınırken hata:', error)
+        setDataError(true)
+        return
+      }
+      
       setAlan(data)
+      setDataError(false)
+    } catch (err) {
+      console.error('Alan detayları alınırken beklenmeyen hata:', err)
+      setDataError(true)
     }
   }
 
-  const fetchSiniflar = async () => {
+  const fetchSiniflar = async (page = 1) => {
     try {
-      // First get the siniflar
+      setSinifLoading(true)
+
+      const countQuery = supabase
+        .from('siniflar')
+        .select('*', { count: 'exact', head: true })
+        .eq('alan_id', alanId)
+
+      const { count, error: countError } = await countQuery
+      if (countError) throw countError
+
+      setTotalSiniflar(count || 0)
+      setSinifTotalPages(Math.ceil((count || 0) / pageSize))
+
       const { data: sinifData, error: sinifError } = await supabase
         .from('siniflar')
         .select('*')
         .eq('alan_id', alanId)
         .order('ad')
+        .range((page - 1) * pageSize, page * pageSize - 1)
 
       if (sinifError) throw sinifError
 
-      // Get counts separately for each sinif
       const siniflarWithCount = await Promise.all(
         sinifData.map(async (sinif) => {
-          // Count ogrenciler for this sinif
           const { count: ogrenciCount } = await supabase
             .from('ogrenciler')
             .select('*', { count: 'exact', head: true })
@@ -229,7 +302,7 @@ export default function AlanDetayPage() {
 
           return {
             ...sinif,
-            ogrenci_sayisi: ogrenciCount || 0
+            ogrenci_sayisi: ogrenciCount || 0,
           }
         })
       )
@@ -238,17 +311,43 @@ export default function AlanDetayPage() {
     } catch (error) {
       console.error('Sınıflar alınırken hata:', error)
     } finally {
-      setLoading(false)
+      setSinifLoading(false)
     }
   }
 
-  const fetchOgrenciler = async () => {
+  const fetchOgrenciler = async (page = 1) => {
     try {
-      // First get students
-      const { data: ogrencilerData, error: ogrencilerError } = await supabase
+      setOgrenciLoading(true);
+      
+      // Build query with filters
+      let countQuery = supabase
+        .from('ogrenciler')
+        .select('*', { count: 'exact', head: true })
+        .eq('alan_id', alanId);
+
+      let dataQuery = supabase
         .from('ogrenciler')
         .select('id, ad, soyad, no, sinif')
         .eq('alan_id', alanId);
+
+      // Apply filters
+      if (selectedSinifFilter) {
+        countQuery = countQuery.eq('sinif', selectedSinifFilter);
+        dataQuery = dataQuery.eq('sinif', selectedSinifFilter);
+      }
+
+      // First get total count with filters
+      const { count, error: countError } = await countQuery;
+
+      if (countError) throw countError;
+
+      setTotalOgrenciler(count || 0);
+      setOgrenciTotalPages(Math.ceil((count || 0) / pageSize));
+
+      // Get paginated students with filters
+      const { data: ogrencilerData, error: ogrencilerError } = await dataQuery
+        .range((page - 1) * pageSize, page * pageSize - 1)
+        .order('ad', { ascending: true });
 
       if (ogrencilerError) throw ogrencilerError;
 
@@ -256,32 +355,57 @@ export default function AlanDetayPage() {
       const ogrencilerWithInfo = await Promise.all(
         ogrencilerData.map(async (ogrenci) => {
           try {
-            // Get active staj for this student (without join to avoid foreign key issues)
+            // Get active staj for this student with more details
             const { data: stajData, error: stajError } = await supabase
               .from('stajlar')
-              .select('durum, isletme_id')
+              .select('durum, isletme_id, baslangic_tarihi, bitis_tarihi, ogretmen_id')
               .eq('ogrenci_id', ogrenci.id)
               .eq('durum', 'aktif')
               .maybeSingle();
 
             let isletme_adi = null;
             let staj_durumu = 'isletmesi_yok';
+            let baslama_tarihi = null;
+            let bitis_tarihi = null;
+            let koordinator_ogretmen = null;
             
-            // If staj query was successful and staj exists, get isletme name separately
+            // If staj query was successful and staj exists, get related data
             if (!stajError && stajData?.isletme_id) {
-              const { data: isletmeData, error: isletmeError } = await supabase
-                .from('isletmeler')
-                .select('ad')
-                .eq('id', stajData.isletme_id)
-                .maybeSingle();
-              
-              if (!isletmeError && isletmeData) {
-                isletme_adi = isletmeData.ad;
-              } else {
-                console.warn(`İşletme bulunamadı: ${stajData.isletme_id}`);
-                isletme_adi = null;
+              try {
+                // Get isletme name
+                const { data: isletmeData, error: isletmeError } = await supabase
+                  .from('isletmeler')
+                  .select('ad')
+                  .eq('id', stajData.isletme_id)
+                  .maybeSingle();
+                
+                if (!isletmeError && isletmeData) {
+                  isletme_adi = isletmeData.ad;
+                }
+              } catch (isletmeError) {
+                console.warn(`İşletme bilgisi alınamadı (staj: ${stajData.isletme_id}):`, isletmeError);
               }
+
+              // Get koordinator ogretmen
+              if (stajData.ogretmen_id) {
+                try {
+                  const { data: ogretmenData, error: ogretmenError } = await supabase
+                    .from('ogretmenler')
+                    .select('ad, soyad')
+                    .eq('id', stajData.ogretmen_id)
+                    .maybeSingle();
+                  
+                  if (!ogretmenError && ogretmenData) {
+                    koordinator_ogretmen = `${ogretmenData.ad} ${ogretmenData.soyad}`;
+                  }
+                } catch (ogretmenError) {
+                  console.warn(`Öğretmen bilgisi alınamadı (öğretmen: ${stajData.ogretmen_id}):`, ogretmenError);
+                }
+              }
+
               staj_durumu = 'aktif';
+              baslama_tarihi = stajData.baslangic_tarihi;
+              bitis_tarihi = stajData.bitis_tarihi;
             } else if (stajError) {
               console.warn(`Staj bilgisi alınamadı (öğrenci: ${ogrenci.id}):`, stajError);
             }
@@ -289,15 +413,21 @@ export default function AlanDetayPage() {
             return {
               ...ogrenci,
               isletme_adi,
-              staj_durumu
+              staj_durumu,
+              baslama_tarihi,
+              bitis_tarihi,
+              koordinator_ogretmen
             };
-          } catch (stajError) {
+          } catch (error) {
             // If there's an error getting staj data, return student without staj info
-            console.warn(`Staj bilgisi alınamadı (öğrenci: ${ogrenci.id}):`, stajError);
+            console.warn(`Genel hata (öğrenci: ${ogrenci.id}):`, error);
             return {
               ...ogrenci,
               isletme_adi: null,
-              staj_durumu: 'isletmesi_yok'
+              staj_durumu: 'isletmesi_yok',
+              baslama_tarihi: null,
+              bitis_tarihi: null,
+              koordinator_ogretmen: null
             };
           }
         })
@@ -306,6 +436,8 @@ export default function AlanDetayPage() {
       setOgrenciler(ogrencilerWithInfo);
     } catch (error) {
       console.error('Öğrenciler alınırken hata:', error);
+    } finally {
+      setOgrenciLoading(false);
     }
   }
 
@@ -324,34 +456,168 @@ export default function AlanDetayPage() {
     setOgretmenler(data || [])
   }
 
-  const fetchIsletmeler = async () => {
+  const fetchIsletmeListesi = async () => {
     try {
+      const isletmeIds = new Set<string>();
+
       // First get isletme_alanlar for this alan
       const { data: isletmeAlanlarData, error: isletmeAlanlarError } = await supabase
         .from('isletme_alanlar')
         .select('isletme_id')
         .eq('alan_id', alanId);
 
-      if (isletmeAlanlarError) throw isletmeAlanlarError;
-
-      if (!isletmeAlanlarData || isletmeAlanlarData.length === 0) {
-        setIsletmeler([]);
-        return;
+      if (!isletmeAlanlarError && isletmeAlanlarData) {
+        isletmeAlanlarData.forEach(ia => isletmeIds.add(ia.isletme_id));
       }
 
-      // Get isletmeler that are in this alan
-      const isletmeIds = isletmeAlanlarData.map(ia => ia.isletme_id);
-      const { data: isletmelerData, error: isletmelerError } = await supabase
+      // Also get isletmeler from stajlar table (students in this alan)
+      const { data: stajlarData, error: stajlarError } = await supabase
+        .from('stajlar')
+        .select('isletme_id, ogrenciler!inner(alan_id)')
+        .eq('ogrenciler.alan_id', alanId)
+        .not('isletme_id', 'is', null);
+
+      if (!stajlarError && stajlarData) {
+        stajlarData.forEach(staj => {
+          if (staj.isletme_id) {
+            isletmeIds.add(staj.isletme_id);
+          }
+        });
+      }
+
+      // Get basic company info for the dropdown
+      let isletmelerData, isletmelerError;
+      
+      if (isletmeIds.size === 0) {
+        // Eğer hiç alan-özel işletme bulunamazsa, tüm işletmeleri göster
+        const result = await supabase
+          .from('isletmeler')
+          .select('id, ad, telefon')
+          .order('ad');
+        
+        isletmelerData = result.data;
+        isletmelerError = result.error;
+      } else {
+        // Sadece bu alan için tanımlı işletmeleri göster
+        const result = await supabase
+          .from('isletmeler')
+          .select('id, ad, telefon')
+          .in('id', Array.from(isletmeIds))
+          .order('ad');
+        
+        isletmelerData = result.data;
+        isletmelerError = result.error;
+      }
+
+      if (!isletmelerError && isletmelerData) {
+        const liste = isletmelerData.map(isletme => ({
+          id: isletme.id,
+          ad: isletme.ad,
+          telefon: isletme.telefon
+        }));
+        
+        setIsletmeListesi(liste);
+        
+        // İlk işletmeyi otomatik seç
+        if (liste.length > 0 && !selectedIsletme) {
+          fetchSelectedIsletme(liste[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('İşletme listesi alınırken hata:', error);
+      setIsletmeListesi([]);
+    }
+  }
+
+  const fetchSelectedIsletme = async (isletmeId: string) => {
+    try {
+      setLoadingSelectedIsletme(true);
+      
+      // Get company details
+      const { data: isletmeData, error: isletmeError } = await supabase
         .from('isletmeler')
         .select('id, ad, adres, telefon')
-        .in('id', isletmeIds);
+        .eq('id', isletmeId)
+        .single();
 
-      if (isletmelerError) throw isletmelerError;
+      if (isletmeError || !isletmeData) return;
 
-      setIsletmeler(isletmelerData || []);
+      // Get students doing internships at this company
+      const { data: stajlarData, error: stajlarError } = await supabase
+        .from('stajlar')
+        .select(`
+          id,
+          durum,
+          baslangic_tarihi,
+          bitis_tarihi,
+          ogretmen_id,
+          ogrenci_id
+        `)
+        .eq('isletme_id', isletmeId)
+        .eq('durum', 'aktif');
+
+      const students = [];
+      let koordinatorOgretmen = null;
+
+      if (!stajlarError && stajlarData) {
+        for (const staj of stajlarData) {
+          try {
+            // Get student details
+            const { data: ogrenciData, error: ogrenciError } = await supabase
+              .from('ogrenciler')
+              .select('id, ad, soyad, no, sinif, alan_id')
+              .eq('id', staj.ogrenci_id)
+              .eq('alan_id', alanId)
+              .maybeSingle();
+
+            if (!ogrenciError && ogrenciData) {
+              // Get coordinating teacher if not already fetched
+              if (!koordinatorOgretmen && staj.ogretmen_id) {
+                try {
+                  const { data: ogretmenData, error: ogretmenError } = await supabase
+                    .from('ogretmenler')
+                    .select('id, ad, soyad, email, telefon')
+                    .eq('id', staj.ogretmen_id)
+                    .maybeSingle();
+
+                  if (!ogretmenError && ogretmenData) {
+                    koordinatorOgretmen = ogretmenData;
+                  }
+                } catch (ogretmenError) {
+                  console.warn(`Koordinatör öğretmen bilgisi alınamadı (öğretmen: ${staj.ogretmen_id}):`, ogretmenError);
+                }
+              }
+
+              students.push({
+                id: ogrenciData.id,
+                ad: ogrenciData.ad,
+                soyad: ogrenciData.soyad,
+                no: ogrenciData.no,
+                sinif: ogrenciData.sinif,
+                baslangic_tarihi: staj.baslangic_tarihi,
+                bitis_tarihi: staj.bitis_tarihi
+              });
+            } else if (ogrenciError) {
+              console.warn(`Öğrenci bilgisi alınamadı (öğrenci: ${staj.ogrenci_id}):`, ogrenciError);
+            }
+          } catch (error) {
+            console.warn(`Staj detayları alınırken hata (staj: ${staj.id}):`, error);
+          }
+        }
+      }
+
+      const isletmeWithDetails = {
+        ...isletmeData,
+        students,
+        koordinatorOgretmen
+      };
+
+      setSelectedIsletme(isletmeWithDetails);
     } catch (error) {
-      console.error('İşletmeler alınırken hata:', error);
-      setIsletmeler([]);
+      console.error('Seçilen işletme bilgileri alınırken hata:', error);
+      setSelectedIsletme(null);
+    } finally {
+      setLoadingSelectedIsletme(false);
     }
   }
 
@@ -378,7 +644,7 @@ export default function AlanDetayPage() {
     } else {
       setSinifModalOpen(false)
       setSinifFormData({ ad: '', dal: '', isletme_gunleri: '', okul_gunleri: '', haftalik_program: { pazartesi: 'bos', sali: 'bos', carsamba: 'bos', persembe: 'bos', cuma: 'bos' } })
-      fetchSiniflar()
+      fetchSiniflar(1)
     }
     setSubmitLoading(false)
   }
@@ -417,8 +683,8 @@ export default function AlanDetayPage() {
       alert('Sınıf güncellenirken hata oluştu: ' + error.message)
     } else {
       setEditSinifModal(false)
-      fetchSiniflar()
-      fetchOgrenciler() // Öğrenci listesini de güncelle
+      fetchSiniflar(sinifCurrentPage)
+      fetchOgrenciler(ogrenciCurrentPage) // Öğrenci listesini de güncelle
     }
     setSubmitLoading(false)
   }
@@ -454,8 +720,8 @@ export default function AlanDetayPage() {
       alert('Sınıf silinirken hata oluştu: ' + error.message)
     } else {
       setDeleteSinifModal(false)
-      fetchSiniflar()
-      fetchOgrenciler()
+      fetchSiniflar(1)
+      fetchOgrenciler(1) // Sınıf silme sonrası ilk sayfaya dön
     }
     setSubmitLoading(false)
   }
@@ -482,8 +748,8 @@ export default function AlanDetayPage() {
       if (error) throw error
 
       // Verileri yeniden yükle
-      await fetchOgrenciler()
-      await fetchSiniflar() // Sınıf sayılarını güncelle
+      await fetchOgrenciler(1) // Yeni öğrenci eklendiğinde ilk sayfaya dön
+      await fetchSiniflar(1) // Sınıf sayıların�� güncelle
       
       setOgrenciModalOpen(false)
       setOgrenciFormData({ ad: '', soyad: '', no: '', sinif_id: '' })
@@ -511,57 +777,91 @@ export default function AlanDetayPage() {
     setEditOgrenciModal(true)
   }
 
+  // Öğrenci güncelleme fonksiyonu
   const handleOgrenciGuncelle = async () => {
-    if (!selectedOgrenci || !editOgrenciFormData.ad.trim() ||
-        !editOgrenciFormData.soyad.trim() || !editOgrenciFormData.no.trim() ||
-        !editOgrenciFormData.sinif) {
-      alert('Lütfen tüm alanları doldurun!')
+    if (!selectedOgrenci || !editOgrenciFormData.ad.trim() || !editOgrenciFormData.soyad.trim()) {
+      toast.error('Ad ve soyad alanları zorunludur!')
       return
     }
 
-    setSubmitLoading(true)
-    const { error } = await supabase
-      .from('ogrenciler')
-      .update({
+    try {
+      setSubmitLoading(true)
+      
+      const { error } = await supabase
+        .from('ogrenciler')
+        .update({
+          ad: editOgrenciFormData.ad.trim(),
+          soyad: editOgrenciFormData.soyad.trim(),
+          no: editOgrenciFormData.no.trim(),
+          sinif: editOgrenciFormData.sinif
+        })
+        .eq('id', selectedOgrenci.id)
+
+      if (error) throw error
+
+      // Başarılı güncelleme
+      toast.success('Öğrenci bilgileri güncellendi!')
+      setOgrenciEditMode(false)
+      fetchOgrenciler(ogrenciCurrentPage)
+      
+      // Modal'daki seçili öğrenci bilgilerini güncelle
+      const updatedOgrenci = {
+        ...selectedOgrenci,
         ad: editOgrenciFormData.ad.trim(),
         soyad: editOgrenciFormData.soyad.trim(),
         no: editOgrenciFormData.no.trim(),
         sinif: editOgrenciFormData.sinif
-      })
-      .eq('id', selectedOgrenci.id)
-
-    if (error) {
-      alert('Öğrenci güncellenirken hata oluştu: ' + error.message)
-    } else {
-      setEditOgrenciModal(false)
-      await fetchOgrenciler()
-      await fetchSiniflar() // Sınıf sayılarını güncelle
+      }
+      setSelectedOgrenci(updatedOgrenci)
+      
+    } catch (error) {
+      console.error('Öğrenci güncellenirken hata:', error)
+      toast.error('Öğrenci güncellenirken bir hata oluştu!')
+    } finally {
+      setSubmitLoading(false)
     }
-    setSubmitLoading(false)
   }
 
-  const handleOgrenciSil = (ogrenci: Ogrenci) => {
-    setSelectedOgrenci(ogrenci)
-    setDeleteOgrenciModal(true)
-  }
-
+  // Öğrenci silme onaylama fonksiyonu
   const handleOgrenciSilOnayla = async () => {
     if (!selectedOgrenci) return
 
-    setSubmitLoading(true)
-    const { error } = await supabase
-      .from('ogrenciler')
-      .delete()
-      .eq('id', selectedOgrenci.id)
+    try {
+      setSubmitLoading(true)
 
-    if (error) {
-      alert('Öğrenci silinirken hata oluştu: ' + error.message)
-    } else {
+      // Önce öğrencinin aktif stajını kontrol et
+      const { data: stajData } = await supabase
+        .from('stajlar')
+        .select('id')
+        .eq('ogrenci_id', selectedOgrenci.id)
+        .eq('durum', 'aktif')
+
+      if (stajData && stajData.length > 0) {
+        toast.error('Bu öğrencinin aktif stajı var! Önce stajını tamamlamanız gerekiyor.')
+        return
+      }
+
+      // Öğrenciyi sil
+      const { error } = await supabase
+        .from('ogrenciler')
+        .delete()
+        .eq('id', selectedOgrenci.id)
+
+      if (error) throw error
+
+      // Başarılı silme
+      toast.success('Öğrenci başarıyla silindi!')
       setDeleteOgrenciModal(false)
-      fetchOgrenciler()
-      fetchSiniflar() // Sınıf sayılarını güncelle
+      setOgrenciDetayModal(false)
+      setSelectedOgrenci(null)
+      fetchOgrenciler(ogrenciCurrentPage)
+      
+    } catch (error) {
+      console.error('Öğrenci silinirken hata:', error)
+      toast.error('Öğrenci silinirken bir hata oluştu!')
+    } finally {
+      setSubmitLoading(false)
     }
-    setSubmitLoading(false)
   }
 
   // Haftalık program yardımcı fonksiyonları
@@ -682,7 +982,7 @@ export default function AlanDetayPage() {
     return (
       <div className="grid grid-cols-5 gap-4">
         {gunler.map(({ key, label }) => (
-          <div key={key} className="text-center">
+          <div key={`gun-${key}`} className="text-center">
             <div className="text-sm font-medium text-gray-600 mb-2">
               {label}
             </div>
@@ -786,8 +1086,128 @@ export default function AlanDetayPage() {
     }
   }
 
-  // Pasif alan kontrolü
-  if (!alan?.aktif) {
+  // Öğrenci detaylarını gösteren modal'ı açma fonksiyonu
+  const handleOgrenciDetay = (ogrenci: Ogrenci) => {
+    setSelectedOgrenci(ogrenci)
+    setEditOgrenciFormData({
+      ad: ogrenci.ad,
+      soyad: ogrenci.soyad,
+      no: ogrenci.no,
+      sinif: ogrenci.sinif
+    })
+    setOgrenciEditMode(false)
+    setOgrenciDetayModal(true)
+  }
+
+
+
+  // Refresh all data function
+  const handleRefreshData = async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([
+        fetchAlanDetay(),
+        fetchSiniflar(1),
+        fetchOgrenciler(1), // Veri yenileme sırasında ilk sayfaya dön
+        fetchOgretmenler(),
+        fetchIsletmeListesi()
+      ])
+      setDataError(false)
+    } catch (error) {
+      console.error('Veri yenileme sırasında hata:', error)
+      setDataError(true)
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  // Check for data errors first, then passive field
+  if (dataError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Üst Bar */}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              {/* Breadcrumb */}
+              <nav className="flex items-center text-sm text-gray-600 mb-2">
+                <Link href="/admin/alanlar" className="hover:text-indigo-600 flex items-center">
+                  Meslek Alanları
+                </Link>
+                <ChevronRight className="h-4 w-4 mx-1" />
+                <span className="text-gray-900">Alan</span>
+              </nav>
+
+              <h1 className="text-2xl font-semibold text-gray-900">Alan</h1>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleRefreshData}
+                disabled={refreshing}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 disabled:opacity-50"
+              >
+                {refreshing ? (
+                  <>
+                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+                    Yenileniyor...
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Verileri Yenile
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Veri Hatası Uyarısı */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+              <div className="flex items-start space-x-4">
+                <div className="p-3 bg-red-100 rounded-lg">
+                  <AlertTriangle className="h-6 w-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-red-800 mb-2">
+                    Veriler Yüklenemedi
+                  </h3>
+                  <p className="text-red-700 mb-4">
+                    Sayfa verileri yüklenirken bir hata oluştu. Bu durum genellikle oturum süresinin dolması veya bağlantı sorunlarından kaynaklanır. Lütfen sayfayı yenileyin.
+                  </p>
+                  <button
+                    onClick={handleRefreshData}
+                    disabled={refreshing}
+                    className="inline-flex items-center px-4 py-2 bg-red-100 text-red-800 rounded-lg hover:bg-red-200 transition-colors duration-200 disabled:opacity-50"
+                  >
+                    {refreshing ? (
+                      <>
+                        <div className="animate-spin h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full mr-2"></div>
+                        Yenileniyor...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Verileri Yenile
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Pasif alan kontrolü (sadece veri hatası yoksa)
+  if (alan && !alan.aktif) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-8">
         <div className="max-w-7xl mx-auto">
@@ -803,15 +1223,40 @@ export default function AlanDetayPage() {
                 <span className="text-gray-900">{alan?.ad}</span>
               </nav>
 
-              <h1 className="text-2xl font-semibold text-gray-900">{alan?.ad}</h1>
-            </div>
+              <h1 className="text-2xl font-semibold text-gray-900">{alan?.ad || 'Alan'}</h1>
+          </div>
 
+          <div className="flex items-center space-x-2">
+            {dataError && (
+              <button
+                onClick={handleRefreshData}
+                disabled={refreshing}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 disabled:opacity-50"
+              >
+                {refreshing ? (
+                  <>
+                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+                    Yenileniyor...
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Verileri Yenile
+                  </>
+                )}
+              </button>
+            )}
             <button
               onClick={() => setAlanAyarlarModal(true)}
-              className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors duration-200"
+              className="relative z-10 p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors duration-200 cursor-pointer"
+              title="Alan Ayarları"
+              style={{ pointerEvents: 'auto' }}
             >
               <Settings className="h-5 w-5" />
             </button>
+          </div>
           </div>
 
           {/* Alan Bilgileri */}
@@ -914,8 +1359,9 @@ export default function AlanDetayPage() {
             <div className="flex justify-between pt-4">
               <button
                 onClick={() => setAlanSilModal(true)}
-                className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors duration-200"
+                className="inline-flex items-center px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors duration-200"
               >
+                <Trash2 className="h-4 w-4 mr-2" />
                 Alanı Sil
               </button>
               <div className="space-x-2">
@@ -1028,7 +1474,9 @@ export default function AlanDetayPage() {
 
           <button
             onClick={() => setAlanAyarlarModal(true)}
-            className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors duration-200"
+            className="relative z-10 p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors duration-200 cursor-pointer"
+            title="Alan Ayarları"
+            style={{ pointerEvents: 'auto' }}
           >
             <Settings className="h-5 w-5" />
           </button>
@@ -1040,7 +1488,9 @@ export default function AlanDetayPage() {
               <button
                 onClick={() => {
                   setActiveTab('ogretmenler')
-                  router.replace(`/admin/alanlar/${alanId}?tab=ogretmenler`)
+                  const url = new URL(window.location.href)
+                  url.searchParams.set('tab', 'ogretmenler')
+                  window.history.pushState({}, '', url.toString())
                 }}
                 className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${
                   activeTab === 'ogretmenler'
@@ -1054,7 +1504,9 @@ export default function AlanDetayPage() {
               <button
                 onClick={() => {
                   setActiveTab('siniflar')
-                  router.replace(`/admin/alanlar/${alanId}?tab=siniflar`)
+                  const url = new URL(window.location.href)
+                  url.searchParams.set('tab', 'siniflar')
+                  window.history.pushState({}, '', url.toString())
                 }}
                 className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${
                   activeTab === 'siniflar'
@@ -1063,12 +1515,14 @@ export default function AlanDetayPage() {
                 }`}
               >
                 <GraduationCap className="h-5 w-5" />
-                Sınıflar ({siniflar.length})
+                Sınıflar ({totalSiniflar})
               </button>
               <button
                 onClick={() => {
                   setActiveTab('ogrenciler')
-                  router.replace(`/admin/alanlar/${alanId}?tab=ogrenciler`)
+                  const url = new URL(window.location.href)
+                  url.searchParams.set('tab', 'ogrenciler')
+                  window.history.pushState({}, '', url.toString())
                 }}
                 className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${
                   activeTab === 'ogrenciler'
@@ -1077,12 +1531,14 @@ export default function AlanDetayPage() {
                 }`}
               >
                 <User className="h-5 w-5" />
-                Öğrenciler ({ogrenciler.length})
+                Öğrenciler ({totalOgrenciler})
               </button>
               <button
                 onClick={() => {
                   setActiveTab('isletmeler')
-                  router.replace(`/admin/alanlar/${alanId}?tab=isletmeler`)
+                  const url = new URL(window.location.href)
+                  url.searchParams.set('tab', 'isletmeler')
+                  window.history.pushState({}, '', url.toString())
                 }}
                 className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${
                   activeTab === 'isletmeler'
@@ -1091,7 +1547,7 @@ export default function AlanDetayPage() {
                 }`}
               >
                 <Building2 className="h-5 w-5" />
-                İşletmeler ({isletmeler.length})
+                İşletmeler ({isletmeListesi.length})
               </button>
             </nav>
           </div>
@@ -1101,8 +1557,8 @@ export default function AlanDetayPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {ogretmenler.map((ogretmen: any) => (
                   <Link
-                    href={`/admin/ogretmenler/${ogretmen.id}`}
                     key={ogretmen.id}
+                    href={`/admin/ogretmenler/${ogretmen.id}`}
                     className="block p-4 rounded-lg border border-gray-200 hover:border-indigo-400 hover:shadow-md transition-all duration-200 bg-white"
                   >
                     <div className="flex items-center gap-4">
@@ -1129,23 +1585,27 @@ export default function AlanDetayPage() {
                       setSinifFormData({ ad: '', dal: '', isletme_gunleri: '', okul_gunleri: '', haftalik_program: { pazartesi: 'bos', sali: 'bos', carsamba: 'bos', persembe: 'bos', cuma: 'bos' } })
                       setSinifModalOpen(true)
                     }}
-                    className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
+                    className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
+                    title="Yeni Sınıf Ekle"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Yeni Sınıf Ekle
+                    <Plus className="h-5 w-5" />
                   </button>
                 </div>
 
-                {siniflar.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {siniflar.map((sinif) => (
-                      <div key={sinif.id} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-shadow duration-200">
-                        <div className="flex items-center justify-between mb-3">
+                {sinifLoading ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p className="text-gray-600">Sınıflar yükleniyor...</p>
+                  </div>
+                ) : siniflar.length > 0 ? (
+                  <div className="space-y-4">
+                    {siniflar.map((sinif, index) => (
+                      <div key={sinif.id || `sinif-${index}`} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-shadow duration-200">
+                        <div className="flex items-center justify-between">
                           <button
                             onClick={() => {
                               setActiveTab('ogrenciler')
                               setSelectedSinifFilter(sinif.ad)
-                              router.replace(`/admin/alanlar/${alanId}?tab=ogrenciler`)
                             }}
                             className="flex items-center flex-1 text-left hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors duration-200"
                           >
@@ -1175,6 +1635,31 @@ export default function AlanDetayPage() {
                         </div>
                       </div>
                     ))}
+                    {sinifTotalPages > 1 && (
+                      <div className="bg-white border border-gray-200 rounded-xl p-4 mt-4">
+                        <div className="flex justify-between items-center">
+                          <div className="text-sm text-gray-600">
+                            Toplam {totalSiniflar} sınıftan {((sinifCurrentPage - 1) * pageSize) + 1}-{Math.min(sinifCurrentPage * pageSize, totalSiniflar)} arası gösteriliyor
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => setSinifCurrentPage(sinifCurrentPage - 1)}
+                              disabled={sinifCurrentPage === 1 || sinifLoading}
+                              className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            >
+                              Önceki
+                            </button>
+                            <button
+                              onClick={() => setSinifCurrentPage(sinifCurrentPage + 1)}
+                              disabled={sinifCurrentPage === sinifTotalPages || sinifLoading}
+                              className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            >
+                              Sonraki
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-12">
@@ -1197,72 +1682,223 @@ export default function AlanDetayPage() {
                       onChange={(e) => setSelectedSinifFilter(e.target.value)}
                       className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
-                      <option value="">Tüm sınıflar</option>
-                      {siniflar.map((sinif) => (
-                        <option key={sinif.id} value={sinif.ad}>
+                      <option key="filter-all-siniflar" value="">Tüm sınıflar</option>
+                      {siniflar.map((sinif, index) => (
+                        <option key={`filter-sinif-${sinif.id || index}`} value={sinif.ad}>
                           {sinif.ad}
                         </option>
                       ))}
+                    </select>
+                    {/* Staj durumu filtresi */}
+                    <select
+                      value={selectedStajFilter}
+                      onChange={(e) => setSelectedStajFilter(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option key="filter-all-staj" value="">Tüm öğrenciler</option>
+                      <option key="filter-staj-var" value="var">İşletmesi olanlar</option>
+                      <option key="filter-staj-yok" value="yok">İşletmesi olmayanlar</option>
                     </select>
                     <button
                       onClick={() => {
                         setOgrenciFormData({ ad: '', soyad: '', no: '', sinif_id: '' })
                         setOgrenciModalOpen(true)
                       }}
-                      className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
+                      className="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
+                      title="Yeni Öğrenci Ekle"
                     >
-                      <User className="h-4 w-4 mr-2" />
-                      Yeni Öğrenci Ekle
+                      <Plus className="h-5 w-5" />
                     </button>
                   </div>
                 </div>
 
-                {filteredOgrenciler.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredOgrenciler.map((ogrenci) => (
-                      <div key={ogrenci.id} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-shadow duration-200">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                              <User className="h-5 w-5 text-green-600" />
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-gray-900">{ogrenci.ad} {ogrenci.soyad}</h3>
-                              <p className="text-sm text-gray-500">No: {ogrenci.no}</p>
-                              <p className="text-xs text-indigo-600 font-medium">📚 {ogrenci.sinif}</p>
-                              {ogrenci.isletme_adi && (
-                                <p className="text-xs text-blue-600">🏢 {ogrenci.isletme_adi}</p>
-                              )}
-                            </div>
+                {ogrenciLoading ? (
+                  <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
+                    <div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p className="text-gray-600">Öğrenciler yükleniyor...</p>
+                  </div>
+                ) : ogrenciler.filter(ogrenci => {
+                  // Staj durumu filtresi
+                  if (selectedStajFilter === 'var') {
+                    return ogrenci.staj_durumu === 'aktif'
+                  } else if (selectedStajFilter === 'yok') {
+                    return ogrenci.staj_durumu !== 'aktif'
+                  }
+                  return true // Tüm öğrenciler
+                }).length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Öğrenci
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                No
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Sınıf
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                İşletme
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Koordinatör
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Başlama Tarihi
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Durum
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                İşlemler
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {ogrenciler.filter(ogrenci => {
+                              // Staj durumu filtresi
+                              if (selectedStajFilter === 'var') {
+                                return ogrenci.staj_durumu === 'aktif'
+                              } else if (selectedStajFilter === 'yok') {
+                                return ogrenci.staj_durumu !== 'aktif'
+                              }
+                              return true // Tüm öğrenciler
+                            }).map((ogrenci, index) => (
+                              <tr key={ogrenci.id || `ogrenci-${index}`} className="hover:bg-gray-50 transition-colors duration-200">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="flex items-center">
+                                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-3">
+                                      <User className="h-5 w-5 text-green-600" />
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {ogrenci.ad} {ogrenci.soyad}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {ogrenci.no}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                    {ogrenci.sinif}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {ogrenci.isletme_adi || (
+                                    <span className="text-gray-400 italic">Atanmamış</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {ogrenci.koordinator_ogretmen || (
+                                    <span className="text-gray-400 italic">Atanmamış</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {ogrenci.baslama_tarihi ? (
+                                    new Date(ogrenci.baslama_tarihi).toLocaleDateString('tr-TR')
+                                  ) : (
+                                    <span className="text-gray-400 italic">Belirlenmemiş</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                    ogrenci.staj_durumu === 'aktif'
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {ogrenci.staj_durumu === 'aktif' ? 'Aktif Staj' : 'Staj Yok'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                  <button
+                                    onClick={() => handleOgrenciDetay(ogrenci)}
+                                    className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200"
+                                    title="Öğrenci Detayları"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {ogrenciTotalPages > 1 && (
+                      <div className="bg-white border border-gray-200 rounded-xl p-4">
+                        <div className="flex justify-between items-center">
+                          <div className="text-sm text-gray-600">
+                            Toplam {totalOgrenciler} öğrenciden {((ogrenciCurrentPage - 1) * pageSize) + 1}-{Math.min(ogrenciCurrentPage * pageSize, totalOgrenciler)} arası gösteriliyor
                           </div>
-                          <div className="flex space-x-2">
+                          <div className="flex items-center space-x-2">
                             <button
-                              onClick={() => handleOgrenciDuzenle(ogrenci)}
-                              className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all duration-200"
-                              title="Öğrenciyi Düzenle"
+                              onClick={() => setOgrenciCurrentPage(ogrenciCurrentPage - 1)}
+                              disabled={ogrenciCurrentPage === 1 || ogrenciLoading}
+                              className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                             >
-                              <Edit className="h-4 w-4" />
+                              Önceki
                             </button>
+                            
+                            {Array.from({ length: Math.min(5, ogrenciTotalPages) }, (_, i) => {
+                              let pageNum;
+                              if (ogrenciTotalPages <= 5) {
+                                pageNum = i + 1;
+                              } else if (ogrenciCurrentPage <= 3) {
+                                pageNum = i + 1;
+                              } else if (ogrenciCurrentPage >= ogrenciTotalPages - 2) {
+                                pageNum = ogrenciTotalPages - 4 + i;
+                              } else {
+                                pageNum = ogrenciCurrentPage - 2 + i;
+                              }
+                              
+                              return (
+                                <button
+                                  key={`page-${i}-${pageNum}`}
+                                  onClick={() => setOgrenciCurrentPage(pageNum)}
+                                  disabled={ogrenciLoading}
+                                  className={`px-3 py-1 rounded text-sm ${
+                                    ogrenciCurrentPage === pageNum
+                                      ? 'bg-indigo-500 text-white'
+                                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                >
+                                  {pageNum}
+                                </button>
+                              );
+                            })}
+                            
                             <button
-                              onClick={() => handleOgrenciSil(ogrenci)}
-                              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200"
-                              title="Öğrenciyi Sil"
+                              onClick={() => setOgrenciCurrentPage(ogrenciCurrentPage + 1)}
+                              disabled={ogrenciCurrentPage === ogrenciTotalPages || ogrenciLoading}
+                              className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              Sonraki
                             </button>
                           </div>
                         </div>
                       </div>
-                    ))}
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-12">
                     <User className="mx-auto h-12 w-12 text-gray-400" />
                     <h3 className="mt-2 text-sm font-medium text-gray-900">
-                      {selectedSinifFilter ? `${selectedSinifFilter} sınıfında öğrenci yok` : 'Henüz öğrenci yok'}
+                      {selectedStajFilter === 'var' ? 'İşletmesi olan öğrenci yok' :
+                       selectedStajFilter === 'yok' ? 'İşletmesi olmayan öğrenci yok' :
+                       selectedSinifFilter ? `${selectedSinifFilter} sınıfında öğrenci yok` : 'Henüz öğrenci yok'}
                     </h3>
                     <p className="mt-1 text-sm text-gray-500">
-                      {selectedSinifFilter ? 'Bu sınıf için henüz öğrenci eklenmemiş.' : 'Bu alan için henüz öğrenci eklenmemiş.'}
+                      {selectedStajFilter === 'var' ? 'Şu anda aktif stajı olan öğrenci bulunmuyor.' :
+                       selectedStajFilter === 'yok' ? 'Şu anda stajı olmayan öğrenci bulunmuyor.' :
+                       selectedSinifFilter ? 'Bu sınıf için henüz öğrenci eklenmemiş.' : 'Bu alan için henüz öğrenci eklenmemiş.'}
                     </p>
                     <button
                       onClick={() => {
@@ -1280,25 +1916,165 @@ export default function AlanDetayPage() {
             )}
 
             {activeTab === 'isletmeler' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {isletmeler.map((isletme: any) => (
-                  <div
-                    key={isletme.id}
-                    onClick={() => router.push(`/admin/isletmeler/${isletme.id}?ref=/admin/alanlar/${alanId}?tab=isletmeler`)}
-                    className="p-4 rounded-lg border border-gray-200 hover:border-indigo-200 hover:shadow-sm transition-all duration-200 cursor-pointer"
+              <div className="space-y-6">
+                {/* İşletme Seçim Çubuğu */}
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">İşletme Seçimi</h3>
+                  <select
+                    value={selectedIsletme?.id || ''}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        fetchSelectedIsletme(e.target.value);
+                      }
+                    }}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-indigo-50 rounded-full">
-                        <Building2 className="h-5 w-5 text-indigo-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-gray-900">{isletme.ad}</h3>
-                        {isletme.adres && <p className="text-sm text-gray-500">{isletme.adres}</p>}
-                        {isletme.telefon && <p className="text-sm text-gray-500">{isletme.telefon}</p>}
+                    <option value="">İşletme seçin...</option>
+                    {isletmeListesi.map((isletme) => (
+                      <option key={isletme.id} value={isletme.id}>
+                        {isletme.ad}
+                        {isletme.telefon && ` - ${isletme.telefon}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Seçilen İşletme Detayları */}
+                {loadingSelectedIsletme ? (
+                  <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
+                    <div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p className="text-gray-600">İşletme bilgileri yükleniyor...</p>
+                  </div>
+                ) : selectedIsletme ? (
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                    {/* Company Header */}
+                    <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-indigo-100 rounded-lg">
+                            <Building2 className="h-6 w-6 text-indigo-600" />
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-semibold text-gray-900">{selectedIsletme.ad}</h3>
+                            <div className="flex items-center gap-4 mt-1">
+                              {selectedIsletme.adres && <p className="text-sm text-gray-600">{selectedIsletme.adres}</p>}
+                              {selectedIsletme.telefon && <p className="text-sm text-gray-600">{selectedIsletme.telefon}</p>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-gray-500">Stajyer Sayısı</div>
+                          <div className="text-2xl font-bold text-indigo-600">{selectedIsletme.students?.length || 0}</div>
+                        </div>
                       </div>
                     </div>
+
+                    {/* Coordinating Teacher */}
+                    {selectedIsletme.koordinatorOgretmen && (
+                      <div className="p-4 bg-blue-50 border-b border-gray-200">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-blue-100 rounded-full">
+                            <User className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-blue-900">Koordinatör Öğretmen</div>
+                            <div className="text-sm text-blue-700">
+                              {selectedIsletme.koordinatorOgretmen.ad} {selectedIsletme.koordinatorOgretmen.soyad}
+                            </div>
+                            {selectedIsletme.koordinatorOgretmen.email && (
+                              <div className="text-xs text-blue-600">{selectedIsletme.koordinatorOgretmen.email}</div>
+                            )}
+                            {selectedIsletme.koordinatorOgretmen.telefon && (
+                              <div className="text-xs text-blue-600">{selectedIsletme.koordinatorOgretmen.telefon}</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Students Table */}
+                    {selectedIsletme.students && selectedIsletme.students.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Öğrenci
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                No
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Sınıf
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Başlama Tarihi
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Bitiş Tarihi
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {selectedIsletme.students.map((student: any) => (
+                              <tr key={student.id} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="flex items-center">
+                                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                                      <User className="h-4 w-4 text-green-600" />
+                                    </div>
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {student.ad} {student.soyad}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {student.no}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                    {student.sinif}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {student.baslangic_tarihi ? (
+                                    new Date(student.baslangic_tarihi).toLocaleDateString('tr-TR')
+                                  ) : (
+                                    <span className="text-gray-400 italic">Belirlenmemiş</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {student.bitis_tarihi ? (
+                                    new Date(student.bitis_tarihi).toLocaleDateString('tr-TR')
+                                  ) : (
+                                    <span className="text-gray-400 italic">Belirlenmemiş</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="p-6 text-center text-gray-500">
+                        <User className="mx-auto h-12 w-12 text-gray-400 mb-2" />
+                        <p>Bu işletmede aktif stajyer bulunmamaktadır.</p>
+                      </div>
+                    )}
                   </div>
-                ))}
+                ) : isletmeListesi.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Building2 className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">Henüz işletme yok</h3>
+                    <p className="mt-1 text-sm text-gray-500">Bu alan için henüz işletme eklenmemiş.</p>
+                  </div>
+                ) : (
+                  <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
+                    <Building2 className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">İşletme Seçin</h3>
+                    <p className="text-gray-600">Detayları görüntülemek için yukarıdaki listeden bir işletme seçin.</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1567,9 +2343,9 @@ export default function AlanDetayPage() {
               onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, sinif_id: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              <option value="">Sınıf seçin</option>
-              {siniflar.map((sinif) => (
-                <option key={sinif.id} value={sinif.ad}>
+              <option key="empty-sinif-select" value="">Sınıf seçin</option>
+              {siniflar.map((sinif, index) => (
+                <option key={`ogrenci-sinif-${sinif.id || index}`} value={sinif.ad}>
                   {sinif.ad}
                   {sinif.dal && ` - ${sinif.dal}`}
                 </option>
@@ -1666,6 +2442,324 @@ export default function AlanDetayPage() {
         confirmText="Sil"
         isLoading={submitLoading}
       />
+
+      {/* Öğrenci Detay Modalı */}
+      <Modal
+        isOpen={ogrenciDetayModal}
+        onClose={() => {
+          setOgrenciDetayModal(false)
+          setOgrenciEditMode(false)
+          setSelectedOgrenci(null)
+        }}
+        title={`${selectedOgrenci?.ad} ${selectedOgrenci?.soyad} - Detaylar`}
+      >
+        <div className="space-y-6">
+          {/* Öğrenci Bilgileri */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ad</label>
+              {ogrenciEditMode ? (
+                <input
+                  type="text"
+                  value={editOgrenciFormData.ad}
+                  onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, ad: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              ) : (
+                <p className="px-3 py-2 bg-gray-50 rounded-md text-gray-900">{selectedOgrenci?.ad}</p>
+              )}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Soyad</label>
+              {ogrenciEditMode ? (
+                <input
+                  type="text"
+                  value={editOgrenciFormData.soyad}
+                  onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, soyad: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              ) : (
+                <p className="px-3 py-2 bg-gray-50 rounded-md text-gray-900">{selectedOgrenci?.soyad}</p>
+              )}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Öğrenci No</label>
+              {ogrenciEditMode ? (
+                <input
+                  type="text"
+                  value={editOgrenciFormData.no}
+                  onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, no: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              ) : (
+                <p className="px-3 py-2 bg-gray-50 rounded-md text-gray-900">{selectedOgrenci?.no}</p>
+              )}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sınıf</label>
+              {ogrenciEditMode ? (
+                <select
+                  value={editOgrenciFormData.sinif}
+                  onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, sinif: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {siniflar.map((sinif, index) => (
+                    <option key={`edit-sinif-${sinif.id || index}`} value={sinif.ad}>
+                      {sinif.ad} {sinif.dal && ` - ${sinif.dal}`}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="px-3 py-2 bg-gray-50 rounded-md text-gray-900">{selectedOgrenci?.sinif}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Staj Bilgileri */}
+          <div className="border-t pt-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-3">Staj Bilgileri</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">İşletme</label>
+                <p className="px-3 py-2 bg-gray-50 rounded-md text-gray-900">
+                  {selectedOgrenci?.isletme_adi || <span className="text-gray-400 italic">Atanmamış</span>}
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Koordinatör Öğretmen</label>
+                <p className="px-3 py-2 bg-gray-50 rounded-md text-gray-900">
+                  {selectedOgrenci?.koordinator_ogretmen || <span className="text-gray-400 italic">Atanmamış</span>}
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Başlama Tarihi</label>
+                <p className="px-3 py-2 bg-gray-50 rounded-md text-gray-900">
+                  {selectedOgrenci?.baslama_tarihi 
+                    ? new Date(selectedOgrenci.baslama_tarihi).toLocaleDateString('tr-TR')
+                    : <span className="text-gray-400 italic">Belirlenmemiş</span>
+                  }
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Durum</label>
+                <p className="px-3 py-2 bg-gray-50 rounded-md">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    selectedOgrenci?.staj_durumu === 'aktif'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {selectedOgrenci?.staj_durumu === 'aktif' ? 'Aktif Staj' : 'Staj Yok'}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Modal Butonları */}
+          <div className="flex justify-between pt-4 border-t">
+            <button
+              onClick={() => {
+                setOgrenciDetayModal(false)
+                setDeleteOgrenciModal(true)
+              }}
+              className="inline-flex items-center px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors duration-200"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Öğrenciyi Sil
+            </button>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setOgrenciDetayModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-md border border-gray-300"
+              >
+                Kapat
+              </button>
+              
+              {ogrenciEditMode ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setOgrenciEditMode(false)
+                      // Form'u resetle
+                      setEditOgrenciFormData({
+                        ad: selectedOgrenci?.ad || '',
+                        soyad: selectedOgrenci?.soyad || '',
+                        no: selectedOgrenci?.no || '',
+                        sinif: selectedOgrenci?.sinif || ''
+                      })
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-md border border-gray-300"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    onClick={handleOgrenciGuncelle}
+                    disabled={submitLoading}
+                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50"
+                  >
+                    {submitLoading ? 'Kaydediliyor...' : 'Kaydet'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setOgrenciEditMode(true)}
+                  className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200"
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Düzenle
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Alan Ayarları Modalı */}
+      <Modal
+        isOpen={alanAyarlarModal}
+        onClose={() => setAlanAyarlarModal(false)}
+        title="Alan Ayarları"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Alan Adı
+            </label>
+            <input
+              type="text"
+              value={alanFormData.ad}
+              onChange={(e) => setAlanFormData({ ...alanFormData, ad: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Açıklama
+            </label>
+            <textarea
+              value={alanFormData.aciklama}
+              onChange={(e) => setAlanFormData({ ...alanFormData, aciklama: e.target.value })}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="alan-aktif"
+              checked={alanFormData.aktif}
+              onChange={(e) => setAlanFormData({ ...alanFormData, aktif: e.target.checked })}
+              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+            />
+            <label htmlFor="alan-aktif" className="ml-2 block text-sm text-gray-700">
+              Alan aktif
+            </label>
+          </div>
+
+          <div className="flex justify-between pt-4">
+            <button
+              onClick={() => setAlanSilModal(true)}
+              className="inline-flex items-center px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors duration-200"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Alanı Sil
+            </button>
+            <div className="space-x-2">
+              <button
+                onClick={() => setAlanAyarlarModal(false)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleAlanGuncelle}
+                disabled={submitLoading || !alanFormData.ad.trim()}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 disabled:opacity-50"
+              >
+                {submitLoading ? 'Kaydediliyor...' : 'Kaydet'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Alan Silme Modalı */}
+      <Modal
+        isOpen={alanSilModal}
+        onClose={() => {
+          setAlanSilModal(false)
+          setSilmeOnayi('')
+          setSilmeHatasi('')
+        }}
+        title="Alanı Sil"
+      >
+        <div className="space-y-4">
+          <div className="bg-red-50 text-red-800 p-4 rounded-lg">
+            <div className="flex items-center mb-2">
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              <span className="font-semibold">Dikkat!</span>
+            </div>
+            <p>Bu alan kalıcı olarak silinecek ve bu işlem geri alınamaz.</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Onay
+            </label>
+            <p className="text-sm text-gray-600 mb-2">
+              Silme işlemini onaylamak için alan adını <span className="font-mono bg-gray-100 px-1 rounded">{alan?.ad}</span> yazın:
+            </p>
+            <input
+              type="text"
+              value={silmeOnayi}
+              onChange={(e) => {
+                setSilmeOnayi(e.target.value)
+                setSilmeHatasi('')
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              placeholder="Alan adını yazın"
+            />
+            {silmeHatasi && (
+              <p className="mt-1 text-sm text-red-600">{silmeHatasi}</p>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-2 pt-4">
+            <button
+              onClick={() => {
+                setAlanSilModal(false)
+                setSilmeOnayi('')
+                setSilmeHatasi('')
+              }}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200"
+            >
+              İptal
+            </button>
+            <button
+              onClick={() => {
+                if (silmeOnayi !== alan?.ad) {
+                  setSilmeHatasi('Alan adı eşleşmiyor')
+                  return
+                }
+                handleAlanSil()
+              }}
+              disabled={!silmeOnayi || silmeOnayi !== alan?.ad || submitLoading}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitLoading ? 'Siliniyor...' : 'Evet, Sil'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

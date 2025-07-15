@@ -41,13 +41,7 @@ const menuItems = [
     description: 'Genel bakış ve istatistikler'
   },
   {
-    title: 'Koordinatörlük Yönetimi',
-    icon: Briefcase,
-    href: '/admin/stajlar',
-    description: 'Öğrenci staj süreçleri'
-  },
-  {
-    title: 'Alanlar',
+    title: 'Meslek Alanları',
     icon: BookOpen,
     href: '/admin/alanlar',
     description: 'Alan seçimi ve kademeli yönetim'
@@ -431,7 +425,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <div className="flex items-center gap-x-2">
                 <Link
                   href="/admin/isletmeler"
-                  className="flex items-center gap-x-1 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                  className="flex items-center gap-x-1 px-3 py-1.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors"
                   title="İşletme Yönetimi - Tüm işletmeleri listele, filtrele ve yönet"
                 >
                   <Building2 className="h-4 w-4" />
@@ -440,7 +434,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 
                 <Link
                   href="/admin/ogretmenler"
-                  className="flex items-center gap-x-1 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                  className="flex items-center gap-x-1 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
                   title="Öğretmen Yönetimi - Tüm öğretmenleri listele, filtrele ve yönet"
                 >
                   <UserCheck className="h-4 w-4" />
@@ -448,12 +442,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 </Link>
                 
                 <Link
-                  href="/admin/mesajlar"
-                  className="flex items-center gap-x-1 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                  title="Mesajlaşma Merkezi - İşletme ve öğretmen mesajlaşma sistemi"
+                  href="/admin/stajlar"
+                  className="flex items-center gap-x-1 px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                  title="Öğrenci Yönetimi - Öğrenci staj süreçleri ve koordinatörlük yönetimi"
                 >
-                  <MessageCircle className="h-4 w-4" />
-                  <span className="hidden sm:block">Mesajlar</span>
+                  <GraduationCap className="h-4 w-4" />
+                  <span className="hidden sm:block">Öğrenciler</span>
                 </Link>
               </div>
 
@@ -470,9 +464,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                          'Admin Kullanıcı'}
                       </p>
                       <p className="text-xs font-medium bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                        {adminRole === 'super_admin' ? 'K. Mud. Yard.' :
-                         adminRole === 'admin' ? 'K. Mud. Yard.' :
-                         adminRole === 'operator' ? 'Operatör' : 'K. Mud. Yard.'}
+                        {adminRole === 'super_admin' ? 'K. Müd. Yard.' :
+                         adminRole === 'admin' ? 'Admin' :
+                         adminRole === 'operator' ? 'Admin' : 'Admin'}
                       </p>
                     </div>
                     <div className="w-8 h-8 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center shadow-sm">
@@ -497,6 +491,23 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     leaveTo="transform opacity-0 scale-95"
                   >
                     <MenuDropdown.Items className="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-xl bg-white py-2 shadow-xl ring-1 ring-gray-200 focus:outline-none">
+                      <MenuDropdown.Item>
+                        {({ active }) => (
+                          <Link
+                            href="/admin/mesajlar"
+                            className={classNames(
+                              active ? 'bg-purple-50 text-purple-700' : 'text-gray-700',
+                              'flex items-center px-4 py-3 text-sm font-medium transition-colors'
+                            )}
+                          >
+                            <MessageCircle className="mr-3 h-5 w-5" />
+                            Mesajlaşma Merkezi
+                          </Link>
+                        )}
+                      </MenuDropdown.Item>
+
+                      <div className="my-1 h-px bg-gray-200" />
+
                       <MenuDropdown.Item>
                         {({ active }) => (
                           <Link

@@ -9,7 +9,6 @@ const supabase = createClient(
 
 async function cleanRealDatabase() {
   console.log('🧹 GERÇEK VERİTABANI TEMİZLEME')
-  console.log('URL: https://okuldb.run.place/')
   console.log('═══════════════════════════════════════════════')
   console.log('⚠️  TÜM veriler foreign key sırasına göre silinecek')
   console.log()

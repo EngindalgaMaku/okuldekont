@@ -483,8 +483,6 @@ export default function LoginPage() {
                 <p className="text-gray-600 mt-1">{schoolName}</p>
             </div>
             
-            <DatabaseStatusHeader />
-            
             {step === 1 && (
                 <div className="space-y-6">
                     <div className="grid grid-cols-2 gap-3">
@@ -535,6 +533,8 @@ export default function LoginPage() {
             )}
 
             {step === 2 && renderPinInput()}
+            
+            <DatabaseStatusHeader />
         </div>
     </div>
   )

@@ -99,7 +99,8 @@ export default function StajYonetimiPage() {
   const [filteredOgretmenBazliData, setFilteredOgretmenBazliData] = useState<OgretmenStajData[]>([])
   const [alanlar, setAlanlar] = useState<Alan[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'aktif' | 'bost' | 'tamamlandi' | 'suresi-gecmis' | 'ogretmen'>('aktif')
+  const [dataLoading, setDataLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState<'aktif' | 'bost' | 'tamamlandi' | 'feshedildi' | 'suresi-gecmis' | 'ogretmen'>('aktif')
   
   // Modal states
   const [newStajModalOpen, setNewStajModalOpen] = useState(false)
@@ -162,7 +163,11 @@ export default function StajYonetimiPage() {
   const { showToast } = useToast()
 
   useEffect(() => {
-    fetchData()
+    // İlk render'da loading false yap ki sayfa yapısı gelsin
+    setLoading(false)
+    // Sonra data fetch işlemini başlat
+    setDataLoading(true)
+      fetchData()
   }, [])
 
   // Intersection Observer setup for lazy loading
@@ -201,7 +206,7 @@ export default function StajYonetimiPage() {
 
   const fetchData = async () => {
     try {
-      setLoading(true)
+      setDataLoading(true)
       
       // Stajları basit şekilde getir
       const { data: stajData, error: stajError } = await supabase
@@ -324,7 +329,7 @@ export default function StajYonetimiPage() {
         message: 'Veriler yüklenirken bir hata oluştu'
       })
     } finally {
-      setLoading(false)
+      setDataLoading(false)
     }
   }
 
@@ -405,6 +410,7 @@ export default function StajYonetimiPage() {
         bitis_tarihi: '',
         sozlesme_dosya: null
       })
+      setDataLoading(true)
       fetchData()
 
     } catch (error) {
@@ -435,6 +441,7 @@ export default function StajYonetimiPage() {
         message: 'Staj tamamlandı olarak kaydedildi'
       })
 
+      setDataLoading(true)
       fetchData()
     } catch (error) {
       console.error('Staj tamamlama hatası:', error)
@@ -468,6 +475,7 @@ export default function StajYonetimiPage() {
 
       setTarihDuzenleModalOpen(false)
       setSelectedStaj(null)
+      setDataLoading(true)
       fetchData()
     } catch (error) {
       console.error('Tarih düzenleme hatası:', error)
@@ -523,6 +531,7 @@ export default function StajYonetimiPage() {
 
       setFesihModalOpen(false)
       setSelectedStaj(null)
+      setDataLoading(true)
       fetchData()
     } catch (error) {
       console.error('Fesih hatası:', error)
@@ -553,6 +562,7 @@ export default function StajYonetimiPage() {
 
       setSilmeModalOpen(false)
       setSelectedStaj(null)
+      setDataLoading(true)
       fetchData()
     } catch (error) {
       console.error('Silme hatası:', error)
@@ -574,7 +584,8 @@ export default function StajYonetimiPage() {
       // Tab bazlı filtreleme
       if (activeTab === 'aktif' && !isActive) return false
       if (activeTab === 'suresi-gecmis' && !isExpired) return false
-      if (activeTab === 'tamamlandi' && staj.durum === 'aktif') return false
+      if (activeTab === 'tamamlandi' && staj.durum !== 'tamamlandi') return false
+      if (activeTab === 'feshedildi' && staj.durum !== 'feshedildi') return false
       
       const searchMatch = searchTerm === '' ||
         staj.ogrenciler?.ad?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -693,13 +704,7 @@ export default function StajYonetimiPage() {
         )
   }, [newStajForm.alan_id, ogretmenler, alanlar])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
-      </div>
-    )
-  }
+  // Artık sayfa yapısını hemen göster, sadece içerik loading olsun
 
   return (
     <div className="space-y-6">
@@ -734,13 +739,15 @@ export default function StajYonetimiPage() {
               const suresiGecmisStajlar = stajlar.filter(s =>
                 s.durum === 'aktif' && s.bitis_tarihi && s.bitis_tarihi < today
               )
-              const tamamlananStajlar = stajlar.filter(s => s.durum === 'tamamlandi' || s.durum === 'feshedildi')
+              const tamamlananStajlar = stajlar.filter(s => s.durum === 'tamamlandi')
+              const feshedilenStajlar = stajlar.filter(s => s.durum === 'feshedildi')
               
               return [
                 { id: 'aktif', label: 'Aktif Stajlar', count: aktifStajlar.length },
                 { id: 'suresi-gecmis', label: 'Süresi Geçmiş', count: suresiGecmisStajlar.length },
                 { id: 'bost', label: 'Boşta Olan Öğrenciler', count: bostOgrenciler.length },
-                { id: 'tamamlandi', label: 'Tamamlanan/Feshedilen', count: tamamlananStajlar.length },
+                { id: 'tamamlandi', label: 'Tamamlanan', count: tamamlananStajlar.length },
+                { id: 'feshedildi', label: 'Feshedilen', count: feshedilenStajlar.length },
                 { id: 'ogretmen', label: 'Öğretmen Bazlı', count: ogretmenler.length }
               ]
             })().map((tab) => (
@@ -972,7 +979,15 @@ export default function StajYonetimiPage() {
 
         {/* Content */}
         <div className="p-6">
-          {activeTab === 'ogretmen' ? (
+          {dataLoading ? (
+            // Data yüklenirken skeleton loading göster
+            <div className="space-y-4">
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+                <p className="text-gray-600 mt-4">Veriler yükleniyor...</p>
+              </div>
+            </div>
+          ) : activeTab === 'ogretmen' ? (
             <OgretmenBazliYonetim data={filteredOgretmenBazliData} />
           ) : activeTab === 'bost' ? (
             // Boşta olan öğrenciler
@@ -1040,7 +1055,11 @@ export default function StajYonetimiPage() {
                   <FileText className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-2 text-sm font-medium text-gray-900">Staj bulunamadı</h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    {activeTab === 'aktif' ? 'Henüz aktif staj bulunmuyor.' : 'Tamamlanan veya feshedilen staj bulunmuyor.'}
+                    {activeTab === 'aktif' ? 'Henüz aktif staj bulunmuyor.' :
+                     activeTab === 'tamamlandi' ? 'Tamamlanan staj bulunmuyor.' :
+                     activeTab === 'feshedildi' ? 'Feshedilen staj bulunmuyor.' :
+                     activeTab === 'suresi-gecmis' ? 'Süresi geçmiş staj bulunmuyor.' :
+                     'Staj bulunmuyor.'}
                   </p>
                 </div>
               ) : (

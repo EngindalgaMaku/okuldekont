@@ -6,6 +6,7 @@ import { Building2, Users, FileText, LogOut, User, Upload, Plus, Download, Eye, 
 import { supabase } from '@/lib/supabase'
 import { useEgitimYili } from '@/lib/context/EgitimYiliContext'
 import Modal from '@/components/ui/Modal'
+import IsletmePinChangeModal from '@/components/isletme/IsletmePinChangeModal'
 import { User as AuthUser } from '@supabase/supabase-js'
 
 interface Isletme {
@@ -126,6 +127,9 @@ export default function PanelPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationModalOpen, setNotificationModalOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  
+  // PIN change modal state
+  const [pinChangeModalOpen, setPinChangeModalOpen] = useState(false);
 
   // Dekont takip sistemi için yardımcı fonksiyonlar
   const getCurrentMonth = () => new Date().getMonth() + 1;
@@ -315,6 +319,13 @@ export default function PanelPage() {
 
       console.log('✅ İşletme verisi başarıyla getirildi:', isletmeData)
       setIsletme(isletmeData)
+      
+      // Check if PIN needs to be changed (default PIN is 1234)
+      if (isletmeData.pin === '1234') {
+        setTimeout(() => {
+          setPinChangeModalOpen(true)
+        }, 1000) // Small delay to ensure UI is ready
+      }
       
       // İşletme bildirimleri getir
       fetchNotifications(isletmeData.id)
@@ -2369,6 +2380,21 @@ export default function PanelPage() {
           </div>
         </div>
       </Modal>
+
+      {/* PIN Change Modal */}
+      {isletme && (
+        <IsletmePinChangeModal
+          isletmeId={isletme.id}
+          isletmeAd={isletme.ad}
+          isOpen={pinChangeModalOpen}
+          onClose={() => setPinChangeModalOpen(false)}
+          onSuccess={() => {
+            console.log('PIN başarıyla değiştirildi')
+            // Refresh business data to get new PIN
+            fetchData()
+          }}
+        />
+      )}
 
       <footer className="w-full bg-gradient-to-br from-indigo-900 to-indigo-800 text-white py-4 fixed bottom-0 left-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
