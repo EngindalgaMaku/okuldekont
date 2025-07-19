@@ -12,7 +12,7 @@ export async function POST(request: Request) {
       )
     }
 
-    await prisma.notifications.createMany({
+    await prisma.notification.createMany({
       data: notifications
     })
 

@@ -16,7 +16,7 @@ export async function PUT(
       )
     }
 
-    await prisma.gorevBelgeleri.update({
+    await prisma.gorevBelgesi.update({
       where: { id },
       data: { durum }
     })
@@ -38,7 +38,7 @@ export async function DELETE(
   try {
     const { id } = await params
 
-    await prisma.gorevBelgeleri.delete({
+    await prisma.gorevBelgesi.delete({
       where: { id }
     })
 

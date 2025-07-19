@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Briefcase, Save, ArrowLeft } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 
 export default function YeniAlanPage() {
   const router = useRouter()
@@ -18,17 +17,28 @@ export default function YeniAlanPage() {
     }
     setLoading(true)
     
-    const { error } = await supabase.from('alanlar').insert({ ad: alanAdi.trim() });
-
-    if (error) {
-        console.error('Ekleme hatası:', error)
-        alert('Alan eklenirken bir hata oluştu: ' + error.message)
-        setLoading(false)
-    } else {
+    try {
+        const response = await fetch('/api/admin/fields', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ name: alanAdi.trim() }),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Ekleme başarısız');
+        }
+        
         // Kayıt sonrası alanlar listesine geri dön
-        router.push('/admin/alanlar')
+        router.push('/admin/alanlar');
         // Sayfanın en güncel halini göstermek için yenileme yap
         router.refresh(); 
+    } catch (error: any) {
+        console.error('Ekleme hatası:', error);
+        alert('Alan eklenirken bir hata oluştu: ' + error.message);
+        setLoading(false);
     }
   }
 

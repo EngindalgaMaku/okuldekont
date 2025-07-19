@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, Suspense, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { Loader, AlertTriangle, ArrowLeft, Printer } from 'lucide-react'
 import { format, parseISO, startOfWeek, addDays } from 'date-fns'
 import { tr } from 'date-fns/locale'
@@ -59,30 +58,22 @@ function GorevBelgesiYazdirma() {
         setLoading(true)
         setError(null)
         try {
-            // 1. Fetch the document record itself
-            const { data: gorevBelgesi, error: belgeError } = await supabase
-                .from('gorev_belgeleri')
-                .select('ogretmen_id, hafta, isletme_idler')
-                .eq('id', belgeId)
-                .single();
-
-            if (belgeError || !gorevBelgesi) {
-                throw new Error("Görev belgesi kaydı bulunamadı veya getirilemedi.");
+            // Prisma API endpoint'inden veri çek
+            const response = await fetch(`/api/admin/gorev-belgeleri/${belgeId}/print`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             
-            setBelgeData({ hafta: gorevBelgesi.hafta, isletme_idler: gorevBelgesi.isletme_idler });
-
-            // 2. Fetch teacher and deputy head data
-            const { data: ogretmenData, error: rpcError } = await supabase.rpc('get_ogretmen_koordinatorluk_detay', { p_ogretmen_id: gorevBelgesi.ogretmen_id })
-            if (rpcError) throw rpcError
-            setOgretmen(ogretmenData)
-
-            const { data: deputyNameData, error: deputyError } = await supabase
-                .from('system_settings')
-                .select('value')
-                .eq('key', 'coordinator_deputy_head_name')
-            if (deputyError) console.error("Müdür yardımcısı adı çekilirken hata:", deputyError);
-            if (deputyNameData && deputyNameData.length > 0) setDeputyHeadName(deputyNameData[0].value as string);
+            const data = await response.json();
+            
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            setBelgeData(data.belgeData);
+            setOgretmen(data.ogretmenDetay);
+            setDeputyHeadName(data.deputyHeadName || '');
 
         } catch (err: any) {
             setError(err.message || 'Veri yüklenirken bir hata oluştu.')

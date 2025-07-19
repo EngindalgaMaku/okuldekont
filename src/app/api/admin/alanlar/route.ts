@@ -3,13 +3,13 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    const alanlar = await prisma.alanlar.findMany({
+    const alanlar = await prisma.alan.findMany({
       select: {
         id: true,
-        ad: true
+        name: true
       },
       orderBy: {
-        ad: 'asc'
+        name: 'asc'
       }
     })
 

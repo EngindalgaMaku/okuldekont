@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 import MesajlarClient from '../../../components/admin/MesajlarClient'
 
 export default function MesajlarPage() {
@@ -19,38 +18,27 @@ export default function MesajlarPage() {
     try {
       setLoading(true)
 
-      // Giden mesajları getir
-      const { data: gidenMesajlarRaw, error: gidenError } = await supabase
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
+      // Giden mesajları, işletmeleri ve öğretmenleri paralel olarak getir
+      const [gidenResponse, isletmelerResponse, ogretmenlerResponse] = await Promise.all([
+        fetch('/api/admin/notifications'),
+        fetch('/api/admin/companies'),
+        fetch('/api/admin/teachers')
+      ]);
+
+      const gidenMesajlarRaw = gidenResponse.ok ? await gidenResponse.json() : [];
+      const isletmelerData = isletmelerResponse.ok ? await isletmelerResponse.json() : [];
+      const ogretmenlerData = ogretmenlerResponse.ok ? await ogretmenlerResponse.json() : [];
 
       // Mesaj şablonları geçici olarak devre dışı - tablo henüz oluşturulmamış
       const sablonlar: any[] = []
 
-      // İşletmeleri getir
-      const { data: isletmeler, error: isletmeError } = await supabase
-        .from('isletmeler')
-        .select('id, ad, yetkili_kisi')
-        .order('ad')
-
-      // Öğretmenleri getir
-      const { data: ogretmenler, error: ogretmenError } = await supabase
-        .from('ogretmenler')
-        .select('id, ad, soyad, email')
-        .order('ad')
-
-      if (gidenError) console.error('Giden mesajlar hatası:', gidenError)
-      if (isletmeError) console.error('İşletmeler hatası:', isletmeError)
-      if (ogretmenError) console.error('Öğretmenler hatası:', ogretmenError)
-
       // Mesajları alıcı bilgileri ile eşleştir
-      const gidenMesajlar = (gidenMesajlarRaw || []).map(mesaj => {
+      const gidenMesajlar = (gidenMesajlarRaw || []).map((mesaj: any) => {
         if (mesaj.recipient_type === 'isletme') {
-          const isletme = isletmeler?.find(i => i.id === mesaj.recipient_id)
+          const isletme = isletmelerData?.find((i: any) => i.id === mesaj.recipient_id)
           return { ...mesaj, isletme }
         } else if (mesaj.recipient_type === 'ogretmen') {
-          const ogretmen = ogretmenler?.find(o => o.id === mesaj.recipient_id)
+          const ogretmen = ogretmenlerData?.find((o: any) => o.id === mesaj.recipient_id)
           return { ...mesaj, ogretmen }
         }
         return mesaj
@@ -58,8 +46,8 @@ export default function MesajlarPage() {
 
       setGidenMesajlar(gidenMesajlar || [])
       setSablonlar(sablonlar || [])
-      setIsletmeler(isletmeler || [])
-      setOgretmenler(ogretmenler || [])
+      setIsletmeler(isletmelerData || [])
+      setOgretmenler(ogretmenlerData || [])
     } catch (error) {
       console.error('Veri getirme hatası:', error)
     } finally {

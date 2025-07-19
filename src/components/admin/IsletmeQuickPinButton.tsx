@@ -35,11 +35,10 @@ export default function IsletmeQuickPinButton({ isletme }: Props) {
       </button>
       
       <IsletmeQuickPinModal
-        isletmeId={isletme.id}
-        isletmeAd={isletme.ad}
+        isletme={isletme}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSuccess={handlePinSuccess}
+        onPinUpdate={handlePinSuccess}
       />
     </>
   )

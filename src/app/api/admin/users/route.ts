@@ -13,8 +13,15 @@ export async function GET() {
     }
 
     const adminProfiles = await prisma.adminProfile.findMany({
+      include: {
+        user: {
+          select: {
+            createdAt: true
+          }
+        }
+      },
       orderBy: {
-        createdAt: 'desc'
+        id: 'desc'
       }
     })
 
@@ -26,7 +33,7 @@ export async function GET() {
       email: profile.email,
       yetki_seviyesi: profile.role.toLowerCase(),
       aktif: true,
-      created_at: profile.createdAt
+      created_at: profile.user?.createdAt || new Date()
     }))
 
     return NextResponse.json(transformedProfiles)

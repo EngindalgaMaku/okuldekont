@@ -1,7 +1,5 @@
 import { Suspense } from 'react'
 import { Users, Search, Filter, Plus, Info, Trash2, Building2, User, Mail, Phone, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import Link from 'next/link'
 import QuickPinButton from './QuickPinButton'
 import { fetchOgretmenlerOptimized } from '@/lib/optimized-queries'

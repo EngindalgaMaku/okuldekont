@@ -3,12 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Building2, ArrowLeft, CheckCircle } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useEgitimYili } from '@/lib/context/EgitimYiliContext'
-import { uploadFile, validateFile } from '@/lib/storage'
+import { validateFile } from '@/lib/storage-client'
 import { DekontFormData } from '@/types/dekont'
 import DekontUpload from '@/components/ui/DekontUpload'
-import { generateDekontFileName, DekontNamingData } from '@/utils/dekontNaming'
 
 interface Stajyer {
   id: string // staj kaydı id'si
@@ -32,59 +30,53 @@ export default function YeniDekontPage() {
   const [selectedStajyer, setSelectedStajyer] = useState('')
 
   useEffect(() => {
-    const storedIsletme = localStorage.getItem('isletme')
-    if (!storedIsletme) {
+    const storedIsletmeId = sessionStorage.getItem('isletme_id')
+    if (!storedIsletmeId) {
       router.push('/')
       return
     }
 
-    setIsletme(JSON.parse(storedIsletme))
-    fetchStajyerler()
+    // Fetch company details
+    fetchIsletmeData(storedIsletmeId)
+    fetchStajyerler(storedIsletmeId)
   }, [])
 
-  const fetchStajyerler = async () => {
-    const storedIsletme = JSON.parse(localStorage.getItem('isletme') || '{}')
-    console.log('İşletme bilgisi:', storedIsletme)
-    
-    const { data, error } = await supabase
-      .from('stajlar')
-      .select(`
-        id,
-        ogrenciler (
-          id,
-          ad,
-          soyad,
-          sinif,
-          no,
-          alanlar (
-            ad
-          )
-        )
-      `)
-      .eq('isletme_id', storedIsletme.id)
-      .eq('durum', 'aktif')
-
-    console.log('Stajlar sorgu sonucu:', { data, error })
-
-    if (error) {
-      console.error('Stajyerleri çekerken hata:', error)
-      return
+  const fetchIsletmeData = async (isletmeId: string) => {
+    try {
+      const response = await fetch(`/api/admin/companies/${isletmeId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setIsletme(data);
+      }
+    } catch (error) {
+      console.error('İşletme bilgisi alınırken hata:', error);
     }
+  }
 
-    if (data) {
-      const formattedStajyerler = data.map((staj: any) => ({
-        id: staj.id, // staj kaydı id'si
-        ogrenci_id: staj.ogrenciler.id, // öğrenci id'si
-        ad: staj.ogrenciler.ad,
-        soyad: staj.ogrenciler.soyad,
-        sinif: staj.ogrenciler.sinif,
-        no: staj.ogrenciler.no,
+  const fetchStajyerler = async (isletmeId: string) => {
+    try {
+      const response = await fetch(`/api/admin/companies/${isletmeId}/students`);
+      if (!response.ok) {
+        throw new Error('Stajyerler getirilemedi');
+      }
+      const data = await response.json();
+      
+      const formattedStajyerler = data.map((student: any) => ({
+        id: student.staj_id || student.id,
+        ogrenci_id: student.id,
+        ad: student.ad || student.name,
+        soyad: student.soyad || student.surname,
+        sinif: student.sinif || student.className,
+        no: student.no || student.number,
         alan: {
-          ad: staj.ogrenciler.alanlar?.ad || 'Bilinmeyen'
+          ad: student.alanlar?.ad || student.alanlar?.name || 'Bilinmeyen'
         }
-      }))
-      console.log('Formatlanmış stajyerler:', formattedStajyerler)
-      setStajyerler(formattedStajyerler)
+      }));
+      
+      console.log('Formatlanmış stajyerler:', formattedStajyerler);
+      setStajyerler(formattedStajyerler);
+    } catch (error) {
+      console.error('Stajyerleri çekerken hata:', error);
     }
   }
 
@@ -113,66 +105,37 @@ export default function YeniDekontPage() {
           throw new Error('Stajyer bulunamadı!')
         }
 
-        // Mevcut dekontları kontrol et (ek dekont kontrolü için)
-        const { data: mevcutDekontlar } = await supabase
-          .from('dekontlar')
-          .select('id')
-          .eq('staj_id', formData.staj_id)
-          .eq('ay', formData.ay)
-          .eq('yil', formData.yil);
+        // FormData ile dosya yükleme - API kendi file naming ve ek dekont kontrolünü yapacak
+        const uploadFormData = new FormData();
+        uploadFormData.append('dosya', formData.dosya);
+        uploadFormData.append('staj_id', formData.staj_id);
+        uploadFormData.append('ay', formData.ay);
+        uploadFormData.append('yil', formData.yil);
+        uploadFormData.append('aciklama', formData.aciklama || '');
+        uploadFormData.append('miktar', String(formData.miktar || ''));
 
-        // Anlamlı dosya ismi oluştur
-        const dekontNamingData: DekontNamingData = {
-          studentName: staj.ad,
-          studentSurname: staj.soyad,
-          studentClass: staj.sinif,
-          studentNumber: staj.no,
-          fieldName: staj.alan.ad,
-          companyName: isletme.ad,
-          month: parseInt(formData.ay),
-          year: parseInt(formData.yil),
-          originalFileName: formData.dosya.name,
-          isAdditional: (mevcutDekontlar?.length || 0) > 0,
-          additionalIndex: (mevcutDekontlar?.length || 0) + 1
+        const uploadResponse = await fetch('/api/admin/dekontlar', {
+          method: 'POST',
+          body: uploadFormData
+        });
+
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json();
+          throw new Error(errorData.error || 'Dosya yüklenirken hata oluştu!');
         }
 
-        const meaningfulFileName = generateDekontFileName(dekontNamingData)
-
-        // Dosyayı anlamlı isimle yükle
-        const uploadResult = await uploadFile('dekontlar', formData.dosya, undefined, meaningfulFileName)
-        if (!uploadResult) {
-          throw new Error('Dosya yüklenirken hata oluştu!')
-        }
-
-        dosyaUrl = uploadResult.url
-        dosyaPath = uploadResult.path
+        const uploadResult = await uploadResponse.json();
+        dosyaUrl = uploadResult.dosya_url;
+        dosyaPath = uploadResult.dosya_url;
       }
 
-      // Stajyer objesini bul (veritabanı işlemi için)
-      const staj = stajyerler.find(s => s.id === formData.staj_id)
-      
-      const { error } = await supabase
-        .from('dekontlar')
-        .insert({
-          staj_id: staj?.id,
-          ogrenci_id: staj?.ogrenci_id || null,
-          miktar: formData.miktar || null,
-          odeme_tarihi: formData.odeme_tarihi,
-          dosya_url: dosyaUrl,
-          dekont_dosya_path: dosyaPath,
-          onay_durumu: 'bekliyor',
-          ay: formData.ay,
-          yil: formData.yil,
-          aciklama: formData.aciklama || null
-        })
-
-      if (error) throw error
+      // API zaten database insert işlemini yapıyor, burada sadece success durumunu ayarlıyoruz
 
       setSuccess(true)
       
       // 3 saniye sonra panele dön
       setTimeout(() => {
-        router.push('/panel')
+        router.push('/isletme')
       }, 3000)
 
     } catch (error) {
@@ -193,7 +156,7 @@ export default function YeniDekontPage() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
               <button
-                onClick={() => router.push('/panel')}
+                onClick={() => router.push('/isletme')}
                 className="flex items-center text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-xl transition-all duration-200 mr-4"
               >
                 <ArrowLeft className="h-5 w-5 mr-2" />

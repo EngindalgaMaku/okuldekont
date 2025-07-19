@@ -9,7 +9,7 @@ export async function POST(
     const { id } = await params
 
     // Önce mevcut durumu al
-    const field = await prisma.field.findUnique({
+    const field = await prisma.alan.findUnique({
       where: { id },
       select: { active: true }
     })
@@ -22,7 +22,7 @@ export async function POST(
     }
 
     // Durumu tersine çevir
-    const updatedField = await prisma.field.update({
+    const updatedField = await prisma.alan.update({
       where: { id },
       data: { active: !field.active }
     })

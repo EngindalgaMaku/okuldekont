@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ teachers: [] })
     }
 
-    const teachers = await prisma.teacher.findMany({
+    const teachers = await prisma.teacherProfile.findMany({
       where: {
         alanId: {
           in: fieldIds

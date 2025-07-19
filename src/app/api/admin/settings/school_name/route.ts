@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    const setting = await prisma.system_settings.findFirst({
+    const setting = await prisma.systemSetting.findFirst({
       where: {
         key: 'school_name'
       }
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   try {
     const { value } = await request.json()
 
-    await prisma.system_settings.upsert({
+    await prisma.systemSetting.upsert({
       where: { key: 'school_name' },
       update: { value },
       create: { key: 'school_name', value }

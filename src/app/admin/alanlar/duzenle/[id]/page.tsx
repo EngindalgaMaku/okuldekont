@@ -3,32 +3,43 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { Briefcase, Save, ArrowLeft, Loader } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 
 export default function DuzenleAlanPage() {
   const router = useRouter()
   const params = useParams()
-  const id = Number(params.id)
+  const id = params.id as string
   
   const [alanAdi, setAlanAdi] = useState('')
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
-    if (isNaN(id)) {
+    if (!id || isNaN(Number(id))) {
         setNotFound(true);
         setLoading(false);
         return;
     }
+    
     const fetchAlan = async () => {
-        const { data, error } = await supabase.from('alanlar').select('ad').eq('id', id).single()
-        if (error || !data) {
-          setNotFound(true)
-          console.error("Alan getirilirken hata:", error)
-        } else {
-          setAlanAdi(data.ad)
+        try {
+            const response = await fetch(`/api/admin/fields/${id}`);
+            if (!response.ok) {
+                if (response.status === 404) {
+                    setNotFound(true);
+                } else {
+                    throw new Error('Alan getirilemedi');
+                }
+                return;
+            }
+            
+            const data = await response.json();
+            setAlanAdi(data.name || '');
+        } catch (error) {
+            console.error("Alan getirilirken hata:", error);
+            setNotFound(true);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false)
     }
     fetchAlan()
   }, [id])
@@ -41,14 +52,25 @@ export default function DuzenleAlanPage() {
     }
     setLoading(true)
     
-    const { error } = await supabase.from('alanlar').update({ ad: alanAdi.trim() }).match({ id })
-
-    if(error) {
-        alert('Alan güncellenirken bir hata oluştu: ' + error.message)
-        setLoading(false)
-    } else {
-        router.push('/admin/alanlar')
-        router.refresh()
+    try {
+        const response = await fetch(`/api/admin/fields/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ name: alanAdi.trim() }),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Güncelleme başarısız');
+        }
+        
+        router.push('/admin/alanlar');
+        router.refresh();
+    } catch (error: any) {
+        alert('Alan güncellenirken bir hata oluştu: ' + error.message);
+        setLoading(false);
     }
   }
 

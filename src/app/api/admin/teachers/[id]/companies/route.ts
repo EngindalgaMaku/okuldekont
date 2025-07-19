@@ -9,10 +9,10 @@ export async function GET(
     const { id } = await params
 
     // Öğretmene ait stajlar üzerinden işletmeleri getir
-    const internships = await prisma.internship.findMany({
+    const internships = await prisma.staj.findMany({
       where: {
         teacherId: id,
-        status: 'aktif'
+        status: 'ACTIVE'
       },
       include: {
         company: {
