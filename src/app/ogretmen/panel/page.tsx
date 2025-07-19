@@ -151,7 +151,7 @@ const TeacherPanel = () => {
   };
 
   // Belirli ay için dekont durumunu kontrol et
-  const getDekontStatus = (ogrenciAd: string, month: number, year: number): 'approved' | 'pending' | 'none' => {
+  const getDekontStatus = (ogrenciAd: string, month: number, year: number): 'approved' | 'pending' | 'rejected' | 'none' => {
     const dekont = dekontlar.find(d =>
       d.ogrenci_ad === ogrenciAd &&
       d.ay === month &&
@@ -160,7 +160,56 @@ const TeacherPanel = () => {
     
     if (!dekont) return 'none';
     if (dekont.onay_durumu === 'onaylandi') return 'approved';
+    if (dekont.onay_durumu === 'reddedildi') return 'rejected';
     return 'pending';
+  };
+
+  // Öğrenci için bekleyen dekont sayısını getir
+  const getPendingDekontCount = (ogrenciAd: string): number => {
+    return dekontlar.filter(d =>
+      d.ogrenci_ad === ogrenciAd &&
+      d.onay_durumu === 'bekliyor'
+    ).length;
+  };
+
+  // Öğrenci için reddedilen dekont sayısını getir
+  const getRejectedDekontCount = (ogrenciAd: string): number => {
+    return dekontlar.filter(d =>
+      d.ogrenci_ad === ogrenciAd &&
+      d.onay_durumu === 'reddedildi'
+    ).length;
+  };
+
+  // Son ayın dekont durumunu getir
+  const getLastMonthDekontStatus = (ogrenciAd: string): string => {
+    const currentDate = new Date();
+    const lastMonth = currentDate.getMonth(); // 0-based
+    const lastMonthYear = lastMonth === 0 ? currentDate.getFullYear() - 1 : currentDate.getFullYear();
+    const targetMonth = lastMonth === 0 ? 12 : lastMonth;
+    
+    const status = getDekontStatus(ogrenciAd, targetMonth, lastMonthYear);
+    const monthName = aylar[targetMonth - 1];
+    
+    switch (status) {
+      case 'approved':
+        return `${monthName}: ✅ Onaylandı`;
+      case 'pending':
+        return `${monthName}: ⏳ Bekliyor`;
+      case 'rejected':
+        return `${monthName}: ❌ Reddedildi`;
+      default:
+        return `${monthName}: ❗ Eksik`;
+    }
+  };
+
+  // İşletme için toplam dekont istatistikleri
+  const getCompanyDekontStats = (isletmeAd: string) => {
+    const companyDekonts = dekontlar.filter(d => d.isletme_ad === isletmeAd);
+    const pending = companyDekonts.filter(d => d.onay_durumu === 'bekliyor').length;
+    const rejected = companyDekonts.filter(d => d.onay_durumu === 'reddedildi').length;
+    const approved = companyDekonts.filter(d => d.onay_durumu === 'onaylandi').length;
+    
+    return { pending, rejected, approved, total: companyDekonts.length };
   };
 
   const eksikDekontOgrenciler = getEksikDekontOgrenciler();
@@ -1333,28 +1382,54 @@ const TeacherPanel = () => {
                       
                       {expandedIsletmeler[isletme.id] && (
                         <>
-                          {isletme.ogrenciler.map((ogrenci) => (
-                            <div key={ogrenci.id} className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 space-y-3 border border-blue-100 hover:border-blue-200 transition-all duration-200 hover:shadow-md">
-                              <div className="flex items-center">
-                                <div className="h-10 w-10 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg flex items-center justify-center">
-                                  <User className="h-5 w-5 text-indigo-600" />
-                                </div>
-                                <div className="ml-3">
-                                  <p className="text-sm font-medium text-gray-900">{ogrenci.ad} {ogrenci.soyad}</p>
-                                  <div className="flex items-center space-x-3 mt-1 text-xs">
-                                    <div className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-md font-medium">
-                                      {ogrenci.sinif}
+                          {isletme.ogrenciler.map((ogrenci) => {
+                            const ogrenciFullName = `${ogrenci.ad} ${ogrenci.soyad}`;
+                            const pendingCount = getPendingDekontCount(ogrenciFullName);
+                            const rejectedCount = getRejectedDekontCount(ogrenciFullName);
+                            const lastMonthStatus = getLastMonthDekontStatus(ogrenciFullName);
+                            
+                            return (
+                              <div key={ogrenci.id} className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 space-y-3 border border-blue-100 hover:border-blue-200 transition-all duration-200 hover:shadow-md">
+                                <div className="flex items-center">
+                                  <div className="h-10 w-10 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg flex items-center justify-center">
+                                    <User className="h-5 w-5 text-indigo-600" />
+                                  </div>
+                                  <div className="ml-3 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <p className="text-sm font-medium text-gray-900">{ogrenci.ad} {ogrenci.soyad}</p>
+                                      {(pendingCount > 0 || rejectedCount > 0) && (
+                                        <div className="flex items-center gap-1 text-xs">
+                                          {pendingCount > 0 && (
+                                            <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full font-medium">
+                                              ({pendingCount} bekliyor)
+                                            </span>
+                                          )}
+                                          {rejectedCount > 0 && (
+                                            <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full font-medium">
+                                              ({rejectedCount} reddedilen)
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
-                                    <div className="px-2 py-1 bg-purple-50 text-purple-700 rounded-md font-medium">
-                                      No: {ogrenci.no}
+                                    <div className="flex items-center space-x-3 mt-1 text-xs">
+                                      <div className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-md font-medium">
+                                        {ogrenci.sinif}
+                                      </div>
+                                      <div className="px-2 py-1 bg-purple-50 text-purple-700 rounded-md font-medium">
+                                        No: {ogrenci.no}
+                                      </div>
+                                      <div className="flex items-center gap-1 text-gray-500">
+                                        <Calendar className="h-3 w-3" />
+                                        <span>Başlangıç: {new Date(ogrenci.baslangic_tarihi).toLocaleDateString('tr-TR')}</span>
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-1 text-gray-500">
-                                      <Calendar className="h-3 w-3" />
-                                      <span>Başlangıç: {new Date(ogrenci.baslangic_tarihi).toLocaleDateString('tr-TR')}</span>
+                                    {/* Son Ay Durumu */}
+                                    <div className="mt-2 text-xs">
+                                      <span className="font-medium text-gray-700">{lastMonthStatus}</span>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
                               <div className="flex justify-end">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleOpenDekontUpload(ogrenci, isletme); }}
@@ -1365,7 +1440,7 @@ const TeacherPanel = () => {
                                   Dekont Yükle
                                 </button>
                               </div>
-                              
+                               
                               {/* Dekont Durumu Tablosu */}
                               <div className="mt-3 pt-3 border-t border-blue-200">
                                 <div className="text-xs font-medium text-gray-600 mb-2">Dekont Durumu:</div>
@@ -1382,9 +1457,11 @@ const TeacherPanel = () => {
                                             ? 'bg-green-100 text-green-600'
                                             : dekontStatus === 'pending'
                                             ? 'bg-yellow-100 text-yellow-600'
-                                            : 'bg-red-100 text-red-600'
+                                            : dekontStatus === 'rejected'
+                                            ? 'bg-red-100 text-red-600'
+                                            : 'bg-gray-100 text-gray-600'
                                         }`}>
-                                          {dekontStatus === 'approved' ? '✓' : dekontStatus === 'pending' ? '?' : '✗'}
+                                          {dekontStatus === 'approved' ? '✓' : dekontStatus === 'pending' ? '?' : dekontStatus === 'rejected' ? '✗' : '○'}
                                         </div>
                                       </div>
                                     );
@@ -1392,7 +1469,8 @@ const TeacherPanel = () => {
                                 </div>
                               </div>
                             </div>
-                          ))}
+                          );
+                        })}
                           
                           {isletme.ogrenciler.length === 0 && (
                             <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
@@ -1497,16 +1575,38 @@ const TeacherPanel = () => {
                               <div key={companyKey} className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
                                 {/* Company Header */}
                                 <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
-                                      <Building2 className="h-5 w-5 text-white" />
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className="h-10 w-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                                        <Building2 className="h-5 w-5 text-white" />
+                                      </div>
+                                      <div>
+                                        <h2 className="text-lg font-bold">{companyKey}</h2>
+                                        <p className="text-blue-100 text-sm">
+                                          {studentKeys.length} öğrenci - {companyGroup.totalCount} dekont
+                                        </p>
+                                      </div>
                                     </div>
-                                    <div>
-                                      <h2 className="text-lg font-bold">{companyKey}</h2>
-                                      <p className="text-blue-100 text-sm">
-                                        {studentKeys.length} öğrenci - {companyGroup.totalCount} dekont
-                                      </p>
-                                    </div>
+                                    {(() => {
+                                      const companyStats = getCompanyDekontStats(companyKey);
+                                      return (
+                                        <div className="flex items-center gap-2 text-xs">
+                                          {companyStats.pending > 0 && (
+                                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full font-medium">
+                                              {companyStats.pending} bekliyor
+                                            </span>
+                                          )}
+                                          {companyStats.rejected > 0 && (
+                                            <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full font-medium">
+                                              {companyStats.rejected} reddedilen
+                                            </span>
+                                          )}
+                                          <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full font-medium">
+                                            {companyStats.approved} onaylı
+                                          </span>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
 
@@ -1527,11 +1627,33 @@ const TeacherPanel = () => {
                                             <div className="h-8 w-8 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg flex items-center justify-center">
                                               <User className="h-4 w-4 text-indigo-600" />
                                             </div>
-                                            <div>
-                                              <h3 className="text-base font-semibold text-gray-900">
-                                                {studentGroup.student.name}
-                                              </h3>
-                                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                            <div className="flex-1">
+                                              <div className="flex items-center gap-2 flex-wrap">
+                                                <h3 className="text-base font-semibold text-gray-900">
+                                                  {studentGroup.student.name}
+                                                </h3>
+                                                {(() => {
+                                                  const pendingCount = getPendingDekontCount(studentGroup.student.name);
+                                                  const rejectedCount = getRejectedDekontCount(studentGroup.student.name);
+                                                  return (
+                                                    (pendingCount > 0 || rejectedCount > 0) && (
+                                                      <div className="flex items-center gap-1 text-xs">
+                                                        {pendingCount > 0 && (
+                                                          <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full font-medium">
+                                                            ({pendingCount} bekliyor)
+                                                          </span>
+                                                        )}
+                                                        {rejectedCount > 0 && (
+                                                          <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full font-medium">
+                                                            ({rejectedCount} reddedilen)
+                                                          </span>
+                                                        )}
+                                                      </div>
+                                                    )
+                                                  );
+                                                })()}
+                                              </div>
+                                              <div className="flex items-center gap-2 text-sm text-gray-600 flex-wrap">
                                                 {studentGroup.student.sinif && (
                                                   <span className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded font-medium">
                                                     {studentGroup.student.sinif}
@@ -1545,6 +1667,10 @@ const TeacherPanel = () => {
                                                 <span className="bg-green-50 text-green-700 px-2 py-1 rounded font-medium">
                                                   {studentGroup.count} dekont
                                                 </span>
+                                              </div>
+                                              {/* Son Ay Durumu */}
+                                              <div className="mt-1 text-xs">
+                                                <span className="text-gray-600">{getLastMonthDekontStatus(studentGroup.student.name)}</span>
                                               </div>
                                             </div>
                                           </div>
