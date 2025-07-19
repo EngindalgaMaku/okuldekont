@@ -115,6 +115,25 @@ export async function POST(request: Request) {
     const ayNum = ay ? parseInt(ay) : new Date().getMonth() + 1;
     const yilNum = yil ? parseInt(yil) : new Date().getFullYear();
     
+    // Staj başlama tarihi kontrolü
+    const stajBaslangic = new Date(staj.startDate);
+    const dekontTarihi = new Date(yilNum, ayNum - 1, 1); // ayNum is 1-based, Date constructor expects 0-based
+    
+    if (dekontTarihi < stajBaslangic) {
+      const stajBaslangicStr = stajBaslangic.toLocaleDateString('tr-TR', {
+        year: 'numeric',
+        month: 'long'
+      });
+      const dekontTarihiStr = dekontTarihi.toLocaleDateString('tr-TR', {
+        year: 'numeric',
+        month: 'long'
+      });
+      
+      return NextResponse.json({
+        error: `Staj başlama tarihinden (${stajBaslangicStr}) öncesine dekont yüklenemez. Seçilen ay: ${dekontTarihiStr}`
+      }, { status: 400 });
+    }
+    
     // Bu öğrenci ve ay için mevcut dekontları kontrol et
     const mevcutDekontlar = await prisma.dekont.findMany({
       where: {

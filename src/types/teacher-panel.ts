@@ -51,6 +51,9 @@ export interface Belge {
   belge_turu: string;
   yukleme_tarihi: string;
   yukleyen_kisi?: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  onaylanma_tarihi?: string;
+  red_nedeni?: string;
 }
 
 export interface Notification {
@@ -73,6 +76,12 @@ export interface Teacher {
 }
 
 export interface ErrorModal {
+  isOpen: boolean;
+  title: string;
+  message: string;
+}
+
+export interface SuccessModal {
   isOpen: boolean;
   title: string;
   message: string;

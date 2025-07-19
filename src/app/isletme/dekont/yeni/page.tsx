@@ -15,6 +15,7 @@ interface Stajyer {
   soyad: string
   sinif: string
   no: string
+  baslangic_tarihi: string // staj başlama tarihi
   alan: {
     ad: string
   }
@@ -68,6 +69,7 @@ export default function YeniDekontPage() {
         soyad: student.soyad || student.surname,
         sinif: student.sinif || student.className,
         no: student.no || student.number,
+        baslangic_tarihi: student.baslangic_tarihi || student.startDate,
         alan: {
           ad: student.alanlar?.ad || student.alanlar?.name || 'Bilinmeyen'
         }
@@ -224,6 +226,7 @@ export default function YeniDekontPage() {
                   stajyerler={stajyerler}
                   selectedStajyerId={selectedStajyer}
                   onStajyerChange={handleStajyerChange}
+                  startDate={selectedStajyer ? stajyerler.find(s => s.id === selectedStajyer)?.baslangic_tarihi : undefined}
                 />
               )}
             </div>

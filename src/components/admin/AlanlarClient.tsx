@@ -153,16 +153,17 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
   const [newAlanActive, setNewAlanActive] = useState(true)
 
   const [deleteAlanId, setDeleteAlanId] = useState<string | null>(null)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
 
   const fetchAlanlar = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/admin/fields')
+      const response = await fetch('/api/admin/alanlar')
       if (!response.ok) {
         throw new Error('Alanlar yüklenirken hata oluştu')
       }
       const data = await response.json()
-      setAlanlar(data.fields || [])
+      setAlanlar(Array.isArray(data) ? data : [])
     } catch (err) {
       toast.error('Alanlar güncellenirken bir hata oluştu.')
       console.error('Alanlar yüklenirken hata:', err)
@@ -178,16 +179,15 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
     }
 
     try {
-      const response = await fetch('/api/admin/fields', {
+      const response = await fetch(`/api/admin/alanlar?id=${selectedAlan.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          p_id: selectedAlan.id,
-          p_ad: editAlanName.trim(),
-          p_aciklama: editAlanDescription.trim(),
-          p_aktif: editAlanActive,
+          name: editAlanName.trim(),
+          description: editAlanDescription.trim(),
+          active: editAlanActive,
         }),
       })
 
@@ -211,15 +211,15 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
     }
 
     try {
-      const response = await fetch('/api/admin/fields', {
+      const response = await fetch('/api/admin/alanlar', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ad: newAlanName.trim(),
-          aciklama: newAlanDescription.trim(),
-          aktif: newAlanActive,
+          name: newAlanName.trim(),
+          description: newAlanDescription.trim(),
+          active: newAlanActive,
         }),
       })
 
@@ -240,23 +240,26 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
   }
 
   const handleDeleteAlan = async () => {
-    if (!deleteAlanId) return
+    if (!deleteAlanId || deleteConfirmText !== 'SIL') return
 
     try {
-      const response = await fetch(`/api/admin/fields?id=${deleteAlanId}`, {
+      const response = await fetch(`/api/admin/alanlar?id=${deleteAlanId}`, {
         method: 'DELETE',
       })
 
       if (!response.ok) {
-        throw new Error('Alan silinirken hata oluştu')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Alan silinirken hata oluştu')
       }
 
       toast.success('Alan başarıyla silindi.')
       setIsDeleteModalOpen(false)
       setDeleteAlanId(null)
+      setDeleteConfirmText('')
       fetchAlanlar()
     } catch (err) {
-      toast.error('Alan silinirken bir hata oluştu.')
+      const errorMessage = err instanceof Error ? err.message : 'Alan silinirken bir hata oluştu.'
+      toast.error(errorMessage)
       console.error('Alan silinirken hata:', err)
     }
   }
@@ -265,7 +268,7 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
     if (!selectedAlan) return
 
     try {
-      const response = await fetch(`/api/admin/fields/${selectedAlan.id}/toggle`, {
+      const response = await fetch(`/api/admin/alanlar/${selectedAlan.id}/toggle`, {
         method: 'POST',
       })
 
@@ -293,6 +296,7 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
   const handleDeleteClick = (alan: Alan) => {
     setSelectedAlan(alan)
     setDeleteAlanId(alan.id)
+    setDeleteConfirmText('')
     setIsDeleteModalOpen(true)
   }
 
@@ -543,13 +547,76 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
         </div>
       </Modal>
 
-      <ConfirmModal
+      <Modal
         isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={handleDeleteAlan}
-        title="Alanı Sil"
-        description={`"${selectedAlan?.ad}" adlı alanı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`}
-      />
+        onClose={() => {
+          setIsDeleteModalOpen(false)
+          setDeleteConfirmText('')
+        }}
+        title="⚠️ Tehlikeli İşlem: Alanı Sil"
+      >
+        <div className="space-y-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">
+                  Bu işlem kalıcı veri kaybına neden olacaktır!
+                </h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li><strong>"{selectedAlan?.ad}"</strong> alanı tamamen silinecek</li>
+                    <li>Bu alana bağlı tüm veriler kaybolacak</li>
+                    <li>Bu işlem <strong>GERİ ALINAMAZ</strong></li>
+                    <li>Alan silindikten sonra ilişkili veriler de silinecek</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              Bu alanı gerçekten silmek istiyorsanız, aşağıdaki kutuya <strong className="text-red-600">"SIL"</strong> yazın:
+            </p>
+            <input
+              type="text"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="SIL yazın"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={() => {
+                setIsDeleteModalOpen(false)
+                setDeleteConfirmText('')
+              }}
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleDeleteAlan}
+              disabled={deleteConfirmText !== 'SIL'}
+              className={`px-4 py-2 rounded-md transition-colors font-medium ${
+                deleteConfirmText === 'SIL'
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              Alanı Kalıcı Olarak Sil
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <ConfirmModal
         isOpen={isToggleActiveModalOpen}

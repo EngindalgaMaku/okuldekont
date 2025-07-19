@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, Users, FileText, LogOut, User, Upload, Plus, Download, Eye, Search, Filter, Receipt, Loader, GraduationCap, Calendar, CheckCircle, Clock, XCircle, Trash2, Bell } from 'lucide-react'
+import { Building2, Users, FileText, LogOut, User, Upload, Plus, Download, Eye, Search, Filter, Receipt, Loader, GraduationCap, Calendar, CheckCircle, Clock, XCircle, Trash2, Bell, Settings } from 'lucide-react'
 import { useEgitimYili } from '@/lib/context/EgitimYiliContext'
 import Modal from '@/components/ui/Modal'
 
@@ -63,6 +63,9 @@ interface Belge {
   dosya_url?: string
   yukleme_tarihi: string
   yukleyen_kisi?: string
+  onay_durumu?: 'PENDING' | 'APPROVED' | 'REJECTED'
+  onaylanma_tarihi?: string
+  red_nedeni?: string
 }
 
 interface Notification {
@@ -95,11 +98,6 @@ export default function PanelPage() {
   // Sayfalama için state'ler
   const [currentPage, setCurrentPage] = useState(1)
   const dekontsPerPage = 5
-  const totalPages = Math.ceil(dekontlar.length / dekontsPerPage)
-  const currentDekontlar = dekontlar.slice(
-    (currentPage - 1) * dekontsPerPage,
-    currentPage * dekontsPerPage
-  )
 
   // Belge yönetimi için state'ler
   const [belgeSearchTerm, setBelgeSearchTerm] = useState('')
@@ -113,12 +111,21 @@ export default function PanelPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [pendingDeleteDekont, setPendingDeleteDekont] = useState<Dekont | null>(null);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('Dekont başarıyla yüklendi!');
   const [errorModal, setErrorModal] = useState({ isOpen: false, title: '', message: '' });
+  
+  // Dekont filtreleme için state'ler
+  const [selectedStudentFilter, setSelectedStudentFilter] = useState<string>('all');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
+  const [filteredDekontlar, setFilteredDekontlar] = useState<Dekont[]>([]);
   
   // Bildirim states
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationModalOpen, setNotificationModalOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showAllMessages, setShowAllMessages] = useState(false);
+  const [notificationPage, setNotificationPage] = useState(1);
+  const NOTIFICATIONS_PER_PAGE = 5;
   
   // PIN change modal state
   const [pinChangeModalOpen, setPinChangeModalOpen] = useState(false);
@@ -164,6 +171,40 @@ export default function PanelPage() {
   const isKritikSure = () => {
     const day = getCurrentDay();
     return day >= 1 && day <= 10;
+  };
+
+  // Öğrencinin başlangıç tarihinden önceki aya kadar olan ayları getir
+  const getMonthsFromStartToPrevious = (startDate: string): { month: number, year: number, label: string }[] => {
+    const start = new Date(startDate);
+    const currentDate = new Date();
+    const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+    
+    const months: { month: number, year: number, label: string }[] = [];
+    const current = new Date(start.getFullYear(), start.getMonth(), 1);
+    
+    while (current <= previousMonth) {
+      months.push({
+        month: current.getMonth() + 1,
+        year: current.getFullYear(),
+        label: aylar[current.getMonth()].substring(0, 3) // İlk 3 harf (Oca, Şub, vb.)
+      });
+      current.setMonth(current.getMonth() + 1);
+    }
+    
+    return months.slice(-6); // Son 6 ayı göster (alan tasarrufu için)
+  };
+
+  // Belirli ay için dekont durumunu kontrol et
+  const getDekontStatus = (ogrenciAd: string, month: number, year: number): 'approved' | 'pending' | 'none' => {
+    const dekont = dekontlar.find(d =>
+      `${d.stajlar?.ogrenciler?.ad} ${d.stajlar?.ogrenciler?.soyad}` === ogrenciAd &&
+      d.ay === month &&
+      String(d.yil) === String(year)
+    );
+    
+    if (!dekont) return 'none';
+    if (dekont.onay_durumu === 'onaylandi') return 'approved';
+    return 'pending';
   };
 
   const eksikDekontOgrenciler = getEksikDekontOgrenciler();
@@ -213,7 +254,7 @@ export default function PanelPage() {
       }
 
       // İşletme verilerini API'dan getir
-      const isletmeResponse = await fetch(`/api/admin/companies/${sessionIsletmeId}`);
+      const isletmeResponse = await fetch(`/api/companies/${sessionIsletmeId}`);
       if (!isletmeResponse.ok) {
         throw new Error('İşletme verisi getirilemedi');
       }
@@ -232,21 +273,21 @@ export default function PanelPage() {
       fetchNotifications(isletmeData.id);
 
       // İşletmenin öğrencilerini getir
-      const studentsResponse = await fetch(`/api/admin/companies/${sessionIsletmeId}/students`);
+      const studentsResponse = await fetch(`/api/companies/${sessionIsletmeId}/students`);
       if (studentsResponse.ok) {
         const studentsData = await studentsResponse.json();
         setOgrenciler(studentsData);
       }
 
       // İşletmenin dekontlarını getir
-      const dekontResponse = await fetch(`/api/admin/companies/${sessionIsletmeId}/dekontlar`);
+      const dekontResponse = await fetch(`/api/companies/${sessionIsletmeId}/dekontlar`);
       if (dekontResponse.ok) {
         const dekontData = await dekontResponse.json();
         setDekontlar(dekontData);
       }
 
       // İşletmenin belgelerini getir
-      const belgeResponse = await fetch(`/api/admin/companies/${sessionIsletmeId}/documents`);
+      const belgeResponse = await fetch(`/api/companies/${sessionIsletmeId}/documents`);
       if (belgeResponse.ok) {
         const belgeData = await belgeResponse.json();
         setBelgeler(belgeData);
@@ -266,7 +307,7 @@ export default function PanelPage() {
   // Bildirimleri getir
   const fetchNotifications = async (isletmeId: string) => {
     try {
-      const response = await fetch(`/api/admin/companies/${isletmeId}/notifications`);
+      const response = await fetch(`/api/companies/${isletmeId}/notifications`);
       if (response.ok) {
         const data = await response.json();
         setNotifications(data || []);
@@ -283,7 +324,7 @@ export default function PanelPage() {
     if (!isletme) return;
     
     try {
-      const response = await fetch(`/api/admin/companies/${isletme.id}/notifications`, {
+      const response = await fetch(`/api/companies/${isletme.id}/notifications`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -314,7 +355,7 @@ export default function PanelPage() {
     if (!isletme) return;
 
     try {
-      const response = await fetch(`/api/admin/companies/${isletme.id}/notifications`, {
+      const response = await fetch(`/api/companies/${isletme.id}/notifications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -345,7 +386,7 @@ export default function PanelPage() {
     if (!isletme) return;
     
     try {
-      const response = await fetch(`/api/admin/companies/${isletme.id}/notifications`, {
+      const response = await fetch(`/api/companies/${isletme.id}/notifications`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -417,7 +458,7 @@ export default function PanelPage() {
 
     try {
       setPinChangeLoading(true);
-      const response = await fetch(`/api/admin/companies/${isletme.id}/pin`, {
+      const response = await fetch(`/api/companies/${isletme.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -436,6 +477,7 @@ export default function PanelPage() {
       setPinChangeModalOpen(false);
       setNewPin('');
       setConfirmPin('');
+      setSuccessMessage('PIN başarıyla değiştirildi!');
       setSuccessModalOpen(true);
     } catch (error) {
       console.error('PIN değiştirme hatası:', error);
@@ -474,6 +516,49 @@ export default function PanelPage() {
     setFilteredBelgeler(filtered)
   }, [belgeler, belgeSearchTerm, belgeTurFilter, isletme])
 
+  // Dekont filtreleme
+  useEffect(() => {
+    let filtered = dekontlar
+
+    if (selectedStudentFilter !== 'all') {
+      filtered = filtered.filter(dekont =>
+        `${dekont.stajlar?.ogrenciler?.ad} ${dekont.stajlar?.ogrenciler?.soyad}` === selectedStudentFilter
+      )
+    }
+
+    if (selectedStatusFilter !== 'all') {
+      filtered = filtered.filter(dekont =>
+        dekont.onay_durumu === selectedStatusFilter
+      )
+    }
+
+    // Kronolojik sıralama - en yeni ay en üstte
+    filtered = filtered.sort((a, b) => {
+      // Önce yıla göre sırala (büyükten küçüğe)
+      if (a.yil !== b.yil) {
+        return Number(b.yil) - Number(a.yil);
+      }
+      // Yıl aynıysa aya göre sırala (büyükten küçüğe)
+      if (a.ay !== b.ay) {
+        return b.ay - a.ay;
+      }
+      // Ay ve yıl aynıysa oluşturulma tarihine göre sırala (en yeni en üstte)
+      if (a.created_at && b.created_at) {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+      return 0;
+    });
+
+    setFilteredDekontlar(filtered)
+  }, [dekontlar, selectedStudentFilter, selectedStatusFilter])
+
+  // Sayfalama hesaplamaları
+  const totalPages = Math.ceil(filteredDekontlar.length / dekontsPerPage)
+  const currentDekontlar = filteredDekontlar.slice(
+    (currentPage - 1) * dekontsPerPage,
+    currentPage * dekontsPerPage
+  )
+
   const handleBelgeEkle = async () => {
     const belgeTuru = belgeFormData.tur === 'other' ? belgeFormData.customTur : belgeFormData.tur
 
@@ -499,7 +584,7 @@ export default function PanelPage() {
       formData.append('dosya', belgeFormData.dosya);
       // İşletme yüklemesi için ogretmen_id gönderme
 
-      const response = await fetch('/api/admin/belgeler', {
+      const response = await fetch(`/api/companies/${isletme.id}/documents`, {
         method: 'POST',
         body: formData
       });
@@ -520,8 +605,13 @@ export default function PanelPage() {
   }
 
   const handleBelgeSil = async (belge: Belge) => {
+    if (!isletme) {
+      alert('İşletme bilgisi bulunamadı. Lütfen tekrar giriş yapın.')
+      return
+    }
+
     try {
-      const response = await fetch(`/api/admin/belgeler/${belge.id}`, {
+      const response = await fetch(`/api/companies/${isletme.id}/documents?belgeId=${belge.id}`, {
         method: 'DELETE'
       });
 
@@ -568,6 +658,21 @@ export default function PanelPage() {
         return;
       }
 
+      // Tarih validasyonu - öğrenci başlangıç tarihinden önce dekont yüklenemez
+      const startDate = new Date(selectedOgrenci.baslangic_tarihi);
+      const startYear = startDate.getFullYear();
+      const startMonth = startDate.getMonth() + 1;
+      
+      if (dekontFormData.yil < startYear ||
+          (dekontFormData.yil === startYear && dekontFormData.ay < startMonth)) {
+        setErrorModal({
+          isOpen: true,
+          title: 'Geçersiz Tarih',
+          message: `${selectedOgrenci.ad} ${selectedOgrenci.soyad} ${startDate.toLocaleDateString('tr-TR')} tarihinde işe başlamış. Bu tarihten önceki aylar için dekont yükleyemezsiniz.`
+        });
+        return;
+      }
+
       // Mevcut dekont kontrolü
       const mevcutDekontlar = dekontlar.filter(d =>
         String(d.staj_id) === String(selectedOgrenci.staj_id) &&
@@ -609,7 +714,7 @@ export default function PanelPage() {
       formData.append('dosya', dekontFormData.dosya);
 
       // Doğru endpoint'i kullan
-      const response = await fetch(`/api/admin/companies/${isletme.id}/dekontlar`, {
+      const response = await fetch(`/api/companies/${isletme.id}/dekontlar`, {
         method: 'POST',
         body: formData
       });
@@ -645,6 +750,7 @@ export default function PanelPage() {
         miktar: '',
         dosya: null
       });
+      setSuccessMessage('Dekont başarıyla yüklendi!');
       setSuccessModalOpen(true);
       setActiveTab('dekontlar');
     } catch (error: any) {
@@ -656,18 +762,68 @@ export default function PanelPage() {
     }
   }
 
-  const handleEkDekontOnay = () => {
-    if (ekDekontData) {
-      setSelectedOgrenci(ekDekontData.ogrenci);
-      setDekontFormData({
-        ay: ekDekontData.ay,
-        yil: ekDekontData.yil,
-        aciklama: '',
-        miktar: '',
-        dosya: null
-      });
-      setEkDekontModalOpen(false);
-      setDekontModalOpen(true);
+  const handleEkDekontOnay = async () => {
+    if (ekDekontData && isletme) {
+      try {
+        // Öğrenci listesinden doğru öğrenciyi bul
+        const ogrenci = ogrenciler.find(o => String(o.id) === String(ekDekontData.ogrenci.id));
+        const selectedOgrenciToUse = ogrenci || ekDekontData.ogrenci;
+
+        // Dosya seçimi için input oluştur
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.pdf,.jpg,.jpeg,.png';
+        input.onchange = async (e) => {
+          const file = (e.target as HTMLInputElement).files?.[0];
+          if (file) {
+            // FormData hazırla
+            const formData = new FormData();
+            formData.append('staj_id', selectedOgrenciToUse.staj_id);
+            formData.append('ay', ekDekontData.ay.toString());
+            formData.append('yil', ekDekontData.yil.toString());
+            formData.append('aciklama', `Ek dekont - ${aylar[ekDekontData.ay - 1]} ${ekDekontData.yil}`);
+            formData.append('miktar', '');
+            formData.append('dosya', file);
+
+            try {
+              const response = await fetch(`/api/companies/${isletme.id}/dekontlar`, {
+                method: 'POST',
+                body: formData
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Ek dekont yüklenemedi');
+              }
+
+              const result = await response.json();
+              const newDekont = result.data || result;
+              setDekontlar(prev => [newDekont, ...prev]);
+              
+              setSuccessMessage('Ek dekont başarıyla yüklendi!');
+              setSuccessModalOpen(true);
+              setActiveTab('dekontlar');
+            } catch (error: any) {
+              setErrorModal({
+                isOpen: true,
+                title: 'Ek Dekont Yükleme Hatası',
+                message: `Bir hata oluştu: ${error.message}`
+              });
+            }
+          }
+        };
+        
+        // Modal'ı kapat ve dosya seçimi aç
+        setEkDekontModalOpen(false);
+        input.click();
+        
+      } catch (error: any) {
+        setErrorModal({
+          isOpen: true,
+          title: 'Ek Dekont Hatası',
+          message: `Bir hata oluştu: ${error.message}`
+        });
+      }
     }
   };
 
@@ -712,21 +868,46 @@ export default function PanelPage() {
   };
 
   const handleDekontSil = async (dekont: Dekont) => {
+    if (!isletme) {
+      setErrorModal({
+        isOpen: true,
+        title: 'Hata',
+        message: 'İşletme bilgisi bulunamadı'
+      });
+      return;
+    }
+
     try {
-      const response = await fetch(`/api/admin/dekontlar/${dekont.id}`, {
+      const response = await fetch(`/api/companies/${isletme.id}/dekontlar?dekontId=${dekont.id}`, {
         method: 'DELETE'
       });
 
       if (!response.ok) {
-        throw new Error('Dekont silinemedi');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Dekont silinemedi');
       }
 
-      setDekontlar(dekontlar.filter(d => d.id !== dekont.id));
+      // Başarılı silme işlemi
+      const updatedDekontlar = dekontlar.filter(d => d.id !== dekont.id);
+      setDekontlar(updatedDekontlar);
+      
+      // Filtrelenmiş listeyi de güncelle
+      const updatedFilteredDekontlar = filteredDekontlar.filter(d => d.id !== dekont.id);
+      setFilteredDekontlar(updatedFilteredDekontlar);
+      
       setDeleteConfirmOpen(false);
       setPendingDeleteDekont(null);
+      setSuccessMessage('Dekont başarıyla silindi!');
+      setSuccessModalOpen(true);
     } catch (error: any) {
       console.error('Dekont silme hatası:', error);
-      alert(`Dekont silinirken bir hata oluştu: ${error.message}`);
+      setDeleteConfirmOpen(false);
+      setPendingDeleteDekont(null);
+      setErrorModal({
+        isOpen: true,
+        title: 'Dekont Silme Hatası',
+        message: `Dekont silinirken bir hata oluştu: ${error.message}`
+      });
     }
   };
 
@@ -739,16 +920,43 @@ export default function PanelPage() {
     }
   }
 
+  const getBelgeOnayDurumu = (durum?: string) => {
+    switch (durum) {
+      case 'APPROVED':
+        return {
+          text: 'Onaylandı',
+          bg: 'bg-green-100',
+          color: 'text-green-800',
+          icon: CheckCircle
+        }
+      case 'REJECTED':
+        return {
+          text: 'Reddedildi',
+          bg: 'bg-red-100',
+          color: 'text-red-800',
+          icon: XCircle
+        }
+      case 'PENDING':
+      default:
+        return {
+          text: 'Onay Bekliyor',
+          bg: 'bg-yellow-100',
+          color: 'text-yellow-800',
+          icon: Clock
+        }
+    }
+  }
+
   const getOnayDurumuRenk = (durum: string) => {
     switch (durum) {
       case 'bekliyor':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-900 border-yellow-300 hover:from-yellow-200 hover:to-yellow-300'
       case 'onaylandi':
-        return 'bg-green-100 text-green-800'
+        return 'bg-gradient-to-r from-green-100 to-green-200 text-green-900 border-green-300 hover:from-green-200 hover:to-green-300'
       case 'reddedildi':
-        return 'bg-red-100 text-red-800'
+        return 'bg-gradient-to-r from-red-100 to-red-200 text-red-900 border-red-300 hover:from-red-200 hover:to-red-300'
       default:
-        return 'bg-gray-100 text-gray-800'
+        return 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-900 border-gray-300 hover:from-gray-200 hover:to-gray-300'
     }
   }
 
@@ -858,6 +1066,14 @@ export default function PanelPage() {
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
+              </button>
+              
+              <button
+                onClick={() => setPinChangeModalOpen(true)}
+                className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
+                title="PIN Değiştir"
+              >
+                <Settings className="h-5 w-5 text-white" />
               </button>
               
               <button
@@ -1070,6 +1286,32 @@ export default function PanelPage() {
                           {ogrenci.ogretmen_ad} {ogrenci.ogretmen_soyad}
                         </span>
                       </div>
+                      
+                      {/* Dekont Durumu Tablosu */}
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <div className="text-xs font-medium text-gray-600 mb-2">Dekont Durumu:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {getMonthsFromStartToPrevious(ogrenci.baslangic_tarihi).map((monthData) => {
+                            const dekontStatus = getDekontStatus(`${ogrenci.ad} ${ogrenci.soyad}`, monthData.month, monthData.year);
+                            return (
+                              <div key={`${monthData.year}-${monthData.month}`} className="flex flex-col items-center">
+                                <div className="text-xs font-medium text-gray-600 mb-1">
+                                  {monthData.label}
+                                </div>
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                  dekontStatus === 'approved'
+                                    ? 'bg-green-100 text-green-600'
+                                    : dekontStatus === 'pending'
+                                    ? 'bg-yellow-100 text-yellow-600'
+                                    : 'bg-red-100 text-red-600'
+                                }`}>
+                                  {dekontStatus === 'approved' ? '✓' : dekontStatus === 'pending' ? '?' : '✗'}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1092,6 +1334,41 @@ export default function PanelPage() {
                   </button>
                 </div>
 
+                {/* Dekont Filtreleme */}
+                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                  <div className="relative w-full sm:w-64">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <select
+                      value={selectedStudentFilter}
+                      onChange={(e) => setSelectedStudentFilter(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
+                    >
+                      <option value="all">Tüm Öğrenciler</option>
+                      {ogrenciler.map((ogrenci) => (
+                        <option key={ogrenci.id} value={`${ogrenci.ad} ${ogrenci.soyad}`}>
+                          {ogrenci.ad} {ogrenci.soyad} - {ogrenci.sinif}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="relative w-full sm:w-48">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <select
+                      value={selectedStatusFilter}
+                      onChange={(e) => setSelectedStatusFilter(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
+                    >
+                      <option value="all">Tüm Durumlar</option>
+                      <option value="bekliyor">Bekliyor</option>
+                      <option value="onaylandi">Onaylandı</option>
+                      <option value="reddedildi">Reddedildi</option>
+                    </select>
+                  </div>
+                  <div className="text-sm text-gray-500 flex items-center">
+                    Toplam {filteredDekontlar.length} dekont bulundu
+                  </div>
+                </div>
+
                 {dekontlar.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="mx-auto w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
@@ -1109,15 +1386,20 @@ export default function PanelPage() {
                           className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow border border-gray-100`}
                         >
                           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <h3 className="text-lg font-medium text-gray-900">
-                                  {dekont.stajlar?.ogrenciler?.ad} {dekont.stajlar?.ogrenciler?.soyad}
-                                </h3>
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getOnayDurumuRenk(dekont.onay_durumu)}`}>
-                                  {getOnayDurumuText(dekont.onay_durumu)}
-                                </span>
-                              </div>
+                           <div className="space-y-2">
+                             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                               <h3 className="text-lg font-medium text-gray-900">
+                                 {dekont.stajlar?.ogrenciler?.ad} {dekont.stajlar?.ogrenciler?.soyad}
+                               </h3>
+                               <div className="flex items-center">
+                                 <span className={`px-4 py-2 rounded-lg text-sm font-bold shadow-sm border ${getOnayDurumuRenk(dekont.onay_durumu)}`}>
+                                   {dekont.onay_durumu === 'bekliyor' && <Clock className="h-4 w-4 mr-2 inline" />}
+                                   {dekont.onay_durumu === 'onaylandi' && <CheckCircle className="h-4 w-4 mr-2 inline" />}
+                                   {dekont.onay_durumu === 'reddedildi' && <XCircle className="h-4 w-4 mr-2 inline" />}
+                                   {getOnayDurumuText(dekont.onay_durumu)}
+                                 </span>
+                               </div>
+                             </div>
                               <div className="flex flex-wrap gap-2 text-sm text-gray-500">
                                 {dekont.stajlar?.ogrenciler?.sinif && (
                                   <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded">
@@ -1130,7 +1412,19 @@ export default function PanelPage() {
                                   </span>
                                 )}
                                 <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-bold border border-indigo-200">
-                                  {aylar[dekont.ay - 1]} {dekont.yil}
+                                  {(() => {
+                                    // Aynı öğrenci, ay, yıl için dekont sayısını hesapla
+                                    const ayniDekontlar = dekontlar.filter(d =>
+                                      String(d.staj_id) === String(dekont.staj_id) &&
+                                      d.ay === dekont.ay &&
+                                      String(d.yil) === String(dekont.yil)
+                                    ).sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
+                                    
+                                    const dekontIndex = ayniDekontlar.findIndex(d => d.id === dekont.id);
+                                    const ekIndex = dekontIndex > 0 ? ` - ek${dekontIndex}` : '';
+                                    
+                                    return `${aylar[dekont.ay - 1]} ${dekont.yil}${ekIndex}`;
+                                  })()}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2 mt-2">
@@ -1142,7 +1436,11 @@ export default function PanelPage() {
                             <div className="flex items-center gap-2 self-end sm:self-auto">
                               {dekont.dosya_url && (
                                 <button
-                                  onClick={() => handleFileDownload(dekont.dosya_url!, `dekont-${dekont.stajlar?.ogrenciler?.ad}-${aylar[dekont.ay - 1]}-${dekont.yil}`)}
+                                  onClick={() => {
+                                    // Dosya URL'sinden filename'i çıkar
+                                    const filename = dekont.dosya_url!.split('/').pop() || 'dekont.pdf';
+                                    handleFileDownload(dekont.dosya_url!, filename);
+                                  }}
                                   className="p-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                                   title="Dekontu İndir"
                                 >
@@ -1164,18 +1462,22 @@ export default function PanelPage() {
                               )}
                             </div>
                           </div>
-                          <div className="flex justify-between items-end mt-2">
-                            <span className="text-xs font-bold text-green-600">
-                              Miktar: {dekont.miktar ? dekont.miktar.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' }) : '-'}
-                            </span>
-                            {dekont.created_at && (
-                              <span className="text-xs text-gray-400">
-                                {new Date(dekont.created_at).toLocaleString('tr-TR', {
-                                  day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                                })}
-                              </span>
-                            )}
-                          </div>
+                          {(dekont.miktar && dekont.miktar > 0) || dekont.created_at ? (
+                            <div className="flex justify-between items-end mt-2">
+                              {dekont.miktar && dekont.miktar > 0 && (
+                                <span className="text-xs font-bold text-green-600">
+                                  Ödenen: {dekont.miktar.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
+                                </span>
+                              )}
+                              {dekont.created_at && (
+                                <span className="text-xs text-gray-400">
+                                  {new Date(dekont.created_at).toLocaleString('tr-TR', {
+                                    day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                                  })}
+                                </span>
+                              )}
+                            </div>
+                          ) : null}
                         </div>
                       ))}
                     </div>
@@ -1267,6 +1569,16 @@ export default function PanelPage() {
                                     {belge.yukleyen_kisi}
                                   </div>
                                 )}
+                                {(() => {
+                                  const onayDurumu = getBelgeOnayDurumu(belge.onay_durumu);
+                                  const Icon = onayDurumu.icon;
+                                  return (
+                                    <div className={`flex items-center px-3 py-1.5 rounded-lg font-medium ${onayDurumu.bg} ${onayDurumu.color}`}>
+                                      <Icon className="h-4 w-4 mr-1.5" />
+                                      {onayDurumu.text}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             </div>
                           </div>
@@ -1356,9 +1668,37 @@ export default function PanelPage() {
                   required
                 >
                   <option value="">Ay Seçiniz</option>
-                  {aylar.map((ay, index) => (
-                    <option key={index} value={index + 1}>{ay}</option>
-                  ))}
+                  {aylar.map((ay, index) => {
+                    const ayIndex = index + 1;
+                    let isDisabled = false;
+                    
+                    // Öğrenci seçiliyse, başlangıç tarihinden önce dekont yüklenemez
+                    if (selectedOgrenci) {
+                      const startDate = new Date(selectedOgrenci.baslangic_tarihi);
+                      const startYear = startDate.getFullYear();
+                      const startMonth = startDate.getMonth() + 1;
+                      
+                      // Seçilen yıl başlangıç yılından küçükse disable
+                      if (dekontFormData.yil < startYear) {
+                        isDisabled = true;
+                      }
+                      // Aynı yıl ama ay başlangıç ayından küçükse disable
+                      else if (dekontFormData.yil === startYear && ayIndex < startMonth) {
+                        isDisabled = true;
+                      }
+                    }
+                    
+                    return (
+                      <option
+                        key={index}
+                        value={ayIndex}
+                        disabled={isDisabled}
+                        style={isDisabled ? { color: '#ccc', backgroundColor: '#f5f5f5' } : {}}
+                      >
+                        {ay} {isDisabled ? '(İş başlangıcından önce)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
               <div>
@@ -1369,9 +1709,30 @@ export default function PanelPage() {
                   required
                 >
                   <option value="">Yıl Seçiniz</option>
-                  {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i).map(yil => (
-                    <option key={yil} value={yil}>{yil}</option>
-                  ))}
+                  {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i).map(yil => {
+                    let isDisabled = false;
+                    
+                    // Öğrenci seçiliyse, başlangıç tarihinden önceki yıllar seçilemez
+                    if (selectedOgrenci) {
+                      const startDate = new Date(selectedOgrenci.baslangic_tarihi);
+                      const startYear = startDate.getFullYear();
+                      
+                      if (yil < startYear) {
+                        isDisabled = true;
+                      }
+                    }
+                    
+                    return (
+                      <option
+                        key={yil}
+                        value={yil}
+                        disabled={isDisabled}
+                        style={isDisabled ? { color: '#ccc', backgroundColor: '#f5f5f5' } : {}}
+                      >
+                        {yil} {isDisabled ? '(İş başlangıcından önce)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             </div>
@@ -1608,7 +1969,7 @@ export default function PanelPage() {
           <div className="flex items-center">
             <CheckCircle className="h-8 w-8 text-green-500 mr-3" />
             <p className="text-sm text-gray-600">
-              Dekont başarıyla yüklendi!
+              {successMessage}
             </p>
           </div>
           <div className="flex justify-end">
@@ -1643,87 +2004,203 @@ export default function PanelPage() {
       </Modal>
 
       {/* Bildirim Modal */}
-      <Modal isOpen={notificationModalOpen} onClose={() => setNotificationModalOpen(false)} title="Bildirimler">
+      <Modal
+        isOpen={notificationModalOpen}
+        onClose={() => {
+          setNotificationModalOpen(false);
+          setShowAllMessages(false);
+          setNotificationPage(1);
+        }}
+        title="Mesajlar"
+      >
         <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600">
-              {notifications.length} bildirim
-            </span>
-            {unreadCount > 0 && (
+          {/* Filter Controls */}
+          <div className="flex justify-between items-center pb-3 border-b border-gray-200">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => {
+                  setShowAllMessages(false);
+                  setNotificationPage(1);
+                }}
+                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                  !showAllMessages
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Okunmamış ({notifications.filter(n => !n.is_read).length})
+              </button>
+              <button
+                onClick={() => {
+                  setShowAllMessages(true);
+                  setNotificationPage(1);
+                }}
+                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                  showAllMessages
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Tümünü Göster ({notifications.length})
+              </button>
+            </div>
+            
+            {!showAllMessages && notifications.filter(n => !n.is_read).length > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="text-sm text-blue-600 hover:text-blue-800"
+                className="px-3 py-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium underline"
               >
                 Tümünü Okundu İşaretle
               </button>
             )}
           </div>
-          
-          <div className="max-h-96 overflow-y-auto space-y-3">
-            {notifications.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">Henüz bildirim yok</p>
-            ) : (
-              notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`p-3 rounded-lg border ${
-                    notification.is_read
-                      ? 'bg-gray-50 border-gray-200'
-                      : 'bg-blue-50 border-blue-200'
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h4 className="font-medium text-gray-900">{notification.title}</h4>
-                      <p className="text-sm text-gray-600 mt-1">{notification.content}</p>
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs text-gray-500">
-                          {new Date(notification.created_at).toLocaleString('tr-TR')}
-                        </span>
-                        <span className={`px-2 py-1 text-xs rounded ${
-                          notification.priority === 'high'
-                            ? 'bg-red-100 text-red-800'
-                            : notification.priority === 'normal'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-green-100 text-green-800'
-                        }`}>
-                          {notification.priority === 'high' ? 'Yüksek' :
-                           notification.priority === 'normal' ? 'Orta' : 'Düşük'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2 ml-3">
-                      {!notification.is_read && (
-                        <button
-                          onClick={() => markAsRead(notification.id)}
-                          className="text-blue-600 hover:text-blue-800"
-                          title="Okundu İşaretle"
+
+          {(() => {
+            // Filter messages based on selection
+            const filteredMessages = showAllMessages
+              ? notifications
+              : notifications.filter(n => !n.is_read);
+            
+            // Calculate pagination
+            const totalPages = Math.ceil(filteredMessages.length / NOTIFICATIONS_PER_PAGE);
+            const paginatedMessages = filteredMessages.slice(
+              (notificationPage - 1) * NOTIFICATIONS_PER_PAGE,
+              notificationPage * NOTIFICATIONS_PER_PAGE
+            );
+
+            return (
+              <>
+                {filteredMessages.length > 0 ? (
+                  <>
+                    {/* Messages List */}
+                    <div className="space-y-3 max-h-80 overflow-y-auto">
+                      {paginatedMessages.map((notification) => (
+                        <div
+                          key={notification.id}
+                          className={`p-4 rounded-lg border ${
+                            notification.is_read
+                              ? 'bg-gray-50 border-gray-200'
+                              : 'bg-blue-50 border-blue-200'
+                          }`}
                         >
-                          <CheckCircle className="h-4 w-4" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => deleteNotification(notification.id)}
-                        className="text-red-600 hover:text-red-800"
-                        title="Sil"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h4 className={`font-semibold ${
+                                  notification.is_read ? 'text-gray-700' : 'text-gray-900'
+                                }`}>
+                                  {notification.title}
+                                </h4>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  notification.priority === 'high' ? 'bg-red-100 text-red-700' :
+                                  notification.priority === 'normal' ? 'bg-blue-100 text-blue-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {notification.priority === 'high' ? 'Yüksek' :
+                                   notification.priority === 'normal' ? 'Normal' : 'Düşük'}
+                                </span>
+                                {!notification.is_read && (
+                                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                )}
+                              </div>
+                              <p className={`text-sm mb-3 ${
+                                notification.is_read ? 'text-gray-600' : 'text-gray-700'
+                              }`}>
+                                {notification.content}
+                              </p>
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs text-gray-500">
+                                  <div>Gönderen: {notification.sent_by}</div>
+                                  <div>Tarih: {new Date(notification.created_at).toLocaleString('tr-TR')}</div>
+                                  {notification.is_read && notification.read_at && (
+                                    <div>Okunma: {new Date(notification.read_at).toLocaleString('tr-TR')}</div>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  {!notification.is_read && (
+                                    <button
+                                      onClick={() => markAsRead(notification.id)}
+                                      className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                                    >
+                                      Okundu olarak işaretle
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => deleteNotification(notification.id)}
+                                    className="text-red-600 hover:text-red-800"
+                                    title="Sil"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
+
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                      <div className="flex justify-center items-center gap-2 pt-3 border-t border-gray-200">
+                        <button
+                          onClick={() => setNotificationPage(p => Math.max(1, p - 1))}
+                          disabled={notificationPage === 1}
+                          className="px-3 py-1 text-sm rounded bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Önceki
+                        </button>
+                        <span className="text-sm text-gray-700 px-2">
+                          Sayfa {notificationPage} / {totalPages}
+                        </span>
+                        <button
+                          onClick={() => setNotificationPage(p => Math.min(totalPages, p + 1))}
+                          disabled={notificationPage === totalPages}
+                          className="px-3 py-1 text-sm rounded bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Sonraki
+                        </button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center py-8">
+                    <Bell className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-4 text-lg font-medium text-gray-900">
+                      {showAllMessages ? 'Mesaj Bulunamadı' : 'Okunmamış Mesaj Yok'}
+                    </h3>
+                    <p className="mt-2 text-sm text-gray-500">
+                      {showAllMessages
+                        ? 'Henüz size gönderilmiş mesaj bulunmamaktadır.'
+                        : 'Tüm mesajlarınızı okudunuz! 🎉'}
+                    </p>
                   </div>
-                </div>
-              ))
-            )}
-          </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
+        
+        <div className="flex justify-end pt-4 border-t border-gray-200">
+          <button
+            onClick={() => {
+              setNotificationModalOpen(false);
+              setShowAllMessages(false);
+              setNotificationPage(1);
+            }}
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            Kapat
+          </button>
         </div>
       </Modal>
 
       {/* PIN Değiştirme Modal */}
       <Modal isOpen={pinChangeModalOpen} onClose={() => setPinChangeModalOpen(false)} title="PIN Değiştir">
         <div className="space-y-4">
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800">
-              <strong>Güvenlik Uyarısı:</strong> Varsayılan PIN'inizi değiştirmeniz önemle tavsiye edilir.
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>Güvenlik:</strong> PIN'inizi değiştirerek hesabınızın güvenliğini artırabilirsiniz.
             </p>
           </div>
           

@@ -51,6 +51,17 @@ export async function POST(request: Request) {
       )
     }
 
+    // First create a User record
+    const userEmail = email?.trim() || `${name.toLowerCase()}.${surname.toLowerCase()}@okul.local`
+    const user = await prisma.user.create({
+      data: {
+        email: userEmail,
+        password: 'temp123', // Temporary password, should be changed on first login
+        role: 'TEACHER'
+      }
+    })
+
+    // Then create the TeacherProfile with the user ID
     const teacher = await prisma.teacherProfile.create({
       data: {
         name: name.trim(),
@@ -59,7 +70,7 @@ export async function POST(request: Request) {
         email: email?.trim() || null,
         pin: pin.trim(),
         alanId: alanId || null,
-        userId: '' // This will need to be handled properly when user management is implemented
+        userId: user.id
       },
       include: {
         alan: true,

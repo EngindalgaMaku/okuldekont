@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { signIn, getSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { GraduationCap, Mail, Lock, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { GraduationCap, Mail, Lock, LogIn, AlertCircle, Eye, EyeOff, Wifi, WifiOff } from 'lucide-react'
 
 export default function AdminLoginPage() {
   const router = useRouter()
@@ -12,6 +12,38 @@ export default function AdminLoginPage() {
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  
+  // Connection status states
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
+  const [latency, setLatency] = useState<number | null>(null)
+
+  // Check database connection status
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const response = await fetch('/api/health/database')
+        const data = await response.json()
+        
+        if (response.ok && data.status === 'connected') {
+          setConnectionStatus('connected')
+          setLatency(data.latency)
+        } else {
+          setConnectionStatus('disconnected')
+          setLatency(null)
+        }
+      } catch (error) {
+        console.error('Connection check failed:', error)
+        setConnectionStatus('disconnected')
+        setLatency(null)
+      }
+    }
+
+    checkConnection()
+    
+    // Check connection every 30 seconds
+    const interval = setInterval(checkConnection, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -148,6 +180,30 @@ export default function AdminLoginPage() {
             )}
           </button>
         </form>
+        
+        {/* Connection Status */}
+        <div className="mt-6 pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-center">
+            {connectionStatus === 'checking' ? (
+              <div className="flex items-center text-sm text-gray-500">
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400 mr-2"></div>
+                Bağlantı durumu kontrol ediliyor...
+              </div>
+            ) : connectionStatus === 'connected' ? (
+              <div className="flex items-center text-sm text-green-600">
+                <Wifi className="h-4 w-4 mr-2" />
+                <span>
+                  Bağlantı aktif {latency && <span className="text-green-500">({latency}ms)</span>}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center text-sm text-red-600">
+                <WifiOff className="h-4 w-4 mr-2" />
+                Bağlantı sorunu
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

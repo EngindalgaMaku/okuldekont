@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 export async function GET(request: Request) {
   try {
@@ -12,6 +10,8 @@ export async function GET(request: Request) {
     if (!term || term.length < 2) {
       return NextResponse.json([])
     }
+
+    console.log('🔍 Teacher search:', { term, limit })
 
     const teachers = await prisma.teacherProfile.findMany({
       where: {
@@ -39,8 +39,10 @@ export async function GET(request: Request) {
       take: limit
     })
 
+    console.log('📊 Teacher search results:', teachers.length, 'found')
+
     // Format to match expected interface
-    const formattedTeachers = teachers.map((teacher: any) => ({
+    const formattedTeachers = teachers.map((teacher) => ({
       id: teacher.id,
       name: teacher.name,
       surname: teacher.surname
@@ -48,9 +50,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json(formattedTeachers)
   } catch (error) {
-    console.error('Teacher search error:', error)
+    console.error('💥 Teacher search error:', error)
     return NextResponse.json(
-      { error: 'Teacher search failed' },
+      { error: 'Teacher search failed', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }

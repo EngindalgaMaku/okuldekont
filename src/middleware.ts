@@ -22,12 +22,10 @@ export default withAuth(
           return token.role === 'ADMIN'
         }
         
-        if (pathname.startsWith('/ogretmen')) {
-          return token.role === 'TEACHER'
-        }
-        
-        if (pathname.startsWith('/isletme')) {
-          return token.role === 'COMPANY'
+        // Öğretmen ve işletme rotaları kendi auth sistemlerini kullanıyor
+        // sessionStorage tabanlı authentication
+        if (pathname.startsWith('/ogretmen') || pathname.startsWith('/isletme')) {
+          return true
         }
         
         return true
@@ -39,11 +37,12 @@ export default withAuth(
 export const config = {
   matcher: [
     '/admin/((?!login).)*',  // Exclude /admin/login from middleware
-    '/ogretmen/((?!login).)*',
-    '/isletme/((?!login).)*',
-    '/api/admin/:path*',
-    '/api/ogretmen/:path*',
-    '/api/isletme/:path*',
+    // Remove /ogretmen from matcher since it uses its own auth system
+    // Remove /isletme from matcher since it uses its own auth system
+    '/api/admin/((?!teachers|dekontlar|belgeler|internships).)*', // Exclude teacher-related APIs from middleware
+    // Remove /api/ogretmen from matcher since teachers use their own auth
+    // Remove /api/isletme from matcher since companies use their own auth
+    // Remove /api/system-settings from matcher since both teacher and company panels use it
     '/api/search/:path*'
   ]
 }

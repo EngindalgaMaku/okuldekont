@@ -14,7 +14,13 @@ export async function GET(
     const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp'];
     const hasValidExtension = allowedExtensions.some(ext => filename.toLowerCase().endsWith(ext));
     
-    if (!filename.includes('dekont_') || !hasValidExtension) {
+    // Güvenlik kontrolü: dekont klasöründen sadece valid uzantılı dosyalar
+    // Eski format: dekont_ ile başlayan dosyalar
+    // Yeni format: structured naming (ad_soyad_... formatı)
+    const isValidDekontFile = filename.includes('dekont_') ||
+      /^[a-z]+_[a-z]+_\d+[a-z]*_\d*_[a-z_]+_[a-z_]+_[a-z]+_\d{4}(_ek\d+)?\./.test(filename);
+    
+    if (!isValidDekontFile || !hasValidExtension) {
       return NextResponse.json({ error: 'Geçersiz dosya formatı' }, { status: 400 });
     }
 

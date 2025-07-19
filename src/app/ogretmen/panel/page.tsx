@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, FileText, LogOut, Loader, User, Receipt, GraduationCap, CheckCircle, Clock, XCircle, Download, Plus, Upload, Trash2, Calendar, Loader2, AlertTriangle, Search, Filter, Bell } from 'lucide-react'
+import { Building2, FileText, LogOut, Loader, User, Receipt, GraduationCap, CheckCircle, Clock, XCircle, Download, Plus, Upload, Trash2, Calendar, Loader2, AlertTriangle, Search, Filter, Bell, Key, ChevronDown, ChevronUp } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import DekontUploadForm from '@/components/ui/DekontUpload'
 import PinChangeModal from '@/components/ui/PinChangeModal'
@@ -16,7 +16,8 @@ import {
   Belge,
   Notification,
   Teacher,
-  ErrorModal
+  ErrorModal,
+  SuccessModal
 } from '@/types/teacher-panel'
 
 import {
@@ -29,6 +30,7 @@ import {
   aylar,
   formatBelgeTur,
   getDurum,
+  getBelgeDurum,
   getCompanyStyles,
   handleFileDownload,
   handleFileView
@@ -42,6 +44,10 @@ const TeacherPanel = () => {
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [isletmeler, setIsletmeler] = useState<Isletme[]>([]);
   const [dekontlar, setDekontlar] = useState<Dekont[]>([]);
+  const [filteredDekontlar, setFilteredDekontlar] = useState<Dekont[]>([]);
+  const [dekontSearchTerm, setDekontSearchTerm] = useState('');
+  const [isletmeFilter, setIsletmeFilter] = useState<string>('all');
+  const [onayDurumuFilter, setOnayDurumuFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'isletmeler' | 'dekontlar' | 'belgeler'>('isletmeler');
   const [dekontPage, setDekontPage] = useState(1);
   const DEKONTLAR_PER_PAGE = 5;
@@ -58,6 +64,7 @@ const TeacherPanel = () => {
   const [belgeTurFilter, setBelgeTurFilter] = useState<string>('all');
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [errorModal, setErrorModal] = useState({ isOpen: false, title: '', message: '' });
+  const [successModal, setSuccessModal] = useState<SuccessModal>({ isOpen: false, title: '', message: '' });
   const [belgeSilModalOpen, setBelgeSilModalOpen] = useState(false);
   const [selectedBelge, setSelectedBelge] = useState<Belge | null>(null);
   const [schoolName, setSchoolName] = useState('Okul Adı');
@@ -68,10 +75,19 @@ const TeacherPanel = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationModalOpen, setNotificationModalOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showAllMessages, setShowAllMessages] = useState(false);
+  const [notificationPage, setNotificationPage] = useState(1);
+  const NOTIFICATIONS_PER_PAGE = 5;
   
   // PIN change modal state
   const [pinChangeModalOpen, setPinChangeModalOpen] = useState(false);
   const [teacherPin, setTeacherPin] = useState('');
+  
+  // Collapsible işletme öğrenci listesi için state
+  const [expandedIsletmeler, setExpandedIsletmeler] = useState<{[key: string]: boolean}>({});
+  
+  // Collapsible dekont grupları için state
+  const [expandedStudents, setExpandedStudents] = useState<{[key: string]: boolean}>({});
   
   // Ek dekont uyarı modal state
   const [ekDekontModalOpen, setEkDekontModalOpen] = useState(false);
@@ -84,10 +100,13 @@ const TeacherPanel = () => {
   } | null>(null);
 
   
-  // Bu ay için dekont eksik olan öğrencileri tespit et
+  // Önceki ay için dekont eksik olan öğrencileri tespit et
   const getEksikDekontOgrenciler = () => {
-    const currentMonth = getCurrentMonth();
-    const currentYear = getCurrentYear();
+    const currentDate = new Date();
+    const previousMonth = currentDate.getMonth(); // 0-based, bu bize önceki ayı verir (getCurrentMonth() - 1)
+    const previousYear = previousMonth === 0 ? currentDate.getFullYear() - 1 : currentDate.getFullYear();
+    const targetMonth = previousMonth === 0 ? 12 : previousMonth;
+    
     const tumOgrenciler: Array<{id: string, ad: string, soyad: string, sinif: string, no: string, isletme_ad: string, baslangic_tarihi: string, staj_id?: string}> = [];
     
     isletmeler.forEach(isletme => {
@@ -102,13 +121,47 @@ const TeacherPanel = () => {
     return tumOgrenciler.filter(ogrenci => {
       const ogrenciDekontlari = dekontlar.filter(d =>
         d.ogrenci_ad === `${ogrenci.ad} ${ogrenci.soyad}` &&
-        d.ay === currentMonth &&
-        d.yil === currentYear
+        d.ay === targetMonth &&
+        d.yil === previousYear
       );
       return ogrenciDekontlari.length === 0;
     });
   };
 
+
+  // Öğrencinin başlangıç tarihinden önceki aya kadar olan ayları getir
+  const getMonthsFromStartToPrevious = (startDate: string): { month: number, year: number, label: string }[] => {
+    const start = new Date(startDate);
+    const currentDate = new Date();
+    const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+    
+    const months: { month: number, year: number, label: string }[] = [];
+    const current = new Date(start.getFullYear(), start.getMonth(), 1);
+    
+    while (current <= previousMonth) {
+      months.push({
+        month: current.getMonth() + 1,
+        year: current.getFullYear(),
+        label: aylar[current.getMonth()].substring(0, 3) // İlk 3 harf (Oca, Şub, vb.)
+      });
+      current.setMonth(current.getMonth() + 1);
+    }
+    
+    return months.slice(-6); // Son 6 ayı göster (alan tasarrufu için)
+  };
+
+  // Belirli ay için dekont durumunu kontrol et
+  const getDekontStatus = (ogrenciAd: string, month: number, year: number): 'approved' | 'pending' | 'none' => {
+    const dekont = dekontlar.find(d =>
+      d.ogrenci_ad === ogrenciAd &&
+      d.ay === month &&
+      d.yil === year
+    );
+    
+    if (!dekont) return 'none';
+    if (dekont.onay_durumu === 'onaylandi') return 'approved';
+    return 'pending';
+  };
 
   const eksikDekontOgrenciler = getEksikDekontOgrenciler();
 
@@ -167,6 +220,7 @@ const TeacherPanel = () => {
         if (dekontlarResponse.status === 'fulfilled' && dekontlarResponse.value.ok) {
           const dekontData = await dekontlarResponse.value.json();
           setDekontlar(dekontData);
+          setFilteredDekontlar(dekontData);
         }
 
         // Belgeler data işle
@@ -360,6 +414,46 @@ const TeacherPanel = () => {
     setFilteredBelgeler(filtered);
   }, [belgeler, belgeSearchTerm, belgeTurFilter]);
 
+  // Dekont filtreleme ve sıralama
+  useEffect(() => {
+    let filtered = dekontlar;
+
+    if (dekontSearchTerm) {
+      filtered = filtered.filter(dekont =>
+        dekont.ogrenci_ad?.toLowerCase().includes(dekontSearchTerm.toLowerCase()) ||
+        dekont.isletme_ad?.toLowerCase().includes(dekontSearchTerm.toLowerCase()) ||
+        dekont.yukleyen_kisi?.toLowerCase().includes(dekontSearchTerm.toLowerCase())
+      );
+    }
+
+    if (isletmeFilter !== 'all') {
+      filtered = filtered.filter(dekont => dekont.isletme_ad === isletmeFilter);
+    }
+
+    if (onayDurumuFilter !== 'all') {
+      filtered = filtered.filter(dekont => dekont.onay_durumu === onayDurumuFilter);
+    }
+
+    // Kronolojik sıralama - en yeni ay en üstte
+    filtered = filtered.sort((a, b) => {
+      // Önce yıla göre sırala (büyükten küçüğe)
+      if (a.yil !== b.yil) {
+        return b.yil - a.yil;
+      }
+      // Yıl aynıysa aya göre sırala (büyükten küçüğe)
+      if (a.ay !== b.ay) {
+        return b.ay - a.ay;
+      }
+      // Ay ve yıl aynıysa oluşturulma tarihine göre sırala (en yeni en üstte)
+      if (a.created_at && b.created_at) {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+      return 0;
+    });
+
+    setFilteredDekontlar(filtered);
+  }, [dekontlar, dekontSearchTerm, isletmeFilter, onayDurumuFilter]);
+
   const fetchOgretmenData = async (teacherId: string) => {
     setLoading(true);
     try {
@@ -386,6 +480,7 @@ const TeacherPanel = () => {
       if (dekontlarResponse.status === 'fulfilled' && dekontlarResponse.value.ok) {
         const dekontData = await dekontlarResponse.value.json();
         setDekontlar(dekontData);
+        setFilteredDekontlar(dekontData);
       }
 
       // Belgeler data işle
@@ -424,10 +519,95 @@ const TeacherPanel = () => {
 
   const handlePinChangeSuccess = () => {
     setPinChangeModalOpen(false);
+    setSuccessModal({
+      isOpen: true,
+      title: 'PIN Başarıyla Değiştirildi',
+      message: 'PIN kodunuz güvenli bir şekilde güncellenmiştir. Yeni PIN kodunuzu unutmayın!'
+    });
     if (teacher) {
       fetchOgretmenData(teacher.id);
       fetchNotifications(teacher.id);
     }
+  };
+
+  // İşletme öğrenci listesi toggle fonksiyonu
+  const toggleIsletmeExpanded = (isletmeId: string) => {
+    setExpandedIsletmeler(prev => ({
+      ...prev,
+      [isletmeId]: !prev[isletmeId]
+    }));
+  };
+
+  // Dekont grupları toggle fonksiyonu
+  const toggleStudentExpanded = (studentKey: string) => {
+    setExpandedStudents(prev => ({
+      ...prev,
+      [studentKey]: !prev[studentKey]
+    }));
+  };
+
+  // Dekontları işletme ve öğrenciye göre gruplandır
+  const groupDekontsByStudent = () => {
+    const groups: {[key: string]: {
+      students: {[key: string]: {student: any, dekontlar: any[], count: number}},
+      totalCount: number
+    }} = {};
+    
+    filteredDekontlar.forEach(dekont => {
+      const companyKey = dekont.isletme_ad;
+      const studentKey = dekont.ogrenci_ad;
+      
+      if (!groups[companyKey]) {
+        groups[companyKey] = {
+          students: {},
+          totalCount: 0
+        };
+      }
+      
+      if (!groups[companyKey].students[studentKey]) {
+        // İşletme listesinden öğrenci detaylarını bul
+        const isletme = isletmeler.find(i => i.ad === dekont.isletme_ad);
+        const ogrenci = isletme?.ogrenciler.find(o => `${o.ad} ${o.soyad}` === dekont.ogrenci_ad);
+        
+        groups[companyKey].students[studentKey] = {
+          student: {
+            name: dekont.ogrenci_ad,
+            company: dekont.isletme_ad,
+            sinif: ogrenci?.sinif || '',
+            no: ogrenci?.no || ''
+          },
+          dekontlar: [],
+          count: 0
+        };
+      }
+      
+      groups[companyKey].students[studentKey].dekontlar.push(dekont);
+      groups[companyKey].students[studentKey].count++;
+      groups[companyKey].totalCount++;
+    });
+    
+    return groups;
+  };
+
+  // Belgeleri işletmeye göre gruplandır
+  const groupBelgelerByCompany = () => {
+    const groups: {[key: string]: {belgeler: any[], count: number}} = {};
+    
+    filteredBelgeler.forEach(belge => {
+      const companyKey = belge.isletme_ad;
+      
+      if (!groups[companyKey]) {
+        groups[companyKey] = {
+          belgeler: [],
+          count: 0
+        };
+      }
+      
+      groups[companyKey].belgeler.push(belge);
+      groups[companyKey].count++;
+    });
+    
+    return groups;
   };
 
   const handleLogout = () => {
@@ -459,6 +639,7 @@ const TeacherPanel = () => {
 
         // State'i güncelle
         setDekontlar(prevDekontlar => prevDekontlar.filter(d => d.id !== dekont.id));
+        setFilteredDekontlar(prevFiltered => prevFiltered.filter(d => d.id !== dekont.id));
 
       } catch (error: any) {
         setErrorModal({
@@ -475,44 +656,13 @@ const TeacherPanel = () => {
   const handleOpenDekontUpload = async (ogrenci: Ogrenci, isletme: Isletme) => {
     const stajId = await findStajId(ogrenci.id, isletme.id);
     if (stajId) {
-      // Bu öğrencinin bu ay için mevcut dekontlarını kontrol et
+      // Güncel ay ve gelecek aylar için dekont yüklemeyi engelle
       const currentMonth = getCurrentMonth();
       const currentYear = getCurrentYear();
       
-      const mevcutDekontlar = dekontlar.filter(d =>
-        d.ogrenci_ad === `${ogrenci.ad} ${ogrenci.soyad}` &&
-        d.ay === currentMonth &&
-        d.yil === currentYear
-      );
-      
-      // Onaylanmış dekont varsa yükleme yapılamaz
-      const onaylanmisDekont = mevcutDekontlar.find(d => d.onay_durumu === 'onaylandi');
-      if (onaylanmisDekont) {
-        const ayAdi = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-                     'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
-        setErrorModal({
-          isOpen: true,
-          title: 'Dekont Yüklenemez',
-          message: `${ayAdi[currentMonth - 1]} ${currentYear} ayı için onaylanmış dekont bulunmaktadır. O ayla ilgili işlemler kapanmıştır.`
-        });
-        return;
-      }
-      
-      // Beklemede dekont varsa ek dekont uyarısı göster
-      const beklemedeDekont = mevcutDekontlar.find(d => d.onay_durumu === 'bekliyor');
-      if (beklemedeDekont) {
-        setEkDekontData({
-          ogrenci,
-          isletme,
-          ay: currentMonth,
-          yil: currentYear,
-          mevcutDekontSayisi: mevcutDekontlar.length
-        });
-        setEkDekontModalOpen(true);
-        return;
-      }
-      
-      // Normal dekont yükleme
+      // Dekont yüklemek için seçilen ay/yıl modal'da belirleneceği için
+      // şimdilik sadece genel kontrolü yapıyoruz
+      // Normal dekont yükleme - modal'da ay kısıtlaması uygulanacak
       setSelectedStudent({ ...ogrenci, staj_id: stajId.toString() });
       setSelectedIsletme(isletme);
       setDekontUploadModalOpen(true);
@@ -591,6 +741,7 @@ const TeacherPanel = () => {
       };
 
       setDekontlar(prev => [formattedDekont, ...prev]);
+      setFilteredDekontlar(prev => [formattedDekont, ...prev]);
       setDekontUploadModalOpen(false);
       
       // Başarı modal'ını göster
@@ -643,14 +794,30 @@ const TeacherPanel = () => {
 
       const result = await response.json();
       
+      console.log('API Response:', result); // Debug için
+      
+      // API response'unun doğru formatta olduğundan emin ol
+      const newBelge: Belge = {
+        id: result.id,
+        isletme_ad: result.isletme_ad,
+        dosya_adi: result.dosya_adi,
+        dosya_url: result.dosya_url,
+        belge_turu: result.belge_turu,
+        yukleme_tarihi: result.yukleme_tarihi,
+        yukleyen_kisi: result.yukleyen_kisi,
+        status: result.status || 'PENDING',
+        onaylanma_tarihi: result.onaylanma_tarihi,
+        red_nedeni: result.red_nedeni
+      };
+      
       // Yeni belgeyi state'e ekle
-      setBelgeler(prev => [result, ...prev]);
-      setFilteredBelgeler(prev => [result, ...prev]);
+      setBelgeler(prev => [newBelge, ...prev]);
+      setFilteredBelgeler(prev => [newBelge, ...prev]);
       
       setBelgeUploadModalOpen(false);
       setSelectedFile(null);
       
-      setErrorModal({
+      setSuccessModal({
         isOpen: true,
         title: 'Başarılı',
         message: 'Belge başarıyla yüklendi!'
@@ -662,6 +829,53 @@ const TeacherPanel = () => {
         isOpen: true,
         title: 'Belge Yükleme Hatası',
         message: `Belge yüklenirken bir hata oluştu: ${error.message}`
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Belge silme fonksiyonu
+  const handleBelgeSil = async (belge: Belge) => {
+    // Onaylanmış belgelerin silinmesini engelle
+    if (belge.status === 'APPROVED') {
+      setErrorModal({
+        isOpen: true,
+        title: 'Silme İşlemi Yapılamaz',
+        message: 'Onaylanmış belgeler silinemez.'
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      const response = await fetch(`/api/admin/belgeler/${belge.id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Belge silinirken hata oluştu');
+      }
+
+      // State'i güncelle
+      setBelgeler(prev => prev.filter(b => b.id !== belge.id));
+      setFilteredBelgeler(prev => prev.filter(b => b.id !== belge.id));
+
+      setBelgeSilModalOpen(false);
+      
+      setSuccessModal({
+        isOpen: true,
+        title: 'Başarılı',
+        message: 'Belge başarıyla silindi!'
+      });
+
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        title: 'Silme Hatası',
+        message: `Belge silinirken bir sorun oluştu: ${error.message}`
       });
     } finally {
       setIsSubmitting(false);
@@ -698,11 +912,14 @@ const TeacherPanel = () => {
 
 
   // Pagination logic for dekontlar
-  const totalDekontPages = Math.ceil(dekontlar.length / DEKONTLAR_PER_PAGE);
-  const paginatedDekontlar = dekontlar.slice(
+  const totalDekontPages = Math.ceil(filteredDekontlar.length / DEKONTLAR_PER_PAGE);
+  const paginatedDekontlar = filteredDekontlar.slice(
     (dekontPage - 1) * DEKONTLAR_PER_PAGE,
     dekontPage * DEKONTLAR_PER_PAGE
   );
+
+  // Get unique companies for filter
+  const uniqueCompanies = Array.from(new Set(dekontlar.map(d => d.isletme_ad))).filter(Boolean);
 
   return (
     <div className="min-h-screen flex flex-col pb-16">
@@ -749,6 +966,16 @@ const TeacherPanel = () => {
                   </span>
                 )}
                 <span className="sr-only">Bildirimler</span>
+              </button>
+              
+              {/* PIN Değiştirme Butonu */}
+              <button
+                onClick={() => setPinChangeModalOpen(true)}
+                className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
+                title="PIN Değiştir"
+              >
+                <Key className="h-5 w-5 text-white" />
+                <span className="sr-only">PIN Değiştir</span>
               </button>
               
               <button
@@ -801,6 +1028,79 @@ const TeacherPanel = () => {
       {/* Main Content */}
       <main className="relative -mt-32 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Unread Messages Section */}
+          {notifications.filter(n => !n.is_read).length > 0 && (
+            <div className="mb-6 rounded-2xl shadow-lg ring-1 ring-black ring-opacity-5 p-6 bg-gradient-to-r from-blue-50 to-indigo-100 border-l-4 border-indigo-500">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <Bell className="h-6 w-6 text-indigo-600" />
+                </div>
+                <div className="ml-3 flex-1">
+                  <h3 className="text-lg font-medium text-indigo-800">
+                    📨 Okunmamış Mesajlarınız ({notifications.filter(n => !n.is_read).length})
+                  </h3>
+                  <div className="mt-4 space-y-3">
+                    {notifications.filter(n => !n.is_read).slice(0, 3).map((notification) => (
+                      <div
+                        key={notification.id}
+                        className="bg-white rounded-lg p-4 shadow-sm border border-indigo-200"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h4 className="font-semibold text-gray-900">{notification.title}</h4>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                notification.priority === 'high' ? 'bg-red-100 text-red-700' :
+                                notification.priority === 'normal' ? 'bg-blue-100 text-blue-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {notification.priority === 'high' ? 'Yüksek' :
+                                 notification.priority === 'normal' ? 'Normal' : 'Düşük'}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-700 mb-3">{notification.content}</p>
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-gray-500">
+                                Gönderen: {notification.sent_by} | {new Date(notification.created_at).toLocaleString('tr-TR')}
+                              </span>
+                              <button
+                                onClick={() => markAsRead(notification.id)}
+                                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                              >
+                                Okundu olarak işaretle
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {notifications.filter(n => !n.is_read).length > 3 && (
+                      <div className="text-center pt-2">
+                        <p className="text-sm text-indigo-700">
+                          +{notifications.filter(n => !n.is_read).length - 3} mesaj daha var
+                        </p>
+                        <button
+                          onClick={() => setNotificationModalOpen(true)}
+                          className="mt-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium underline"
+                        >
+                          Tüm mesajları görüntüle
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex justify-end pt-3 border-t border-indigo-200">
+                      <button
+                        onClick={markAllAsRead}
+                        className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
+                      >
+                        Tümünü Okundu İşaretle
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Dekont Takip Uyarı Sistemi */}
           {eksikDekontOgrenciler.length > 0 && (
             <div className={`mb-6 rounded-2xl shadow-lg ring-1 ring-black ring-opacity-5 p-6 ${
@@ -836,10 +1136,10 @@ const TeacherPanel = () => {
                   }`}>
                     <p className="font-medium mb-2">
                       {isGecikme()
-                        ? `${aylar[getCurrentMonth() - 1]} ayı dekont yükleme süresi geçti! İşletmeler devlet katkı payı alamayabilir.`
+                        ? `${aylar[getCurrentMonth() - 2 < 0 ? 11 : getCurrentMonth() - 2]} ayı dekont yükleme süresi geçti! İşletmeler devlet katkı payı alamayabilir.`
                         : isKritikSure()
-                        ? `${aylar[getCurrentMonth() - 1]} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
-                        : `${aylar[getCurrentMonth() - 1]} ayı için eksik dekontlar var.`
+                        ? `${aylar[getCurrentMonth() - 2 < 0 ? 11 : getCurrentMonth() - 2]} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
+                        : `${aylar[getCurrentMonth() - 2 < 0 ? 11 : getCurrentMonth() - 2]} ayı için eksik dekontlar var.`
                       }
                     </p>
                     <p className="mb-3">
@@ -1018,54 +1318,92 @@ const TeacherPanel = () => {
                     </div>
                     
                     <div className="mt-4 space-y-3">
-                      <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <button
+                        onClick={() => toggleIsletmeExpanded(isletme.id)}
+                        className="w-full text-left text-sm font-medium text-gray-700 flex items-center gap-2 hover:text-gray-900 transition-colors p-2 rounded-lg hover:bg-gray-50"
+                      >
                         <GraduationCap className="h-4 w-4 text-gray-400" />
-                        Öğrenciler ({isletme.ogrenciler.length})
-                      </h4>
+                        <span>Öğrenciler ({isletme.ogrenciler.length})</span>
+                        {expandedIsletmeler[isletme.id] ? (
+                          <ChevronUp className="h-4 w-4 text-gray-500 ml-auto" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-gray-500 ml-auto" />
+                        )}
+                      </button>
                       
-                      {isletme.ogrenciler.map((ogrenci) => (
-                        <div key={ogrenci.id} className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 space-y-3 border border-blue-100 hover:border-blue-200 transition-all duration-200 hover:shadow-md">
-                          <div className="flex items-center">
-                            <div className="h-10 w-10 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg flex items-center justify-center">
-                              <User className="h-5 w-5 text-indigo-600" />
-                            </div>
-                            <div className="ml-3">
-                              <p className="text-sm font-medium text-gray-900">{ogrenci.ad} {ogrenci.soyad}</p>
-                              <div className="flex items-center space-x-3 mt-1 text-xs">
-                                <div className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-md font-medium">
-                                  {ogrenci.sinif}
+                      {expandedIsletmeler[isletme.id] && (
+                        <>
+                          {isletme.ogrenciler.map((ogrenci) => (
+                            <div key={ogrenci.id} className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 space-y-3 border border-blue-100 hover:border-blue-200 transition-all duration-200 hover:shadow-md">
+                              <div className="flex items-center">
+                                <div className="h-10 w-10 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg flex items-center justify-center">
+                                  <User className="h-5 w-5 text-indigo-600" />
                                 </div>
-                                <div className="px-2 py-1 bg-purple-50 text-purple-700 rounded-md font-medium">
-                                  No: {ogrenci.no}
+                                <div className="ml-3">
+                                  <p className="text-sm font-medium text-gray-900">{ogrenci.ad} {ogrenci.soyad}</p>
+                                  <div className="flex items-center space-x-3 mt-1 text-xs">
+                                    <div className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-md font-medium">
+                                      {ogrenci.sinif}
+                                    </div>
+                                    <div className="px-2 py-1 bg-purple-50 text-purple-700 rounded-md font-medium">
+                                      No: {ogrenci.no}
+                                    </div>
+                                    <div className="flex items-center gap-1 text-gray-500">
+                                      <Calendar className="h-3 w-3" />
+                                      <span>Başlangıç: {new Date(ogrenci.baslangic_tarihi).toLocaleDateString('tr-TR')}</span>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-1 text-gray-500">
-                                  <Calendar className="h-3 w-3" />
-                                  <span>Başlangıç: {new Date(ogrenci.baslangic_tarihi).toLocaleDateString('tr-TR')}</span>
+                              </div>
+                              <div className="flex justify-end">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleOpenDekontUpload(ogrenci, isletme); }}
+                                  className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                                  title="Dekont Yükle"
+                                >
+                                  <Upload className="h-4 w-4 mr-1.5" />
+                                  Dekont Yükle
+                                </button>
+                              </div>
+                              
+                              {/* Dekont Durumu Tablosu */}
+                              <div className="mt-3 pt-3 border-t border-blue-200">
+                                <div className="text-xs font-medium text-gray-600 mb-2">Dekont Durumu:</div>
+                                <div className="flex flex-wrap gap-1">
+                                  {getMonthsFromStartToPrevious(ogrenci.baslangic_tarihi).map((monthData) => {
+                                    const dekontStatus = getDekontStatus(`${ogrenci.ad} ${ogrenci.soyad}`, monthData.month, monthData.year);
+                                    return (
+                                      <div key={`${monthData.year}-${monthData.month}`} className="flex flex-col items-center">
+                                        <div className="text-xs font-medium text-gray-600 mb-1">
+                                          {monthData.label}
+                                        </div>
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                          dekontStatus === 'approved'
+                                            ? 'bg-green-100 text-green-600'
+                                            : dekontStatus === 'pending'
+                                            ? 'bg-yellow-100 text-yellow-600'
+                                            : 'bg-red-100 text-red-600'
+                                        }`}>
+                                          {dekontStatus === 'approved' ? '✓' : dekontStatus === 'pending' ? '?' : '✗'}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             </div>
-                          </div>
-                          <div className="flex justify-end">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleOpenDekontUpload(ogrenci, isletme); }}
-                              className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                              title="Dekont Yükle"
-                            >
-                              <Upload className="h-4 w-4 mr-1.5" />
-                              Dekont Yükle
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      
-                      {isletme.ogrenciler.length === 0 && (
-                        <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-                          <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
-                            <User className="h-8 w-8 text-gray-400" />
-                          </div>
-                          <h3 className="mt-4 text-sm font-medium text-gray-900">Öğrenci Bulunamadı</h3>
-                          <p className="mt-2 text-xs text-gray-500">Henüz bu işletmeye öğrenci atanmamış.</p>
-                        </div>
+                          ))}
+                          
+                          {isletme.ogrenciler.length === 0 && (
+                            <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                              <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                                <User className="h-8 w-8 text-gray-400" />
+                              </div>
+                              <h3 className="mt-4 text-sm font-medium text-gray-900">Öğrenci Bulunamadı</h3>
+                              <p className="mt-2 text-xs text-gray-500">Henüz bu işletmeye öğrenci atanmamış.</p>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -1078,7 +1416,9 @@ const TeacherPanel = () => {
             {activeTab === 'dekontlar' && (
               <div className="space-y-4 p-6">
                 <div className="flex flex-col sm:flex-row gap-4 items-center justify-between mb-6">
-                  <h2 className="text-2xl font-semibold text-gray-900">Dekontlar</h2>
+                  <h2 className="text-2xl font-semibold text-gray-900">
+                    Dekontlar ({filteredDekontlar.length})
+                  </h2>
                   <button
                     onClick={() => setOgrenciSecimModalOpen(true)}
                     className="flex items-center px-4 py-2 text-sm text-white bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-colors shadow-sm"
@@ -1088,110 +1428,213 @@ const TeacherPanel = () => {
                   </button>
                 </div>
 
-                {dekontlar.length === 0 ? (
+                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                  <div className="relative flex-grow">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Dekontlarda ara..."
+                      value={dekontSearchTerm}
+                      onChange={(e) => setDekontSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div className="relative w-full sm:w-48">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <select
+                      value={isletmeFilter}
+                      onChange={(e) => setIsletmeFilter(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
+                    >
+                      <option value="all">Tüm Firmalar</option>
+                      {uniqueCompanies.map((company) => (
+                        <option key={company} value={company}>
+                          {company}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="relative w-full sm:w-48">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <select
+                      value={onayDurumuFilter}
+                      onChange={(e) => setOnayDurumuFilter(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
+                    >
+                      <option value="all">Tüm Durumlar</option>
+                      <option value="bekliyor">Bekliyor</option>
+                      <option value="onaylandi">Onaylandı</option>
+                      <option value="reddedildi">Reddedildi</option>
+                    </select>
+                  </div>
+                </div>
+
+                {filteredDekontlar.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="mx-auto w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
                       <FileText className="h-10 w-10 text-gray-400" />
                     </div>
                     <h3 className="mt-4 text-lg font-medium text-gray-900">Dekont Bulunamadı</h3>
-                    <p className="mt-2 text-sm text-gray-500">Henüz dekont yüklenmemiş.</p>
+                    <p className="mt-2 text-sm text-gray-500">
+                      {dekontSearchTerm || isletmeFilter !== 'all' || onayDurumuFilter !== 'all'
+                        ? 'Arama kriterlerinize uygun dekont bulunamadı.'
+                        : 'Henüz dekont yüklenmemiş.'}
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 gap-4">
-                      {paginatedDekontlar.map((dekont, index) => (
-                        <div
-                          key={`dekont-${dekont.id}-${dekont.ay}-${dekont.yil}-${index}`}
-                          className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow border border-gray-100`}
-                        >
-                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <h3 className="text-lg font-medium text-gray-900">
-                                  {dekont.ogrenci_ad}
-                                </h3>
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDurum(dekont.onay_durumu).bg} ${getDurum(dekont.onay_durumu).color}`}>
-                                  {getDurum(dekont.onay_durumu).text}
-                                </span>
+                    {(() => {
+                      const groupedDekontlar = groupDekontsByStudent();
+                      const companyKeys = Object.keys(groupedDekontlar);
+                      
+                      return (
+                        <div className="space-y-6">
+                          {companyKeys.map((companyKey) => {
+                            const companyGroup = groupedDekontlar[companyKey];
+                            const studentKeys = Object.keys(companyGroup.students);
+                            
+                            return (
+                              <div key={companyKey} className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+                                {/* Company Header */}
+                                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                                      <Building2 className="h-5 w-5 text-white" />
+                                    </div>
+                                    <div>
+                                      <h2 className="text-lg font-bold">{companyKey}</h2>
+                                      <p className="text-blue-100 text-sm">
+                                        {studentKeys.length} öğrenci - {companyGroup.totalCount} dekont
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Students List */}
+                                <div className="bg-gray-50">
+                                  {studentKeys.map((studentKey, index) => {
+                                    const studentGroup = companyGroup.students[studentKey];
+                                    const isExpanded = expandedStudents[studentKey];
+                                    
+                                    return (
+                                      <div key={studentKey} className={`${index > 0 ? 'border-t border-gray-200' : ''}`}>
+                                        {/* Student Header - Clickable */}
+                                        <button
+                                          onClick={() => toggleStudentExpanded(studentKey)}
+                                          className="w-full text-left p-4 hover:bg-gray-100 transition-colors flex items-center justify-between"
+                                        >
+                                          <div className="flex items-center gap-3">
+                                            <div className="h-8 w-8 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg flex items-center justify-center">
+                                              <User className="h-4 w-4 text-indigo-600" />
+                                            </div>
+                                            <div>
+                                              <h3 className="text-base font-semibold text-gray-900">
+                                                {studentGroup.student.name}
+                                              </h3>
+                                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                                {studentGroup.student.sinif && (
+                                                  <span className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded font-medium">
+                                                    {studentGroup.student.sinif}
+                                                  </span>
+                                                )}
+                                                {studentGroup.student.no && (
+                                                  <span className="bg-purple-50 text-purple-700 px-2 py-1 rounded font-medium">
+                                                    No: {studentGroup.student.no}
+                                                  </span>
+                                                )}
+                                                <span className="bg-green-50 text-green-700 px-2 py-1 rounded font-medium">
+                                                  {studentGroup.count} dekont
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            {isExpanded ? (
+                                              <ChevronUp className="h-4 w-4 text-gray-500" />
+                                            ) : (
+                                              <ChevronDown className="h-4 w-4 text-gray-500" />
+                                            )}
+                                          </div>
+                                        </button>
+
+                                        {/* Student's Dekontlar - Collapsible */}
+                                        {isExpanded && (
+                                          <div className="bg-white mx-4 mb-4 rounded-lg border border-gray-200">
+                                            <div className="p-4 space-y-3">
+                                              {studentGroup.dekontlar.map((dekont, dekontIndex) => (
+                                                <div
+                                                  key={`dekont-${dekont.id}-${dekont.ay}-${dekont.yil}-${dekontIndex}`}
+                                                  className="bg-gray-50 rounded-lg p-4 border border-gray-100"
+                                                >
+                                                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                                    <div className="space-y-2">
+                                                      <div className="flex items-center gap-2">
+                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDurum(dekont.onay_durumu).bg} ${getDurum(dekont.onay_durumu).color}`}>
+                                                          {getDurum(dekont.onay_durumu).text}
+                                                        </span>
+                                                        <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-bold border border-indigo-200">
+                                                          {aylar[dekont.ay - 1]} {dekont.yil}
+                                                        </span>
+                                                      </div>
+                                                      <div className="flex items-center gap-2">
+                                                        <span className="text-xs">
+                                                          <span className="font-bold">Gönderen:</span> {dekont.yukleyen_kisi}
+                                                        </span>
+                                                      </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                                                      {dekont.dosya_url && (
+                                                        <button
+                                                          onClick={() => handleFileDownload(dekont.dosya_url!, `dekont-${dekont.ogrenci_ad}-${aylar[dekont.ay - 1]}-${dekont.yil}`)}
+                                                          className="p-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                                                          title="Dekontu İndir"
+                                                        >
+                                                          <Download className="h-5 w-5" />
+                                                        </button>
+                                                      )}
+                                                      {dekont.onay_durumu !== 'onaylandi' && (
+                                                        <button
+                                                          onClick={() => {
+                                                            setSelectedDekont(dekont);
+                                                            setDeleteConfirmOpen(true);
+                                                          }}
+                                                          className="p-2 text-red-600 hover:text-white bg-red-50 hover:bg-red-600 rounded-lg transition-colors"
+                                                          title="Dekontu Sil"
+                                                        >
+                                                          <Trash2 className="h-5 w-5" />
+                                                        </button>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                  <div className="flex justify-between items-end mt-2">
+                                                    {dekont.miktar && dekont.miktar > 0 && (
+                                                      <span className="text-xs font-bold text-green-600">
+                                                        Miktar: {dekont.miktar} TL
+                                                      </span>
+                                                    )}
+                                                    {dekont.created_at && (
+                                                      <span className="text-xs text-gray-400">
+                                                        {new Date(dekont.created_at).toLocaleString('tr-TR', {
+                                                          day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                                                        })}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               </div>
-                              <div className="flex flex-wrap gap-2 text-sm text-gray-500">
-                                <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-                                  {dekont.isletme_ad}
-                                </span>
-                                <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-bold border border-indigo-200">
-                                  {aylar[dekont.ay - 1]} {dekont.yil}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 mt-2">
-                                <span className="text-xs">
-                                  <span className="font-bold">Gönderen:</span> {dekont.yukleyen_kisi}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 self-end sm:self-auto">
-                              {dekont.dosya_url && (
-                                <button
-                                  onClick={() => handleFileDownload(dekont.dosya_url!, `dekont-${dekont.ogrenci_ad}-${aylar[dekont.ay - 1]}-${dekont.yil}`)}
-                                  className="p-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                                  title="Dekontu İndir"
-                                >
-                                  <Download className="h-5 w-5" />
-                                </button>
-                              )}
-                              {dekont.onay_durumu !== 'onaylandi' && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedDekont(dekont);
-                                    setDeleteConfirmOpen(true);
-                                  }}
-                                  className="p-2 text-red-600 hover:text-white bg-red-50 hover:bg-red-600 rounded-lg transition-colors"
-                                  title="Dekontu Sil"
-                                >
-                                  <Trash2 className="h-5 w-5" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex justify-between items-end mt-2">
-                            {dekont.miktar && dekont.miktar > 0 && (
-                              <span className="text-xs font-bold text-green-600">
-                                Miktar: {dekont.miktar} TL
-                              </span>
-                            )}
-                            {dekont.created_at && (
-                              <span className="text-xs text-gray-400">
-                                {new Date(dekont.created_at).toLocaleString('tr-TR', {
-                                  day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                                })}
-                              </span>
-                            )}
-                          </div>
+                            );
+                          })}
                         </div>
-                      ))}
-                    </div>
-                    
-                    {/* Pagination Controls */}
-                    {totalDekontPages > 1 && (
-                      <div className="flex justify-center items-center gap-2 mt-6">
-                        <button
-                          className="px-3 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50"
-                          onClick={() => setDekontPage((p) => Math.max(1, p - 1))}
-                          disabled={dekontPage === 1}
-                        >
-                          Önceki
-                        </button>
-                        <span className="text-sm text-gray-700">
-                          Sayfa {dekontPage} / {totalDekontPages}
-                        </span>
-                        <button
-                          className="px-3 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50"
-                          onClick={() => setDekontPage((p) => Math.min(totalDekontPages, p + 1))}
-                          disabled={dekontPage === totalDekontPages}
-                        >
-                          Sonraki
-                        </button>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -1241,61 +1684,100 @@ const TeacherPanel = () => {
 
                 {filteredBelgeler.length > 0 ? (
                   <div className="space-y-6">
-                    {filteredBelgeler.map((belge) => (
-                      <div key={belge.id} className="pt-6 first:pt-0 bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
-                        <div className="flex flex-col">
-                          <div className="flex items-start">
-                            <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                              <FileText className="h-6 w-6 text-indigo-600" />
-                            </div>
-                            <div className="ml-4 flex-1 min-w-0">
-                              <h3 className="text-lg font-medium text-gray-900 truncate" title={belge.dosya_adi}>
-                                {belge.dosya_adi}
-                              </h3>
-                              <div className="flex flex-wrap gap-2 mt-2 text-sm">
-                                <div className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg font-medium">
-                                  {belge.isletme_ad}
-                                </div>
-                                <div className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg font-medium">
-                                  {formatBelgeTur(belge.belge_turu)}
-                                </div>
-                                {belge.yukleyen_kisi && (
-                                  <div className="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg font-medium">
-                                    {belge.yukleyen_kisi}
+                    {(() => {
+                      const groupedBelgeler = groupBelgelerByCompany();
+                      const companyKeys = Object.keys(groupedBelgeler);
+                      
+                      return (
+                        <div className="space-y-6">
+                          {companyKeys.map((companyKey) => {
+                            const companyGroup = groupedBelgeler[companyKey];
+                            
+                            return (
+                              <div key={companyKey} className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+                                {/* Company Header */}
+                                <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                                      <Building2 className="h-5 w-5 text-white" />
+                                    </div>
+                                    <div>
+                                      <h2 className="text-lg font-bold">{companyKey}</h2>
+                                      <p className="text-purple-100 text-sm">
+                                        {companyGroup.count} belge
+                                      </p>
+                                    </div>
                                   </div>
-                                )}
+                                </div>
+
+                                {/* Documents List */}
+                                <div className="p-4 space-y-4">
+                                  {companyGroup.belgeler.map((belge) => (
+                                    <div key={belge.id} className="bg-gray-50 rounded-xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
+                                      <div className="flex flex-col">
+                                        <div className="flex items-start">
+                                          <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                                            <FileText className="h-6 w-6 text-indigo-600" />
+                                          </div>
+                                          <div className="ml-4 flex-1 min-w-0">
+                                            <h3 className="text-lg font-medium text-gray-900 truncate" title={belge.dosya_adi}>
+                                              {belge.dosya_adi}
+                                            </h3>
+                                            <div className="flex flex-wrap gap-2 mt-2 text-sm">
+                                              <div className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg font-medium">
+                                                {formatBelgeTur(belge.belge_turu)}
+                                              </div>
+                                              {belge.status && (
+                                                <div className={`px-3 py-1.5 rounded-lg font-medium ${getBelgeDurum(belge.status).bg} ${getBelgeDurum(belge.status).color}`}>
+                                                  {getBelgeDurum(belge.status).text}
+                                                </div>
+                                              )}
+                                              {belge.yukleyen_kisi && (
+                                                <div className="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg font-medium">
+                                                  {belge.yukleyen_kisi}
+                                                </div>
+                                              )}
+                                            </div>
+                                            <p className="text-sm text-gray-500 mt-2">
+                                              Yüklenme Tarihi: {new Date(belge.yukleme_tarihi).toLocaleDateString('tr-TR')}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-3 border-t border-gray-200">
+                                          {belge.dosya_url && (
+                                            <button
+                                              onClick={() => handleFileView(belge.dosya_url)}
+                                              className="flex items-center justify-center px-4 py-2 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                                            >
+                                              <Download className="h-4 w-4 mr-2" />
+                                              Dosyayı İndir
+                                            </button>
+                                          )}
+                                          {belge.status !== 'APPROVED' && (
+                                            <button
+                                              onClick={() => {
+                                                setSelectedBelge(belge);
+                                                setBelgeSilModalOpen(true);
+                                              }}
+                                              className="flex items-center justify-center px-4 py-2 text-sm text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                                            >
+                                              <Trash2 className="h-4 w-4 mr-2" />
+                                              Belgeyi Sil
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                              <p className="text-sm text-gray-500 mt-2">
-                                Yüklenme Tarihi: {new Date(belge.yukleme_tarihi).toLocaleDateString('tr-TR')}
-                              </p>
-                            </div>
-                          </div>
-                          
-                          <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-3 border-t border-gray-100">
-                            {belge.dosya_url && (
-                              <button
-                                onClick={() => handleFileView(belge.dosya_url)}
-                               className="flex items-center justify-center px-4 py-2 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                             >
-                               <Download className="h-4 w-4 mr-2" />
-                               Dosyayı İndir
-                             </button>
-                           )}
-                           <button
-                             onClick={() => {
-                               setSelectedBelge(belge);
-                               setBelgeSilModalOpen(true);
-                             }}
-                             className="flex items-center justify-center px-4 py-2 text-sm text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                           >
-                             <Trash2 className="h-4 w-4 mr-2" />
-                             Belgeyi Sil
-                           </button>
-                         </div>
-                       </div>
-                     </div>
-                   ))}
-                 </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
                ) : (
                  <div className="text-center py-12">
                    <FileText className="mx-auto h-12 w-12 text-gray-400" />
@@ -1340,6 +1822,7 @@ const TeacherPanel = () => {
            isLoading={isSubmitting}
            isletmeler={isletmeler.map(i => ({ id: i.id, ad: i.ad }))}
            selectedIsletmeId={selectedIsletme.id}
+           startDate={selectedStudent.baslangic_tarihi}
          />
        </Modal>
      )}
@@ -1359,6 +1842,28 @@ const TeacherPanel = () => {
            <button
              onClick={() => setErrorModal({ isOpen: false, title: '', message: '' })}
              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+           >
+             Tamam
+           </button>
+         </div>
+       </div>
+     </Modal>
+
+     {/* Success Modal */}
+     <Modal
+       isOpen={successModal.isOpen}
+       onClose={() => setSuccessModal({ isOpen: false, title: '', message: '' })}
+       title={successModal.title}
+     >
+       <div className="space-y-4">
+         <div className="flex items-center gap-3 p-3 bg-green-50 border-l-4 border-green-400 rounded text-green-900 text-sm">
+           <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+           <span>{successModal.message}</span>
+         </div>
+         <div className="flex justify-end pt-4">
+           <button
+             onClick={() => setSuccessModal({ isOpen: false, title: '', message: '' })}
+             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
            >
              Tamam
            </button>
@@ -1595,14 +2100,230 @@ const TeacherPanel = () => {
        </div>
      </Modal>
 
+     {/* Belge Silme Modal */}
+     <Modal
+       isOpen={belgeSilModalOpen}
+       onClose={() => setBelgeSilModalOpen(false)}
+       title="Belgeyi Sil"
+     >
+       <div className="space-y-4">
+         <p className="text-sm text-gray-700">
+           {selectedBelge && `'${selectedBelge.dosya_adi}' adlı belgeyi kalıcı olarak silmek istediğinizden emin misiniz?`}
+         </p>
+         <div className="flex justify-end gap-3">
+           <button
+             onClick={() => setBelgeSilModalOpen(false)}
+             className="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+           >
+             İptal
+           </button>
+           <button
+             onClick={() => {
+               if (selectedBelge) {
+                 handleBelgeSil(selectedBelge);
+               }
+             }}
+             disabled={isSubmitting}
+             className="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center"
+           >
+             {isSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+             Sil
+           </button>
+         </div>
+       </div>
+     </Modal>
+
      {/* PIN Change Modal */}
      <PinChangeModal
        isOpen={pinChangeModalOpen}
-       onClose={() => {}}
+       onClose={() => setPinChangeModalOpen(false)}
        onSuccess={handlePinChangeSuccess}
        teacherId={teacher?.id || ''}
        teacherName={teacher ? `${teacher.name} ${teacher.surname}` : ''}
      />
+
+     {/* Notification Modal */}
+     <Modal
+       isOpen={notificationModalOpen}
+       onClose={() => {
+         setNotificationModalOpen(false);
+         setShowAllMessages(false);
+         setNotificationPage(1);
+       }}
+       title="Mesajlar"
+     >
+       <div className="space-y-4">
+         {/* Filter Controls */}
+         <div className="flex justify-between items-center pb-3 border-b border-gray-200">
+           <div className="flex items-center gap-4">
+             <button
+               onClick={() => {
+                 setShowAllMessages(false);
+                 setNotificationPage(1);
+               }}
+               className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                 !showAllMessages
+                   ? 'bg-blue-600 text-white'
+                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+               }`}
+             >
+               Okunmamış ({notifications.filter(n => !n.is_read).length})
+             </button>
+             <button
+               onClick={() => {
+                 setShowAllMessages(true);
+                 setNotificationPage(1);
+               }}
+               className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                 showAllMessages
+                   ? 'bg-blue-600 text-white'
+                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+               }`}
+             >
+               Tümünü Göster ({notifications.length})
+             </button>
+           </div>
+           
+           {!showAllMessages && notifications.filter(n => !n.is_read).length > 0 && (
+             <button
+               onClick={markAllAsRead}
+               className="px-3 py-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium underline"
+             >
+               Tümünü Okundu İşaretle
+             </button>
+           )}
+         </div>
+
+         {(() => {
+           // Filter messages based on selection
+           const filteredMessages = showAllMessages
+             ? notifications
+             : notifications.filter(n => !n.is_read);
+           
+           // Calculate pagination
+           const totalPages = Math.ceil(filteredMessages.length / NOTIFICATIONS_PER_PAGE);
+           const paginatedMessages = filteredMessages.slice(
+             (notificationPage - 1) * NOTIFICATIONS_PER_PAGE,
+             notificationPage * NOTIFICATIONS_PER_PAGE
+           );
+
+           return (
+             <>
+               {filteredMessages.length > 0 ? (
+                 <>
+                   {/* Messages List */}
+                   <div className="space-y-3 max-h-80 overflow-y-auto">
+                     {paginatedMessages.map((notification) => (
+                       <div
+                         key={notification.id}
+                         className={`p-4 rounded-lg border ${
+                           notification.is_read
+                             ? 'bg-gray-50 border-gray-200'
+                             : 'bg-blue-50 border-blue-200'
+                         }`}
+                       >
+                         <div className="flex items-start justify-between">
+                           <div className="flex-1">
+                             <div className="flex items-center gap-2 mb-2">
+                               <h4 className={`font-semibold ${
+                                 notification.is_read ? 'text-gray-700' : 'text-gray-900'
+                               }`}>
+                                 {notification.title}
+                               </h4>
+                               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                 notification.priority === 'high' ? 'bg-red-100 text-red-700' :
+                                 notification.priority === 'normal' ? 'bg-blue-100 text-blue-700' :
+                                 'bg-gray-100 text-gray-700'
+                               }`}>
+                                 {notification.priority === 'high' ? 'Yüksek' :
+                                  notification.priority === 'normal' ? 'Normal' : 'Düşük'}
+                               </span>
+                               {!notification.is_read && (
+                                 <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                               )}
+                             </div>
+                             <p className={`text-sm mb-3 ${
+                               notification.is_read ? 'text-gray-600' : 'text-gray-700'
+                             }`}>
+                               {notification.content}
+                             </p>
+                             <div className="flex items-center justify-between">
+                               <div className="text-xs text-gray-500">
+                                 <div>Gönderen: {notification.sent_by}</div>
+                                 <div>Tarih: {new Date(notification.created_at).toLocaleString('tr-TR')}</div>
+                                 {notification.is_read && notification.read_at && (
+                                   <div>Okunma: {new Date(notification.read_at).toLocaleString('tr-TR')}</div>
+                                 )}
+                               </div>
+                               {!notification.is_read && (
+                                 <button
+                                   onClick={() => markAsRead(notification.id)}
+                                   className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                                 >
+                                   Okundu olarak işaretle
+                                 </button>
+                               )}
+                             </div>
+                           </div>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+
+                   {/* Pagination Controls */}
+                   {totalPages > 1 && (
+                     <div className="flex justify-center items-center gap-2 pt-3 border-t border-gray-200">
+                       <button
+                         onClick={() => setNotificationPage(p => Math.max(1, p - 1))}
+                         disabled={notificationPage === 1}
+                         className="px-3 py-1 text-sm rounded bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                       >
+                         Önceki
+                       </button>
+                       <span className="text-sm text-gray-700 px-2">
+                         Sayfa {notificationPage} / {totalPages}
+                       </span>
+                       <button
+                         onClick={() => setNotificationPage(p => Math.min(totalPages, p + 1))}
+                         disabled={notificationPage === totalPages}
+                         className="px-3 py-1 text-sm rounded bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                       >
+                         Sonraki
+                       </button>
+                     </div>
+                   )}
+                 </>
+               ) : (
+                 <div className="text-center py-8">
+                   <Bell className="mx-auto h-12 w-12 text-gray-400" />
+                   <h3 className="mt-4 text-lg font-medium text-gray-900">
+                     {showAllMessages ? 'Mesaj Bulunamadı' : 'Okunmamış Mesaj Yok'}
+                   </h3>
+                   <p className="mt-2 text-sm text-gray-500">
+                     {showAllMessages
+                       ? 'Henüz size gönderilmiş mesaj bulunmamaktadır.'
+                       : 'Tüm mesajlarınızı okudunuz! 🎉'}
+                   </p>
+                 </div>
+               )}
+             </>
+           );
+         })()}
+       </div>
+       
+       <div className="flex justify-end pt-4 border-t border-gray-200">
+         <button
+           onClick={() => {
+             setNotificationModalOpen(false);
+             setShowAllMessages(false);
+             setNotificationPage(1);
+           }}
+           className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+         >
+           Kapat
+         </button>
+       </div>
+     </Modal>
    </div>
  );
 };

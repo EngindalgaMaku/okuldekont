@@ -12,16 +12,22 @@ export async function GET(
       return NextResponse.json({ error: 'ID gerekli' }, { status: 400 });
     }
 
-    // Öğretmenin sorumlu olduğu görev belgelerini getir
-    const belgeler = await prisma.gorevBelgesi.findMany({
+    // Öğretmenin yüklediği belgeler - yeni Belge tablosundan getir
+    const belgeler = await (prisma as any).belge.findMany({
       where: {
-        ogretmenId: id
+        ogretmenId: id,
+        yuklenenTaraf: 'ogretmen'
       },
       include: {
         teacher: {
           select: {
             name: true,
             surname: true
+          }
+        },
+        company: {
+          select: {
+            name: true
           }
         }
       },
@@ -30,16 +36,24 @@ export async function GET(
       }
     });
 
-    // Formatla
-    const formattedBelgeler = belgeler.map((belge: any) => ({
-      id: belge.id,
-      isletme_ad: 'Görev Belgesi', // GorevBelgesi doesn't have company relation
-      dosya_adi: `Hafta ${belge.hafta} Görev Belgesi`,
-      dosya_url: null, // GorevBelgesi doesn't store file URL
-      belge_turu: 'Görev Belgesi',
-      yukleme_tarihi: belge.createdAt,
-      yukleyen_kisi: belge.teacher ? `${belge.teacher.name} ${belge.teacher.surname} (Öğretmen)` : 'Bilinmiyor'
-    }));
+    // Formatla - yeni belge tablosunu kullan
+    const formattedBelgeler = belgeler.map((belge: any) => {
+      const companyName = belge.company?.name || 'Bilinmeyen İşletme';
+      const teacherName = belge.teacher ? `${belge.teacher.name} ${belge.teacher.surname}` : 'Bilinmeyen';
+      
+      return {
+        id: belge.id,
+        isletme_ad: companyName,
+        dosya_adi: belge.ad, // Belge adı
+        dosya_url: belge.dosyaUrl, // Dosya yolu
+        belge_turu: belge.belgeTuru, // Belge türü
+        yukleme_tarihi: belge.createdAt,
+        yukleyen_kisi: teacherName + ' (Öğretmen)',
+        status: belge.status || 'PENDING', // Onay durumu
+        onaylanma_tarihi: belge.onaylanmaTarihi,
+        red_nedeni: belge.redNedeni
+      };
+    });
 
     return NextResponse.json(formattedBelgeler);
   } catch (error) {

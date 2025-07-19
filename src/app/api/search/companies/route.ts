@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 export async function GET(request: Request) {
   try {
@@ -13,17 +11,12 @@ export async function GET(request: Request) {
       return NextResponse.json([])
     }
 
+    console.log('🔍 Company search:', { term, limit })
+
     const companies = await prisma.companyProfile.findMany({
       where: {
         name: {
           contains: term
-        },
-        // Only companies with active internships
-        stajlar: {
-          some: {
-            status: 'ACTIVE',
-            terminationDate: null
-          }
         }
       },
       select: {
@@ -37,8 +30,10 @@ export async function GET(request: Request) {
       take: limit
     })
 
+    console.log('📊 Company search results:', companies.length, 'found')
+
     // Format to match expected interface
-    const formattedCompanies = companies.map((company: any) => ({
+    const formattedCompanies = companies.map((company) => ({
       id: company.id,
       name: company.name,
       contact: company.contact
@@ -46,9 +41,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json(formattedCompanies)
   } catch (error) {
-    console.error('Company search error:', error)
+    console.error('💥 Company search error:', error)
     return NextResponse.json(
-      { error: 'Company search failed' },
+      { error: 'Company search failed', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }

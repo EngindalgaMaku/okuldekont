@@ -46,6 +46,7 @@ model TeacherProfile {
   pin      String
   userId   String  @unique
   alanId   String?
+  active   Boolean @default(true)
   
   user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   alan Alan? @relation(fields: [alanId], references: [id])
@@ -55,6 +56,7 @@ model TeacherProfile {
   dekontlar      Dekont[]
   companies      CompanyProfile[]
   gorevBelgeleri GorevBelgesi[]
+  belgeler       Belge[]
   
   @@map("teachers")
 }
@@ -78,6 +80,7 @@ model CompanyProfile {
   stajlar   Staj[]
   dekontlar Dekont[]
   students  Student[]
+  belgeler  Belge[]
   
   @@map("companies")
 }
@@ -211,6 +214,29 @@ model GorevBelgesi {
   @@map("gorev_belgeleri")
 }
 
+// Belgeler için ayrı tablo
+model Belge {
+  id                String      @id @default(cuid())
+  ad                String
+  belgeTuru         String      // Belge türü (sözleşme, protocol vb.)
+  dosyaUrl          String      // Dosya yolu
+  dosyaAdi          String      // Orijinal dosya adı
+  yuklenenTaraf     String      // "ogretmen" veya "isletme"
+  ogretmenId        String?
+  isletmeId         String?
+  status            BelgeStatus @default(PENDING)
+  onaylayanId       String?     // Admin/onaylayan kişinin ID'si
+  onaylanmaTarihi   DateTime?   // Onaylanma tarihi
+  redNedeni         String?     // Reddedilme nedeni
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  teacher TeacherProfile? @relation(fields: [ogretmenId], references: [id])
+  company CompanyProfile? @relation(fields: [isletmeId], references: [id])
+  
+  @@map("belgeler")
+}
+
 // Notifications
 model Notification {
   id             String   @id @default(cuid())
@@ -252,6 +278,12 @@ enum StajStatus {
 }
 
 enum DekontStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BelgeStatus {
   PENDING
   APPROVED
   REJECTED

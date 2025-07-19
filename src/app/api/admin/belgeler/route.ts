@@ -65,13 +65,16 @@ export async function POST(request: NextRequest) {
       yukleyenKisi = `${ogretmen.name} ${ogretmen.surname} (Öğretmen)`;
       yeniDosyaAdi = `${sanitizeName(belgeTuru)}_${sanitizeName(isletme.name)}_${sanitizeName(ogretmen.name + '_' + ogretmen.surname)}_${tarih}${fileExtension}`;
 
-      // Öğretmen belgesi için GorevBelgesi tablosunu kullan
-      yeniBelge = await prisma.gorevBelgesi.create({
+      // Öğretmen belgesi için yeni Belge tablosunu kullan
+      yeniBelge = await (prisma as any).belge.create({
         data: {
+          ad: belgeTuru,
+          belgeTuru: belgeTuru,
+          dosyaUrl: `/uploads/belgeler/${yeniDosyaAdi}`,
+          dosyaAdi: dosya.name,
+          yuklenenTaraf: "ogretmen",
           ogretmenId: ogretmenId,
-          hafta: "belge", // Belge yükleme için hafta bilgisi yok
-          isletmeIdler: isletmeId,
-          durum: 'yuklenmiş'
+          isletmeId: isletmeId
         }
       });
     } else {
@@ -83,13 +86,15 @@ export async function POST(request: NextRequest) {
       yukleyenKisi = `${isletme.contact} (İşletme)`;
       yeniDosyaAdi = `${sanitizeName(belgeTuru)}_${sanitizeName(isletme.name)}_${sanitizeName(isletme.contact)}_${tarih}${fileExtension}`;
 
-      // İşletme belgesi için GorevBelgesi tablosunu kullan, öğretmen ID'si yerine dummy değer
-      yeniBelge = await prisma.gorevBelgesi.create({
+      // İşletme belgesi için yeni Belge tablosunu kullan
+      yeniBelge = await (prisma as any).belge.create({
         data: {
-          ogretmenId: 'company-upload', // İşletme yüklemelerini ayırt etmek için
-          hafta: "isletme-belge",
-          isletmeIdler: isletmeId,
-          durum: 'yuklenmiş'
+          ad: belgeTuru,
+          belgeTuru: belgeTuru,
+          dosyaUrl: `/uploads/belgeler/${yeniDosyaAdi}`,
+          dosyaAdi: dosya.name,
+          yuklenenTaraf: "isletme",
+          isletmeId: isletmeId
         }
       });
     }
@@ -112,15 +117,18 @@ export async function POST(request: NextRequest) {
     // Dosya URL'si
     const dosyaUrl = `/uploads/belgeler/${yeniDosyaAdi}`;
 
-    // Response formatı
+    // Response formatı - frontend Belge interface'i ile uyumlu
     const response = {
       id: yeniBelge.id,
-      ad: dosya.name.split('.')[0], // Dosya adından uzantıyı çıkar
-      tur: belgeTuru,
-      isletme_id: parseInt(isletmeId),
+      isletme_ad: isletme.name,
+      dosya_adi: dosya.name,
       dosya_url: dosyaUrl,
+      belge_turu: belgeTuru,
       yukleme_tarihi: new Date().toISOString(),
-      yukleyen_kisi: yukleyenKisi
+      yukleyen_kisi: yukleyenKisi,
+      status: yeniBelge.status || 'PENDING',
+      onaylanma_tarihi: yeniBelge.onaylanmaTarihi,
+      red_nedeni: yeniBelge.redNedeni
     };
 
     return NextResponse.json(response);

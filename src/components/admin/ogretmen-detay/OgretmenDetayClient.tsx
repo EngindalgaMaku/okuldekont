@@ -20,6 +20,7 @@ interface Ogretmen {
   soyad: string;
   email: string | null;
   telefon: string | null;
+  aktif?: boolean;
 }
 interface Staj {
   id: string;
@@ -208,20 +209,24 @@ const OgrenciListesiTab = ({ stajlar, totalPages, currentPage }: { stajlar: Staj
 const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () => void }) => {
     const [pinModalOpen, setPinModalOpen] = useState(false)
     const [editModeContact, setEditModeContact] = useState(false)
+    const [editModeBasicInfo, setEditModeBasicInfo] = useState(false)
     const [pinForm, setPinForm] = useState({ pin: '', confirmPin: '' })
     const [showPin, setShowPin] = useState(false)
     const [contactForm, setContactForm] = useState({ email: ogretmen.email || '', telefon: ogretmen.telefon || '' })
+    const [basicInfoForm, setBasicInfoForm] = useState({ ad: ogretmen.ad, soyad: ogretmen.soyad })
     const [deleteModal, setDeleteModal] = useState(false)
     const [deleteConfirmText, setDeleteConfirmText] = useState('')
     const [loading, setLoading] = useState(false)
     const [lockStatus, setLockStatus] = useState<any>(null)
     const [lockStatusLoading, setLockStatusLoading] = useState(false)
+    const [toggleActiveModal, setToggleActiveModal] = useState(false)
     const router = useRouter()
 
-    // Update contact form when ogretmen data changes
+    // Update forms when ogretmen data changes
     useEffect(() => {
         setContactForm({ email: ogretmen.email || '', telefon: ogretmen.telefon || '' })
-    }, [ogretmen.email, ogretmen.telefon])
+        setBasicInfoForm({ ad: ogretmen.ad, soyad: ogretmen.soyad })
+    }, [ogretmen.email, ogretmen.telefon, ogretmen.ad, ogretmen.soyad])
 
     const fetchLockStatus = async () => {
         setLockStatusLoading(true);
@@ -293,6 +298,63 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
         setLoading(false);
     }
 
+    const handleBasicInfoUpdate = async () => {
+        if (!basicInfoForm.ad.trim() || !basicInfoForm.soyad.trim()) {
+            toast.error('Ad ve soyad boş olamaz.');
+            return;
+        }
+
+        setLoading(true);
+        
+        try {
+            const response = await fetch(`/api/admin/teachers/${ogretmen.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: basicInfoForm.ad.trim(),
+                    surname: basicInfoForm.soyad.trim()
+                }),
+            });
+            
+            if (response.ok) {
+                toast.success('Ad ve soyad güncellendi.');
+                setEditModeBasicInfo(false);
+                onUpdate();
+            } else {
+                const errorData = await response.json();
+                toast.error(errorData.error || 'Ad ve soyad güncellenirken hata oluştu.');
+            }
+        } catch (error) {
+            toast.error('Ad ve soyad güncellenirken hata oluştu.');
+        }
+        setLoading(false);
+    }
+
+    const handleToggleActive = async () => {
+        setLoading(true);
+        
+        try {
+            const response = await fetch(`/api/admin/teachers/${ogretmen.id}/toggle-active`, {
+                method: 'POST',
+            });
+            
+            if (response.ok) {
+                const newStatus = !(ogretmen.aktif ?? true);
+                toast.success(`Öğretmen ${newStatus ? 'aktif' : 'pasif'} edildi.`);
+                setToggleActiveModal(false);
+                onUpdate();
+            } else {
+                const errorData = await response.json();
+                toast.error(errorData.error || 'Aktiflik durumu değiştirilirken hata oluştu.');
+            }
+        } catch (error) {
+            toast.error('Aktiflik durumu değiştirilirken hata oluştu.');
+        }
+        setLoading(false);
+    }
+
     const handleDeleteOgretmen = async () => {
         if (deleteConfirmText !== 'SİL') {
             toast.error('Onaylamak için "SİL" yazmalısınız.');
@@ -328,8 +390,88 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
     return (
         <div className="space-y-8">
             <div className="bg-gray-50 rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">PIN Yönetimi</h3>
-                <button onClick={() => setPinModalOpen(true)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">PIN Ata/Değiştir</button>
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-medium text-gray-900">Temel Bilgiler</h3>
+                    {!editModeBasicInfo && (
+                        <button onClick={() => setEditModeBasicInfo(true)} className="flex items-center text-sm text-blue-600 hover:underline">
+                            <Edit3 className="h-4 w-4 mr-1" /> Düzenle
+                        </button>
+                    )}
+                </div>
+                {editModeBasicInfo ? (
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Ad</label>
+                            <input
+                                type="text"
+                                value={basicInfoForm.ad}
+                                onChange={e => setBasicInfoForm({...basicInfoForm, ad: e.target.value})}
+                                className="w-full p-2 border rounded"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Soyad</label>
+                            <input
+                                type="text"
+                                value={basicInfoForm.soyad}
+                                onChange={e => setBasicInfoForm({...basicInfoForm, soyad: e.target.value})}
+                                className="w-full p-2 border rounded"
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button
+                                onClick={() => setEditModeBasicInfo(false)}
+                                className="px-4 py-2 border rounded"
+                            >
+                                İptal
+                            </button>
+                            <button
+                                onClick={handleBasicInfoUpdate}
+                                disabled={loading}
+                                className="px-4 py-2 bg-green-600 text-white rounded"
+                            >
+                                Kaydet
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        <p className="text-sm text-gray-700"><span className="font-medium">Ad:</span> {ogretmen.ad}</p>
+                        <p className="text-sm text-gray-700"><span className="font-medium">Soyad:</span> {ogretmen.soyad}</p>
+                        <p className="text-sm text-gray-700">
+                            <span className="font-medium">Durum:</span>
+                            <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                                (ogretmen.aktif ?? true)
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-red-100 text-red-800'
+                            }`}>
+                                {(ogretmen.aktif ?? true) ? 'Aktif' : 'Pasif'}
+                            </span>
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Hesap Yönetimi</h3>
+                <div className="space-y-3">
+                    <button
+                        onClick={() => setPinModalOpen(true)}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                    >
+                        PIN Ata/Değiştir
+                    </button>
+                    <button
+                        onClick={() => setToggleActiveModal(true)}
+                        className={`px-4 py-2 rounded-lg transition-colors ${
+                            (ogretmen.aktif ?? true)
+                                ? 'bg-orange-600 text-white hover:bg-orange-700'
+                                : 'bg-green-600 text-white hover:bg-green-700'
+                        }`}
+                    >
+                        {(ogretmen.aktif ?? true) ? 'Pasif Et' : 'Aktif Et'}
+                    </button>
+                </div>
             </div>
             <div className="bg-gray-50 rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">

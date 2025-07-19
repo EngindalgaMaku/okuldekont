@@ -12,6 +12,7 @@ interface DekontUploadProps {
   stajyerler?: { id: string; ad: string; soyad: string; sinif: string }[]
   selectedStajyerId?: string
   onStajyerChange?: (stajyerId: string) => void
+  startDate?: string // Staj başlama tarihi (YYYY-MM-DD formatında)
 }
 
 const AY_LISTESI = [
@@ -27,7 +28,8 @@ export default function DekontUpload({
   selectedIsletmeId,
   stajyerler,
   selectedStajyerId,
-  onStajyerChange
+  onStajyerChange,
+  startDate
 }: DekontUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedIsletme, setSelectedIsletme] = useState(selectedIsletmeId || '')
@@ -169,8 +171,26 @@ export default function DekontUpload({
               const currentMonth = today.getMonth();
               const selectedYear = parseInt(formData.yil, 10);
 
+              // Gelecek ay ve yıl kontrolü
               if (selectedYear > currentYear || (selectedYear === currentYear && index >= currentMonth)) {
                 return null;
+              }
+
+              // Staj başlama tarihi kontrolü
+              if (startDate) {
+                const stajBaslangic = new Date(startDate);
+                const stajBaslangicYear = stajBaslangic.getFullYear();
+                const stajBaslangicMonth = stajBaslangic.getMonth() + 1; // 1-based
+                
+                // Seçilen yıl staj başlangıç yılından önceyse hiç gösterme
+                if (selectedYear < stajBaslangicYear) {
+                  return null;
+                }
+                
+                // Aynı yıldaysa ve ay staj başlangıç ayından önceyse gösterme
+                if (selectedYear === stajBaslangicYear && (index + 1) < stajBaslangicMonth) {
+                  return null;
+                }
               }
               
               return <option key={ay} value={index + 1}>{ay}</option>

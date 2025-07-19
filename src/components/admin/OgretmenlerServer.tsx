@@ -2,6 +2,9 @@ import { Suspense } from 'react'
 import { Users, Search, Filter, Plus, Info, Trash2, Building2, User, Mail, Phone, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import Link from 'next/link'
 import QuickPinButton from './QuickPinButton'
+import OgretmenlerClient from './OgretmenlerClient'
+import OgretmenlerTableClient from './OgretmenlerTableClient'
+import OgretmenlerFilterClient from './OgretmenlerFilterClient'
 import { fetchOgretmenlerOptimized } from '@/lib/optimized-queries'
 
 interface SearchParams {
@@ -118,188 +121,21 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
             </button>
           </form>
 
-          <Link
-            href="/admin/ogretmenler/yeni"
-            className="inline-flex items-center justify-center w-10 h-10 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            title="Öğretmen Ekle"
-          >
-            <Plus className="w-5 h-5" />
-          </Link>
+          <OgretmenlerClient />
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-500" />
-            <span className="text-sm font-medium text-gray-700">Filtreler:</span>
-          </div>
-
-          {/* Alan Filter */}
-          <form action="/admin/ogretmenler" method="GET" className="flex items-center gap-2">
-            {/* Preserve other params */}
-            {searchParams.search && <input type="hidden" name="search" value={searchParams.search} />}
-            {searchParams.per_page && <input type="hidden" name="per_page" value={searchParams.per_page} />}
-            
-            <select
-              name="alan"
-              defaultValue={searchParams.alan || 'all'}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="all">Tüm Alanlar</option>
-              {alanlar.map((alan) => (
-                <option key={alan.id} value={alan.id}>
-                  {alan.ad}
-                </option>
-              ))}
-            </select>
-          </form>
-
-          {/* Active filters display */}
-          <div className="flex items-center gap-2">
-            {searchParams.search && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-md">
-                Arama: "{searchParams.search}"
-                <Link
-                  href={createSearchURL({ search: undefined })}
-                  className="text-blue-600 hover:text-blue-800"
-                >
-                  ×
-                </Link>
-              </span>
-            )}
-            {searchParams.alan && searchParams.alan !== 'all' && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-md">
-                Alan: {alanlar.find(a => a.id.toString() === searchParams.alan)?.ad}
-                <Link
-                  href={createSearchURL({ alan: undefined })}
-                  className="text-green-600 hover:text-green-800"
-                >
-                  ×
-                </Link>
-              </span>
-            )}
-          </div>
-
-          {/* Clear all filters */}
-          {(searchParams.search || (searchParams.alan && searchParams.alan !== 'all')) && (
-            <Link
-              href="/admin/ogretmenler"
-              className="text-sm text-gray-500 hover:text-gray-700 underline"
-            >
-              Tüm filtreleri temizle
-            </Link>
-          )}
-        </div>
-      </div>
+      <OgretmenlerFilterClient
+        alanlar={alanlar}
+        currentAlan={searchParams.alan}
+        currentSearch={searchParams.search}
+        currentPerPage={searchParams.per_page}
+      />
 
       {/* Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Öğretmen
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Alan
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  İstatistikler
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  İşlemler
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {ogretmenler.map((ogretmen) => (
-                <tr key={ogretmen.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0">
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <User className="w-5 h-5 text-blue-600" />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          <Link
-                            href={`/admin/ogretmenler/${ogretmen.id}`}
-                            className="hover:text-blue-600 hover:underline"
-                          >
-                            {ogretmen.ad} {ogretmen.soyad}
-                          </Link>
-                        </div>
-                        {/* İletişim bilgileri öğretmen isminin altında */}
-                        <div className="space-y-1 mt-1">
-                          {ogretmen.email && (
-                            <div className="flex items-center gap-1 text-xs text-gray-600">
-                              <Mail className="w-3 h-3" />
-                              {ogretmen.email}
-                            </div>
-                          )}
-                          {ogretmen.telefon && (
-                            <div className="flex items-center gap-1 text-xs text-gray-600">
-                              <Phone className="w-3 h-3" />
-                              {ogretmen.telefon}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    {ogretmen.alanlar ? (
-                      <div className="text-sm text-gray-900">
-                        {Array.isArray(ogretmen.alanlar)
-                          ? ogretmen.alanlar[0]?.ad || 'Bilinmiyor'
-                          : (ogretmen.alanlar as any)?.ad || 'Bilinmiyor'
-                        }
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-400">Atanmamış</div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-center space-y-1">
-                      <div className="text-xs text-gray-600">
-                        <Building2 className="w-3 h-3 inline mr-1" />
-                        {ogretmen.koordinatorlukCount} işletme
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        <User className="w-3 h-3 inline mr-1" />
-                        {ogretmen.stajlarCount} öğrenci
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-center gap-2">
-                      <Link
-                        href={`/admin/ogretmenler/${ogretmen.id}`}
-                        className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
-                        title="Detayları Görüntüle"
-                      >
-                        <Info className="w-4 h-4" />
-                      </Link>
-                      <QuickPinButton
-                        ogretmen={{
-                          id: ogretmen.id,
-                          ad: ogretmen.ad,
-                          soyad: ogretmen.soyad
-                        }}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {ogretmenler.length === 0 && (
+      {ogretmenler.length === 0 ? (
+        <div className="bg-white rounded-lg shadow">
           <div className="text-center py-12">
             <Users className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">Öğretmen bulunamadı</h3>
@@ -311,17 +147,13 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
               )}
             </p>
             <div className="mt-6">
-              <Link
-                href="/admin/ogretmenler/yeni"
-                className="inline-flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                title="Öğretmen Ekle"
-              >
-                <Plus className="w-5 h-5" />
-              </Link>
+              <OgretmenlerClient />
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <OgretmenlerTableClient ogretmenler={ogretmenler} />
+      )}
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (

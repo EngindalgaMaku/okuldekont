@@ -44,6 +44,19 @@ export const formatBelgeTur = (tur: string) => {
   }
 };
 
+// Belge onay durumu için yardımcı fonksiyon
+export const getBelgeDurum = (durum: 'PENDING' | 'APPROVED' | 'REJECTED'): StatusInfo => {
+  switch (durum) {
+    case 'APPROVED':
+      return { text: 'Onaylandı', icon: CheckCircle, color: 'text-green-700', bg: 'bg-green-100' };
+    case 'REJECTED':
+      return { text: 'Reddedildi', icon: XCircle, color: 'text-red-700', bg: 'bg-red-100' };
+    case 'PENDING':
+    default:
+      return { text: 'Bekliyor', icon: Clock, color: 'text-yellow-700', bg: 'bg-yellow-100' };
+  }
+};
+
 // Onay durumu için yardımcı fonksiyon
 export const getDurum = (durum: Dekont['onay_durumu']): StatusInfo => {
   switch (durum) {

@@ -17,11 +17,28 @@ export interface DekontNamingData {
 }
 
 /**
+ * Turkish karakterleri İngilizce karakterlere çevirir
+ */
+function turkishToEnglish(text: string): string {
+  const turkishMap: { [key: string]: string } = {
+    'ç': 'c', 'Ç': 'C',
+    'ğ': 'g', 'Ğ': 'G',
+    'ı': 'i', 'I': 'I',
+    'İ': 'I', 'i': 'i',
+    'ö': 'o', 'Ö': 'O',
+    'ş': 's', 'Ş': 'S',
+    'ü': 'u', 'Ü': 'U'
+  }
+  
+  return text.replace(/[çÇğĞıIİiöÖşŞüÜ]/g, (match) => turkishMap[match] || match)
+}
+
+/**
  * Metni dosya ismi için temizler
  */
 export function cleanFileName(text: string): string {
-  return text
-    .replace(/[^a-zA-ZğüşıöçĞÜŞİÖÇ0-9]/g, '_')
+  return turkishToEnglish(text)
+    .replace(/[^a-zA-Z0-9]/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_|_$/g, '')
     .toLowerCase()
@@ -58,7 +75,8 @@ export function generateDekontFileName(data: DekontNamingData): string {
   } = data
 
   // Dosya uzantısını al
-  const fileExtension = originalFileName.split('.').pop()?.toLowerCase() || 'pdf'
+  const fileExtension = originalFileName.includes('.') ?
+    originalFileName.split('.').pop()?.toLowerCase() || 'pdf' : 'pdf'
   
   // Ay ismini al
   const monthName = getMonthName(month)

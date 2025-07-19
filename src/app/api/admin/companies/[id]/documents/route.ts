@@ -8,11 +8,11 @@ export async function GET(
   try {
     const { id } = await params
     
-    // İşletme belgelerini GorevBelgesi tablosundan getir
-    const belgeler = await prisma.gorevBelgesi.findMany({
+    // İşletme belgelerini yeni Belge tablosundan getir
+    const belgeler = await (prisma as any).belge.findMany({
       where: {
-        isletmeIdler: id,
-        hafta: 'isletme-belge' // İşletme belgelerini ayırt etmek için
+        isletmeId: id,
+        yuklenenTaraf: 'isletme'
       },
       orderBy: {
         createdAt: 'desc'
@@ -30,17 +30,15 @@ export async function GET(
     }
 
     // Belgeler formatını uygun hale getir
-    const formattedBelgeler = belgeler.map(belge => {
-      // Dosya adından belge türünü ve bilgileri çıkar
-      const dosyaAdi = belge.durum === 'yuklenmiş' ? 'belge' : belge.durum;
-      
+    const formattedBelgeler = belgeler.map((belge: any) => {
       return {
         id: belge.id,
-        ad: dosyaAdi,
-        tur: 'isletme-belge',
-        dosya_url: `/uploads/belgeler/${dosyaAdi}`, // Bu URL gerçek dosya yolu ile güncellenebilir
+        ad: belge.ad, // Belge adı
+        tur: belge.belgeTuru, // Belge türü
+        dosya_url: belge.dosyaUrl, // Dosya yolu
         yukleme_tarihi: belge.createdAt.toISOString(),
-        yukleyen_kisi: `${isletme.contact} (İşletme)`
+        yukleyen_kisi: `${isletme.contact} (İşletme)`,
+        isletme_id: parseInt(id)
       };
     });
 
