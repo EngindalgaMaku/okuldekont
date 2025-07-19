@@ -1,7 +1,6 @@
 'use client'
 
 import { createContext, useState, useContext, ReactNode, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
 interface EgitimYiliContextType {
   okulAdi: string
   egitimYili: string
@@ -21,19 +20,17 @@ export function EgitimYiliProvider({ children }: { children: ReactNode }) {
     const loadSystemData = async () => {
       setLoading(true)
       try {
-        const { data, error } = await supabase
-          .from('system_settings')
-          .select('key, value')
-          .in('key', ['aktif_egitim_yili', 'okul_adi'])
-
-        if (error) {
-          console.error('Ayarlar yüklenirken hata:', error)
-          throw error
+        const response = await fetch('/api/public/system-settings')
+        
+        if (!response.ok) {
+          throw new Error('API isteği başarısız')
         }
+
+        const data = await response.json()
 
         const settings: { [key: string]: string } = {}
         if (data) {
-          data.forEach(setting => {
+          data.forEach((setting: { key: string; value: string }) => {
             settings[setting.key] = setting.value
           })
         }
@@ -44,7 +41,7 @@ export function EgitimYiliProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('Sistem verileri yüklenemedi, varsayılan değerler kullanılıyor:', error)
         setEgitimYili('2023-2024')
-        setOkulAdi('Hüsniye Özdilek MTAL')
+        setOkulAdi('')
       } finally {
         setLoading(false)
       }

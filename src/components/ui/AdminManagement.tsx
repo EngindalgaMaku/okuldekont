@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { User, Plus, Edit, Trash2, Shield, GraduationCap, Settings, AlertTriangle, Save, X, Check, Mail, Key, Eye, EyeOff } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { useSession } from 'next-auth/react'
 import { AdminUser, CreateAdminUser, UpdateAdminUser, YetkiSeviyeleri } from '@/types/admin'
 import { Button } from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
@@ -53,14 +53,11 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
   const fetchAdminUsers = async () => {
     setLoading(true)
     try {
-      // Doğrudan admin_kullanicilar tablosundan veri çek
-      const { data, error } = await supabase
-        .from('admin_kullanicilar')
-        .select('*')
-        .order('created_at', { ascending: false })
+      const response = await fetch('/api/admin/users')
+      const data = await response.json()
       
-      if (error) {
-        console.error('Admin kullanıcılar çekilirken hata:', error)
+      if (!response.ok) {
+        console.error('Admin kullanıcılar çekilirken hata:', data.error)
         setAdminUsers([])
         return
       }
@@ -88,7 +85,6 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
         },
         body: JSON.stringify({
           ...newUser,
@@ -139,7 +135,6 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
         },
         body: JSON.stringify({
           userId: selectedUser.id,
@@ -178,22 +173,26 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
     setFormLoading(true)
 
     try {
-      const { data, error } = await supabase.rpc('delete_admin_user', {
-        p_user_id: selectedUser.id
+      const response = await fetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: selectedUser.id
+        })
       })
 
-      if (error) {
-        throw new Error(error.message)
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Kullanıcı silinemedi')
       }
 
-      if (data.success) {
-        alert(data.message)
-        setShowDeleteModal(false)
-        setSelectedUser(null)
-        await fetchAdminUsers()
-      } else {
-        throw new Error(data.error)
-      }
+      alert(result.message)
+      setShowDeleteModal(false)
+      setSelectedUser(null)
+      await fetchAdminUsers()
 
     } catch (error: any) {
       console.error('Kullanıcı silme hatası:', error)
@@ -674,7 +673,6 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
                     method: 'PUT',
                     headers: {
                       'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
                     },
                     body: JSON.stringify({
                       userId: selectedUser?.id,

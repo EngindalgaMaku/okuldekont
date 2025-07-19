@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import { Loader, Check, Clock, Search, Filter, User, Calendar, Trash2, PlusCircle, BookOpen } from 'lucide-react'
 import { format, parseISO, startOfWeek, addDays } from 'date-fns'
 import { tr } from 'date-fns/locale'
@@ -44,8 +43,15 @@ export default function GorevTakipPage() {
 
     useEffect(() => {
        const fetchAlanlar = async () => {
-           const { data, error } = await supabase.from('alanlar').select('id, ad').order('ad');
-           if (data) setAlanlar(data);
+           try {
+               const response = await fetch('/api/admin/alanlar')
+               if (response.ok) {
+                   const data = await response.json()
+                   setAlanlar(data)
+               }
+           } catch (error) {
+               console.error('Alanlar yüklenirken hata:', error)
+           }
        }
        fetchAlanlar();
     }, []);
@@ -58,15 +64,18 @@ export default function GorevTakipPage() {
            const from = (currentPage - 1) * ITEMS_PER_PAGE;
 
            try {
-               const { data, error } = await supabase.rpc('get_gorev_belgeleri_detayli', {
-                   p_status_filter: statusFilter,
-                   p_alan_id_filter: selectedAlanId === 'all' ? null : selectedAlanId,
-                   p_search_term: searchTerm,
-                   p_limit: ITEMS_PER_PAGE,
-                   p_offset: from
+               const params = new URLSearchParams({
+                   status: statusFilter,
+                   alanId: selectedAlanId,
+                   search: searchTerm,
+                   limit: ITEMS_PER_PAGE.toString(),
+                   offset: from.toString()
                });
 
-               if (error) throw error;
+               const response = await fetch(`/api/admin/gorev-belgeleri?${params}`);
+               if (!response.ok) throw new Error('API isteği başarısız');
+
+               const data = await response.json();
 
                const formattedData = data.map((item: any) => ({
                    id: item.id,
@@ -95,12 +104,15 @@ export default function GorevTakipPage() {
 
     const handleStatusUpdate = async (id: string, newStatus: string) => {
         try {
-            const { error } = await supabase
-                .from('gorev_belgeleri')
-                .update({ durum: newStatus })
-                .eq('id', id)
+            const response = await fetch(`/api/admin/gorev-belgeleri/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ durum: newStatus })
+            });
 
-            if (error) throw error
+            if (!response.ok) throw new Error('API isteği başarısız');
             
             toast.success("Durum güncellendi.")
             setRefetchToggle(prev => !prev); // Trigger refetch
@@ -121,12 +133,11 @@ export default function GorevTakipPage() {
        
        setIsDeleting(true);
        try {
-           const { error } = await supabase
-               .from('gorev_belgeleri')
-               .delete()
-               .in('id', itemToDelete)
+           const response = await fetch(`/api/admin/gorev-belgeleri?ids=${itemToDelete.join(',')}`, {
+               method: 'DELETE'
+           });
 
-           if (error) throw error;
+           if (!response.ok) throw new Error('API isteği başarısız');
 
            toast.success(`${itemToDelete.length} belge başarıyla silindi.`);
            setSelectedIds([]);

@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { User, Lock, Save, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { supabase } from '@/lib/supabase'
 
 export default function ProfilPage() {
   const router = useRouter()
@@ -42,25 +41,22 @@ export default function ProfilPage() {
   // Profil bilgilerini yükle
   useEffect(() => {
     const fetchProfileData = async () => {
-      if (!user?.id) return
+      if (!user?.email) return
       
       try {
-        const { data, error } = await supabase
-          .from('admin_kullanicilar')
-          .select('ad, soyad, email')
-          .eq('id', user.id)
-          .single()
+        const response = await fetch(`/api/admin/user-info?email=${user.email}`)
+        const data = await response.json()
         
-        if (error) {
-          console.error('Profil bilgileri yüklenirken hata:', error)
+        if (!response.ok) {
+          console.error('Profil bilgileri yüklenirken hata:', data.error)
           setMessage({ type: 'error', text: 'Profil bilgileri yüklenemedi' })
           return
         }
         
         if (data) {
           setProfileData({
-            ad: data.ad || '',
-            soyad: data.soyad || '',
+            ad: data.name || '',
+            soyad: data.surname || '',
             email: data.email || user.email || ''
           })
         }
@@ -79,17 +75,22 @@ export default function ProfilPage() {
     setMessage(null)
     
     try {
-      const { error } = await supabase
-        .from('admin_kullanicilar')
-        .update({
-          ad: profileData.ad,
-          soyad: profileData.soyad,
-          updated_at: new Date().toISOString()
+      const response = await fetch('/api/admin/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: profileData.ad,
+          surname: profileData.soyad,
+          email: user?.email
         })
-        .eq('id', user?.id)
-      
-      if (error) {
-        throw error
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Profil güncellenemedi')
       }
       
       setMessage({ type: 'success', text: 'Profil bilgileri başarıyla güncellendi' })
@@ -120,23 +121,22 @@ export default function ProfilPage() {
     }
     
     try {
-      // Mevcut şifre ile giriş kontrolü
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user?.email || '',
-        password: passwordData.currentPassword
+      const response = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: user?.email,
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword
+        })
       })
-      
-      if (signInError) {
-        throw new Error('Mevcut şifre yanlış')
-      }
-      
-      // Şifre güncelleme
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: passwordData.newPassword
-      })
-      
-      if (updateError) {
-        throw updateError
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Şifre değiştirilemedi')
       }
       
       setMessage({ type: 'success', text: 'Şifre başarıyla değiştirildi' })

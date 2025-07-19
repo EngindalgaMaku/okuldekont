@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { Key, Eye, EyeOff, X } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 interface Props {
@@ -65,12 +64,15 @@ export default function IsletmePinDisplay({ isletmeId, isletmeAd, pin }: Props) 
     try {
       setLoading(true)
       
-      const { error: updateError } = await supabase
-        .from('isletmeler')
-        .update({ pin: newPin })
-        .eq('id', isletmeId)
+      const response = await fetch(`/api/admin/companies/${isletmeId}/pin`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ pin: newPin })
+      })
       
-      if (updateError) {
+      if (!response.ok) {
         setError('PIN güncellenirken bir hata oluştu')
         return
       }

@@ -1,17 +1,27 @@
-const { createClient } = require('@supabase/supabase-js')
+const { Pool } = require('pg')
 const fs = require('fs')
 const path = require('path')
 
-// Environment variables'dan bilgileri al
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+// .env dosyasını projenin kök dizininden yükle
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') })
 
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  console.error('NEXT_PUBLIC_SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY environment variables gerekli!')
+// Veritabanı bağlantı bilgilerini .env dosyasından al
+const dbHost = process.env.SUPABASE_DB_HOST
+const dbPassword = process.env.SUPABASE_DB_PASSWORD
+const dbUser = 'postgres' // Supabase'de varsayılan kullanıcı
+const dbName = 'postgres' // Supabase'de varsayılan veritabanı
+const dbPort = 5432 // Supabase'de varsayılan port
+
+if (!dbHost || !dbPassword) {
+  console.error('SUPABASE_DB_HOST ve SUPABASE_DB_PASSWORD environment değişkenleri gerekli!')
   process.exit(1)
 }
 
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey)
+const connectionString = `postgres://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`
+
+const pool = new Pool({
+  connectionString,
+})
 
 // Migration dosyalarını okuma fonksiyonu
 async function readMigrationFiles() {
@@ -31,71 +41,52 @@ async function readMigrationFiles() {
   return migrations
 }
 
-// SQL komutlarını çalıştırma fonksiyonu
-async function executeSQL(sqlCommand, fileName) {
-  try {
-    const { error } = await supabase.rpc('exec_sql', { sql: sqlCommand })
-    if (error) {
-      if (error.message.includes('function "exec_sql" does not exist')) {
-        // RPC fonksiyonu yoksa direkt SQL çalıştır
-        const { error: sqlError } = await supabase.sql(sqlCommand)
-        if (sqlError) throw sqlError
-      } else {
-        throw error
-      }
-    }
-    return true
-  } catch (error) {
-    console.error(`❌ SQL Hatası (${fileName}):`, error.message)
-    return false
-  }
-}
-
 async function runMigrations() {
+  let client
   try {
+    console.log('🚀 Veritabanına bağlanılıyor...')
+    client = await pool.connect()
+    console.log('✅ Veritabanı bağlantısı başarılı.')
     console.log('🚀 Migration başlatılıyor...')
     
     const migrations = await readMigrationFiles()
-    let success = 0
-    let failed = 0
+    let successCount = 0
+    let failedCount = 0
     
     for (const migration of migrations) {
+      if (migration.content.trim().length === 0) {
+        console.log(`\n📄 ${migration.name} boş, geçiliyor.`)
+        continue
+      }
+
       console.log(`\n📄 Migration çalıştırılıyor: ${migration.name}`)
-      
-      // SQL komutlarını ayır ve sırayla çalıştır
-      const commands = migration.content
-        .split(';')
-        .map(cmd => cmd.trim())
-        .filter(cmd => cmd.length > 0)
-      
-      for (const cmd of commands) {
-        const result = await executeSQL(cmd, migration.name)
-        if (result) {
-          success++
-        } else {
-          failed++
-        }
+      try {
+        await client.query(migration.content)
+        console.log(`   ✅ Başarılı: ${migration.name}`)
+        successCount++
+      } catch (error) {
+        console.error(`   ❌ Hata (${migration.name}):`, error.message)
+        failedCount++
       }
     }
     
-    if (failed === 0) {
-      console.log('\n🎉 Tüm migration işlemleri başarılı!')
-      console.log(`✅ ${success} komut çalıştırıldı`)
+    console.log('='.repeat(50))
+    if (failedCount === 0) {
+      console.log(`\n🎉 Tüm migration işlemleri başarılı! (${successCount} dosya)`)
     } else {
-      console.log(`\n⚠️ ${success} başarılı, ${failed} başarısız`)
-      console.log('📋 Başarısız olan komutları manuel kontrol edin')
+      console.log(`\n⚠️ ${successCount} başarılı, ${failedCount} başarısız.`)
+      console.log('📋 Lütfen yukarıdaki hataları kontrol edin.')
     }
     
   } catch (error) {
-    console.error('❌ Migration hatası:', error.message)
+    console.error('❌ Kritik Hata:', error.message)
+  } finally {
+    if (client) {
+      await client.release()
+      console.log('\n🔌 Veritabanı bağlantısı kapatıldı.')
+    }
+    await pool.end()
   }
 }
 
-async function main() {
-  console.log('🎓 Hüsniye Özdilek MTAL - Migration')
-  console.log('='.repeat(50))
-  
-  await runMigrations()
-}
-
-main()
+runMigrations()

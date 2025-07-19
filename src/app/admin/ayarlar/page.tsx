@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Settings, Database, Users, Mail, Shield, Save, RefreshCw, HardDrive, Download, Trash2, Key, RotateCcw } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { AdminManagement } from '@/components/ui/AdminManagement'
 
@@ -77,17 +76,16 @@ export default function AyarlarPage() {
   const fetchStats = async () => {
     setLoading(true)
     try {
-      const { count: ogrencilerCount } = await supabase.from('ogrenciler').select('*', { count: 'exact', head: true })
-      const { count: ogretmenlerCount } = await supabase.from('ogretmenler').select('*', { count: 'exact', head: true })
-      const { count: isletmelerCount } = await supabase.from('isletmeler').select('*', { count: 'exact', head: true })
-      const { count: dekontlarCount } = await supabase.from('dekontlar').select('*', { count: 'exact', head: true })
-      const { count: bekleyenCount } = await supabase.from('dekontlar').select('*', { count: 'exact', head: true }).eq('onay_durumu', 'bekliyor')
+      const response = await fetch('/api/admin/dashboard-stats')
+      if (!response.ok) throw new Error('Failed to fetch stats')
+      const data = await response.json()
+      
       setStats({
-        ogrenciler: ogrencilerCount || 0,
-        ogretmenler: ogretmenlerCount || 0,
-        isletmeler: isletmelerCount || 0,
-        dekontlar: dekontlarCount || 0,
-        bekleyenDekontlar: bekleyenCount || 0
+        ogrenciler: 0, // We'll need to create a students count endpoint
+        ogretmenler: data.teacherCount || 0,
+        isletmeler: data.companyCount || 0,
+        dekontlar: data.dekontStats?.total || 0,
+        bekleyenDekontlar: data.dekontStats?.pending || 0
       })
     } catch (error) {
       console.error('İstatistikler çekilirken hata:', error)
@@ -98,8 +96,10 @@ export default function AyarlarPage() {
   const fetchSettings = async () => {
     try {
       setSettingsLoading(true)
-      const { data, error } = await supabase.from('system_settings').select('key, value')
-      if (error) throw error
+      const response = await fetch('/api/system-settings')
+      if (!response.ok) throw new Error('Failed to fetch settings')
+      const data = await response.json()
+      
       const settingsMap: { [key: string]: any } = {}
       if (data) {
         for (const setting of data) {
@@ -107,7 +107,7 @@ export default function AyarlarPage() {
         }
       }
       setSettings({
-        schoolName: settingsMap.school_name || 'Hüsniye Özdilek MTAL',
+        schoolName: settingsMap.school_name || '',
         coordinator_deputy_head_name: settingsMap.coordinator_deputy_head_name || '',
         emailNotifications: settingsMap.email_notifications === 'true',
         autoApproval: settingsMap.auto_approval === 'true',
@@ -136,13 +136,18 @@ export default function AyarlarPage() {
         { key: 'maintenance_mode', value: settings.systemMaintenance.toString() },
         { key: 'show_performance_monitoring', value: settings.showPerformanceMonitoring.toString() }
       ]
+      
       for (const setting of settingsToUpdate) {
-        const { error } = await supabase.rpc('update_system_setting', {
-          p_setting_key: setting.key,
-          p_setting_value: setting.value
+        const response = await fetch('/api/system-settings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(setting)
         })
-        if (error) throw new Error(`${setting.key} güncellenirken hata: ${error.message}`)
+        if (!response.ok) throw new Error(`${setting.key} güncellenirken hata`)
       }
+      
       setShowSuccessModal(true)
       await fetchSettings()
     } catch (error) {
@@ -276,18 +281,22 @@ export default function AyarlarPage() {
     try {
       setPinResetLoading(true)
       
-      const { data, error } = await supabase
-        .from('ogretmenler')
-        .update({ pin: teacherPinValue })
-        .neq('id', '00000000-0000-0000-0000-000000000000') // Fake condition to update all
-        .select('id, ad, soyad')
+      const response = await fetch('/api/admin/pin-reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'teacher',
+          pin: teacherPinValue
+        })
+      })
       
-      if (error) {
-        throw error
-      }
+      if (!response.ok) throw new Error('PIN reset failed')
+      const result = await response.json()
       
       setShowTeacherResetModal(false)
-      alert(`${data?.length || 0} öğretmenin PINi "${teacherPinValue}" olarak güncellendi. İlk girişlerinde PIN değiştirmeleri istenecek.`)
+      alert(`${result.count || 0} öğretmenin PINi "${teacherPinValue}" olarak güncellendi. İlk girişlerinde PIN değiştirmeleri istenecek.`)
       
     } catch (error: any) {
       console.error('Öğretmen PIN resetleme hatası:', error)
@@ -309,18 +318,22 @@ export default function AyarlarPage() {
     try {
       setPinResetLoading(true)
       
-      const { data, error } = await supabase
-        .from('isletmeler')
-        .update({ pin: businessPinValue })
-        .neq('id', '00000000-0000-0000-0000-000000000000') // Fake condition to update all
-        .select('id, ad')
+      const response = await fetch('/api/admin/pin-reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'company',
+          pin: businessPinValue
+        })
+      })
       
-      if (error) {
-        throw error
-      }
+      if (!response.ok) throw new Error('PIN reset failed')
+      const result = await response.json()
       
       setShowBusinessResetModal(false)
-      alert(`${data?.length || 0} işletmenin PINi "${businessPinValue}" olarak güncellendi. İlk girişlerinde PIN değiştirmeleri istenecek.`)
+      alert(`${result.count || 0} işletmenin PINi "${businessPinValue}" olarak güncellendi. İlk girişlerinde PIN değiştirmeleri istenecek.`)
       
     } catch (error: any) {
       console.error('İşletme PIN resetleme hatası:', error)
@@ -441,7 +454,7 @@ export default function AyarlarPage() {
             <div className="space-y-6">
               <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-6">
                 <div className="flex items-center mb-4"><Shield className="h-6 w-6 text-indigo-600 mr-3" /><h2 className="text-lg font-semibold text-gray-900">Lisans</h2></div>
-                <div className="space-y-4"><div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-100"><h3 className="text-sm font-medium text-gray-900 mb-3">Geliştirme Bilgileri</h3><p className="text-sm text-gray-700 leading-relaxed mb-3">Hüsniye Özdilek Ticaret MTAL için okulun bilişim teknolojileri alan öğretmenleri tarafından yapılmıştır.</p><div className="flex items-center"><Mail className="h-4 w-4 text-indigo-600 mr-2" /><span className="text-sm text-indigo-600 font-medium">İletişim: mackaengin@gmail.com</span></div></div></div>
+                <div className="space-y-4"><div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-100"><h3 className="text-sm font-medium text-gray-900 mb-3">Geliştirme Bilgileri</h3><p className="text-sm text-gray-700 leading-relaxed mb-3">Okulun bilişim teknolojileri alan öğretmenleri tarafından yapılmıştır.</p><div className="flex items-center"><Mail className="h-4 w-4 text-indigo-600 mr-2" /><span className="text-sm text-indigo-600 font-medium">İletişim: mackaengin@gmail.com</span></div></div></div>
               </div>
               <div className={`rounded-2xl p-6 text-white ${settings.systemMaintenance ? 'bg-gradient-to-r from-red-500 to-orange-600' : 'bg-gradient-to-r from-indigo-500 to-purple-600'}`}>
                 <h3 className="text-lg font-semibold mb-2">Sistem Durumu</h3>

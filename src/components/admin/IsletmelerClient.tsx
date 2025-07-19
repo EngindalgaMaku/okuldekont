@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { CheckSquare, Square, Send, Bell, Building, Search, Plus, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
-import { supabase } from '@/lib/supabase'
 import IsletmeRow from './IsletmeRow'
 
 interface Isletme {
@@ -94,14 +93,16 @@ export default function IsletmelerClient({ isletmeler, fullIsletmeler, searchPar
         is_read: false
       }))
 
-      const { error } = await supabase
-        .from('notifications')
-        .insert(notifications)
+      const response = await fetch('/api/admin/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(notifications)
+      })
 
-      if (error) {
-        console.error('Mesaj gönderme hatası:', error)
-        alert('Mesajlar gönderilirken bir hata oluştu!')
-        return
+      if (!response.ok) {
+        throw new Error('API isteği başarısız')
       }
 
       alert(`${selectedIsletmeler.length} işletmeye mesaj başarıyla gönderildi!`)

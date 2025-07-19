@@ -1,114 +1,65 @@
-import { supabase } from './supabase'
+import { prisma } from './prisma'
 
-// Robust dekont fetching that works with both old and new database schemas
+// Robust dekont fetching that works with Prisma ORM
 export async function fetchDekontlarOptimized(page: number = 1, itemsPerPage: number = 20, filters: any = {}) {
   try {
     console.log('fetchDekontlarOptimized called with:', { page, itemsPerPage, filters })
     
-    const start = (page - 1) * itemsPerPage
-    const end = start + itemsPerPage - 1
+    const skip = (page - 1) * itemsPerPage
     
-    // Try the complex query first, fallback to simple if it fails
     try {
-      let query = supabase
-        .from('dekontlar')
-        .select(`
-          *,
-          stajlar (
-            id,
-            baslangic_tarihi,
-            bitis_tarihi,
-            ogrenci_id,
-            isletme_id,
-            ogretmen_id,
-            ogrenciler (
-              id,
-              ad,
-              soyad,
-              alanlar (
-                ad
-              )
-            ),
-            isletmeler (
-              id,
-              ad
-            ),
-            ogretmenler (
-              id,
-              ad,
-              soyad
-            )
-          )
-        `, { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range(start, end)
-
-      // Apply filters
+      // Build where clause for filters
+      const whereClause: any = {}
+      
       if (filters.status && filters.status !== 'all') {
-        query = query.eq('onay_durumu', filters.status)
+        whereClause.status = filters.status
       }
 
-      const { data, error, count } = await query
-      
-      if (!error && data) {
-        console.log('Complex query successful:', { data: data?.length, count })
-        return { data, error, count }
-      } else {
-        console.warn('Complex query failed, trying fallback:', error)
-        throw new Error('Complex query failed')
-      }
-      
-    } catch (complexError) {
-      console.warn('Complex query failed, using simple fallback:', complexError)
-      
-      // Fallback to basic query without joins
-      let simpleQuery = supabase
-        .from('dekontlar')
-        .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range(start, end)
+      // Get total count
+      const count = await prisma.dekont.count({ where: whereClause })
 
-      if (filters.status && filters.status !== 'all') {
-        simpleQuery = simpleQuery.eq('onay_durumu', filters.status)
-      }
-
-      const { data: simpleData, error: simpleError, count: simpleCount } = await simpleQuery
-      
-      if (simpleError) {
-        console.error('Even simple query failed:', simpleError)
-        return { data: null, error: simpleError, count: 0 }
-      }
-
-      // For simple data, create mock relationships to prevent UI errors
-      const enrichedData = (simpleData || []).map(dekont => ({
-        ...dekont,
-        stajlar: {
-          id: dekont.staj_id || 'unknown',
-          baslangic_tarihi: '2024-01-01',
-          bitis_tarihi: '2024-12-31',
-          ogrenci_id: 'unknown',
-          isletme_id: 'unknown',
-          ogretmen_id: 'unknown',
-          ogrenciler: {
-            id: 'unknown',
-            ad: 'Bilgi',
-            soyad: 'Yok',
-            alanlar: { ad: 'Genel' }
-          },
-          isletmeler: {
-            id: 'unknown',
-            ad: 'Bilinmeyen İşletme'
-          },
-          ogretmenler: {
-            id: 'unknown',
-            ad: 'Bilinmeyen',
-            soyad: 'Öğretmen'
+      // Get paginated data with relationships
+      const data = await prisma.dekont.findMany({
+        where: whereClause,
+        include: {
+          staj: {
+            include: {
+              student: {
+                include: {
+                  alan: {
+                    select: {
+                      name: true
+                    }
+                  }
+                }
+              },
+              company: {
+                select: {
+                  name: true
+                }
+              },
+              teacher: {
+                select: {
+                  name: true,
+                  surname: true
+                }
+              }
+            }
           }
-        }
-      }))
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        skip: skip,
+        take: itemsPerPage
+      })
 
-      console.log('Fallback query successful:', { data: enrichedData?.length, count: simpleCount })
-      return { data: enrichedData, error: null, count: simpleCount }
+      console.log('Prisma query successful:', { data: data?.length, count })
+      return { data, error: null, count }
+      
+    } catch (error) {
+      console.error('Prisma query failed:', error)
+      return { data: [], error, count: 0 }
     }
     
   } catch (error) {
@@ -126,48 +77,48 @@ export async function fetchOgretmenlerOptimized(searchParams: any) {
     const alanFilter = searchParams.alan || ''
 
     // Calculate offset
-    const from = (page - 1) * perPage
-    const to = from + perPage - 1
+    const skip = (page - 1) * perPage
 
-    // Build main query for teachers
-    let query = supabase
-      .from('ogretmenler')
-      .select(`
-        id,
-        ad,
-        soyad,
-        email,
-        telefon,
-        pin,
-        alan_id,
-        alanlar (
-          id,
-          ad
-        )
-      `, { count: 'exact' })
+    // Build where clause
+    const whereClause: any = {}
 
     // Add search filter
     if (search) {
-      query = query.or(`ad.ilike.%${search}%,soyad.ilike.%${search}%,email.ilike.%${search}%,telefon.ilike.%${search}%`)
+      whereClause.OR = [
+        { name: { contains: search } },
+        { surname: { contains: search } },
+        { email: { contains: search } },
+        { phone: { contains: search } }
+      ]
     }
 
     // Add alan filter
     if (alanFilter && alanFilter !== 'all') {
-      query = query.eq('alan_id', parseInt(alanFilter))
+      whereClause.alanId = alanFilter
     }
 
-    // Add pagination and ordering
-    query = query
-      .order('ad', { ascending: true })
-      .range(from, to)
+    // Get total count
+    const count = await prisma.teacherProfile.count({ where: whereClause })
 
-    const { data: ogretmenler, error, count } = await query
+    // Get paginated teachers
+    const teachers = await prisma.teacherProfile.findMany({
+      where: whereClause,
+      include: {
+        alan: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
+      orderBy: {
+        name: 'asc'
+      },
+      skip: skip,
+      take: perPage
+    })
 
-    if (error) {
-      throw new Error('Öğretmenler yüklenirken bir hata oluştu: ' + error.message)
-    }
-
-    if (!ogretmenler || ogretmenler.length === 0) {
+    if (!teachers || teachers.length === 0) {
       return {
         ogretmenler: [],
         alanlar: [],
@@ -180,57 +131,67 @@ export async function fetchOgretmenlerOptimized(searchParams: any) {
       }
     }
 
-    // Batch fetch all stajlar for these teachers in one query
-    const ogretmenIds = ogretmenler.map(o => o.id)
-    const { data: allStajlarData } = await supabase
-      .from('stajlar')
-      .select(`
-        id,
-        ogretmen_id,
-        isletme_id,
-        baslangic_tarihi,
-        isletmeler ( id )
-      `)
-      .in('ogretmen_id', ogretmenIds)
-
-    // Group stajlar by ogretmen_id for efficient lookup
-    const stajlarByOgretmen = (allStajlarData || []).reduce((acc, staj) => {
-      if (!acc[staj.ogretmen_id]) acc[staj.ogretmen_id] = []
-      acc[staj.ogretmen_id].push(staj)
-      return acc
-    }, {} as Record<string, any[]>)
-
-    // Process statistics efficiently
-    const ogretmenlerWithStats = ogretmenler.map(ogretmen => {
-      const teacherStajlar = stajlarByOgretmen[ogretmen.id] || []
-      
-      // Calculate unique companies
-      const isletmeIdleri = new Set<string>()
-      teacherStajlar.forEach(staj => {
-        if (staj.isletmeler) {
-          const isletmeId = Array.isArray(staj.isletmeler)
-            ? staj.isletmeler[0]?.id
-            : (staj.isletmeler as any).id
-          if (isletmeId) isletmeIdleri.add(isletmeId)
-        }
-      })
-
-      return {
-        ...ogretmen,
-        stajlarCount: teacherStajlar.length,
-        koordinatorlukCount: isletmeIdleri.size
+    // Get statistics for each teacher
+    const teacherIds = teachers.map((t: any) => t.id)
+    const stajlarStats = await prisma.staj.groupBy({
+      by: ['teacherId'],
+      where: {
+        teacherId: { in: teacherIds }
+      },
+      _count: {
+        id: true
       }
     })
 
+    const companyStats = await prisma.staj.groupBy({
+      by: ['teacherId', 'companyId'],
+      where: {
+        teacherId: { in: teacherIds }
+      },
+      _count: {
+        companyId: true
+      }
+    })
+
+    // Create stats maps for efficient lookup
+    const stajCountMap = new Map(stajlarStats.map((s: any) => [s.teacherId, s._count.id]))
+    const companyCountMap = new Map()
+    companyStats.forEach((s: any) => {
+      const teacherId = s.teacherId
+      if (!companyCountMap.has(teacherId)) {
+        companyCountMap.set(teacherId, new Set())
+      }
+      companyCountMap.get(teacherId).add(s.companyId)
+    })
+
+    // Process teachers with stats
+    const teachersWithStats = teachers.map((teacher: any) => ({
+      id: teacher.id,
+      ad: teacher.name,
+      soyad: teacher.surname,
+      email: teacher.email,
+      telefon: teacher.phone,
+      pin: teacher.pin,
+      alan_id: teacher.alanId,
+      alanlar: teacher.alan ? { id: teacher.alan.id, ad: teacher.alan.name } : null,
+      stajlarCount: stajCountMap.get(teacher.id) || 0,
+      koordinatorlukCount: companyCountMap.get(teacher.id)?.size || 0
+    }))
+
     // Get all alanlar for filter dropdown
-    const { data: alanlar } = await supabase
-      .from('alanlar')
-      .select('id, ad')
-      .order('ad', { ascending: true })
+    const alanlar = await prisma.alan.findMany({
+      select: {
+        id: true,
+        name: true
+      },
+      orderBy: {
+        name: 'asc'
+      }
+    })
 
     return {
-      ogretmenler: ogretmenlerWithStats,
-      alanlar: alanlar || [],
+      ogretmenler: teachersWithStats,
+      alanlar: alanlar.map((a: any) => ({ id: a.id, ad: a.name })),
       pagination: {
         page,
         perPage,
@@ -247,105 +208,122 @@ export async function fetchOgretmenlerOptimized(searchParams: any) {
 
 // Optimized staj fetching
 export async function fetchStajlarOptimized(filters: any = {}) {
-  let query = supabase
-    .from('stajlar')
-    .select(`
-      id,
-      ogrenci_id,
-      isletme_id,
-      ogretmen_id,
-      baslangic_tarihi,
-      bitis_tarihi,
-      durum,
-      created_at
-    `)
-    .order('created_at', { ascending: false })
+  const whereClause: any = {}
 
-  // Apply filters at database level
+  // Apply filters
   if (filters.durum) {
-    query = query.eq('durum', filters.durum)
+    whereClause.status = filters.durum
   }
   
   if (filters.ogretmen_id) {
-    query = query.eq('ogretmen_id', filters.ogretmen_id)
+    whereClause.teacherId = filters.ogretmen_id
   }
 
-  return query
+  return await prisma.staj.findMany({
+    where: whereClause,
+    select: {
+      id: true,
+      studentId: true,
+      companyId: true,
+      teacherId: true,
+      startDate: true,
+      endDate: true,
+      status: true,
+      createdAt: true
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  })
 }
 
 // Optimized teacher detail fetching
 export async function fetchOgretmenDetayOptimized(ogretmenId: string) {
   try {
-    // 1. Get teacher basic info
-    const { data: ogretmenData, error: ogretmenError } = await supabase
-      .from('ogretmenler')
-      .select('id, ad, soyad, email, telefon, alan_id, alanlar(ad)')
-      .eq('id', ogretmenId)
-      .single()
-
-    if (ogretmenError) throw ogretmenError
-
-    // 2. Get stajlar with minimal data first
-    const { data: stajlarData, error: stajlarError } = await supabase
-      .from('stajlar')
-      .select('id, baslangic_tarihi, ogrenci_id, isletme_id')
-      .eq('ogretmen_id', ogretmenId)
-
-    if (stajlarError) throw stajlarError
-
-    if (!stajlarData || stajlarData.length === 0) {
-      return {
-        ...ogretmenData,
-        stajlar: [],
-        koordinatorluk_programi: []
+    // Get teacher with alan
+    const teacher = await prisma.teacherProfile.findUnique({
+      where: { id: ogretmenId },
+      include: {
+        alan: {
+          select: {
+            name: true
+          }
+        }
       }
+    })
+
+    if (!teacher) {
+      throw new Error('Öğretmen bulunamadı')
     }
 
-    // 3. Get related data in parallel using IN queries
-    const ogrenciIds = stajlarData.map(s => s.ogrenci_id)
-    const isletmeIds = stajlarData.map(s => s.isletme_id)
-    const stajIds = stajlarData.map(s => s.id)
+    // Get stajlar with related data
+    const stajlar = await prisma.staj.findMany({
+      where: { teacherId: ogretmenId },
+      include: {
+        student: {
+          select: {
+            id: true,
+            name: true,
+            surname: true,
+            className: true,
+            number: true
+          }
+        },
+        company: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        dekontlar: {
+          select: {
+            id: true,
+            month: true,
+            year: true,
+            status: true
+          }
+        }
+      },
+      orderBy: {
+        startDate: 'desc'
+      }
+    })
 
-    const [ogrencilerResult, isletmelerResult, dekontlarResult] = await Promise.all([
-      supabase
-        .from('ogrenciler')
-        .select('id, ad, soyad, sinif, no')
-        .in('id', ogrenciIds),
-      
-      supabase
-        .from('isletmeler')
-        .select('id, ad')
-        .in('id', isletmeIds),
-        
-      supabase
-        .from('dekontlar')
-        .select('id, ay, yil, onay_durumu, staj_id')
-        .in('staj_id', stajIds)
-    ])
-
-    // 4. Create efficient lookup maps
-    const ogrencilerMap = new Map(ogrencilerResult.data?.map(o => [o.id, o]) || [])
-    const isletmelerMap = new Map(isletmelerResult.data?.map(i => [i.id, i]) || [])
-    
-    // Group dekontlar by staj_id
-    const dekontlarByStajId = (dekontlarResult.data || []).reduce((acc, dekont) => {
-      if (!acc[dekont.staj_id]) acc[dekont.staj_id] = []
-      acc[dekont.staj_id].push(dekont)
-      return acc
-    }, {} as Record<string, any[]>)
-
-    // 5. Combine data efficiently
-    const enrichedStajlar = stajlarData.map(staj => ({
-      ...staj,
-      ogrenciler: ogrencilerMap.get(staj.ogrenci_id),
-      isletmeler: isletmelerMap.get(staj.isletme_id),
-      dekontlar: dekontlarByStajId[staj.id] || []
+    // Transform to expected format
+    const transformedStajlar = stajlar.map((staj: any) => ({
+      id: staj.id,
+      baslangic_tarihi: staj.startDate,
+      ogrenci_id: staj.studentId,
+      isletme_id: staj.companyId,
+      ogrenciler: staj.student ? {
+        id: staj.student.id,
+        ad: staj.student.name,
+        soyad: staj.student.surname,
+        sinif: staj.student.className,
+        no: staj.student.number
+      } : null,
+      isletmeler: staj.company ? {
+        id: staj.company.id,
+        ad: staj.company.name
+      } : null,
+      dekontlar: staj.dekontlar.map((d: any) => ({
+        id: d.id,
+        ay: d.month,
+        yil: d.year,
+        onay_durumu: d.status
+      }))
     }))
 
     return {
-      ...ogretmenData,
-      stajlar: enrichedStajlar,
-      koordinatorluk_programi: [] // Add separately if needed
+      id: teacher.id,
+      ad: teacher.name,
+      soyad: teacher.surname,
+      email: teacher.email,
+      telefon: teacher.phone,
+      alan_id: teacher.alanId,
+      alanlar: teacher.alan ? { ad: teacher.alan.name } : null,
+      stajlar: transformedStajlar,
+      koordinatorluk_programi: []
     }
 
   } catch (error) {
@@ -365,16 +343,21 @@ export async function fetchDashboardStatsOptimized() {
       setTimeout(() => reject(new Error('Dashboard stats query timeout after 15 seconds')), 15000)
     })
     
-    // Use parallel queries with count-only selects for better performance
+    // Use parallel queries for better performance
     const queryPromise = Promise.all([
-      supabase.from('dekontlar').select('onay_durumu', { count: 'exact' }),
-      supabase.from('isletmeler').select('*', { count: 'exact', head: true }),
-      supabase.from('ogretmenler').select('*', { count: 'exact', head: true }),
-      supabase.from('ogrenciler').select('*', { count: 'exact', head: true })
+      prisma.dekont.groupBy({
+        by: ['status'],
+        _count: {
+          id: true
+        }
+      }),
+      prisma.companyProfile.count(),
+      prisma.teacherProfile.count(),
+      prisma.student.count()
     ])
     
     // Race between query and timeout
-    const [dekontlarResult, isletmelerResult, ogretmenlerResult, ogrencilerResult] = await Promise.race([
+    const [dekontStats, companiesCount, teachersCount, studentsCount] = await Promise.race([
       queryPromise,
       timeoutPromise
     ]) as any[]
@@ -382,27 +365,21 @@ export async function fetchDashboardStatsOptimized() {
     const endTime = performance.now()
     console.log(`Dashboard stats fetched in ${(endTime - startTime).toFixed(2)}ms`)
     
-    // Check for errors
-    if (dekontlarResult.error || isletmelerResult.error || ogretmenlerResult.error || ogrencilerResult.error) {
-      const firstError = dekontlarResult.error || isletmelerResult.error || ogretmenlerResult.error || ogrencilerResult.error
-      throw new Error(`Veritabanı sorgusu başarısız: ${firstError.message}`)
-    }
-    
-    // Process dekont statistics efficiently
-    const dekontlar = dekontlarResult.data || []
-    const totalDekontlar = dekontlar.length
-    const bekleyenDekontlar = dekontlar.filter((d: any) => d.onay_durumu === 'bekliyor').length
-    const onaylananDekontlar = dekontlar.filter((d: any) => d.onay_durumu === 'onaylandi').length
-    const rededilenDekontlar = dekontlar.filter((d: any) => d.onay_durumu === 'reddedildi').length
+    // Process dekont statistics
+    const dekontStatsMap = new Map(dekontStats.map((d: any) => [d.status, d._count.id]))
+    const totalDekontlar = dekontStats.reduce((sum: number, stat: any) => sum + stat._count.id, 0)
+    const bekleyenDekontlar = dekontStatsMap.get('PENDING') || 0
+    const onaylananDekontlar = dekontStatsMap.get('APPROVED') || 0
+    const rededilenDekontlar = dekontStatsMap.get('REJECTED') || 0
     
     return {
       totalDekontlar,
       bekleyenDekontlar,
       onaylananDekontlar,
       rededilenDekontlar,
-      totalIsletmeler: isletmelerResult.count || 0,
-      totalOgretmenler: ogretmenlerResult.count || 0,
-      totalOgrenciler: ogrencilerResult.count || 0,
+      totalIsletmeler: companiesCount,
+      totalOgretmenler: teachersCount,
+      totalOgrenciler: studentsCount,
       queryTime: endTime - startTime
     }
     
@@ -416,10 +393,27 @@ export async function fetchDashboardStatsOptimized() {
   }
 }
 
-// Optimized count queries using estimated counts for large tables
+// Optimized count queries using Prisma count
 export async function getEstimatedCount(tableName: string, filters: any = {}) {
-  const { count } = await supabase
-    .from(tableName)
-    .select('*', { count: 'exact', head: true })
-  return count
+  try {
+    switch (tableName) {
+      case 'dekontlar':
+        return await prisma.dekont.count({ where: filters })
+      case 'companies':
+        return await prisma.companyProfile.count({ where: filters })
+      case 'teachers':
+        return await prisma.teacherProfile.count({ where: filters })
+      case 'students':
+        return await prisma.student.count({ where: filters })
+      case 'fields':
+        return await prisma.alan.count({ where: filters })
+      case 'internships':
+        return await prisma.staj.count({ where: filters })
+      default:
+        return 0
+    }
+  } catch (error) {
+    console.error(`Error counting ${tableName}:`, error)
+    return 0
+  }
 }

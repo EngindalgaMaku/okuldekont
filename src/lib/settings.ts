@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { prisma } from './prisma'
 
 export interface SystemSettings {
   schoolName: string
@@ -11,7 +11,7 @@ export interface SystemSettings {
 
 export async function getSystemSettings(): Promise<SystemSettings> {
   const defaultSettings: SystemSettings = {
-    schoolName: 'Hüsniye Özdilek MTAL',
+    schoolName: 'Okul Adı',
     emailNotifications: true,
     autoApproval: false,
     maxFileSize: 5,
@@ -20,48 +20,19 @@ export async function getSystemSettings(): Promise<SystemSettings> {
   }
 
   try {
-    // Önce doğru kolon adlarıyla deneyelim 
-    const { data, error } = await supabase
-      .from('system_settings')
-      .select('key, value')
-
-    if (error) {
-      console.error('Sistem ayarları alınamadı (key,value):', error)
-      
-      // Alternatif kolon adlarını dene
-      const { data: altData, error: altError } = await supabase
-        .from('system_settings')
-        .select('setting_key, setting_value')
-
-      if (altError) {
-        console.error('Sistem ayarları alınamadı (setting_key,setting_value):', altError)
-        return defaultSettings
+    // Sistem ayarlarını Prisma ile al
+    const settings = await prisma.systemSetting.findMany({
+      select: {
+        key: true,
+        value: true
       }
+    })
 
-      if (!altData) {
-        return defaultSettings
-      }
-
-      const settingsMap = altData.reduce((acc: any, setting: any) => {
-        acc[setting.setting_key] = setting.setting_value
-        return acc
-      }, {})
-
-      return {
-        schoolName: settingsMap.school_name || defaultSettings.schoolName,
-        emailNotifications: settingsMap.email_notifications === 'true',
-        autoApproval: settingsMap.auto_approval === 'true',
-        maxFileSize: parseInt(settingsMap.max_file_size || '5'),
-        allowedFileTypes: settingsMap.allowed_file_types || defaultSettings.allowedFileTypes,
-        maintenanceMode: settingsMap.maintenance_mode === 'true'
-      }
-    }
-
-    if (!data) {
+    if (!settings || settings.length === 0) {
       return defaultSettings
     }
 
-    const settingsMap = data.reduce((acc: any, setting: any) => {
+    const settingsMap = settings.reduce((acc: any, setting: any) => {
       acc[setting.key] = setting.value
       return acc
     }, {})
@@ -82,24 +53,60 @@ export async function getSystemSettings(): Promise<SystemSettings> {
 
 export async function getSchoolName(): Promise<string> {
   try {
-    // Önce system_settings tablosundan direkt çekmeyi dene
-    const { data: settingData, error: directError } = await supabase
-      .from('system_settings')
-      .select('value')
-      .eq('key', 'school_name')
-      .single()
-
-    if (!directError && settingData?.value) {
-      return settingData.value
-    }
-
-    // Direkt erişim çalışmazsa RPC deneyelim
-    const { data } = await supabase.rpc('get_system_setting', {
-      p_setting_key: 'school_name'
+    // Okul adını Prisma ile al
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: 'school_name' },
+      select: { value: true }
     })
-    return data || 'Hüsniye Özdilek MTAL'
+
+    return setting?.value || 'Okul Adı'
   } catch (error) {
     console.error('Okul adı alınamadı:', error)
-    return 'Hüsniye Özdilek MTAL'
+    return 'Okul Adı'
+  }
+}
+
+export async function updateSystemSetting(key: string, value: string): Promise<boolean> {
+  try {
+    await prisma.systemSetting.upsert({
+      where: { key },
+      update: { value },
+      create: { key, value }
+    })
+    return true
+  } catch (error) {
+    console.error('Sistem ayarı güncellenemedi:', error)
+    return false
+  }
+}
+
+export async function updateSystemSettings(settings: Partial<SystemSettings>): Promise<boolean> {
+  try {
+    const updates = []
+
+    if (settings.schoolName !== undefined) {
+      updates.push(updateSystemSetting('school_name', settings.schoolName))
+    }
+    if (settings.emailNotifications !== undefined) {
+      updates.push(updateSystemSetting('email_notifications', settings.emailNotifications.toString()))
+    }
+    if (settings.autoApproval !== undefined) {
+      updates.push(updateSystemSetting('auto_approval', settings.autoApproval.toString()))
+    }
+    if (settings.maxFileSize !== undefined) {
+      updates.push(updateSystemSetting('max_file_size', settings.maxFileSize.toString()))
+    }
+    if (settings.allowedFileTypes !== undefined) {
+      updates.push(updateSystemSetting('allowed_file_types', settings.allowedFileTypes))
+    }
+    if (settings.maintenanceMode !== undefined) {
+      updates.push(updateSystemSetting('maintenance_mode', settings.maintenanceMode.toString()))
+    }
+
+    await Promise.all(updates)
+    return true
+  } catch (error) {
+    console.error('Sistem ayarları güncellenemedi:', error)
+    return false
   }
 }

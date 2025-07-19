@@ -10,6 +10,10 @@ interface ModalProps {
   title: string
   children: React.ReactNode
   titleIcon?: React.ElementType
+  onConfirm?: () => void
+  confirmText?: string
+  confirmButtonColor?: string
+  cancelText?: string
 }
 
 export default function Modal({
@@ -17,7 +21,11 @@ export default function Modal({
   onClose,
   title,
   children,
-  titleIcon: TitleIcon
+  titleIcon: TitleIcon,
+  onConfirm,
+  confirmText = 'Confirm',
+  confirmButtonColor = 'bg-indigo-600 hover:bg-indigo-700',
+  cancelText = 'Cancel'
 }: ModalProps) {
   return (
     <Transition.Root show={isOpen} as={Fragment}>
@@ -64,7 +72,25 @@ export default function Modal({
                    {TitleIcon && <TitleIcon className="h-6 w-6 text-gray-500" />}
                     <span>{title}</span>
                   </Dialog.Title>
-                  <div>{children}</div>
+                  <div className="mb-4">{children}</div>
+                  {onConfirm && (
+                    <div className="flex justify-end space-x-3">
+                      <button
+                        type="button"
+                        className="inline-flex justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                        onClick={onClose}
+                      >
+                        {cancelText}
+                      </button>
+                      <button
+                        type="button"
+                        className={`inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ${confirmButtonColor}`}
+                        onClick={onConfirm}
+                      >
+                        {confirmText}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </Dialog.Panel>
             </Transition.Child>

@@ -8,6 +8,7 @@ import { useEgitimYili } from '@/lib/context/EgitimYiliContext'
 import { uploadFile, validateFile } from '@/lib/storage'
 import { DekontFormData } from '@/types/dekont'
 import DekontUpload from '@/components/ui/DekontUpload'
+import { generateDekontFileName, DekontNamingData } from '@/utils/dekontNaming'
 
 interface Stajyer {
   id: string // staj kaydı id'si
@@ -15,6 +16,10 @@ interface Stajyer {
   ad: string
   soyad: string
   sinif: string
+  no: string
+  alan: {
+    ad: string
+  }
 }
 
 export default function YeniDekontPage() {
@@ -49,7 +54,11 @@ export default function YeniDekontPage() {
           id,
           ad,
           soyad,
-          sinif
+          sinif,
+          no,
+          alanlar (
+            ad
+          )
         )
       `)
       .eq('isletme_id', storedIsletme.id)
@@ -68,7 +77,11 @@ export default function YeniDekontPage() {
         ogrenci_id: staj.ogrenciler.id, // öğrenci id'si
         ad: staj.ogrenciler.ad,
         soyad: staj.ogrenciler.soyad,
-        sinif: staj.ogrenciler.sinif
+        sinif: staj.ogrenciler.sinif,
+        no: staj.ogrenciler.no,
+        alan: {
+          ad: staj.ogrenciler.alanlar?.ad || 'Bilinmeyen'
+        }
       }))
       console.log('Formatlanmış stajyerler:', formattedStajyerler)
       setStajyerler(formattedStajyerler)
@@ -94,8 +107,39 @@ export default function YeniDekontPage() {
           throw new Error(validation.error)
         }
 
-        // Dosyayı Supabase Storage'a yükle
-        const uploadResult = await uploadFile('dekontlar', formData.dosya, 'dekont_')
+        // Stajyer objesini bul (dosya yükleme öncesi)
+        const staj = stajyerler.find(s => s.id === formData.staj_id)
+        if (!staj) {
+          throw new Error('Stajyer bulunamadı!')
+        }
+
+        // Mevcut dekontları kontrol et (ek dekont kontrolü için)
+        const { data: mevcutDekontlar } = await supabase
+          .from('dekontlar')
+          .select('id')
+          .eq('staj_id', formData.staj_id)
+          .eq('ay', formData.ay)
+          .eq('yil', formData.yil);
+
+        // Anlamlı dosya ismi oluştur
+        const dekontNamingData: DekontNamingData = {
+          studentName: staj.ad,
+          studentSurname: staj.soyad,
+          studentClass: staj.sinif,
+          studentNumber: staj.no,
+          fieldName: staj.alan.ad,
+          companyName: isletme.ad,
+          month: parseInt(formData.ay),
+          year: parseInt(formData.yil),
+          originalFileName: formData.dosya.name,
+          isAdditional: (mevcutDekontlar?.length || 0) > 0,
+          additionalIndex: (mevcutDekontlar?.length || 0) + 1
+        }
+
+        const meaningfulFileName = generateDekontFileName(dekontNamingData)
+
+        // Dosyayı anlamlı isimle yükle
+        const uploadResult = await uploadFile('dekontlar', formData.dosya, undefined, meaningfulFileName)
         if (!uploadResult) {
           throw new Error('Dosya yüklenirken hata oluştu!')
         }
@@ -104,7 +148,7 @@ export default function YeniDekontPage() {
         dosyaPath = uploadResult.path
       }
 
-      // Stajyer objesini bul
+      // Stajyer objesini bul (veritabanı işlemi için)
       const staj = stajyerler.find(s => s.id === formData.staj_id)
       
       const { error } = await supabase

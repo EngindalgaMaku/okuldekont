@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { Key, Eye, EyeOff, X } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { toast } from 'react-hot-toast'
 
 interface Props {
@@ -27,14 +26,13 @@ export default function QuickPinModal({ ogretmenId, ogretmenAd, ogretmenSoyad, i
     const fetchCurrentPin = async () => {
       if (isOpen && ogretmenId) {
         try {
-          const { data, error } = await supabase
-            .from('ogretmenler')
-            .select('pin')
-            .eq('id', ogretmenId)
-            .single()
-          
-          if (error) throw error
-          setCurrentPin(data?.pin || '')
+          const response = await fetch(`/api/admin/teachers/${ogretmenId}`)
+          if (response.ok) {
+            const data = await response.json()
+            setCurrentPin(data?.pin || '')
+          } else {
+            setCurrentPin('')
+          }
         } catch (error) {
           console.error('PIN getirme hatası:', error)
           setCurrentPin('')
@@ -63,12 +61,17 @@ export default function QuickPinModal({ ogretmenId, ogretmenAd, ogretmenSoyad, i
     try {
       setLoading(true)
       
-      const { error } = await supabase
-        .from('ogretmenler')
-        .update({ pin })
-        .eq('id', ogretmenId)
+      const response = await fetch(`/api/admin/teachers/${ogretmenId}/pin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ pin })
+      })
       
-      if (error) throw error
+      if (!response.ok) {
+        throw new Error('PIN atama başarısız')
+      }
       
       toast.success('PIN başarıyla atandı')
       setPin('')

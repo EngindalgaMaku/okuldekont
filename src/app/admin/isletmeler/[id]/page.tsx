@@ -31,117 +31,101 @@ import {
   File,
   AlertCircle
 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import Modal from '@/components/ui/Modal'
 
-interface Isletme {
+interface Company {
   id: string;
-  ad: string;
-  adres?: string;
-  telefon?: string;
+  name: string;
+  address?: string;
+  phone?: string;
   email?: string;
-  yetkili_kisi?: string;
+  contact?: string;
   pin?: string;
-  ogretmen_id?: string;
-  ogretmenler?: {
+  teacherId?: string;
+  teacher?: {
     id: string;
-    ad: string;
-    soyad: string;
+    name: string;
+    surname: string;
   };
 }
 
-interface Ogrenci {
+interface Student {
   id: string;
-  ad: string;
-  soyad: string;
-  no: string;
-  alan_id: string;
-  sinif: string;
-  isletme_id?: string;
-  alanlar: {
-    ad: string;
+  name: string;
+  surname: string;
+  number: string;
+  className: string;
+  alanId: string;
+  companyId?: string;
+  alan: {
+    name: string;
   };
 }
 
-interface Staj {
+interface Internship {
   id: string;
-  ogrenci_id: string;
-  baslangic_tarihi: string;
-  bitis_tarihi: string;
-  fesih_tarihi?: string;
-  durum: string;
-  ogrenciler: {
+  studentId: string;
+  startDate: string;
+  endDate: string;
+  terminationDate?: string;
+  status: string;
+  student: {
     id: string;
-    ad: string;
-    soyad: string;
-    no: string;
-    sinif: string;
-    alanlar: {
-      ad: string;
+    name: string;
+    surname: string;
+    number: string;
+    className: string;
+    alan: {
+      name: string;
     };
   };
 }
 
-interface IsletmeAlan {
+interface Field {
   id: string;
-  alan_id: string;
-  alanlar: {
-    id: string;
-    ad: string;
-  };
-  ogretmenler?: {
-    id: string;
-    ad: string;
-    soyad: string;
-    alan_id: string;
-  } | null;
+  name: string;
 }
 
-interface Alan {
+interface Document {
   id: string;
-  ad: string;
-}
-
-interface Belge {
-  id: string;
-  isletme_id: string;
-  ad: string;
-  tur: string;
-  dosya_url?: string;
-  yukleme_tarihi: string;
+  companyId: string;
+  name: string;
+  type: string;
+  fileUrl?: string;
+  uploadDate: string;
 }
 
 interface Dekont {
   id: string;
-  isletme_id: string;
-  tarih: string;
-  aciklama: string;
-  miktar: number;
-  ay: string;
-  ogrenci_adi?: string;
-  dosya_url?: string;
-  onay_durumu?: string;
-  staj_id?: string;
-  ogrenci_id?: string;
+  companyId: string;
+  date: string;
+  description: string;
+  amount: number;
+  month: string;
+  studentName?: string;
+  fileUrl?: string;
+  status?: string;
+  internshipId?: string;
+  studentId?: string;
 }
 
-interface IsletmeData {
+interface CompanyData {
   id: string;
-  ogretmen_id: string | null;
-  ogretmenler: {
+  teacherId: string | null;
+  teacher: {
     id: string;
-    ad: string;
-    soyad: string;
-    alan_id: string;
+    name: string;
+    surname: string;
+    alanId: string;
   } | null;
 }
 
-interface AlanData {
+interface FieldData {
   id: string;
-  alan_id: string;
-  alanlar: {
+  alanId: string;
+  alan: {
     id: string;
-    ad: string;
+    name: string;
   };
 }
 
@@ -149,778 +133,328 @@ export default function IsletmeDetayPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const params = useParams()
-  console.log('params.id:', params.id)
-  const isletmeId = params.id as string
+  const companyId = params.id as string
   const referrer = searchParams.get('ref')
 
   const [activeTab, setActiveTab] = useState('temel')
-  const [isletme, setIsletme] = useState<Isletme | null>(null)
-  const [stajlar, setStajlar] = useState<Staj[]>([])
-  const [isletmeAlanlar, setIsletmeAlanlar] = useState<IsletmeAlan[]>([])
+  const [company, setCompany] = useState<Company | null>(null)
+  const [internships, setInternships] = useState<Internship[]>([])
+  const [companyFields, setCompanyFields] = useState<FieldData[]>([])
   const [loading, setLoading] = useState(true)
   const [editMode, setEditMode] = useState(false)
-  const [ogrenciModalOpen, setOgrenciModalOpen] = useState(false)
-  const [fesihModalOpen, setFesihModalOpen] = useState(false)
-  const [belgeModalOpen, setBelgeModalOpen] = useState(false)
+  const [studentModalOpen, setStudentModalOpen] = useState(false)
+  const [terminationModalOpen, setTerminationModalOpen] = useState(false)
+  const [documentModalOpen, setDocumentModalOpen] = useState(false)
   const [dekontModalOpen, setDekontModalOpen] = useState(false)
   const [dekontModalContext, setDekontModalContext] = useState<'student' | 'general'>('student')
-  const [alanlar, setAlanlar] = useState<Alan[]>([])
-  const [belgeler, setBelgeler] = useState<Belge[]>([])
+  const [fields, setFields] = useState<Field[]>([])
+  const [documents, setDocuments] = useState<Document[]>([])
   const [dekontlar, setDekontlar] = useState<Dekont[]>([])
-  const [mevcutOgrenciler, setMevcutOgrenciler] = useState<Ogrenci[]>([])
-  const [aktifOgrenciler, setAktifOgrenciler] = useState<Staj[]>([])
-  const [selectedStaj, setSelectedStaj] = useState<Staj | null>(null)
+  const [availableStudents, setAvailableStudents] = useState<Student[]>([])
+  const [activeStudents, setActiveStudents] = useState<Internship[]>([])
+  const [selectedInternship, setSelectedInternship] = useState<Internship | null>(null)
   
-  // Dekont görüntüleme için state'ler
+  // Dekont viewing states
   const [dekontViewModalOpen, setDekontViewModalOpen] = useState(false)
-  const [selectedStajDekontlar, setSelectedStajDekontlar] = useState<Dekont[]>([])
+  const [selectedInternshipDekontlar, setSelectedInternshipDekontlar] = useState<Dekont[]>([])
   const [selectedDekont, setSelectedDekont] = useState<Dekont | null>(null)
   const [dekontDetailModalOpen, setDekontDetailModalOpen] = useState(false)
 
   const [formData, setFormData] = useState({
-    ad: '',
-    adres: '',
-    telefon: '',
+    name: '',
+    address: '',
+    phone: '',
     email: '',
-    yetkili_kisi: '',
+    contact: '',
     pin: '',
-    faaliyet_alani: '',
-    vergi_numarasi: '',
-    banka_hesap_no: '',
-    calisan_sayisi: '',
-    katki_payi_talebi: '',
-    usta_ogretici_adi: '',
-    usta_ogretici_telefon: ''
+    activityField: '',
+    taxNumber: '',
+    bankAccountNo: '',
+    employeeCount: '',
+    stateContributionRequest: '',
+    masterTeacherName: '',
+    masterTeacherPhone: ''
   })
 
-  const [ogrenciFormData, setOgrenciFormData] = useState({
-    ogrenci_id: '',
-    baslangic_tarihi: ''
+  const [studentFormData, setStudentFormData] = useState({
+    studentId: '',
+    startDate: ''
   })
 
-  const [fesihFormData, setFesihFormData] = useState({
-    fesih_tarihi: ''
+  const [terminationFormData, setTerminationFormData] = useState({
+    terminationDate: ''
   })
 
-  const [belgeFormData, setBelgeFormData] = useState({
-    ad: '',
-    tur: 'sozlesme',
-    customTur: '',
-    dosya: null as File | null
+  const [documentFormData, setDocumentFormData] = useState({
+    name: '',
+    type: 'sozlesme',
+    customType: '',
+    file: null as File | null
   })
 
   const [dekontFormData, setDekontFormData] = useState<{
-    tarih: string;
-    ay: string;
-    aciklama: string;
-    miktar: string;
-    dosya: File | null;
-    selectedOgrenciId: string;
+    date: string;
+    month: string;
+    description: string;
+    amount: string;
+    file: File | null;
+    selectedStudentId: string;
   }>({
-    tarih: '',
-    ay: '',
-    aciklama: '',
-    miktar: '',
-    dosya: null,
-    selectedOgrenciId: ''
+    date: '',
+    month: '',
+    description: '',
+    amount: '',
+    file: null,
+    selectedStudentId: ''
   })
 
-  // Fetch işletme bilgileri
-  async function fetchIsletme() {
+  // Fetch company information
+  async function fetchCompany() {
     try {
-      const { data, error } = await supabase
-        .from('isletmeler')
-        .select(`
-          *,
-          ogretmenler (id, ad, soyad)
-        `)
-        .eq('id', isletmeId)
-        .single()
-
-      if (error) {
-        console.error('İşletme çekilirken hata:', error)
+      const response = await fetch(`/api/admin/companies/${companyId}`)
+      const data = await response.json()
+      
+      if (!response.ok) {
+        console.error('Error fetching company:', data.error)
         return
       }
 
-      setIsletme(data)
+      setCompany(data)
       setFormData({
-        ad: data.ad || '',
-        adres: data.adres || '',
-        telefon: data.telefon || '',
+        name: data.name || '',
+        address: data.address || '',
+        phone: data.phone || '',
         email: data.email || '',
-        yetkili_kisi: data.yetkili_kisi || '',
+        contact: data.contact || '',
         pin: data.pin || '',
-        faaliyet_alani: data.faaliyet_alani || '',
-        vergi_numarasi: data.vergi_numarasi || '',
-        banka_hesap_no: data.banka_hesap_no || '',
-        calisan_sayisi: data.calisan_sayisi || '',
-        katki_payi_talebi: data.katki_payi_talebi || '',
-        usta_ogretici_adi: data.usta_ogretici_adi || '',
-        usta_ogretici_telefon: data.usta_ogretici_telefon || ''
+        activityField: data.activityField || '',
+        taxNumber: data.taxNumber || '',
+        bankAccountNo: data.bankAccountNo || '',
+        employeeCount: data.employeeCount || '',
+        stateContributionRequest: data.stateContributionRequest || '',
+        masterTeacherName: data.masterTeacherName || '',
+        masterTeacherPhone: data.masterTeacherPhone || ''
       })
     } catch (error) {
-      console.error('Genel hata:', error)
+      console.error('General error:', error)
     }
   }
 
-  // Fetch stajlar ve öğrenciler
-  async function fetchStajlar() {
+  // Fetch internships and students
+  async function fetchInternships() {
     try {
-      const { data, error } = await supabase
-        .from('stajlar')
-        .select(`
-          id,
-          ogrenci_id,
-          baslangic_tarihi,
-          bitis_tarihi,
-          fesih_tarihi,
-          durum,
-          ogrenciler!inner (
-            id,
-            ad,
-            soyad,
-            no,
-            sinif,
-            alanlar (ad)
-          )
-        `)
-        .eq('isletme_id', isletmeId)
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('Stajlar çekilirken hata:', error)
-        return
-      }
-
-      setStajlar(data as any || [])
-    } catch (error) {
-      console.error('Staj fetch hatası:', error)
-    }
-  }
-
-  // Fetch mevcut öğrenciler (işletmenin alanlarına göre)
-  async function fetchMevcutOgrenciler() {
-    try {
-      // Önce işletmenin alanlarını al
-      const { data: isletmeAlanData } = await supabase
-        .from('isletme_alanlar')
-        .select('alan_id')
-        .eq('isletme_id', isletmeId)
-
-      if (!isletmeAlanData || isletmeAlanData.length === 0) {
-        setMevcutOgrenciler([])
-        return
-      }
-
-      const alanIds = isletmeAlanData.map(ia => ia.alan_id)
-
-      // Bu alanlardaki öğrencileri getir (aktif stajda olmayanlar)
-      const { data, error } = await supabase
-        .from('ogrenciler')
-        .select(`
-          id,
-          ad,
-          soyad,
-          no,
-          sinif,
-          alan_id,
-          alanlar!inner (ad)
-        `)
-        .in('alan_id', alanIds)
-        .is('isletme_id', null) // Aktif stajda olmayan öğrenciler
-        .order('ad')
-
-      if (error) {
-        console.error('Mevcut öğrenciler çekilirken hata:', error)
-        return
-      }
-
-      const transformedData = data?.map(item => ({
-        ...item,
-        alanlar: item.alanlar
-      })) || []
-
-      setMevcutOgrenciler(transformedData as any)
-    } catch (error) {
-      console.error('Mevcut öğrenci fetch hatası:', error)
-    }
-  }
-
-  // Fetch aktif öğrenciler (staj yapan öğrenciler)
-  async function fetchAktifOgrenciler() {
-    try {
-      const { data, error } = await supabase
-        .from('stajlar')
-        .select(`
-          id,
-          ogrenci_id,
-          baslangic_tarihi,
-          bitis_tarihi,
-          fesih_tarihi,
-          durum,
-          ogrenciler!inner (
-            id,
-            ad,
-            soyad,
-            no,
-            sinif,
-            alanlar (ad)
-          )
-        `)
-        .eq('isletme_id', isletmeId)
-        .eq('durum', 'aktif')
-        .is('fesih_tarihi', null)
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('Aktif öğrenciler çekilirken hata:', error)
-        return
-      }
-
-      setAktifOgrenciler(data as any || [])
-    } catch (error) {
-      console.error('Aktif öğrenci fetch hatası:', error)
-    }
-  }
-
-  // Fetch işletme alanları
-  async function fetchIsletmeAlanlar() {
-    try {
-      const { data: isletmeData, error: isletmeError } = await supabase
-        .from('isletmeler')
-        .select(`
-          id,
-          ogretmen_id,
-          ogretmenler (
-            id, ad, soyad, alan_id
-          )
-        `)
-        .eq('id', isletmeId)
-        .single()
-
-      if (isletmeError) {
-        console.error('İşletme bilgileri çekilirken hata:', isletmeError)
-        return
-      }
-
+      const response = await fetch(`/api/admin/companies/${companyId}/internships`)
+      const data = await response.json()
       
-            const { data: alanData, error: alanError } = await supabase
-              .from('isletme_alanlar')
-              .select(`
-                alan_id,
-                alanlar (id, ad)
-              `, { head: false })
-              .eq('isletme_id', isletmeId)
-      
-            if (alanError) {
-              console.error('İşletme alanları çekilirken hata:', alanError)
-              return
-            }
-      
-            const typedIsletmeData = isletmeData as unknown as IsletmeData
-            const typedAlanData = alanData as unknown as any[]
-      
-            const transformedData = typedAlanData?.map((item, index) => ({
-              id: index.toString(), // Assign a temporary ID
-              alan_id: item.alan_id,
-              alanlar: item.alanlar,
-              ogretmenler: typedIsletmeData?.ogretmenler?.alan_id === item.alan_id ? typedIsletmeData.ogretmenler : null
-            })) || []
-      
-      setIsletmeAlanlar(transformedData)
-    } catch (error) {
-      console.error('İşletme alanları fetch hatası:', error)
-    }
-  }
-
-  // Fetch alanlar
-  async function fetchAlanlar() {
-    try {
-      const { data, error } = await supabase
-        .from('alanlar')
-        .select('id, ad')
-        .order('ad')
-
-      if (error) {
-        console.error('Alanlar çekilirken hata:', error)
+      if (!response.ok) {
+        console.error('Error fetching internships:', data.error)
         return
       }
 
-      setAlanlar(data || [])
+      setInternships(data || [])
     } catch (error) {
-      console.error('Alanlar fetch hatası:', error)
+      console.error('Internship fetch error:', error)
     }
   }
 
-  // Fetch belgeler
-  async function fetchBelgeler() {
-    console.log('Belgeler yükleniyor... İşletme ID:', isletmeId)
+  // Fetch available students (matching company fields)
+  async function fetchAvailableStudents() {
     try {
-      const { data, error } = await supabase
-        .from('belgeler')
-        .select('id, isletme_id, ad, tur, dosya_url, yukleme_tarihi')
-        .eq('isletme_id', isletmeId)
-
-      if (error) {
-                  console.error('Belgeler çekilirken hata:', error.message)
-          console.error('Hata detayları:', error)
-        console.log('İşletme ID:', isletmeId)
-        console.log('Sorgu sonucu:', { data, error })
-        setBelgeler([])
+      const response = await fetch(`/api/admin/companies/${companyId}/available-students`)
+      const data = await response.json()
+      
+      if (!response.ok) {
+        console.error('Error fetching available students:', data.error)
         return
       }
 
-      console.log('Belgeler başarıyla yüklendi:', data)
-      setBelgeler(data || [])
+      setAvailableStudents(data || [])
     } catch (error) {
-      console.error('Belge fetch hatası:', error)
-      alert('Belgeler yüklenirken beklenmeyen bir hata oluştu!')
+      console.error('Available students fetch error:', error)
+    }
+  }
+
+  // Fetch active students (students doing internships)
+  async function fetchActiveStudents() {
+    try {
+      const response = await fetch(`/api/admin/companies/${companyId}/active-students`)
+      const data = await response.json()
+      
+      if (!response.ok) {
+        console.error('Error fetching active students:', data.error)
+        return
+      }
+
+      setActiveStudents(data || [])
+    } catch (error) {
+      console.error('Active students fetch error:', error)
+    }
+  }
+
+  // Fetch company fields
+  async function fetchCompanyFields() {
+    try {
+      const response = await fetch(`/api/admin/companies/${companyId}/fields`)
+      const data = await response.json()
+      
+      if (!response.ok) {
+        console.error('Error fetching company fields:', data.error)
+        return
+      }
+
+      setCompanyFields(data || [])
+    } catch (error) {
+      console.error('Company fields fetch error:', error)
+    }
+  }
+
+  // Fetch fields
+  async function fetchFields() {
+    try {
+      const response = await fetch('/api/admin/fields')
+      const data = await response.json()
+      
+      if (!response.ok) {
+        console.error('Error fetching fields:', data.error)
+        return
+      }
+
+      setFields(data || [])
+    } catch (error) {
+      console.error('Fields fetch error:', error)
+    }
+  }
+
+  // Fetch documents
+  async function fetchDocuments() {
+    try {
+      const response = await fetch(`/api/admin/companies/${companyId}/documents`)
+      const data = await response.json()
+      
+      if (!response.ok) {
+        console.error('Error fetching documents:', data.error)
+        return
+      }
+
+      setDocuments(data || [])
+    } catch (error) {
+      console.error('Document fetch error:', error)
     }
   }
 
   // Fetch dekontlar
   async function fetchDekontlar() {
     try {
-      const { data, error } = await supabase
-        .from('dekontlar')
-        .select('*')
-        .eq('isletme_id', isletmeId)
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('Dekontlar çekilirken hata:', error)
+      const response = await fetch(`/api/admin/companies/${companyId}/dekontlar`)
+      const data = await response.json()
+      
+      if (!response.ok) {
+        console.error('Error fetching dekontlar:', data.error)
         return
       }
 
       setDekontlar(data || [])
     } catch (error) {
-      console.error('Dekont fetch hatası:', error)
-    }
-  }
-
-  // Smart file access functions
-  const getFileUrl = async (storedUrl: string, bucketName: string = 'public') => {
-    if (!storedUrl) return null
-    
-    // Public bucket için doğrudan URL döndür (dekont mantığı ile aynı)
-    if (bucketName === 'public') {
-      return storedUrl
-    }
-    
-    // Diğer bucket'lar için signed URL oluştur
-    const urlParts = storedUrl.split(`/${bucketName}/`)
-    if (urlParts.length === 2) {
-      const filePath = urlParts[1]
-      
-      const { data, error } = await supabase.storage
-        .from(bucketName)
-        .createSignedUrl(filePath, 3600) // 1 hour validity
-      
-      if (!error && data) {
-        return data.signedUrl
-      }
-    }
-    
-    return storedUrl // Fallback to stored URL
-  }
-
-  const handleFileView = async (fileUrl: string, bucketName: string) => {
-    try {
-      const accessUrl = await getFileUrl(fileUrl, bucketName)
-      if (accessUrl) {
-        window.open(accessUrl, '_blank')
-      } else {
-        alert('Dosya açılamadı!')
-      }
-    } catch (error) {
-      console.error('Dosya görüntüleme hatası:', error)
-      alert('Dosya görüntülenirken hata oluştu!')
-    }
-  }
-
-  const handleFileDownload = async (fileUrl: string, bucketName: string, fileName: string) => {
-    try {
-      const accessUrl = await getFileUrl(fileUrl, bucketName)
-      if (accessUrl) {
-        const link = document.createElement('a')
-        link.href = accessUrl
-        link.download = fileName
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-      } else {
-        alert('Dosya indirilemedi!')
-      }
-    } catch (error) {
-      console.error('Dosya indirme hatası:', error)
-      alert('Dosya indirilirken hata oluştu!')
+      console.error('Dekont fetch error:', error)
     }
   }
 
   useEffect(() => {
-    if (isletmeId) {
+    if (companyId) {
       Promise.all([
-        fetchIsletme(),
-        fetchStajlar(), 
-        fetchIsletmeAlanlar(),
-        fetchAlanlar(),
-        fetchBelgeler(),
+        fetchCompany(),
+        fetchInternships(), 
+        fetchCompanyFields(),
+        fetchFields(),
+        fetchDocuments(),
         fetchDekontlar(),
-        fetchMevcutOgrenciler()
+        fetchAvailableStudents()
       ]).then(() => {
         setLoading(false)
       })
     }
-  }, [isletmeId])
+  }, [companyId])
 
-  // Bilgileri güncelle
+  // Update information
   const handleSave = async () => {
-    if (!isletme) return
+    if (!company) return
 
     try {
-      // Save all fields including new extended fields
-      const { error } = await supabase
-        .from('isletmeler')
-        .update({
-          ad: formData.ad.trim(),
-          adres: formData.adres.trim() || null,
-          telefon: formData.telefon.trim() || null,
+      const response = await fetch(`/api/admin/companies/${company.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          address: formData.address.trim() || null,
+          phone: formData.phone.trim() || null,
           email: formData.email.trim() || null,
-          yetkili_kisi: formData.yetkili_kisi.trim() || null,
+          contact: formData.contact.trim() || null,
           pin: formData.pin.trim() || null,
-          faaliyet_alani: formData.faaliyet_alani.trim() || null,
-          vergi_numarasi: formData.vergi_numarasi.trim() || null,
-          banka_hesap_no: formData.banka_hesap_no.trim() || null,
-          calisan_sayisi: formData.calisan_sayisi.trim() || null,
-          katki_payi_talebi: formData.katki_payi_talebi.trim() || null,
-          usta_ogretici_adi: formData.usta_ogretici_adi.trim() || null,
-          usta_ogretici_telefon: formData.usta_ogretici_telefon.trim() || null
-        })
-        .eq('id', isletme.id)
+          activityField: formData.activityField.trim() || null,
+          taxNumber: formData.taxNumber.trim() || null,
+          bankAccountNo: formData.bankAccountNo.trim() || null,
+          employeeCount: formData.employeeCount.trim() || null,
+          stateContributionRequest: formData.stateContributionRequest.trim() || null,
+          masterTeacherName: formData.masterTeacherName.trim() || null,
+          masterTeacherPhone: formData.masterTeacherPhone.trim() || null
+        }),
+      })
 
-      if (error) {
-        alert('Güncelleme sırasında hata: ' + error.message)
+      if (!response.ok) {
+        const errorData = await response.json()
+        alert('Update error: ' + errorData.error)
         return
       }
 
-      alert('İşletme bilgileri başarıyla güncellendi!')
+      alert('Company information updated successfully!')
       setEditMode(false)
-      fetchIsletme()
+      fetchCompany()
     } catch (error) {
-      console.error('Güncelleme hatası:', error)
-      alert('Bir hata oluştu.')
+      console.error('Update error:', error)
+      alert('An error occurred.')
     }
   }
 
-  // Öğrenci ekle (mevcut öğrenciden seç)
-  const handleOgrenciEkle = async () => {
+  // Add student (select from existing students)
+  const handleAddStudent = async () => {
     try {
       // Form validation
-      if (!ogrenciFormData.ogrenci_id || !ogrenciFormData.baslangic_tarihi) {
-        alert('Lütfen tüm alanları doldurun!')
+      if (!studentFormData.studentId || !studentFormData.startDate) {
+        alert('Please fill in all fields!')
         return
       }
 
-      console.log('Staj ekleme başlatılıyor...', ogrenciFormData)
+      const response = await fetch(`/api/admin/companies/${companyId}/internships`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          studentId: studentFormData.studentId,
+          startDate: studentFormData.startDate,
+        }),
+      })
 
-      // Aktif eğitim yılını al
-      const { data: egitimYiliData, error: egitimYiliError } = await supabase
-        .from('egitim_yillari')
-        .select('id')
-        .eq('aktif', true)
-        .single()
-
-      if (egitimYiliError) {
-        console.warn('Aktif eğitim yılı bulunamadı, varsayılan kullanılacak:', egitimYiliError)
-      }
-
-      // Staj kaydı oluştur
-      const stajInsertData = {
-        ogrenci_id: ogrenciFormData.ogrenci_id,
-        isletme_id: isletmeId,
-        ogretmen_id: isletme?.ogretmen_id || null,
-        egitim_yili_id: egitimYiliData?.id || 1,
-        baslangic_tarihi: ogrenciFormData.baslangic_tarihi,
-        bitis_tarihi: new Date(new Date(ogrenciFormData.baslangic_tarihi).getTime() + 150 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        durum: 'aktif'
-      }
-
-      console.log('Staj verisi:', stajInsertData)
-
-      const { error: stajError } = await supabase
-        .from('stajlar')
-        .insert(stajInsertData)
-
-      if (stajError) {
-        console.error('Staj kaydı ekleme hatası:', stajError)
-        alert('Staj kaydı oluşturulurken hata oluştu: ' + stajError.message)
+      if (!response.ok) {
+        const errorData = await response.json()
+        alert('Error creating internship: ' + errorData.error)
         return
       }
 
-      // Öğrencinin isletme_id'sini güncelle (aktif staj için)
-      const { error: ogrenciUpdateError } = await supabase
-        .from('ogrenciler')
-        .update({ isletme_id: isletmeId })
-        .eq('id', ogrenciFormData.ogrenci_id)
-
-      if (ogrenciUpdateError) {
-        console.error('Öğrenci güncelleme hatası:', ogrenciUpdateError)
-      }
-
-      // Başarılı
-      alert('Öğrenci başarıyla işletmeye eklendi!')
-      setOgrenciModalOpen(false)
-      setOgrenciFormData({
-        ogrenci_id: '',
-        baslangic_tarihi: ''
+      alert('Student successfully added to company!')
+      setStudentModalOpen(false)
+      setStudentFormData({
+        studentId: '',
+        startDate: ''
       })
       
-      // Veriyi yeniden fetch et
-      await Promise.all([fetchStajlar(), fetchMevcutOgrenciler()])
-      
+      // Refresh data
+      await Promise.all([fetchInternships(), fetchAvailableStudents()])
     } catch (error) {
-      console.error('Staj ekleme genel hatası:', error)
-      alert('Staj eklenirken beklenmeyen bir hata oluştu!')
-    }
-  }
-
-  // Belge ekleme fonksiyonu
-  const handleBelgeEkle = async () => {
-    if (!belgeFormData.ad.trim()) {
-      alert('Belge adı gereklidir!')
-      return
-    }
-
-    const belgeTuru = belgeFormData.tur === 'other' ? belgeFormData.customTur : belgeFormData.tur
-
-    if (!belgeTuru.trim()) {
-      alert('Belge türü gereklidir!')
-      return
-    }
-
-    if (!belgeFormData.dosya) {
-      alert('Dosya seçimi zorunludur!')
-      return
-    }
-
-    try {
-      // Dosya yükle
-      const dosyaAdi = `${Date.now()}_${belgeFormData.dosya.name.replace(/\s/g, '_')}`
-      const filePath = `belgeler/${isletmeId}/${dosyaAdi}`
-      
-      const { data: dosyaData, error: dosyaError } = await supabase.storage
-        .from('public')
-        .upload(filePath, belgeFormData.dosya, {
-          cacheControl: '3600',
-          upsert: false
-        })
-
-      if (dosyaError) {
-        console.error('Dosya yükleme hatası:', dosyaError)
-        alert('Dosya yüklenirken hata oluştu!')
-        return
-      }
-
-      // Public URL al (dekontlarla aynı mantık)
-      const { data: publicUrl } = supabase.storage
-        .from('public')
-        .getPublicUrl(dosyaData.path)
-      
-      const dosyaUrl = publicUrl.publicUrl
-
-      // Belge kaydını veritabanına ekle
-      const { error: belgeError } = await supabase
-        .from('belgeler')
-        .insert({
-          isletme_id: isletmeId,
-          ad: belgeFormData.ad,
-          tur: belgeTuru,
-          dosya_url: dosyaUrl,
-          yukleme_tarihi: new Date().toISOString()
-        })
-
-      if (belgeError) {
-        console.error('Belge ekleme hatası:', belgeError)
-        alert('Belge eklenirken hata oluştu!')
-        return
-      }
-
-      alert('Belge başarıyla eklendi!')
-      setBelgeModalOpen(false)
-      setBelgeFormData({
-        ad: '',
-        tur: 'sozlesme',
-        customTur: '',
-        dosya: null
-      })
-      
-      await fetchBelgeler()
-      
-    } catch (error) {
-      console.error('Belge ekleme hatası:', error)
-      alert('Belge eklenirken hata oluştu!')
-    }
-  }
-
-  const handleDekontEkle = async () => {
-    // Context'e göre validasyon
-    if (dekontModalContext === 'student') {
-      if (!selectedStaj || !dekontFormData.tarih || !dekontFormData.aciklama || !dekontFormData.miktar) {
-        alert('Tüm alanlar zorunludur!')
-        return
-      }
-    } else {
-      if (!dekontFormData.selectedOgrenciId || !dekontFormData.tarih || !dekontFormData.aciklama || !dekontFormData.miktar) {
-        alert('Tüm alanlar zorunludur! Lütfen öğrenci seçin.')
-        return
-      }
-    }
-
-    try {
-      let dosyaUrl = null
-      
-      // Dosya varsa yükle
-      if (dekontFormData.dosya) {
-        const dosyaAdi = `${Date.now()}_${dekontFormData.dosya.name.replace(/\s/g, '_')}`
-        const filePath = `dekontlar/${isletmeId}/${dosyaAdi}`
-        
-        const { data: dosyaData, error: dosyaError } = await supabase.storage
-          .from('public')
-          .upload(filePath, dekontFormData.dosya, {
-            cacheControl: '3600',
-            upsert: false
-          })
-
-        if (dosyaError) {
-          console.error('Dosya yükleme hatası:', dosyaError)
-          alert('Dosya yüklenirken hata oluştu!')
-          return
-        }
-
-        const { data: publicUrl } = supabase.storage
-          .from('public')
-          .getPublicUrl(dosyaData.path)
-        
-        dosyaUrl = publicUrl.publicUrl
-      }
-
-      // Context'e göre staj ve öğrenci bilgilerini belirle
-      let stajId, ogrenciId
-      if (dekontModalContext === 'student' && selectedStaj) {
-        stajId = selectedStaj.id
-        ogrenciId = selectedStaj.ogrenci_id
-      } else {
-        // Genel context'te seçilen öğrencinin staj bilgisini bul
-        const selectedOgrenciStaj = aktifOgrenciler.find(staj => staj.ogrenci_id === dekontFormData.selectedOgrenciId)
-        if (selectedOgrenciStaj) {
-          stajId = selectedOgrenciStaj.id
-          ogrenciId = selectedOgrenciStaj.ogrenci_id
-        } else {
-          alert('Seçilen öğrencinin staj bilgisi bulunamadı!')
-          return
-        }
-      }
-
-      const { error } = await supabase
-        .from('dekontlar')
-        .insert({
-          staj_id: stajId,
-          ogrenci_id: ogrenciId,
-          isletme_id: isletmeId,
-          tarih: dekontFormData.tarih,
-          ay: dekontFormData.ay || new Date().getMonth() + 1,
-          aciklama: dekontFormData.aciklama,
-          miktar: parseFloat(dekontFormData.miktar),
-          dosya_url: dosyaUrl,
-          onay_durumu: 'bekliyor',
-          odeme_tarihi: dekontFormData.tarih
-        })
-
-      if (error) {
-        console.error('Dekont ekleme hatası:', error)
-        alert('Dekont eklenirken hata oluştu!')
-        return
-      }
-
-      alert('Dekont başarıyla eklendi!')
-      setDekontModalOpen(false)
-      setSelectedStaj(null)
-      setDekontFormData({ tarih: '', ay: '', aciklama: '', miktar: '', dosya: null, selectedOgrenciId: '' })
-      fetchDekontlar()
-    } catch (error) {
-      console.error('Dekont ekleme hatası:', error)
-      alert('Dekont eklenirken hata oluştu!')
-    }
-  }
-
-  // Dekont görüntüleme fonksiyonları
-  const handleDekontlarGoster = async (staj: Staj) => {
-    try {
-      const { data: dekontData } = await supabase
-        .from('dekontlar')
-        .select(`
-          id,
-          tarih,
-          aciklama,
-          miktar,
-          dosya_url,
-          onay_durumu,
-          created_at
-        `)
-        .eq('ogrenci_id', staj.ogrenci_id)
-        .eq('isletme_id', isletmeId)
-        .order('created_at', { ascending: false })
-
-      if (dekontData) {
-        const formattedDekontlar = dekontData.map((dekont: any) => ({
-          id: dekont.id,
-          ogrenci_adi: `${staj.ogrenciler.ad} ${staj.ogrenciler.soyad}`,
-          isletme_id: isletmeId,
-          tarih: dekont.tarih,
-          ay: dekont.ay || '',
-          aciklama: dekont.aciklama,
-          miktar: dekont.miktar,
-          dosya_url: dekont.dosya_url,
-          onay_durumu: dekont.onay_durumu,
-          staj_id: staj.id,
-          ogrenci_id: staj.ogrenci_id
-        }))
-        setSelectedStajDekontlar(formattedDekontlar)
-        setSelectedStaj(staj)
-        setDekontViewModalOpen(true)
-      }
-    } catch (error) {
-      console.error('Dekont listesi alınırken hata:', error)
-      alert('Dekontlar yüklenirken hata oluştu!')
-    }
-  }
-
-  const handleDekontDetay = (dekont: Dekont) => {
-    setSelectedDekont(dekont)
-    setDekontDetailModalOpen(true)
-  }
-
-  const getOnayDurumuRenk = (durum: string) => {
-    switch (durum) {
-      case 'onaylandi':
-        return 'bg-green-100 text-green-800'
-      case 'reddedildi':
-        return 'bg-red-100 text-red-800'
-      default:
-        return 'bg-yellow-100 text-yellow-800'
-    }
-  }
-
-  const getOnayDurumuText = (durum: string) => {
-    switch (durum) {
-      case 'onaylandi':
-        return 'Onaylandı'
-      case 'reddedildi':
-        return 'Reddedildi'
-      case 'beklemede':
-        return 'Beklemede'
-      default:
-        return 'Bekliyor'
+      console.error('General internship creation error:', error)
+      alert('An unexpected error occurred while adding internship!')
     }
   }
 
@@ -934,13 +468,13 @@ export default function IsletmeDetayPage() {
       id: 'ogrenciler', 
       name: 'Öğrenciler', 
       icon: GraduationCap,
-      count: stajlar.length
+      count: internships.length
     },
     { 
       id: 'koordinatorler', 
       name: 'Koordinatörler', 
       icon: UserCheck,
-      count: isletmeAlanlar.length
+      count: companyFields.length
     },
     { 
       id: 'alanlar', 
@@ -965,7 +499,7 @@ export default function IsletmeDetayPage() {
     )
   }
 
-  if (!isletme) {
+  if (!company) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center">
         <div className="text-center">
@@ -1023,19 +557,19 @@ export default function IsletmeDetayPage() {
                   onClick={() => {
                     setEditMode(false)
                     setFormData({
-                      ad: isletme.ad || '',
-                      adres: isletme.adres || '',
-                      telefon: isletme.telefon || '',
-                      email: isletme.email || '',
-                      yetkili_kisi: isletme.yetkili_kisi || '',
-                      pin: isletme.pin || '',
-                      faaliyet_alani: (isletme as any).faaliyet_alani || '',
-                      vergi_numarasi: (isletme as any).vergi_numarasi || '',
-                      banka_hesap_no: (isletme as any).banka_hesap_no || '',
-                      calisan_sayisi: (isletme as any).calisan_sayisi || '',
-                      katki_payi_talebi: (isletme as any).katki_payi_talebi || '',
-                      usta_ogretici_adi: (isletme as any).usta_ogretici_adi || '',
-                      usta_ogretici_telefon: (isletme as any).usta_ogretici_telefon || ''
+                      name: company.name || '',
+                      address: company.address || '',
+                      phone: company.phone || '',
+                      email: company.email || '',
+                      contact: company.contact || '',
+                      pin: company.pin || '',
+                      activityField: (company as any).activityField || '',
+                      taxNumber: (company as any).taxNumber || '',
+                      bankAccountNo: (company as any).bankAccountNo || '',
+                      employeeCount: (company as any).employeeCount || '',
+                      stateContributionRequest: (company as any).stateContributionRequest || '',
+                      masterTeacherName: (company as any).masterTeacherName || '',
+                      masterTeacherPhone: (company as any).masterTeacherPhone || ''
                     })
                   }}
                   className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200"
@@ -1054,20 +588,20 @@ export default function IsletmeDetayPage() {
               </div>
               <div className="flex-1">
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                  {isletme.ad}
+                  {company.name}
                 </h1>
                 <div className="flex items-center mt-2 space-x-4">
-                  {isletme.adres && (
+                  {company.address && (
                     <div className="flex items-center text-gray-600">
                       <MapPin className="h-4 w-4 mr-1" />
-                      <span className="text-sm">{isletme.adres}</span>
+                      <span className="text-sm">{company.address}</span>
                     </div>
                   )}
-                  {isletme.pin && (
+                  {company.pin && (
                     <div className="flex items-center">
                       <div className="inline-flex items-center px-3 py-1 rounded-lg bg-indigo-50 text-indigo-700">
                         <Key className="h-3 w-3 mr-1" />
-                        <span className="text-xs font-mono font-medium">PIN: {isletme.pin}</span>
+                        <span className="text-xs font-mono font-medium">PIN: {company.pin}</span>
                       </div>
                     </div>
                   )}
@@ -1117,89 +651,463 @@ export default function IsletmeDetayPage() {
           {/* Tab Content */}
           <div className="p-6">
             {activeTab === 'temel' && (
-              <TemelBilgilerPanel 
-                isletme={isletme}
-                formData={formData}
-                setFormData={setFormData}
-                editMode={editMode}
-              />
+              <div className="space-y-8">
+                {/* Basic Company Information */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+                  <div className="flex items-center mb-4">
+                    <Building2 className="h-6 w-6 text-blue-600 mr-3" />
+                    <h3 className="text-lg font-semibold text-blue-900">İşletme Bilgileri</h3>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-blue-800 mb-2">
+                        İşletme Adı
+                      </label>
+                      {editMode ? (
+                        <input
+                          type="text"
+                          value={formData.name}
+                          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                          className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                        />
+                      ) : (
+                        <div className="px-4 py-3 bg-white/70 rounded-lg text-blue-900 font-medium">
+                          {company.name}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-blue-800 mb-2">
+                        İşletme Yetkilisi
+                      </label>
+                      {editMode ? (
+                        <input
+                          type="text"
+                          value={formData.contact}
+                          onChange={(e) => setFormData(prev => ({ ...prev, contact: e.target.value }))}
+                          className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                          placeholder="Yetkili kişi adı soyadı"
+                        />
+                      ) : (
+                        <div className="px-4 py-3 bg-white/70 rounded-lg text-blue-900">
+                          {company.contact || 'Belirtilmemiş'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contact Information */}
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
+                  <div className="flex items-center mb-4">
+                    <Phone className="h-6 w-6 text-purple-600 mr-3" />
+                    <h3 className="text-lg font-semibold text-purple-900">İletişim Bilgileri</h3>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-purple-800 mb-2">
+                        <MapPin className="h-4 w-4 inline mr-1" />
+                        Adres
+                      </label>
+                      {editMode ? (
+                        <textarea
+                          value={formData.address}
+                          onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                          rows={3}
+                          className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
+                          placeholder="İşletme adresi"
+                        />
+                      ) : (
+                        <div className="px-4 py-3 bg-white/70 rounded-lg text-purple-900 min-h-[84px]">
+                          {company.address || 'Belirtilmemiş'}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-purple-800 mb-2">
+                        <Phone className="h-4 w-4 inline mr-1" />
+                        Telefon
+                      </label>
+                      {editMode ? (
+                        <input
+                          type="tel"
+                          value={formData.phone}
+                          onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                          className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
+                          placeholder="0555 123 45 67"
+                        />
+                      ) : (
+                        <div className="px-4 py-3 bg-white/70 rounded-lg text-purple-900">
+                          {company.phone || 'Belirtilmemiş'}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-purple-800 mb-2">
+                        <Mail className="h-4 w-4 inline mr-1" />
+                        E-posta
+                      </label>
+                      {editMode ? (
+                        <input
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                          className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
+                          placeholder="ornek@sirket.com"
+                        />
+                      ) : (
+                        <div className="px-4 py-3 bg-white/70 rounded-lg text-purple-900">
+                          {company.email || 'Belirtilmemiş'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* PIN Information */}
+                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-200">
+                  <div className="flex items-center mb-4">
+                    <Key className="h-6 w-6 text-indigo-600 mr-3" />
+                    <h3 className="text-lg font-semibold text-indigo-900">Teknik Bilgiler</h3>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-indigo-800 mb-2">
+                        <Key className="h-4 w-4 inline mr-1" />
+                        Sistem PIN Kodu
+                      </label>
+                      {editMode ? (
+                        <input
+                          type="text"
+                          value={formData.pin}
+                          onChange={(e) => setFormData(prev => ({ ...prev, pin: e.target.value }))}
+                          maxLength={4}
+                          className="w-full px-4 py-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white font-mono"
+                          placeholder="0000"
+                        />
+                      ) : (
+                        <div className="px-4 py-3 bg-white/70 rounded-lg text-indigo-900 font-mono">
+                          {company.pin || 'Belirtilmemiş'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
             
             {activeTab === 'ogrenciler' && (
-              <OgrencilerPanel 
-                stajlar={stajlar}
-                isletmeId={isletmeId}
-                onRefresh={fetchStajlar}
-                onOgrenciEkle={() => setOgrenciModalOpen(true)}
-                onDekontEkle={(staj) => {
-                  setSelectedStaj(staj)
-                  setDekontModalContext('student')
-                  setDekontFormData({
-                    tarih: new Date().toISOString().split('T')[0],
-                    ay: '',
-                    aciklama: '',
-                    miktar: '',
-                    dosya: null,
-                    selectedOgrenciId: ''
-                  })
-                  setDekontModalOpen(true)
-                }}
-                onDekontlarGoster={handleDekontlarGoster}
-              />
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Staj Yapan Öğrenciler</h3>
+                    <p className="text-sm text-gray-600">Toplam {internships.length} öğrenci bu işletmede staj yapıyor</p>
+                  </div>
+                  <button 
+                    onClick={() => setStudentModalOpen(true)}
+                    className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Öğrenci Ekle
+                  </button>
+                </div>
+
+                {internships.length > 0 ? (
+                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Öğrenci
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Alan
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Staj Dönemi
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Durum
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              İşlemler
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {internships.map((internship) => (
+                            <tr key={internship.id} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center mr-4">
+                                    <GraduationCap className="h-5 w-5 text-indigo-600" />
+                                  </div>
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {internship.student.name} {internship.student.surname}
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                      No: {internship.student.number} • {internship.student.className}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm text-gray-900">{internship.student.alan.name}</div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm text-gray-900">
+                                  {new Date(internship.startDate).toLocaleDateString('tr-TR')}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {new Date(internship.endDate).toLocaleDateString('tr-TR')}
+                                </div>
+                                {internship.terminationDate && (
+                                  <div className="text-sm text-red-600">
+                                    Fesih: {new Date(internship.terminationDate).toLocaleDateString('tr-TR')}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  internship.status === 'ACTIVE' 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : internship.status === 'COMPLETED'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {internship.status === 'ACTIVE' ? 'Aktif' : 
+                                   internship.status === 'COMPLETED' ? 'Tamamlandı' : 'İptal'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={() => {/* Handle view dekontlar */}}
+                                    className="text-blue-600 hover:text-blue-900 p-1 hover:bg-blue-50 rounded transition-all"
+                                    title="Dekontları görüntüle"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+                                  
+                                  <button
+                                    onClick={() => {/* Handle add dekont */}}
+                                    className="text-green-600 hover:text-green-900 p-1 hover:bg-green-50 rounded transition-all"
+                                    title="Dekont yükle"
+                                  >
+                                    <Receipt className="h-4 w-4" />
+                                  </button>
+
+                                  <button
+                                    onClick={() => {/* Handle edit internship */}}
+                                    className="text-blue-600 hover:text-blue-900 p-1 hover:bg-blue-50 rounded transition-all"
+                                    title="Staj tarihlerini düzenle"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </button>
+                                  
+                                  {internship.status === 'ACTIVE' && !internship.terminationDate && (
+                                    <button
+                                      onClick={() => {/* Handle terminate internship */}}
+                                      className="text-orange-600 hover:text-orange-900 p-1 hover:bg-orange-50 rounded transition-all"
+                                      title="Stajı feshet"
+                                    >
+                                      <AlertCircle className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                  
+                                  <button
+                                    onClick={() => {/* Handle delete internship */}}
+                                    className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded transition-all"
+                                    title="Stajı sil"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <GraduationCap className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Henüz öğrenci yok</h3>
+                    <p className="text-gray-600 mb-6">Bu işletmede staj yapan öğrenci bulunmuyor.</p>
+                    <button 
+                      onClick={() => setStudentModalOpen(true)}
+                      className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      İlk Öğrenciyi Ekle
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
             
             {activeTab === 'koordinatorler' && (
-              <KoordinatorlerPanel
-                isletme={isletme}
-                onRefresh={fetchIsletme}
-              />
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Koordinatör Öğretmen</h3>
+                    <p className="text-sm text-gray-600">İşletmeden sorumlu koordinatör öğretmen</p>
+                  </div>
+                </div>
+
+                {company.teacher ? (
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
+                          <UserCheck className="h-5 w-5 text-purple-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900">{company.teacher.name} {company.teacher.surname}</h4>
+                          <span className="text-sm text-gray-500">Koordinatör Öğretmen</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <UserCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Koordinatör atanmamış</h3>
+                    <p className="text-gray-600 mb-6">Bu işletmeye henüz bir koordinatör öğretmen atanmamış.</p>
+                  </div>
+                )}
+              </div>
             )}
             
             {activeTab === 'alanlar' && (
-              <AlanlarPanel 
-                isletmeAlanlar={isletmeAlanlar}
-              />
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Staj Alanları</h3>
+                  <p className="text-sm text-gray-600">Bu işletmede yapılabilecek staj alanları</p>
+                </div>
+
+                {companyFields.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {companyFields.map((field) => (
+                      <div key={field.id} className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4">
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center mr-3">
+                            <BookOpen className="h-5 w-5 text-indigo-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">{field.alan.name}</h4>
+                            <p className="text-sm text-gray-600">Staj Alanı</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Henüz alan yok</h3>
+                    <p className="text-gray-600">Bu işletme için staj alanı tanımlanmamış.</p>
+                  </div>
+                )}
+              </div>
             )}
             
             {activeTab === 'belgeler' && (
-              <BelgelerPanel
-                belgeler={belgeler}
-                isletmeId={isletmeId}
-                onRefresh={fetchBelgeler}
-                onBelgeEkle={() => setBelgeModalOpen(true)}
-                onFileView={handleFileView}
-                onFileDownload={handleFileDownload}
-              />
-            )}
-            
-            {activeTab === 'dekontlar' && (
-              <DekontlarPanel
-                dekontlar={dekontlar}
-                aktifOgrenciler={aktifOgrenciler}
-                onDekontEkle={() => {
-                  setSelectedStaj(null)
-                  setDekontModalContext('general')
-                  setDekontFormData({
-                    tarih: new Date().toISOString().split('T')[0],
-                    ay: '',
-                    aciklama: '',
-                    miktar: '',
-                    dosya: null,
-                    selectedOgrenciId: ''
-                  })
-                  setDekontModalOpen(true)
-                }}
-                onRefresh={fetchDekontlar}
-              />
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Belgeler</h3>
+                    <p className="text-sm text-gray-600">Toplam {documents.length} belge yüklendi</p>
+                  </div>
+                  <button
+                    onClick={() => setDocumentModalOpen(true)}
+                    className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Belge Ekle
+                  </button>
+                </div>
+
+                {documents.length > 0 ? (
+                  <div className="space-y-4">
+                    {documents.map((document) => (
+                      <div key={document.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center flex-1">
+                            <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center mr-4">
+                              <FileText className="h-5 w-5 text-indigo-600" />
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-medium text-gray-900">{document.name}</h4>
+                              <div className="flex items-center space-x-4 mt-1">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                  {document.type}
+                                </span>
+                                <span className="text-sm text-gray-500">
+                                  {new Date(document.uploadDate).toLocaleDateString('tr-TR')}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() => {/* Handle view document */}}
+                              className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all"
+                              title="Belgeyi görüntüle"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => {/* Handle download document */}}
+                              className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-all"
+                              title="Belgeyi indir"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                            <button 
+                              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
+                              title="Belgeyi sil"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Henüz belge yok</h3>
+                    <p className="text-gray-600 mb-6">Bu işletme için henüz belge yüklenmemiş.</p>
+                    <button 
+                      onClick={() => setDocumentModalOpen(true)}
+                      className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      İlk Belgeyi Ekle
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Öğrenci Ekleme Modalı - Mevcut Öğrencilerden Seç */}
+      {/* Student Addition Modal - Select from Existing Students */}
       <Modal 
-        isOpen={ogrenciModalOpen} 
-        onClose={() => setOgrenciModalOpen(false)}
+        isOpen={studentModalOpen} 
+        onClose={() => setStudentModalOpen(false)}
         title="İşletmeye Öğrenci Ekle"
       >
         <div className="space-y-6">
@@ -1214,18 +1122,18 @@ export default function IsletmeDetayPage() {
               Öğrenci Seç
             </label>
             <select
-              value={ogrenciFormData.ogrenci_id}
-              onChange={(e) => setOgrenciFormData({...ogrenciFormData, ogrenci_id: e.target.value})}
+              value={studentFormData.studentId}
+              onChange={(e) => setStudentFormData({...studentFormData, studentId: e.target.value})}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             >
               <option value="">Öğrenci seçiniz...</option>
-              {mevcutOgrenciler.map((ogrenci) => (
-                <option key={ogrenci.id} value={ogrenci.id}>
-                  {ogrenci.ad} {ogrenci.soyad} - {ogrenci.no} ({ogrenci.sinif}) - {ogrenci.alanlar.ad}
+              {availableStudents.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.name} {student.surname} - {student.number} ({student.className}) - {student.alan.name}
                 </option>
               ))}
             </select>
-            {mevcutOgrenciler.length === 0 && (
+            {availableStudents.length === 0 && (
               <p className="text-sm text-gray-500 mt-2">
                 Bu işletmenin alanlarında staja uygun öğrenci bulunmuyor.
               </p>
@@ -1238,22 +1146,22 @@ export default function IsletmeDetayPage() {
             </label>
             <input
               type="date"
-              value={ogrenciFormData.baslangic_tarihi}
-              onChange={(e) => setOgrenciFormData({...ogrenciFormData, baslangic_tarihi: e.target.value})}
+              value={studentFormData.startDate}
+              onChange={(e) => setStudentFormData({...studentFormData, startDate: e.target.value})}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
 
           <div className="flex justify-end space-x-3 pt-4">
             <button
-              onClick={() => setOgrenciModalOpen(false)}
+              onClick={() => setStudentModalOpen(false)}
               className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
               İptal
             </button>
             <button
-              onClick={handleOgrenciEkle}
-              disabled={!ogrenciFormData.ogrenci_id || !ogrenciFormData.baslangic_tarihi}
+              onClick={handleAddStudent}
+              disabled={!studentFormData.studentId || !studentFormData.startDate}
               className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
               Staj Başlat
@@ -1261,1519 +1169,6 @@ export default function IsletmeDetayPage() {
           </div>
         </div>
       </Modal>
-
-      {/* Fesih Modalı */}
-      <Modal 
-        isOpen={fesihModalOpen} 
-        onClose={() => setFesihModalOpen(false)}
-        title="Staj Feshi"
-      >
-        <div className="space-y-6">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-            <p className="text-sm text-red-800">
-              <strong>Dikkat:</strong> Bu işlem geri alınamaz. Stajı feshettiğinizde öğrenci aktif staj listesinden çıkarılacaktır.
-            </p>
-          </div>
-
-          {selectedStaj && (
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2">Feshedilecek Staj:</h4>
-              <p className="text-sm text-gray-600">
-                <strong>Öğrenci:</strong> {(selectedStaj as any).ogrenciler.ad} {(selectedStaj as any).ogrenciler.soyad}
-              </p>
-              <p className="text-sm text-gray-600">
-                <strong>Başlangıç:</strong> {new Date((selectedStaj as any).baslangic_tarihi).toLocaleDateString('tr-TR')}
-              </p>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Fesih Tarihi
-            </label>
-            <input
-              type="date"
-              value={fesihFormData.fesih_tarihi}
-              onChange={(e) => setFesihFormData({...fesihFormData, fesih_tarihi: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-            />
-          </div>
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              onClick={() => setFesihModalOpen(false)}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              İptal
-            </button>
-            <button
-              onClick={async () => {
-                if (!fesihFormData.fesih_tarihi || !selectedStaj) {
-                  alert('Fesih tarihi gereklidir!')
-                  return
-                }
-
-                try {
-                  // Stajı feshet
-                  const { error: stajError } = await supabase
-                    .from('stajlar')
-                    .update({ 
-                      fesih_tarihi: fesihFormData.fesih_tarihi,
-                      durum: 'fesih' 
-                    })
-                    .eq('id', (selectedStaj as any).id)
-
-                  if (stajError) {
-                    alert('Fesih işlemi sırasında hata oluştu!')
-                    return
-                  }
-
-                  // Öğrencinin isletme_id'sini temizle
-                  const { error: ogrenciError } = await supabase
-                    .from('ogrenciler')
-                    .update({ isletme_id: null })
-                    .eq('id', (selectedStaj as any).ogrenci_id)
-
-                  if (ogrenciError) {
-                    console.error('Öğrenci güncelleme hatası:', ogrenciError)
-                  }
-
-                  alert('Staj başarıyla feshedildi!')
-                  setFesihModalOpen(false)
-                  setFesihFormData({ fesih_tarihi: '' })
-                  setSelectedStaj(null)
-                  
-                  // Veriyi yeniden fetch et
-                  await Promise.all([fetchStajlar(), fetchMevcutOgrenciler()])
-                } catch (error) {
-                  console.error('Fesih hatası:', error)
-                  alert('Fesih işlemi sırasında hata oluştu!')
-                }
-              }}
-              disabled={!fesihFormData.fesih_tarihi}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-            >
-              Stajı Feshet
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Belge Ekleme Modalı */}
-      <Modal 
-        isOpen={belgeModalOpen} 
-        onClose={() => setBelgeModalOpen(false)}
-        title="Yeni Belge Ekle"
-      >
-        <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Belge Adı
-            </label>
-            <input
-              type="text"
-              value={belgeFormData.ad}
-              onChange={(e) => setBelgeFormData({...belgeFormData, ad: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="Belge adını giriniz"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Belge Türü
-            </label>
-            <select
-              value={belgeFormData.tur}
-              onChange={(e) => setBelgeFormData({...belgeFormData, tur: e.target.value, customTur: ''})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="sozlesme">Sözleşme</option>
-              <option value="fesih_belgesi">Fesih Belgesi</option>
-              <option value="usta_ogretici_belgesi">Usta Öğretici Belgesi</option>
-              <option value="other">Diğer (Manuel Giriş)</option>
-            </select>
-          </div>
-
-          {belgeFormData.tur === 'other' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Özel Belge Türü
-              </label>
-              <input
-                type="text"
-                value={belgeFormData.customTur}
-                onChange={(e) => setBelgeFormData({...belgeFormData, customTur: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Belge türünü yazınız"
-              />
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Dosya Seçin <span className="text-red-500">*</span>
-            </label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-400 transition-colors">
-              <input
-                type="file"
-                id="belge-dosya"
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                onChange={(e) => setBelgeFormData({...belgeFormData, dosya: e.target.files?.[0] || null})}
-                className="hidden"
-                required
-              />
-              <label htmlFor="belge-dosya" className="cursor-pointer">
-                <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">
-                  {belgeFormData.dosya ? belgeFormData.dosya.name : 'Dosya seçmek için tıklayın'}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  PDF, DOC, DOCX, JPG, PNG formatları desteklenir
-                </p>
-              </label>
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              onClick={() => setBelgeModalOpen(false)}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              İptal
-            </button>
-            <button
-              onClick={handleBelgeEkle}
-              className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
-            >
-              Belge Ekle
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Dekont Ekleme Modal */}
-      <Modal 
-        isOpen={dekontModalOpen} 
-        onClose={() => {
-          setDekontModalOpen(false)
-          setSelectedStaj(null)
-          setDekontFormData({ tarih: '', ay: '', aciklama: '', miktar: '', dosya: null, selectedOgrenciId: '' })
-        }}
-        title={selectedStaj ? `${selectedStaj.ogrenciler.ad} ${selectedStaj.ogrenciler.soyad} - Dekont Yükle` : 'Dekont Yükle'}
-      >
-        <div className="space-y-6">
-          {dekontModalContext === 'student' && selectedStaj ? (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-              <p className="text-sm text-green-800">
-                <strong>Öğrenci:</strong> {selectedStaj.ogrenciler.ad} {selectedStaj.ogrenciler.soyad} ({selectedStaj.ogrenciler.no})
-              </p>
-              <p className="text-sm text-green-800">
-                <strong>Alan:</strong> {selectedStaj.ogrenciler.alanlar.ad}
-              </p>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Öğrenci Seç <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={dekontFormData.selectedOgrenciId}
-                onChange={(e) => setDekontFormData({...dekontFormData, selectedOgrenciId: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                required
-              >
-                <option value="">Öğrenci seçiniz...</option>
-                {aktifOgrenciler.map((staj) => (
-                  <option key={staj.id} value={staj.ogrenci_id}>
-                    {staj.ogrenciler.ad} {staj.ogrenciler.soyad} - {staj.ogrenciler.no} ({staj.ogrenciler.sinif}) - {staj.ogrenciler.alanlar.ad}
-                  </option>
-                ))}
-              </select>
-              {aktifOgrenciler.length === 0 && (
-                <p className="text-sm text-gray-500 mt-2">
-                  Bu işletmede aktif staj yapan öğrenci bulunmuyor.
-                </p>
-              )}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Dekont Tarihi <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="date"
-              value={dekontFormData.tarih}
-              onChange={(e) => setDekontFormData({...dekontFormData, tarih: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Açıklama <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              value={dekontFormData.aciklama}
-              onChange={(e) => setDekontFormData({...dekontFormData, aciklama: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              rows={3}
-              placeholder="Dekont açıklamasını giriniz"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Miktar (₺) <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={dekontFormData.miktar}
-              onChange={(e) => setDekontFormData({...dekontFormData, miktar: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              placeholder="0.00"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Dekont Dosyası (Opsiyonel)
-            </label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-green-400 transition-colors">
-              <input
-                type="file"
-                id="dekont-dosya"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => setDekontFormData({...dekontFormData, dosya: e.target.files?.[0] || null})}
-                className="hidden"
-              />
-              <label htmlFor="dekont-dosya" className="cursor-pointer">
-                <Receipt className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">
-                  {dekontFormData.dosya ? dekontFormData.dosya.name : 'Dekont dosyası seçmek için tıklayın'}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  PDF, JPG, PNG formatları desteklenir
-                </p>
-              </label>
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              onClick={() => {
-                setDekontModalOpen(false)
-                setSelectedStaj(null)
-                setDekontModalContext('student')
-                setDekontFormData({ tarih: '', ay: '', aciklama: '', miktar: '', dosya: null, selectedOgrenciId: '' })
-              }}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              İptal
-            </button>
-            <button
-              onClick={handleDekontEkle}
-              className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
-            >
-              Dekont Ekle
-            </button>
-          </div>
-        </div>
-      </Modal>
-    </div>
-  )
-}
-
-// Belgeler Paneli
-function BelgelerPanel({
-  belgeler,
-  isletmeId,
-  onRefresh,
-  onBelgeEkle,
-  onFileView,
-  onFileDownload
-}: {
-  belgeler: Belge[]
-  isletmeId: string
-  onRefresh: () => void
-  onBelgeEkle: () => void
-  onFileView: (fileUrl: string, bucketName: string) => void
-  onFileDownload: (fileUrl: string, bucketName: string, fileName: string) => void
-}) {
-  const formatTur = (tur: string) => {
-    switch (tur) {
-      case 'sozlesme': return 'Sözleşme'
-      case 'fesih_belgesi': return 'Fesih Belgesi'
-      case 'usta_ogretici_belgesi': return 'Usta Öğretici Belgesi'
-      default: return tur
-    }
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900">Belgeler</h3>
-          <p className="text-sm text-gray-600">Toplam {belgeler.length} belge yüklendi</p>
-        </div>
-        <button
-          onClick={onBelgeEkle}
-          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Belge Ekle
-        </button>
-      </div>
-
-      {belgeler.length > 0 ? (
-        <div className="space-y-4">
-          {belgeler.map((belge) => (
-            <div key={belge.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center flex-1">
-                  <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center mr-4">
-                    <FileText className="h-5 w-5 text-indigo-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">{belge.ad}</h4>
-                    <div className="flex items-center space-x-4 mt-1">
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                        {formatTur(belge.tur)}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        {new Date(belge.yukleme_tarihi).toLocaleDateString('tr-TR')}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => onFileView(belge.dosya_url!, 'public')}
-                    className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all"
-                    title="Belgeyi görüntüle"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => onFileDownload(belge.dosya_url!, 'public', belge.ad)}
-                    className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-all"
-                    title="Belgeyi indir"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                  <button 
-                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
-                    title="Belgeyi sil"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Henüz belge yok</h3>
-          <p className="text-gray-600 mb-6">Bu işletme için henüz belge yüklenmemiş.</p>
-          <button 
-            onClick={onBelgeEkle}
-            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            İlk Belgeyi Ekle
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-
-// Temel Bilgiler Paneli
-function TemelBilgilerPanel({
-  isletme,
-  formData,
-  setFormData,
-  editMode
-}: {
-  isletme: Isletme
-  formData: {
-    ad: string;
-    adres: string;
-    telefon: string;
-    email: string;
-    yetkili_kisi: string;
-    pin: string;
-    faaliyet_alani: string;
-    vergi_numarasi: string;
-    banka_hesap_no: string;
-    calisan_sayisi: string;
-    katki_payi_talebi: string;
-    usta_ogretici_adi: string;
-    usta_ogretici_telefon: string;
-  }
-  setFormData: React.Dispatch<React.SetStateAction<{
-    ad: string;
-    adres: string;
-    telefon: string;
-    email: string;
-    yetkili_kisi: string;
-    pin: string;
-    faaliyet_alani: string;
-    vergi_numarasi: string;
-    banka_hesap_no: string;
-    calisan_sayisi: string;
-    katki_payi_talebi: string;
-    usta_ogretici_adi: string;
-    usta_ogretici_telefon: string;
-  }>>
-  editMode: boolean
-}) {
-  return (
-    <div className="space-y-8">
-      {/* İşletme Temel Bilgileri */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
-        <div className="flex items-center mb-4">
-          <Building2 className="h-6 w-6 text-blue-600 mr-3" />
-          <h3 className="text-lg font-semibold text-blue-900">İşletme Bilgileri</h3>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-blue-800 mb-2">
-              İşletme Adı
-            </label>
-            {editMode ? (
-              <input
-                type="text"
-                value={formData.ad}
-                onChange={(e) => setFormData(prev => ({ ...prev, ad: e.target.value }))}
-                className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-              />
-            ) : (
-              <div className="px-4 py-3 bg-white/70 rounded-lg text-blue-900 font-medium">
-                {isletme.ad}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-blue-800 mb-2">
-              İşletme Yetkilisi
-            </label>
-            {editMode ? (
-              <input
-                type="text"
-                value={formData.yetkili_kisi}
-                onChange={(e) => setFormData(prev => ({ ...prev, yetkili_kisi: e.target.value }))}
-                className="w-full px-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                placeholder="Yetkili kişi adı soyadı"
-              />
-            ) : (
-              <div className="px-4 py-3 bg-white/70 rounded-lg text-blue-900">
-                {isletme.yetkili_kisi || 'Belirtilmemiş'}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* İşletme Detayı */}
-      <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
-        <div className="flex items-center mb-4">
-          <FileText className="h-6 w-6 text-green-600 mr-3" />
-          <h3 className="text-lg font-semibold text-green-900">İşletme Detayı</h3>
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-green-800 mb-2">
-            İşletmenin Faaliyet Alanı / Öğrenci Verilme Temeli
-          </label>
-          {editMode ? (
-            <textarea
-              value={formData.faaliyet_alani}
-              onChange={(e) => setFormData(prev => ({ ...prev, faaliyet_alani: e.target.value }))}
-              placeholder="İşletmenin ne iş yaptığı, hangi alanda faaliyet gösterdiği ve öğrencilere hangi becerileri kazandıracağı..."
-              rows={4}
-              className="w-full px-4 py-3 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
-            />
-          ) : (
-            <div className="px-4 py-3 bg-white/70 rounded-lg text-green-900 min-h-[100px] flex items-center">
-              {(isletme as any).faaliyet_alani ? (
-                <span className="text-green-900">{(isletme as any).faaliyet_alani}</span>
-              ) : (
-                <span className="text-green-600 italic">Bu bilgi henüz girilmemiş</span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* İletişim Bilgileri */}
-      <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
-        <div className="flex items-center mb-4">
-          <Phone className="h-6 w-6 text-purple-600 mr-3" />
-          <h3 className="text-lg font-semibold text-purple-900">İletişim Bilgileri</h3>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-purple-800 mb-2">
-              <MapPin className="h-4 w-4 inline mr-1" />
-              Adres
-            </label>
-            {editMode ? (
-              <textarea
-                value={formData.adres}
-                onChange={(e) => setFormData(prev => ({ ...prev, adres: e.target.value }))}
-                rows={3}
-                className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
-                placeholder="İşletme adresi"
-              />
-            ) : (
-              <div className="px-4 py-3 bg-white/70 rounded-lg text-purple-900 min-h-[84px]">
-                {isletme.adres || 'Belirtilmemiş'}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-purple-800 mb-2">
-              <Phone className="h-4 w-4 inline mr-1" />
-              Telefon
-            </label>
-            {editMode ? (
-              <input
-                type="tel"
-                value={formData.telefon}
-                onChange={(e) => setFormData(prev => ({ ...prev, telefon: e.target.value }))}
-                className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
-                placeholder="0555 123 45 67"
-              />
-            ) : (
-              <div className="px-4 py-3 bg-white/70 rounded-lg text-purple-900">
-                {isletme.telefon || 'Belirtilmemiş'}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-purple-800 mb-2">
-              <Mail className="h-4 w-4 inline mr-1" />
-              E-posta
-            </label>
-            {editMode ? (
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
-                placeholder="ornek@sirket.com"
-              />
-            ) : (
-              <div className="px-4 py-3 bg-white/70 rounded-lg text-purple-900">
-                {isletme.email || 'Belirtilmemiş'}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Devlet Katkı Payı Bilgileri */}
-      <div className="bg-gradient-to-r from-orange-50 to-yellow-50 rounded-xl p-6 border border-orange-200">
-        <div className="flex items-center mb-4">
-          <Receipt className="h-6 w-6 text-orange-600 mr-3" />
-          <h3 className="text-lg font-semibold text-orange-900">Devlet Katkı Payı Ödemesi Bilgileri</h3>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-orange-800 mb-2">
-              Vergi Numarası
-            </label>
-            {editMode ? (
-              <input
-                type="text"
-                value={formData.vergi_numarasi}
-                onChange={(e) => setFormData(prev => ({ ...prev, vergi_numarasi: e.target.value }))}
-                className="w-full px-4 py-3 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
-                placeholder="1234567890"
-              />
-            ) : (
-              <div className="px-4 py-3 bg-white/70 rounded-lg text-orange-900">
-                {(isletme as any).vergi_numarasi ? (
-                  <span className="text-orange-900">{(isletme as any).vergi_numarasi}</span>
-                ) : (
-                  <span className="text-orange-600 italic">Belirtilmemiş</span>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-orange-800 mb-2">
-              Banka Hesap No
-            </label>
-            {editMode ? (
-              <input
-                type="text"
-                value={formData.banka_hesap_no}
-                onChange={(e) => setFormData(prev => ({ ...prev, banka_hesap_no: e.target.value }))}
-                className="w-full px-4 py-3 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
-                placeholder="TR00 0000 0000 0000 0000 00"
-              />
-            ) : (
-              <div className="px-4 py-3 bg-white/70 rounded-lg text-orange-900">
-                {(isletme as any).banka_hesap_no ? (
-                  <span className="text-orange-900">{(isletme as any).banka_hesap_no}</span>
-                ) : (
-                  <span className="text-orange-600 italic">Belirtilmemiş</span>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-orange-800 mb-2">
-              Çalışan Sayısı
-            </label>
-            {editMode ? (
-              <input
-                type="number"
-                value={formData.calisan_sayisi}
-                onChange={(e) => setFormData(prev => ({ ...prev, calisan_sayisi: e.target.value }))}
-                className="w-full px-4 py-3 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
-                placeholder="0"
-                min="0"
-              />
-            ) : (
-              <div className="px-4 py-3 bg-white/70 rounded-lg text-orange-900">
-                {(isletme as any).calisan_sayisi ? (
-                  <span className="text-orange-900">{(isletme as any).calisan_sayisi}</span>
-                ) : (
-                  <span className="text-orange-600 italic">Belirtilmemiş</span>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-orange-800 mb-2">
-              Katkı Payı Talebi
-            </label>
-            {editMode ? (
-              <select
-                value={formData.katki_payi_talebi}
-                onChange={(e) => setFormData(prev => ({ ...prev, katki_payi_talebi: e.target.value }))}
-                className="w-full px-4 py-3 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
-              >
-                <option value="">Seçiniz</option>
-                <option value="evet">Evet</option>
-                <option value="hayir">Hayır</option>
-              </select>
-            ) : (
-              <div className="px-4 py-3 bg-white/70 rounded-lg text-orange-900">
-                {(isletme as any).katki_payi_talebi ? (
-                  <span className="text-orange-900">
-                    {(isletme as any).katki_payi_talebi === 'evet' ? 'Evet' : 'Hayır'}
-                  </span>
-                ) : (
-                  <span className="text-orange-600 italic">Belirtilmemiş</span>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Teknik Bilgiler - Usta Öğretici */}
-      <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-200">
-        <div className="flex items-center mb-4">
-          <User className="h-6 w-6 text-indigo-600 mr-3" />
-          <h3 className="text-lg font-semibold text-indigo-900">Teknik Bilgiler</h3>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-indigo-800 mb-2">
-              Usta Öğretici Adı Soyadı
-            </label>
-            {editMode ? (
-              <input
-                type="text"
-                value={formData.usta_ogretici_adi}
-                onChange={(e) => setFormData(prev => ({ ...prev, usta_ogretici_adi: e.target.value }))}
-                className="w-full px-4 py-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                placeholder="Usta öğretici adı soyadı"
-              />
-            ) : (
-              <div className="px-4 py-3 bg-white/70 rounded-lg text-indigo-900">
-                {(isletme as any).usta_ogretici_adi ? (
-                  <span className="text-indigo-900">{(isletme as any).usta_ogretici_adi}</span>
-                ) : (
-                  <span className="text-indigo-600 italic">Belirtilmemiş</span>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-indigo-800 mb-2">
-              Usta Öğretici Telefon
-            </label>
-            {editMode ? (
-              <input
-                type="tel"
-                value={formData.usta_ogretici_telefon}
-                onChange={(e) => setFormData(prev => ({ ...prev, usta_ogretici_telefon: e.target.value }))}
-                className="w-full px-4 py-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                placeholder="0555 123 45 67"
-              />
-            ) : (
-              <div className="px-4 py-3 bg-white/70 rounded-lg text-indigo-900">
-                {(isletme as any).usta_ogretici_telefon ? (
-                  <span className="text-indigo-900">{(isletme as any).usta_ogretici_telefon}</span>
-                ) : (
-                  <span className="text-indigo-600 italic">Belirtilmemiş</span>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-indigo-800 mb-2">
-              <Key className="h-4 w-4 inline mr-1" />
-              Sistem PIN Kodu
-            </label>
-            {editMode ? (
-              <input
-                type="text"
-                value={formData.pin}
-                onChange={(e) => setFormData(prev => ({ ...prev, pin: e.target.value }))}
-                maxLength={4}
-                className="w-full px-4 py-3 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white font-mono"
-                placeholder="0000"
-              />
-            ) : (
-              <div className="px-4 py-3 bg-white/70 rounded-lg text-indigo-900 font-mono">
-                {isletme.pin || 'Belirtilmemiş'}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Öğrenciler Paneli  
-function OgrencilerPanel({ 
-  stajlar, 
-  isletmeId, 
-  onRefresh,
-  onOgrenciEkle,
-  onDekontEkle,
-  onDekontlarGoster
-}: { 
-  stajlar: Staj[]
-  isletmeId: string
-  onRefresh: () => void
-  onOgrenciEkle: () => void
-  onDekontEkle: (staj: Staj) => void
-  onDekontlarGoster: (staj: Staj) => void
-}) {
-  const [stajDuzenleModalOpen, setStajDuzenleModalOpen] = useState(false)
-  const [fesihModalOpen, setFesihModalOpen] = useState(false)
-  const [selectedStaj, setSelectedStaj] = useState<Staj | null>(null)
-  const [stajDuzenleFormData, setStajDuzenleFormData] = useState({
-    baslangic_tarihi: '',
-    bitis_tarihi: ''
-  })
-  const [fesihFormData, setFesihFormData] = useState({
-    fesih_tarihi: ''
-  })
-
-  const handleStajDuzenle = async () => {
-    if (!selectedStaj) return
-
-    try {
-      const { error } = await supabase
-        .from('stajlar')
-        .update({ 
-          baslangic_tarihi: stajDuzenleFormData.baslangic_tarihi,
-          bitis_tarihi: stajDuzenleFormData.bitis_tarihi
-        })
-        .eq('id', selectedStaj.id)
-
-      if (error) {
-        console.error('Staj düzenleme hatası:', error)
-        alert('Staj düzenlenirken hata oluştu!')
-        return
-      }
-
-      alert(`${selectedStaj.ogrenciler.ad} ${selectedStaj.ogrenciler.soyad} öğrencisinin staj tarihleri başarıyla güncellendi!`)
-      setStajDuzenleModalOpen(false)
-      setSelectedStaj(null)
-      setStajDuzenleFormData({ baslangic_tarihi: '', bitis_tarihi: '' })
-      onRefresh()
-    } catch (error) {
-      console.error('Staj düzenleme hatası:', error)
-      alert('Staj düzenlenirken hata oluştu!')
-    }
-  }
-
-  const handleFesihSubmit = async () => {
-    if (!selectedStaj) return
-
-    try {
-      const { error } = await supabase
-        .from('stajlar')
-        .update({ 
-          fesih_tarihi: fesihFormData.fesih_tarihi,
-          durum: 'feshedildi'
-        })
-        .eq('id', selectedStaj.id)
-
-      if (error) {
-        console.error('Fesih hatası:', error)
-        alert('Fesih işlemi sırasında hata oluştu!')
-        return
-      }
-
-      alert('Staj başarıyla feshedildi!')
-      setFesihModalOpen(false)
-      setSelectedStaj(null)
-      setFesihFormData({ fesih_tarihi: '' })
-      onRefresh()
-    } catch (error) {
-      console.error('Fesih hatası:', error)
-      alert('Fesih işlemi sırasında hata oluştu!')
-    }
-  }
-
-  const handleStajSil = async (stajId: string, ogrenciAd: string) => {
-    if (!confirm(`${ogrenciAd} öğrencisinin stajını kalıcı olarak silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz!`)) {
-      return
-    }
-
-    try {
-      // Önce staj ile ilgili dekontları kontrol et
-      const { data: dekontlar, error: dekontError } = await supabase
-        .from('dekontlar')
-        .select('id')
-        .eq('staj_id', stajId)
-
-      if (dekontError) {
-        console.error('Dekont kontrol hatası:', dekontError)
-        alert('Dekont kontrolü sırasında hata oluştu!')
-        return
-      }
-
-      if (dekontlar && dekontlar.length > 0) {
-        const silDekont = confirm(`Bu stajın ${dekontlar.length} adet dekont kaydı var. Bunları da silmek istediğinizden emin misiniz?`)
-        if (!silDekont) return
-
-        // Dekontları sil
-        const { error: dekontSilError } = await supabase
-          .from('dekontlar')
-          .delete()
-          .eq('staj_id', stajId)
-
-        if (dekontSilError) {
-          console.error('Dekont silme hatası:', dekontSilError)
-          alert('Dekont silme sırasında hata oluştu!')
-          return
-        }
-      }
-
-      // Stajı sil
-      const { error } = await supabase
-        .from('stajlar')
-        .delete()
-        .eq('id', stajId)
-
-      if (error) {
-        console.error('Staj silme hatası:', error)
-        alert('Staj silinirken hata oluştu: ' + error.message)
-        return
-      }
-
-      alert('Staj ve ilgili kayıtlar başarıyla silindi!')
-      onRefresh()
-    } catch (error) {
-      console.error('Staj silme hatası:', error)
-      alert('Staj silinirken hata oluştu!')
-    }
-  }
-
-
-
-
-
-  const getStatusBadge = (durum: string, fesihTarihi?: string) => {
-    if (fesihTarihi) {
-      return (
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-          Feshedildi
-        </span>
-      )
-    }
-    
-    switch (durum) {
-      case 'aktif':
-        return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-            Aktif
-          </span>
-        )
-      case 'tamamlandi':
-        return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-            Tamamlandı
-          </span>
-        )
-      default:
-        return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-            {durum}
-          </span>
-        )
-    }
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900">Staj Yapan Öğrenciler</h3>
-          <p className="text-sm text-gray-600">Toplam {stajlar.length} öğrenci bu işletmede staj yapıyor</p>
-        </div>
-        <button 
-          onClick={onOgrenciEkle}
-          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Öğrenci Ekle
-        </button>
-      </div>
-
-      {stajlar.length > 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Öğrenci
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Alan
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Staj Dönemi
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Durum
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    İşlemler
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {stajlar.map((staj) => (
-                  <tr key={staj.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center mr-4">
-                          <GraduationCap className="h-5 w-5 text-indigo-600" />
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {staj.ogrenciler.ad} {staj.ogrenciler.soyad}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            No: {staj.ogrenciler.no} • {staj.ogrenciler.sinif}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{staj.ogrenciler.alanlar.ad}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {new Date(staj.baslangic_tarihi).toLocaleDateString('tr-TR')}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {new Date(staj.bitis_tarihi).toLocaleDateString('tr-TR')}
-                      </div>
-                      {staj.fesih_tarihi && (
-                        <div className="text-sm text-red-600">
-                          Fesih: {new Date(staj.fesih_tarihi).toLocaleDateString('tr-TR')}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(staj.durum, staj.fesih_tarihi)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => onDekontlarGoster(staj)}
-                          className="text-blue-600 hover:text-blue-900 p-1 hover:bg-blue-50 rounded transition-all"
-                          title="Dekontları görüntüle"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        
-                        <button
-                          onClick={() => onDekontEkle(staj)}
-                          className="text-green-600 hover:text-green-900 p-1 hover:bg-green-50 rounded transition-all"
-                          title="Dekont yükle"
-                        >
-                          <Receipt className="h-4 w-4" />
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setSelectedStaj(staj)
-                            setStajDuzenleFormData({
-                              baslangic_tarihi: staj.baslangic_tarihi,
-                              bitis_tarihi: staj.bitis_tarihi
-                            })
-                            setStajDuzenleModalOpen(true)
-                          }}
-                          className="text-blue-600 hover:text-blue-900 p-1 hover:bg-blue-50 rounded transition-all"
-                          title="Staj tarihlerini düzenle"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        
-                        {staj.durum === 'aktif' && !staj.fesih_tarihi && (
-                          <button
-                            onClick={() => {
-                              setSelectedStaj(staj)
-                              setFesihFormData({ fesih_tarihi: new Date().toISOString().split('T')[0] })
-                              setFesihModalOpen(true)
-                            }}
-                            className="text-orange-600 hover:text-orange-900 p-1 hover:bg-orange-50 rounded transition-all"
-                            title="Stajı feshet"
-                          >
-                            <AlertCircle className="h-4 w-4" />
-                          </button>
-                        )}
-                        
-                        <button
-                          onClick={() => handleStajSil(staj.id, `${staj.ogrenciler.ad} ${staj.ogrenciler.soyad}`)}
-                          className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded transition-all"
-                          title="Stajı sil"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <GraduationCap className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Henüz öğrenci yok</h3>
-          <p className="text-gray-600 mb-6">Bu işletmede staj yapan öğrenci bulunmuyor.</p>
-          <button 
-            onClick={onOgrenciEkle}
-            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            İlk Öğrenciyi Ekle
-          </button>
-        </div>
-      )}
-
-      {/* Staj Düzenleme Modal */}
-      <Modal
-        isOpen={stajDuzenleModalOpen}
-        onClose={() => {
-          setStajDuzenleModalOpen(false)
-          setSelectedStaj(null)
-          setStajDuzenleFormData({ baslangic_tarihi: '', bitis_tarihi: '' })
-        }}
-        title={selectedStaj ? `${selectedStaj.ogrenciler.ad} ${selectedStaj.ogrenciler.soyad} - Staj Tarihlerini Düzenle` : 'Staj Düzenle'}
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Başlangıç Tarihi
-            </label>
-            <input
-              type="date"
-              value={stajDuzenleFormData.baslangic_tarihi}
-              onChange={(e) => setStajDuzenleFormData({ 
-                ...stajDuzenleFormData, 
-                baslangic_tarihi: e.target.value 
-              })}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Bitiş Tarihi
-            </label>
-            <input
-              type="date"
-              value={stajDuzenleFormData.bitis_tarihi}
-              onChange={(e) => setStajDuzenleFormData({ 
-                ...stajDuzenleFormData, 
-                bitis_tarihi: e.target.value 
-              })}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              required
-            />
-          </div>
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={() => {
-                setStajDuzenleModalOpen(false)
-                setSelectedStaj(null)
-                setStajDuzenleFormData({ baslangic_tarihi: '', bitis_tarihi: '' })
-              }}
-              className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all"
-            >
-              İptal
-            </button>
-            <button
-              type="button"
-              onClick={handleStajDuzenle}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all"
-            >
-              Güncelle
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Fesih Modal */}
-      <Modal
-        isOpen={fesihModalOpen}
-        onClose={() => {
-          setFesihModalOpen(false)
-          setSelectedStaj(null)
-          setFesihFormData({ fesih_tarihi: '' })
-        }}
-        title={selectedStaj ? `${selectedStaj.ogrenciler.ad} ${selectedStaj.ogrenciler.soyad} - Stajı Feshet` : 'Stajı Feshet'}
-      >
-        <div className="space-y-4">
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <AlertCircle className="h-5 w-5 text-orange-600 mr-2" />
-              <p className="text-orange-800 text-sm">
-                Bu staj feshedilecek. Bu işlem geri alınamaz!
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Fesih Tarihi
-            </label>
-            <input
-              type="date"
-              value={fesihFormData.fesih_tarihi}
-              onChange={(e) => setFesihFormData({ 
-                ...fesihFormData, 
-                fesih_tarihi: e.target.value 
-              })}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-              required
-            />
-          </div>
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={() => {
-                setFesihModalOpen(false)
-                setSelectedStaj(null)
-                setFesihFormData({ fesih_tarihi: '' })
-              }}
-              className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all"
-            >
-              İptal
-            </button>
-            <button
-              type="button"
-              onClick={handleFesihSubmit}
-              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all"
-            >
-              Feshet
-            </button>
-          </div>
-        </div>
-      </Modal>
-    </div>
-  )
-}
-
-// Koordinatörler Paneli
-function KoordinatorlerPanel({
-  isletme,
-  onRefresh
-}: {
-  isletme: Isletme
-  onRefresh: () => void
-}) {
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900">Koordinatör Öğretmen</h3>
-          <p className="text-sm text-gray-600">İşletmeden sorumlu koordinatör öğretmen</p>
-        </div>
-      </div>
-
-      {isletme.ogretmenler ? (
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
-                <UserCheck className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <h4 className="font-medium text-gray-900">{isletme.ogretmenler.ad} {isletme.ogretmenler.soyad}</h4>
-                <span className="text-sm text-gray-500">Koordinatör Öğretmen</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <UserCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Koordinatör atanmamış</h3>
-          <p className="text-gray-600 mb-6">Bu işletmeye henüz bir koordinatör öğretmen atanmamış.</p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Dekontlar Paneli
-function DekontlarPanel({
-  dekontlar,
-  aktifOgrenciler,
-  onDekontEkle,
-  onRefresh
-}: {
-  dekontlar: Dekont[]
-  aktifOgrenciler: Staj[]
-  onDekontEkle: () => void
-  onRefresh: () => void
-}) {
-  const getOnayDurumuRenk = (durum: string) => {
-    switch (durum) {
-      case 'onaylandi':
-        return 'bg-green-100 text-green-800'
-      case 'reddedildi':
-        return 'bg-red-100 text-red-800'
-      default:
-        return 'bg-yellow-100 text-yellow-800'
-    }
-  }
-
-  const getOnayDurumuText = (durum: string) => {
-    switch (durum) {
-      case 'onaylandi':
-        return 'Onaylandı'
-      case 'reddedildi':
-        return 'Reddedildi'
-      case 'beklemede':
-        return 'Beklemede'
-      default:
-        return 'Bekliyor'
-    }
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900">Dekontlar</h3>
-          <p className="text-sm text-gray-600">Toplam {dekontlar.length} dekont kaydı</p>
-        </div>
-        <button
-          onClick={onDekontEkle}
-          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
-        >
-          <Receipt className="h-4 w-4 mr-2" />
-          Dekont Ekle
-        </button>
-      </div>
-
-      {dekontlar.length > 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Öğrenci
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tarih
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Miktar
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Açıklama
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Durum
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    İşlemler
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {dekontlar.map((dekont) => {
-                  const ogrenci = aktifOgrenciler.find(s => s.ogrenci_id === dekont.ogrenci_id)
-                  return (
-                    <tr key={dekont.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-4">
-                            <GraduationCap className="h-5 w-5 text-green-600" />
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {ogrenci ? `${ogrenci.ogrenciler.ad} ${ogrenci.ogrenciler.soyad}` : dekont.ogrenci_adi || 'Bilinmiyor'}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {ogrenci ? `No: ${ogrenci.ogrenciler.no} • ${ogrenci.ogrenciler.sinif}` : ''}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {new Date(dekont.tarih).toLocaleDateString('tr-TR')}
-                        </div>
-                        {dekont.ay && (
-                          <div className="text-sm text-gray-500">
-                            {dekont.ay}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-green-600">
-                          {dekont.miktar ? `${dekont.miktar.toLocaleString('tr-TR')} ₺` : '-'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900 max-w-xs truncate">
-                          {dekont.aciklama}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getOnayDurumuRenk(dekont.onay_durumu || 'bekliyor')}`}>
-                          {getOnayDurumuText(dekont.onay_durumu || 'bekliyor')}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center space-x-2">
-                          {dekont.dosya_url && (
-                            <button
-                              onClick={() => window.open(dekont.dosya_url, '_blank')}
-                              className="text-blue-600 hover:text-blue-900 p-1 hover:bg-blue-50 rounded transition-all"
-                              title="Dosyayı görüntüle"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </button>
-                          )}
-                          <button
-                            className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded transition-all"
-                            title="Dekont sil"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <Receipt className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Henüz dekont yok</h3>
-          <p className="text-gray-600 mb-6">Bu işletme için henüz dekont kaydı bulunmuyor.</p>
-          <button
-            onClick={onDekontEkle}
-            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
-          >
-            <Receipt className="h-4 w-4 mr-2" />
-            İlk Dekontu Ekle
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Alanlar Paneli
-function AlanlarPanel({ 
-  isletmeAlanlar 
-}: { 
-  isletmeAlanlar: IsletmeAlan[]
-}) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium text-gray-900">Staj Alanları</h3>
-        <p className="text-sm text-gray-600">Bu işletmede yapılabilecek staj alanları</p>
-      </div>
-
-      {isletmeAlanlar.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {isletmeAlanlar.map((isletmeAlan) => (
-            <div key={isletmeAlan.id} className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4">
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center mr-3">
-                  <BookOpen className="h-5 w-5 text-indigo-600" />
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900">{isletmeAlan.alanlar.ad}</h4>
-                  <p className="text-sm text-gray-600">Staj Alanı</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Henüz alan yok</h3>
-          <p className="text-gray-600">Bu işletme için staj alanı tanımlanmamış.</p>
-        </div>
-      )}
     </div>
   )
 }

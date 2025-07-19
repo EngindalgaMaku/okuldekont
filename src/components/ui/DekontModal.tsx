@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import Modal from './Modal'
 import { Upload } from 'lucide-react'
 
@@ -47,38 +46,23 @@ export default function DekontModal({
     try {
       setLoading(true)
 
-      // Dosyayı yükle
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${Math.random()}.${fileExt}`
-      const filePath = `dekontlar/${fileName}`
+      // FormData oluştur
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('staj_id', ogrenci.staj_id.toString())
+      formData.append('isletme_id', isletmeId.toString())
+      formData.append('miktar', miktar)
+      formData.append('aciklama', aciklama)
 
-      const { error: uploadError } = await supabase.storage
-        .from('public')
-        .upload(filePath, file)
+      // API'ye gönder
+      const response = await fetch('/api/admin/dekontlar', {
+        method: 'POST',
+        body: formData
+      })
 
-      if (uploadError) {
-        throw uploadError
-      }
-
-      // Dosya URL'ini al
-      const { data: { publicUrl } } = supabase.storage
-        .from('public')
-        .getPublicUrl(filePath)
-
-      // Dekont kaydını oluştur
-      const { error: insertError } = await supabase
-        .from('dekontlar')
-        .insert({
-          staj_id: ogrenci.staj_id,
-          isletme_id: isletmeId,
-          miktar: Number(miktar),
-          aciklama,
-          dosya_url: publicUrl,
-          odeme_tarihi: new Date().toISOString()
-        })
-
-      if (insertError) {
-        throw insertError
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Dekont yüklenirken bir hata oluştu')
       }
 
       onSuccess()

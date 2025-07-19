@@ -226,14 +226,14 @@ export default function DekontUpload({
                       type="file"
                       ref={fileInputRef}
                       className="sr-only"
-                      accept=".jpg,.jpeg,.png,.pdf"
+                      accept=".jpg,.jpeg,.png,.gif,.webp,.pdf"
                       onChange={handleFileChange}
                     />
                   </label>
                   <p className="pl-1">veya sürükleyip bırakın</p>
                 </div>
                 <p className="text-xs text-gray-500">
-                  JPG, JPEG, PNG veya PDF (max. 10MB)
+                  JPG, JPEG, PNG, GIF, WEBP veya PDF (max. 10MB)
                 </p>
               </>
             ) : (

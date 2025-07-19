@@ -1,0 +1,264 @@
+// MariaDB/MySQL + Prisma Schema for Okul Dekont System
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  adminProfile    AdminProfile?
+  teacherProfile  TeacherProfile?
+  companyProfile  CompanyProfile?
+  
+  @@map("users")
+}
+
+model AdminProfile {
+  id     String  @id @default(cuid())
+  name   String
+  email  String? @unique
+  role   Role    @default(ADMIN)
+  userId String  @unique
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("admin_profiles")
+}
+
+model TeacherProfile {
+  id       String  @id @default(cuid())
+  name     String
+  surname  String
+  phone    String?
+  email    String?
+  pin      String
+  userId   String  @unique
+  alanId   String?
+  
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alan Alan? @relation(fields: [alanId], references: [id])
+  
+  // Relations
+  stajlar        Staj[]
+  dekontlar      Dekont[]
+  companies      CompanyProfile[]
+  gorevBelgeleri GorevBelgesi[]
+  
+  @@map("teachers")
+}
+
+model CompanyProfile {
+  id          String  @id @default(cuid())
+  name        String
+  contact     String
+  phone       String?
+  email       String?
+  address     String?
+  taxNumber   String?
+  pin         String
+  userId      String  @unique
+  teacherId   String?
+  
+  user    User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teacher TeacherProfile? @relation(fields: [teacherId], references: [id])
+  
+  // Relations
+  stajlar   Staj[]
+  dekontlar Dekont[]
+  students  Student[]
+  
+  @@map("companies")
+}
+
+// Core Entities
+model EgitimYili {
+  id     String  @id @default(cuid())
+  year   String  @unique
+  active Boolean @default(false)
+  
+  // Relations
+  stajlar Staj[]
+  
+  @@map("education_years")
+}
+
+model Alan {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  active      Boolean @default(true)
+  
+  // Relations
+  teachers TeacherProfile[]
+  students Student[]
+  classes  Class[]
+  
+  @@map("fields")
+}
+
+model Class {
+  id     String @id @default(cuid())
+  name   String
+  alanId String
+  
+  alan Alan @relation(fields: [alanId], references: [id], onDelete: Cascade)
+  
+  // Relations
+  students Student[]
+  
+  @@map("classes")
+}
+
+model Student {
+  id          String  @id @default(cuid())
+  name        String
+  surname     String
+  className   String
+  number      String?
+  tcNo        String?
+  phone       String?
+  email       String?
+  parentName  String?
+  parentPhone String?
+  alanId      String
+  companyId   String?
+  classId     String?
+  
+  alan    Alan            @relation(fields: [alanId], references: [id])
+  company CompanyProfile? @relation(fields: [companyId], references: [id])
+  class   Class?          @relation(fields: [classId], references: [id])
+  
+  // Relations
+  stajlar   Staj[]
+  dekontlar Dekont[]
+  
+  @@map("students")
+}
+
+model Staj {
+  id              String     @id @default(cuid())
+  studentId       String
+  companyId       String
+  teacherId       String
+  educationYearId String
+  startDate       DateTime
+  endDate         DateTime
+  status          StajStatus @default(ACTIVE)
+  terminationDate DateTime?
+  createdAt       DateTime   @default(now())
+  
+  student       Student        @relation(fields: [studentId], references: [id])
+  company       CompanyProfile @relation(fields: [companyId], references: [id])
+  teacher       TeacherProfile @relation(fields: [teacherId], references: [id])
+  educationYear EgitimYili     @relation(fields: [educationYearId], references: [id])
+  
+  // Relations
+  dekontlar Dekont[]
+  
+  @@map("internships")
+}
+
+model Dekont {
+  id           String       @id @default(cuid())
+  stajId       String
+  companyId    String
+  teacherId    String
+  studentId    String
+  amount       Decimal?     @db.Decimal(10, 2)
+  paymentDate  DateTime
+  month        Int
+  year         Int
+  status       DekontStatus @default(PENDING)
+  approvedBy   String?
+  approvedAt   DateTime?
+  rejectedBy   String?
+  rejectedAt   DateTime?
+  rejectReason String?
+  fileUrl      String?
+  createdAt    DateTime     @default(now())
+  
+  staj      Staj           @relation(fields: [stajId], references: [id])
+  company   CompanyProfile @relation(fields: [companyId], references: [id])
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id])
+  student   Student        @relation(fields: [studentId], references: [id])
+  
+  @@map("dekonts")
+}
+
+model GorevBelgesi {
+  id            String   @id @default(cuid())
+  ogretmenId    String
+  hafta         String
+  isletmeIdler  String   // JSON array stored as string
+  durum         String   @default("Verildi")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  teacher TeacherProfile @relation(fields: [ogretmenId], references: [id])
+  
+  @@map("gorev_belgeleri")
+}
+
+// Notifications
+model Notification {
+  id             String   @id @default(cuid())
+  title          String
+  content        String   @db.Text
+  priority       NotificationPriority @default(NORMAL)
+  recipient_id   String
+  recipient_type String   // 'ogretmen', 'isletme', 'admin'
+  sent_by        String
+  is_read        Boolean  @default(false)
+  read_at        DateTime?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  
+  @@map("notifications")
+}
+
+// System Settings
+model SystemSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  
+  @@map("system_settings")
+}
+
+// Enums
+enum Role {
+  USER
+  ADMIN
+  TEACHER
+  COMPANY
+}
+
+enum StajStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum DekontStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+}

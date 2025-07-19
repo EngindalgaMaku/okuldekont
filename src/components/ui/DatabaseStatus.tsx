@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { Wifi, WifiOff, Loader2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 
 interface DatabaseStatusProps {
   className?: string
@@ -17,23 +16,19 @@ export default function DatabaseStatus({ className = '', showText = true }: Data
     try {
       const startTime = performance.now()
       
-      // Simple health check - try to get from a basic table
-      const { data, error } = await supabase
-        .from('ogretmenler')
-        .select('id')
-        .limit(1)
-        .maybeSingle()
-      
+      // Use the new health check API endpoint
+      const response = await fetch('/api/health/database')
       const endTime = performance.now()
       const responseTime = Math.round(endTime - startTime)
       
-      if (error) {
-        console.warn('Database health check failed:', error)
+      if (response.ok) {
+        const data = await response.json()
+        setStatus('connected')
+        setLatency(data.latency || responseTime)
+      } else {
+        console.warn('Database health check failed:', response.status)
         setStatus('disconnected')
         setLatency(null)
-      } else {
-        setStatus('connected')
-        setLatency(responseTime)
       }
     } catch (error) {
       console.error('Database connection error:', error)
@@ -122,14 +117,8 @@ export function DatabaseStatusHeader() {
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        // Use a more basic table that's likely to exist
-        const { error } = await supabase
-          .from('ogretmenler')
-          .select('id')
-          .limit(1)
-          .maybeSingle()
-        
-        setStatus(error ? 'disconnected' : 'connected')
+        const response = await fetch('/api/health/database')
+        setStatus(response.ok ? 'connected' : 'disconnected')
       } catch {
         setStatus('disconnected')
       }

@@ -2,6 +2,7 @@ import './globals.css'
 import type { Metadata } from 'next'
 import { EgitimYiliProvider } from '@/lib/context/EgitimYiliContext'
 import { ToastProvider } from '@/components/ui/Toast'
+import { SessionProvider } from '@/components/providers/SessionProvider'
 
 export const metadata: Metadata = {
   title: 'Koordinatörlük Yönetim Sistemi',
@@ -23,13 +24,15 @@ export default function RootLayout({
   return (
     <html lang="tr" className="h-full">
       <body className="min-h-full">
-        <EgitimYiliProvider>
-          <ToastProvider>
-            <div className="min-h-screen">
-              {children}
-            </div>
-          </ToastProvider>
-        </EgitimYiliProvider>
+        <SessionProvider>
+          <EgitimYiliProvider>
+            <ToastProvider>
+              <div className="min-h-screen">
+                {children}
+              </div>
+            </ToastProvider>
+          </EgitimYiliProvider>
+        </SessionProvider>
       </body>
     </html>
   )

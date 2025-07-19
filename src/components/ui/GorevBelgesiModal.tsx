@@ -7,7 +7,6 @@ import { toast } from 'react-hot-toast'
 import Modal from './Modal'
 import ConfirmModal from './ConfirmModal'
 import { getISOWeek } from 'date-fns'
-import { supabase } from '@/lib/supabase'
 
 interface Isletme {
   id: string
@@ -23,6 +22,7 @@ interface Ogretmen {
 interface Alan {
    id: string;
    ad: string;
+   name?: string;
 }
 
 interface GorevBelgesiModalProps {
@@ -59,11 +59,21 @@ export default function GorevBelgesiModal({
     if (isOpen) {
       const fetchAlanlar = async () => {
         setIsLoading(true)
-        const { data, error } = await supabase.from('alanlar').select('id, ad').order('ad')
-        if (data) {
-          setAllAlanlar(data)
-          const uniqueAlanlar = Array.from(new Map(data.map(alan => [alan.ad, alan])).values());
-          setDisplayAlanlar(uniqueAlanlar);
+        try {
+          const response = await fetch('/api/admin/fields')
+          if (response.ok) {
+            const data = await response.json()
+            const mappedFields = data.fields.map((field: any) => ({
+              id: field.id,
+              ad: field.name,
+              name: field.name
+            }))
+            setAllAlanlar(mappedFields)
+            const uniqueAlanlar = Array.from(new Map(mappedFields.map((alan: Alan) => [alan.name, alan])).values()) as Alan[]
+            setDisplayAlanlar(uniqueAlanlar)
+          }
+        } catch (error) {
+          console.error('Alanlar yüklenirken hata:', error)
         }
         setIsLoading(false)
       }
@@ -89,16 +99,23 @@ export default function GorevBelgesiModal({
         setSelectedOgretmenId('')
         
         const alanIds = allAlanlar
-          .filter(alan => alan.ad === selectedAlanAd)
-          .map(alan => alan.id);
+          .filter((alan: Alan) => alan.name === selectedAlanAd)
+          .map((alan: Alan) => alan.id);
 
         if (alanIds.length > 0) {
-          const { data, error } = await supabase
-            .from('ogretmenler')
-            .select('id, ad, soyad')
-            .in('alan_id', alanIds)
-            .order('ad')
-          if (data) setAlanTeachers(data)
+          try {
+            const response = await fetch(`/api/admin/fields/teachers?fieldIds=${alanIds.join(',')}`)
+            if (response.ok) {
+              const data = await response.json()
+              setAlanTeachers(data.teachers.map((teacher: any) => ({
+                id: teacher.id,
+                ad: teacher.name,
+                soyad: teacher.surname
+              })))
+            }
+          } catch (error) {
+            console.error('Öğretmenler yüklenirken hata:', error)
+          }
         }
         setIsLoading(false)
       }
@@ -117,19 +134,18 @@ export default function GorevBelgesiModal({
         setTeacherIsletmeler([]);
         setSelectedIsletmeler([]);
 
-        const { data, error } = await supabase
-          .from('stajlar')
-          .select('isletmeler (id, ad)')
-          .eq('ogretmen_id', selectedOgretmenId);
-
-        if (error) {
-          console.error("Öğretmenin staj bilgileri çekilirken hata:", error);
+        try {
+          const response = await fetch(`/api/admin/teachers/${selectedOgretmenId}/companies`)
+          if (response.ok) {
+            const data = await response.json()
+            setTeacherIsletmeler(data.companies);
+            setSelectedIsletmeler(data.companies.map((i: any) => i.id));
+          } else {
+            toast.error("Öğretmenin işletme bilgileri alınamadı.");
+          }
+        } catch (error) {
+          console.error("Öğretmenin işletme bilgileri çekilirken hata:", error);
           toast.error("Öğretmenin işletme bilgileri alınamadı.");
-        } else if (data) {
-          const allIsletmeler = data.map((s: any) => s.isletmeler).filter(Boolean) as Isletme[];
-          const uniqueIsletmeler = Array.from(new Map(allIsletmeler.map(i => [i.id, i])).values());
-          setTeacherIsletmeler(uniqueIsletmeler);
-          setSelectedIsletmeler(uniqueIsletmeler.map(i => i.id));
         }
 
         setIsLoading(false);
@@ -197,22 +213,21 @@ export default function GorevBelgesiModal({
         return;
     }
     
-    const { data: existing, error: checkError } = await supabase
-        .from('gorev_belgeleri')
-        .select('id')
-        .eq('ogretmen_id', selectedOgretmenId)
-        .eq('hafta', selectedWeek)
-        .in('durum', ['Verildi', 'Teslim Alındı']);
-
-    if (checkError) {
-       toast.error("Mevcut belge kontrol edilirken hata oluştu.");
-       return;
-    }
-
-    if (existing && existing.length > 0) {
-       setIsOverwriteConfirmOpen(true);
-    } else {
-       executePrint(false);
+    try {
+      const response = await fetch(`/api/admin/gorev-belgesi?teacherId=${selectedOgretmenId}&week=${selectedWeek}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.documents && data.documents.length > 0) {
+          setIsOverwriteConfirmOpen(true);
+        } else {
+          executePrint(false);
+        }
+      } else {
+        toast.error("Mevcut belge kontrol edilirken hata oluştu.");
+      }
+    } catch (error) {
+      console.error("Mevcut belge kontrol hatası:", error);
+      toast.error("Mevcut belge kontrol edilirken hata oluştu.");
     }
   }
 
@@ -242,8 +257,8 @@ export default function GorevBelgesiModal({
                disabled={isLoading}
            >
                <option value="">-- Alan Seçiniz --</option>
-               {displayAlanlar.map(alan => (
-                   <option key={alan.id} value={alan.ad}>{alan.ad}</option>
+               {displayAlanlar.map((alan: Alan) => (
+                   <option key={alan.id} value={alan.name}>{alan.name}</option>
                ))}
            </select>
         </div>

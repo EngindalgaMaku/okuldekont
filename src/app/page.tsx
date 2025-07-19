@@ -2,23 +2,23 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { signIn } from 'next-auth/react'
 import { ChevronDownIcon, MagnifyingGlassIcon, BuildingOfficeIcon, AcademicCapIcon } from '@heroicons/react/24/outline'
 import { useToast } from '@/components/ui/Toast'
-import { getSchoolName } from '@/lib/settings'
 import PinPad from '@/components/ui/PinPad'
 import { DatabaseStatusHeader } from '@/components/ui/DatabaseStatus'
+import { useEgitimYili } from '@/lib/context/EgitimYiliContext'
 
 interface Isletme {
     id: string
-    ad: string
-    yetkili_kisi: string
+    name: string
+    contact: string
 }
   
 interface Ogretmen {
     id: string
-    ad: string
-    soyad: string
+    name: string
+    surname: string
 }
 
 // Debounce hook
@@ -55,9 +55,10 @@ export default function LoginPage() {
   const [pinError, setPinError] = useState('')
   const [step, setStep] = useState(1)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
+  const [lastSubmitTime, setLastSubmitTime] = useState(0)
 
-  // School name state
-  const [schoolName, setSchoolName] = useState('Hüsniye Özdilek MTAL')
+  // Use EgitimYiliContext for school name
+  const { okulAdi } = useEgitimYili()
 
   // Debounced search term - 300ms bekle
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -75,46 +76,38 @@ export default function LoginPage() {
     try {
       if (loginType === 'isletme') {
         console.log('🏢 İşletme arama query çalıştırılıyor...')
-        const { data, error } = await supabase
-          .from('isletmeler')
-          .select('id, ad, yetkili_kisi, stajlar!inner(id)')
-          .eq('stajlar.durum', 'aktif')
-          .ilike('ad', `%${term}%`)
-          .limit(10)
-          .order('ad')
-
-        console.log('🏢 İşletme arama sonucu:', { data, error, count: data?.length })
+        const response = await fetch(`/api/search/companies?term=${encodeURIComponent(term)}&limit=10`)
         
-        if (error) {
-          console.error('❌ İşletme arama hatası:', error)
-          setSearchResults([])
-        } else if (data) {
-          const uniqueIsletmeler = Array.from(new Map(data.map(item => [item.id, item])).values());
-          console.log('✅ İşletme sonuçları:', uniqueIsletmeler.length, 'adet')
-          setSearchResults(uniqueIsletmeler);
+        if (!response.ok) {
+          throw new Error('İşletme arama başarısız')
+        }
+        
+        const data = await response.json()
+        console.log('🏢 İşletme arama sonucu:', { data, count: data?.length })
+        
+        if (data && Array.isArray(data)) {
+          console.log('✅ İşletme sonuçları:', data.length, 'adet')
+          setSearchResults(data)
         } else {
-          console.log('⚠️ İşletme verisi null')
+          console.log('⚠️ İşletme verisi geçersiz')
           setSearchResults([])
         }
       } else {
         console.log('👨‍🏫 Öğretmen arama query çalıştırılıyor...')
-        const { data, error } = await supabase
-          .from('ogretmenler')
-          .select('id, ad, soyad')
-          .or(`ad.ilike.%${term}%,soyad.ilike.%${term}%`)
-          .limit(10)
-          .order('ad')
+        const response = await fetch(`/api/search/teachers?term=${encodeURIComponent(term)}&limit=10`)
+        
+        if (!response.ok) {
+          throw new Error('Öğretmen arama başarısız')
+        }
+        
+        const data = await response.json()
+        console.log('👨‍🏫 Öğretmen arama sonucu:', { data, count: data?.length })
 
-        console.log('👨‍🏫 Öğretmen arama sonucu:', { data, error, count: data?.length })
-
-        if (error) {
-          console.error('❌ Öğretmen arama hatası:', error)
-          setSearchResults([])
-        } else if (data) {
+        if (data && Array.isArray(data)) {
           console.log('✅ Öğretmen sonuçları:', data.length, 'adet')
           setSearchResults(data)
         } else {
-          console.log('⚠️ Öğretmen verisi null')
+          console.log('⚠️ Öğretmen verisi geçersiz')
           setSearchResults([])
         }
       }
@@ -127,16 +120,7 @@ export default function LoginPage() {
     }
   }, [loginType])
 
-  // Load school name on component mount
-  useEffect(() => {
-    const initializeApp = async () => {
-      // Get school name
-      const schoolNameFromDb = await getSchoolName()
-      setSchoolName(schoolNameFromDb)
-    }
-    
-    initializeApp()
-  }, [])
+  // School name will be loaded from EgitimYiliContext
 
   // Debounced search term değiştiğinde arama yap
   useEffect(() => {
@@ -182,8 +166,13 @@ export default function LoginPage() {
   }
 
   const handlePinSubmit = async () => {
-    if (isLoggingIn) return
+    // Prevent multiple submissions
+    const now = Date.now()
+    if (isLoggingIn || (now - lastSubmitTime) < 1000) {
+      return
+    }
     
+    setLastSubmitTime(now)
     setPinError('')
     setIsLoggingIn(true)
 
@@ -212,111 +201,104 @@ export default function LoginPage() {
       return
     }
 
-    const rpcName = isIsletme ? 'check_isletme_pin_giris' : 'check_ogretmen_pin_giris'
-    const rpcParams = {
-      ...(isIsletme ? { p_isletme_id: selectedEntity.id } : { p_ogretmen_id: selectedEntity.id }),
-      p_girilen_pin: pinInput,
-      // GÜVENLİK UYARISI: IP adresi sunucu tarafında alınmalıdır.
-      // Bu, istemci tarafında güvenli bir şekilde yapılamaz.
-      p_ip_adresi: '127.0.0.1',
-      p_user_agent: navigator.userAgent
-    }
-
     try {
-      // 1. PIN Kontrolü
-      const { data: pinResult, error: pinError } = await supabase.rpc(rpcName, rpcParams)
+      // Direct PIN check instead of NextAuth
+      const response = await fetch('/api/auth/check-pin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: isIsletme ? 'isletme' : 'ogretmen',
+          entityId: selectedEntity.id,
+          pin: pinInput
+        })
+      })
 
-      if (pinError) {
-        showToast({
-          type: 'error',
-          title: 'Sistem Hatası',
-          message: `PIN kontrol hatası: ${pinError.message}`,
-          duration: 6000
-        })
-        setIsLoggingIn(false)
-        return
-      }
-      if (!pinResult) {
-        showToast({
-          type: 'error',
-          title: 'Sistem Hatası',
-          message: 'PIN kontrol fonksiyonu yanıt vermedi. Lütfen sistemi kontrol edin.',
-          duration: 6000
-        })
-        setIsLoggingIn(false)
-        return
-      }
-      if (!pinResult.basarili) {
-        let errorMessage = pinResult.mesaj
-        if (pinResult.kilitli && pinResult.kilitlenme_tarihi) {
-          errorMessage += ` (${new Date(pinResult.kilitlenme_tarihi).toLocaleString('tr-TR')})`
+      const result = await response.json()
+
+      if (result.success) {
+        // Store login data in localStorage
+        const loginData = {
+          ...selectedEntity,
+          loginType: isIsletme ? 'isletme' : 'ogretmen'
         }
+        
+        localStorage.setItem(isIsletme ? 'isletme' : 'ogretmen', JSON.stringify(loginData))
+        
+        // Also store in sessionStorage for compatibility with existing pages
+        if (isIsletme) {
+          sessionStorage.setItem('isletme_id', selectedEntity.id)
+        } else {
+          sessionStorage.setItem('ogretmen_id', selectedEntity.id)
+        }
+        
+        // Başarılı giriş bildirimi
+        const entityName = isIsletme
+          ? (selectedEntity as Isletme).name
+          : `${(selectedEntity as Ogretmen).name} ${(selectedEntity as Ogretmen).surname}`
+        
+        showToast({
+          type: 'success',
+          title: 'Giriş Başarılı',
+          message: `Hoşgeldiniz, ${entityName}!`,
+          duration: 3000
+        })
+
+        // Clear PIN and redirect
+        setPinInput('')
+        setTimeout(() => {
+          if (isIsletme) {
+            router.push('/isletme')
+          } else {
+            router.push('/ogretmen/panel')
+          }
+        }, 1000)
+      } else {
+        // Handle error
+        setPinError(result.error || 'Hatalı PIN kodu')
         showToast({
           type: 'error',
           title: 'Giriş Başarısız',
-          message: errorMessage,
-          duration: 6000
+          message: result.error || 'Hatalı PIN kodu',
+          duration: 4000
         })
-        setPinError(errorMessage)
+        setPinInput('') // Clear PIN on error
         setIsLoggingIn(false)
-        return
-      }
-
-      // 2. Başarılı Giriş Bildirimi
-      const entityName = isIsletme
-        ? (selectedEntity as Isletme).ad
-        : `${(selectedEntity as Ogretmen).ad} ${(selectedEntity as Ogretmen).soyad}`
-      
-      showToast({
-        type: 'success',
-        title: 'Giriş Başarılı',
-        message: `Hoşgeldiniz, ${entityName}!`,
-        duration: 3000
-      })
-
-      // 3. Session bilgilerini kaydet ve yönlendir
-      if (isIsletme) {
-        // İşletme girişi - sessionStorage'a kaydet
-        sessionStorage.setItem('isletme_id', selectedEntity.id)
-        
-        // Yönlendirmeden önce kısa bir delay
-        setTimeout(() => {
-          router.push('/isletme')
-        }, 1000)
-      } else {
-        // Öğretmen girişi - önceki gibi
-        sessionStorage.setItem('ogretmen_id', selectedEntity.id)
-        
-        setTimeout(() => {
-          router.push('/ogretmen/panel')
-        }, 1000)
       }
       
     } catch (error) {
+      console.error('PIN check error:', error)
+      setPinError('Sistem hatası oluştu')
       showToast({
         type: 'error',
-        title: 'Beklenmeyen Hata',
-        message: `Sistem hatası: ${(error as Error).message}`,
-        duration: 6000
+        title: 'Sistem Hatası',
+        message: 'Bağlantı hatası. Lütfen tekrar deneyin.',
+        duration: 4000
       })
+      setPinInput('') // Clear PIN on error
       setIsLoggingIn(false)
     }
   }
 
-  // PIN 4 hane olduğunda otomatik giriş yap
+  // PIN 4 hane olduğunda otomatik giriş yap (debounced)
   useEffect(() => {
     if (pinInput.length === 4 && step === 2 && !isLoggingIn) {
-      handlePinSubmit()
+      const timer = setTimeout(() => {
+        handlePinSubmit()
+      }, 500) // 500ms delay to prevent multiple submissions
+      
+      return () => clearTimeout(timer)
     }
   }, [pinInput, step, isLoggingIn])
 
   const handleItemSelect = (item: Isletme | Ogretmen) => {
     if (loginType === 'isletme') {
       setSelectedIsletme(item as Isletme)
-      setSearchTerm((item as Isletme).ad)
+      setSearchTerm((item as Isletme).name)
     } else {
       setSelectedOgretmen(item as Ogretmen)
-      setSearchTerm(`${(item as Ogretmen).ad} ${(item as Ogretmen).soyad}`)
+      setSearchTerm(`${(item as Ogretmen).name} ${(item as Ogretmen).surname}`)
     }
     setIsDropdownOpen(false)
     setSearchResults([])
@@ -386,9 +368,9 @@ export default function LoginPage() {
               </div>
             ) : searchResults.length > 0 ? (
               searchResults.map((item) => {
-                const displayName = loginType === 'isletme' 
-                  ? (item as Isletme).ad 
-                  : `${(item as Ogretmen).ad} ${(item as Ogretmen).soyad}`
+                const displayName = loginType === 'isletme'
+                  ? (item as Isletme).name
+                  : `${(item as Ogretmen).name} ${(item as Ogretmen).surname}`
                 
                 return (
                   <div
@@ -405,7 +387,7 @@ export default function LoginPage() {
                       <div>
                         <div className="font-medium text-gray-900">{displayName}</div>
                         {loginType === 'isletme' && (
-                          <div className="text-sm text-gray-500">Yetkili: {(item as Isletme).yetkili_kisi}</div>
+                          <div className="text-sm text-gray-500">Yetkili: {(item as Isletme).contact}</div>
                         )}
                       </div>
                     </div>
@@ -436,7 +418,7 @@ export default function LoginPage() {
           <h2 className="text-xl font-semibold text-gray-800">PIN Girişi</h2>
           <div className="mt-2 p-3 bg-gray-50 rounded-lg">
             <p className="text-gray-700 font-medium">
-              {loginType === 'isletme' ? selectedIsletme?.ad : `${selectedOgretmen?.ad} ${selectedOgretmen?.soyad}`}
+              {loginType === 'isletme' ? selectedIsletme?.name : `${selectedOgretmen?.name} ${selectedOgretmen?.surname}`}
             </p>
           </div>
         </div>
@@ -457,7 +439,13 @@ export default function LoginPage() {
         <div className="flex justify-center items-center">
             <button
               type="button"
-              onClick={() => { setStep(1); setPinInput(''); setPinError(''); }}
+              onClick={() => {
+                setStep(1);
+                setPinInput('');
+                setPinError('');
+                setIsLoggingIn(false);
+                setLastSubmitTime(0);
+              }}
               className="text-sm text-gray-600 hover:text-gray-800 transition-colors duration-200"
             >
               ← Geri dön
@@ -480,7 +468,7 @@ export default function LoginPage() {
                   <AcademicCapIcon className="h-8 w-8 text-white" />
                 </div>
                 <h1 className="text-2xl font-bold text-gray-900">Koordinatörlük Yönetimi</h1>
-                <p className="text-gray-600 mt-1">{schoolName}</p>
+                <p className="text-gray-600 mt-1">{okulAdi}</p>
             </div>
             
             {step === 1 && (

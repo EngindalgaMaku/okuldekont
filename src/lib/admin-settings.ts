@@ -1,12 +1,13 @@
-import { supabase } from './supabase'
+import { prisma } from './prisma'
 
 export async function getSystemSettings() {
   try {
-    const { data, error } = await supabase
-      .from('system_settings')
-      .select('key, value')
-    
-    if (error) throw error
+    const data = await prisma.systemSetting.findMany({
+      select: {
+        key: true,
+        value: true
+      }
+    })
     
     const settingsMap: { [key: string]: any } = {}
     if (data) {
@@ -18,7 +19,7 @@ export async function getSystemSettings() {
     return {
       showPerformanceMonitoring: settingsMap.show_performance_monitoring === 'true',
       maintenanceMode: settingsMap.maintenance_mode === 'true',
-      schoolName: settingsMap.school_name || 'Hüsniye Özdilek MTAL',
+      schoolName: settingsMap.school_name || 'Okul Adı',
       autoApproval: settingsMap.auto_approval === 'true',
       emailNotifications: settingsMap.email_notifications === 'true'
     }
@@ -27,7 +28,7 @@ export async function getSystemSettings() {
     return {
       showPerformanceMonitoring: false,
       maintenanceMode: false,
-      schoolName: 'Hüsniye Özdilek MTAL',
+      schoolName: 'Okul Adı',
       autoApproval: false,
       emailNotifications: true
     }

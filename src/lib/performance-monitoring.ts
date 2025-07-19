@@ -1,5 +1,3 @@
-import { supabase } from './supabase'
-
 // Performance monitoring utilities
 export class QueryPerformanceMonitor {
   private static metrics: Map<string, number[]> = new Map()

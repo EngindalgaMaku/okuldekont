@@ -1,99 +1,62 @@
-const { createClient } = require('@supabase/supabase-js');
-const fs = require('fs');
-const path = require('path');
+const bcrypt = require('bcryptjs');
+const { PrismaClient } = require('@prisma/client');
 
-// .env.local dosyasındaki çevre değişkenlerini yükle
-function loadEnv() {
-  try {
-    const envPath = path.join(__dirname, '../.env.local');
-    if (fs.existsSync(envPath)) {
-      const envContent = fs.readFileSync(envPath, 'utf8');
-      envContent.split('\n').forEach(line => {
-        const [key, ...valueParts] = line.split('=');
-        if (key && valueParts.length > 0) {
-          const value = valueParts.join('=').trim();
-          if (!process.env[key.trim()]) {
-            process.env[key.trim()] = value;
-          }
-        }
-      });
-    }
-  } catch (error) {
-    console.error('⚠️ .env.local dosyası okunurken hata oluştu:', error);
-  }
-}
-
-loadEnv();
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  console.error('❌ Supabase URL veya Service Role Key bulunamadı. Lütfen .env.local dosyasını kontrol edin.');
-  process.exit(1);
-}
-
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-});
+const prisma = new PrismaClient();
 
 async function createAdmin() {
-  console.log('🔑 Admin kullanıcısı oluşturuluyor...');
-
-  const adminEmail = 'admin@sistem.com';
-  const adminPassword = '123456';
-
-  // 1. Kullanıcıyı auth.users tablosunda ara
-  const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
-  if (listError) {
-    console.error('❌ Kullanıcılar listelenirken hata:', listError.message);
-    return;
-  }
-
-  const existingUser = users.find(u => u.email === adminEmail);
-
-  let userId;
-
-  if (existingUser) {
-    console.log('ℹ️ Admin kullanıcısı zaten mevcut. ID:', existingUser.id);
-    userId = existingUser.id;
-  } else {
-    // 2. Kullanıcı yoksa oluştur
-    const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-      email: adminEmail,
-      password: adminPassword,
-      email_confirm: true,
+  try {
+    // Admin kullanıcısı var mı kontrol et
+    const existingUser = await prisma.user.findUnique({
+      where: { email: 'admin@ozdilek' }
     });
 
-    if (createError) {
-      console.error('❌ Admin kullanıcısı oluşturulurken hata:', createError.message);
+    if (existingUser) {
+      console.log('Admin kullanıcısı mevcut, şifre güncelleniyor...');
+      // Şifreyi hash'le
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      
+      // Şifreyi güncelle
+      await prisma.user.update({
+        where: { email: 'admin@ozdilek' },
+        data: { password: hashedPassword }
+      });
+      
+      console.log('Admin kullanıcısı şifresi güncellendi!');
+      console.log('Email: admin@ozdilek');
+      console.log('Şifre: admin123');
       return;
     }
-    console.log('✅ Admin kullanıcısı başarıyla oluşturuldu. ID:', newUser.user.id);
-    userId = newUser.user.id;
+
+    // Şifreyi hash'le
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+
+    // Admin kullanıcısı yarat
+    const user = await prisma.user.create({
+      data: {
+        email: 'admin@ozdilek',
+        password: hashedPassword,
+        role: 'ADMIN'
+      }
+    });
+
+    // Admin profile yarat
+    await prisma.adminProfile.create({
+      data: {
+        name: 'Admin',
+        email: 'admin@ozdilek',
+        role: 'ADMIN',
+        userId: user.id
+      }
+    });
+
+    console.log('Admin kullanıcısı başarıyla yaratıldı!');
+    console.log('Email: admin@ozdilek');
+    console.log('Şifre: admin123');
+  } catch (error) {
+    console.error('Admin kullanıcısı yaratılırken hata:', error);
+  } finally {
+    await prisma.$disconnect();
   }
-
-  // 3. admin_kullanicilar tablosuna ekle/güncelle
-  const { data: adminData, error: upsertError } = await supabase
-    .from('admin_kullanicilar')
-    .upsert({
-      id: userId,
-      ad: 'Sistem',
-      soyad: 'Admini',
-      email: adminEmail,
-      yetki_seviyesi: 'super_admin'
-    }, { onConflict: 'id' });
-
-  if (upsertError) {
-    console.error('❌ admin_kullanicilar tablosuna eklenirken/güncellenirken hata:', upsertError.message);
-    return;
-  }
-
-  console.log('✅ Admin kullanıcısı public tabloda başarıyla ayarlandı.');
-  console.log('🎉 İşlem tamamlandı!');
 }
 
 createAdmin();

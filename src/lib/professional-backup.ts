@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { prisma } from './prisma';
 
 interface ProfessionalBackupResult {
   success: boolean;
@@ -26,16 +26,14 @@ interface ProfessionalBackupResult {
 }
 
 class ProfessionalBackupSystem {
-  private supabase: any;
   private backup: any;
   private startTime: number;
 
-  constructor(supabase: any) {
-    this.supabase = supabase;
+  constructor() {
     this.startTime = Date.now();
     this.backup = {
       metadata: {
-        version: '2.0.0',
+        version: '3.0.0',
         created_at: new Date().toISOString(),
         total_objects: 0,
         integrity_hash: null
@@ -56,79 +54,59 @@ class ProfessionalBackupSystem {
     };
   }
 
-  private async getTableList() {
-    try {
-      const { data, error } = await this.supabase
-        .from('information_schema.tables')
-        .select('table_name')
-        .eq('table_schema', 'public')
-        .eq('table_type', 'BASE TABLE');
-      
-      if (error) throw error;
-      return data.map((row: any) => ({ tablename: row.table_name }));
-    } catch (error) {
-      // Fallback to ALL known tables - COMPLETE LIST (23 tables)
-      return [
-        { tablename: 'admin_kullanicilar' },
-        { tablename: 'alanlar' },
-        { tablename: 'backup_data' },
-        { tablename: 'backup_history' },
-        { tablename: 'backups' },
-        { tablename: 'belgeler' },
-        { tablename: 'dekontlar' },
-        { tablename: 'error_logs' },
-        { tablename: 'file_uploads' },
-        { tablename: 'gorev_belgeleri' },
-        { tablename: 'isletmeler' },
-        { tablename: 'mesajlar' },
-        { tablename: 'notification_logs' },
-        { tablename: 'ogretmenler' },
-        { tablename: 'ogrenciler' },
-        { tablename: 'permissions' },
-        { tablename: 'restore_operations' },
-        { tablename: 'restore_status' },
-        { tablename: 'settings_history' },
-        { tablename: 'siniflar' },
-        { tablename: 'stajlar' },
-        { tablename: 'system_settings' },
-        { tablename: 'user_sessions' }
-      ];
-    }
+  private getTableModels() {
+    // Known Prisma models from schema
+    return [
+      { name: 'users', model: 'user' },
+      { name: 'admin_profiles', model: 'adminProfile' },
+      { name: 'teachers', model: 'teacherProfile' },
+      { name: 'companies', model: 'companyProfile' },
+      { name: 'education_years', model: 'egitimYili' },
+      { name: 'fields', model: 'alan' },
+      { name: 'classes', model: 'class' },
+      { name: 'students', model: 'student' },
+      { name: 'internships', model: 'staj' },
+      { name: 'dekonts', model: 'dekont' },
+      { name: 'system_settings', model: 'systemSetting' },
+      { name: 'gorev_belgeleri', model: 'gorevBelgesi' }
+    ];
   }
 
   private async backupTables() {
     console.log('🔄 Professional backup: Starting table backup...');
     
     try {
-      const tables = await this.getTableList();
+      const tables = this.getTableModels();
       console.log(`🔍 Found ${tables.length} tables to backup`);
       
       for (const table of tables) {
         try {
-          const { data: tableData, error: dataError } = await this.supabase
-            .from(table.tablename)
-            .select('*');
+          // Dynamic model access
+          const modelName = table.model as keyof typeof prisma;
+          const model = (prisma as any)[modelName];
           
-          if (dataError) {
-            console.warn(`⚠️ Failed to backup ${table.tablename}: ${dataError.message}`);
+          if (!model) {
+            console.warn(`⚠️ Model ${table.model} not found in Prisma client`);
             continue;
           }
+
+          const tableData = await model.findMany();
           
           const tableInfo = {
-            name: table.tablename,
+            name: table.name,
             schema: 'public',
             record_count: tableData ? tableData.length : 0,
             data: tableData || []
           };
           
           this.backup.schema.tables.push(tableInfo);
-          this.backup.data[table.tablename] = tableData || [];
+          this.backup.data[table.name] = tableData || [];
           this.backup.statistics.total_records += tableData ? tableData.length : 0;
           
-          console.log(`✅ ${table.tablename}: ${tableData ? tableData.length : 0} records`);
+          console.log(`✅ ${table.name}: ${tableData ? tableData.length : 0} records`);
           
         } catch (tableError) {
-          console.warn(`❌ Error backing up ${table.tablename}: ${tableError}`);
+          console.warn(`❌ Error backing up ${table.name}: ${tableError}`);
           continue;
         }
       }
@@ -146,38 +124,31 @@ class ProfessionalBackupSystem {
     console.log('🔧 Professional backup: Starting function backup...');
     
     try {
-      // Use existing backup system to get function info
-      const { data: backupData, error: backupError } = await this.supabase.rpc('create_advanced_backup', {
-        p_backup_name: 'Professional_Extract_' + Date.now(),
-        p_backup_type: 'schema_only',
-        p_notes: 'Professional backup function extraction'
-      });
-
-      if (!backupError && backupData?.success) {
-        const { data: exportData, error: exportError } = await this.supabase.rpc('get_backup_export_data', {
-          p_backup_id: backupData.backup_id
-        });
-
-        if (!exportError && exportData?.schema?.functions) {
-          const functions = exportData.schema.functions;
-          console.log(`🔍 Found ${functions.length} functions`);
-          
-          for (const func of functions) {
-            const functionInfo = {
-              name: func.name || 'unknown',
-              language: func.language || 'plpgsql',
-              definition: func.definition || func.complete_definition || '',
-              definition_length: func.definition ? func.definition.length : 0
-            };
-            
-            this.backup.schema.functions.push(functionInfo);
-          }
-          
-          // Clean up temporary backup
-          await this.supabase.rpc('delete_backup_complete', {
-            p_backup_id: backupData.backup_id
-          });
+      // With Prisma, we don't have stored functions like in Supabase
+      // We can document the API endpoints instead
+      const apiEndpoints = [
+        {
+          name: 'companies_api',
+          language: 'typescript',
+          definition: 'REST API endpoints for company management',
+          definition_length: 50
+        },
+        {
+          name: 'dekontlar_api',
+          language: 'typescript',
+          definition: 'REST API endpoints for dekont management',
+          definition_length: 50
+        },
+        {
+          name: 'gorev_belgesi_api',
+          language: 'typescript',
+          definition: 'REST API endpoints for gorev belgesi management',
+          definition_length: 50
         }
+      ];
+      
+      for (const endpoint of apiEndpoints) {
+        this.backup.schema.functions.push(endpoint);
       }
       
       this.backup.statistics.total_functions = this.backup.schema.functions.length;
@@ -193,8 +164,9 @@ class ProfessionalBackupSystem {
     console.log('🔤 Professional backup: Adding enum types...');
     
     const knownEnums = [
-      { enum_name: 'onay_durumu', enum_values: ['bekliyor', 'onaylandi', 'reddedildi'] },
-      { enum_name: 'user_role', enum_values: ['admin', 'operator', 'viewer'] }
+      { enum_name: 'Role', enum_values: ['USER', 'ADMIN', 'TEACHER', 'COMPANY'] },
+      { enum_name: 'StajStatus', enum_values: ['ACTIVE', 'COMPLETED', 'CANCELLED'] },
+      { enum_name: 'DekontStatus', enum_values: ['PENDING', 'APPROVED', 'REJECTED'] }
     ];
     
     for (const enumType of knownEnums) {
@@ -247,7 +219,7 @@ class ProfessionalBackupSystem {
 
   async createBackup(): Promise<ProfessionalBackupResult> {
     try {
-      console.log('🚀 Professional PostgreSQL Backup System v2.0 - Starting...');
+      console.log('🚀 Professional Prisma Backup System v3.0 - Starting...');
       
       // Run backup operations
       await this.backupTables();
@@ -294,9 +266,8 @@ class ProfessionalBackupSystem {
   }
 }
 
-export async function createProfessionalBackup(supabaseUrl: string, supabaseKey: string): Promise<ProfessionalBackupResult> {
-  const supabase = createClient(supabaseUrl, supabaseKey);
-  const backupSystem = new ProfessionalBackupSystem(supabase);
+export async function createProfessionalBackup(): Promise<ProfessionalBackupResult> {
+  const backupSystem = new ProfessionalBackupSystem();
   return await backupSystem.createBackup();
 }
 

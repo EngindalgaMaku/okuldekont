@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import IsletmelerServer from '@/components/admin/IsletmelerServer'
+import IsletmelerServerPrisma from '@/components/admin/IsletmelerServerPrisma'
 import IsletmelerLoading from '@/components/admin/IsletmelerLoading'
 
 type SearchParams = {
@@ -19,7 +19,7 @@ export default async function IsletmeYonetimiPage({ searchParams }: PageProps) {
   return (
     <div className="container mx-auto px-4 py-8">
       <Suspense fallback={<IsletmelerLoading />}>
-        <IsletmelerServer searchParams={params} />
+        <IsletmelerServerPrisma searchParams={params} />
       </Suspense>
     </div>
   )

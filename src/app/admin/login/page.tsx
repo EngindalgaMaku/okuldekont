@@ -1,35 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { signIn, getSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { GraduationCap, Mail, Lock, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react'
-import { useAuth } from '@/hooks/useAuth'
-import { DatabaseStatusHeader } from '@/components/ui/DatabaseStatus'
 
 export default function AdminLoginPage() {
   const router = useRouter()
-  const { signIn, user, loading, isAdmin } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (!loading && user && isAdmin) {
-      // Only redirect when loading is false and user is admin
-      router.push('/admin')
-      setIsSubmitting(false) // Reset submitting state on successful redirect
-    } else if (!loading && user && !isAdmin) {
-      // User is authenticated but not admin
-      setError('Bu hesap admin paneline erişim yetkisine sahip değil.')
-      setIsSubmitting(false)
-    } else if (!loading && !user && isSubmitting) {
-      // Login failed
-      setIsSubmitting(false)
-    }
-  }, [user, isAdmin, loading, router, isSubmitting])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,39 +19,34 @@ export default function AdminLoginPage() {
     setIsSubmitting(true)
 
     try {
-      const { data, error: authError } = await signIn(email, password)
-      
-      if (authError) {
-        throw authError
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        setError('E-posta veya şifre hatalı.')
+        setIsSubmitting(false)
+        return
       }
 
-      // Don't redirect immediately - let useEffect handle it when auth state updates
-      // The redirect will happen automatically when isAdmin becomes true
-    } catch (error: any) {
+      // Get the session to check user role
+      const session = await getSession()
+      
+      if (session?.user?.role !== 'ADMIN') {
+        setError('Bu hesap admin paneline erişim yetkisine sahip değil.')
+        setIsSubmitting(false)
+        return
+      }
+
+      // Redirect to admin dashboard
+      router.push('/admin')
+    } catch (error) {
       console.error('Login error:', error)
-      setError(error.message || 'Giriş sırasında bir hata oluştu.')
+      setError('Giriş sırasında bir hata oluştu.')
       setIsSubmitting(false)
     }
-    // Don't set isSubmitting to false here - let auth state change handle it
-  }
-
-  // Show loading state while checking auth
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
-          <div className="text-center">
-            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
-              <GraduationCap className="h-8 w-8 text-white animate-pulse" />
-            </div>
-            <div className="space-y-2">
-              <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4 mx-auto"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -82,7 +59,7 @@ export default function AdminLoginPage() {
           <h1 className="text-2xl font-bold text-gray-900">
             K-Panel
           </h1>
-          <p className="text-gray-600 mt-1">Güvenli yönetici girişi</p>
+          <p className="text-gray-600 mt-1">Hüsniye Özdilek Ticaret MTAL</p>
         </div>
         
         <form className="space-y-6" onSubmit={handleLogin}>
@@ -171,9 +148,6 @@ export default function AdminLoginPage() {
             )}
           </button>
         </form>
-        
-        <DatabaseStatusHeader />
-        
       </div>
     </div>
   )

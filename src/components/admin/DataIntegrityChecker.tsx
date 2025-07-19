@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { AlertTriangle, CheckCircle, RefreshCw, Settings } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 
 interface DataIntegrityIssue {
   type: string
@@ -19,116 +18,21 @@ export default function DataIntegrityChecker() {
 
   const checkDataIntegrity = async () => {
     setIsChecking(true)
-    const foundIssues: DataIntegrityIssue[] = []
 
     try {
-      // 1. Koordinatör referansları kontrolü
-      const { data: isletmeler } = await supabase
-        .from('isletmeler')
-        .select('id, ad, ogretmen_id')
-        .not('ogretmen_id', 'is', null)
-
-      if (isletmeler) {
-        let missingCoordinators = 0
-
-        for (const isletme of isletmeler) {
-          const { data: teacher } = await supabase
-            .from('ogretmenler')
-            .select('id, ad, soyad')
-            .eq('id', isletme.ogretmen_id)
-            .single()
-
-          if (!teacher) {
-            missingCoordinators++
-          }
-        }
-
-        if (missingCoordinators > 0) {
-          foundIssues.push({
-            type: 'MISSING_COORDINATORS',
-            severity: 'high',
-            description: `${missingCoordinators} işletmede tanımlı koordinatör öğretmen tablosunda bulunamadı`,
-            affectedRecords: missingCoordinators,
-            fixable: true
-          })
-        }
-
-
+      const response = await fetch('/api/admin/data-integrity')
+      
+      if (!response.ok) {
+        throw new Error('Veri bütünlüğü kontrolü sırasında hata oluştu')
       }
 
-      // 2. Staj-öğretmen referansları kontrolü
-      const { data: stajlar } = await supabase
-        .from('stajlar')
-        .select('id, ogretmen_id')
-        .not('ogretmen_id', 'is', null)
-        .eq('durum', 'aktif')
-
-      if (stajlar) {
-        const teacherIds = Array.from(new Set(stajlar.map(s => s.ogretmen_id)))
-        let missingTeachers = 0
-
-        for (const teacherId of teacherIds) {
-          const { data: teacher } = await supabase
-            .from('ogretmenler')
-            .select('id, ad, soyad')
-            .eq('id', teacherId)
-            .single()
-
-          if (!teacher) {
-            const affectedStajlar = stajlar.filter(s => s.ogretmen_id === teacherId)
-            missingTeachers += affectedStajlar.length
-          }
-        }
-
-        if (missingTeachers > 0) {
-          foundIssues.push({
-            type: 'MISSING_TEACHERS_IN_STAJ',
-            severity: 'high',
-            description: `${missingTeachers} staj kaydında tanımlı öğretmen bulunamadı`,
-            affectedRecords: missingTeachers,
-            fixable: true
-          })
-        }
-
-
-      }
-
-      // 3. Orphaned öğrenciler
-      const { data: stajlarWithStudents } = await supabase
-        .from('stajlar')
-        .select('id, ogrenci_id')
-        .eq('durum', 'aktif')
-
-      if (stajlarWithStudents) {
-        let orphanedStudents = 0
-
-        for (const staj of stajlarWithStudents) {
-          const { data: student } = await supabase
-            .from('ogrenciler')
-            .select('id')
-            .eq('id', staj.ogrenci_id)
-            .single()
-
-          if (!student) {
-            orphanedStudents++
-          }
-        }
-
-        if (orphanedStudents > 0) {
-          foundIssues.push({
-            type: 'ORPHANED_STUDENTS',
-            severity: 'high',
-            description: `${orphanedStudents} staj kaydında öğrenci bulunamadı`,
-            affectedRecords: orphanedStudents,
-            fixable: true
-          })
-        }
-      }
-
-      setIssues(foundIssues)
-      setLastChecked(new Date())
+      const data = await response.json()
+      setIssues(data.issues || [])
+      setLastChecked(new Date(data.checkedAt))
     } catch (error) {
       console.error('Veri bütünlüğü kontrolü hatası:', error)
+      setIssues([])
+      setLastChecked(new Date())
     } finally {
       setIsChecking(false)
     }

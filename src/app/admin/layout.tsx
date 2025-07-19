@@ -31,7 +31,6 @@ import {
  MessageCircle
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { supabase } from '@/lib/supabase'
 
 const menuItems = [
   {
@@ -87,7 +86,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true)
   const [isSigningOut, setIsSigningOut] = useState(false)
-  const [schoolName, setSchoolName] = useState('Hüsniye Özdilek MTAL')
+  const [schoolName, setSchoolName] = useState('')
   const [adminUserName, setAdminUserName] = useState<string>('')
   
   // Tablet ve daha küçük ekranlar için media query
@@ -105,17 +104,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   // Okul ismini ayarlardan çek
   const fetchSchoolName = async () => {
     try {
-      const { data, error } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'school_name')
-        .single()
-      
-      if (error) {
-        console.error('Okul adı getirme hatası:', error)
+      const response = await fetch('/api/system-settings/school-name')
+      if (!response.ok) {
+        console.error('Okul adı getirme hatası:', response.statusText)
         return
       }
       
+      const data = await response.json()
       if (data?.value) {
         setSchoolName(data.value)
       }
@@ -126,28 +121,22 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   // Admin kullanıcı adını getir
   const fetchAdminUserName = async () => {
-    if (!user?.id) return
+    if (!user?.email) return
     
     try {
-      console.log('🔍 Fetching admin user name for ID:', user.id)
-      const { data, error } = await supabase
-        .from('admin_kullanicilar')
-        .select('ad, soyad, email')
-        .eq('id', user.id)
-        .eq('aktif', true)
-        .single()
-      
-      if (error) {
-        console.error('Admin kullanıcı adı getirme hatası:', error)
+      console.log('🔍 Fetching admin user name for email:', user.email)
+      const response = await fetch(`/api/admin/user-info?email=${encodeURIComponent(user.email)}`)
+      if (!response.ok) {
+        console.error('Admin kullanıcı adı getirme hatası:', response.statusText)
         return
       }
       
+      const data = await response.json()
       console.log('📊 Admin user data:', data)
       
-      if (data?.ad && data?.soyad) {
-        const fullName = `${data.ad} ${data.soyad}`
-        console.log('✅ Setting admin user name:', fullName)
-        setAdminUserName(fullName)
+      if (data?.name) {
+        console.log('✅ Setting admin user name:', data.name)
+        setAdminUserName(data.name)
       }
     } catch (error) {
       console.error('Admin kullanıcı adı getirme hatası:', error)

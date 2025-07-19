@@ -2,15 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { signIn } from 'next-auth/react'
 import { User, Lock, Building, ChevronDown, Loader, AlertTriangle, Search } from 'lucide-react'
 import PinPad from '@/components/ui/PinPad'
-import { checkMaintenanceMode } from '@/lib/maintenance'
 
 interface Ogretmen {
-  id: string
-  ad: string
-  soyad: string
+  id: string;
+  name: string;
+  surname: string;
 }
 
 // Debounce hook
@@ -51,40 +50,63 @@ export default function OgretmenLoginPage() {
   // Server-side arama fonksiyonu
   const searchOgretmenler = useCallback(async (term: string) => {
     if (term.length < 2) {
-      setSearchResults([])
-      return
+      setSearchResults([]);
+      return;
     }
 
-    setIsSearching(true)
+    setIsSearching(true);
 
     try {
-      const { data, error } = await supabase
-        .from('ogretmenler')
-        .select('id, ad, soyad')
-        .or(`ad.ilike.%${term}%,soyad.ilike.%${term}%`)
-        .limit(10)
-        .order('ad')
-
-      if (data && !error) {
-        setSearchResults(data)
+      const response = await fetch(`/api/search/teachers?term=${encodeURIComponent(term)}&limit=10`);
+      if (response.ok) {
+        const data = await response.json();
+        // API'den gelen veriyi Ogretmen arayüzüne uygun hale getir
+        const formattedData = data.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          surname: item.surname,
+        }));
+        setSearchResults(formattedData);
       } else {
-        setSearchResults([])
+        setSearchResults([]);
       }
     } catch (error) {
-      console.error('Öğretmen arama hatası:', error)
-      setSearchResults([])
+      console.error('Öğretmen arama hatası:', error);
+      setSearchResults([]);
     } finally {
-      setIsSearching(false)
+      setIsSearching(false);
     }
-  }, [])
+  }, []);
 
   // Check maintenance mode on component mount
   useEffect(() => {
     const checkMaintenance = async () => {
       setMaintenanceCheckLoading(true)
-      const { isMaintenanceMode: maintenanceStatus } = await checkMaintenanceMode()
-      setIsMaintenanceMode(maintenanceStatus)
-      setMaintenanceCheckLoading(false)
+      try {
+        // Use API route to check maintenance mode with timeout
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 5000)
+        
+        const response = await fetch('/api/maintenance', {
+          signal: controller.signal
+        })
+        
+        clearTimeout(timeoutId)
+        
+        if (response.ok) {
+          const result = await response.json()
+          setIsMaintenanceMode(result.isMaintenanceMode)
+        } else {
+          // If API fails, assume system is not in maintenance mode
+          setIsMaintenanceMode(false)
+        }
+      } catch (error) {
+        console.error('Maintenance check failed:', error)
+        // If maintenance check fails, assume system is not in maintenance mode
+        setIsMaintenanceMode(false)
+      } finally {
+        setMaintenanceCheckLoading(false)
+      }
     }
     
     checkMaintenance()
@@ -107,8 +129,8 @@ export default function OgretmenLoginPage() {
   }, [pinInput, isLoggingIn])
 
   const handleItemSelect = (ogretmen: Ogretmen) => {
-    setSelectedOgretmen(ogretmen)
-    setSearchTerm(`${ogretmen.ad} ${ogretmen.soyad}`)
+    setSelectedOgretmen(ogretmen);
+    setSearchTerm(`${ogretmen.name} ${ogretmen.surname}`);
     setIsDropdownOpen(false)
     setSearchResults([])
   }
@@ -121,77 +143,62 @@ export default function OgretmenLoginPage() {
   }
 
   const handlePinSubmit = async () => {
-    if (isLoggingIn) return
+    if (isLoggingIn) return;
     
-    setIsLoggingIn(true)
-    
+    setIsLoggingIn(true);
+    setPinError('');
+
     // Check maintenance mode before login attempt
-    const { isMaintenanceMode: currentMaintenanceStatus } = await checkMaintenanceMode()
-    if (currentMaintenanceStatus) {
-      setPinError('Sistem şu anda bakım modunda. Giriş yapılamaz.')
-      setIsLoggingIn(false)
-      return
+    try {
+      const response = await fetch('/api/maintenance')
+      if (response.ok) {
+        const { isMaintenanceMode: currentMaintenanceStatus } = await response.json()
+        if (currentMaintenanceStatus) {
+          setPinError('Sistem şu anda bakım modunda. Giriş yapılamaz.');
+          setIsLoggingIn(false);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Maintenance check failed during login:', error)
+      // Continue with login if maintenance check fails
     }
     
     if (!selectedOgretmen) {
-      setPinError('Lütfen bir öğretmen seçin')
-      setIsLoggingIn(false)
-      return
+      setPinError('Lütfen bir öğretmen seçin');
+      setIsLoggingIn(false);
+      return;
     }
 
     if (!pinInput.trim() || pinInput.length !== 4) {
-      setPinError('PIN kodu 4 haneli olmalıdır')
-      setIsLoggingIn(false)
-      return
+      setPinError('PIN kodu 4 haneli olmalıdır');
+      setIsLoggingIn(false);
+      return;
     }
 
     try {
-      setPinError('')
-      
-      // PIN kontrolü
-      const { data: pinResult, error: pinError } = await supabase
-        .rpc('check_ogretmen_pin_giris', {
-          p_ogretmen_id: selectedOgretmen.id,
-          p_girilen_pin: pinInput,
-          p_ip_adresi: '127.0.0.1',
-          p_user_agent: navigator.userAgent
-        })
+      const result = await signIn('pin', {
+        type: 'ogretmen',
+        entityId: selectedOgretmen.id,
+        pin: pinInput,
+        redirect: false,
+      });
 
-      if (pinError) {
-        setPinError('Sistem hatası: ' + pinError.message)
-        setIsLoggingIn(false)
-        return
+      if (result?.error) {
+        setPinError('Hatalı PIN kodu girdiniz veya bir sistem hatası oluştu.');
+        setIsLoggingIn(false);
+      } else if (result?.ok) {
+        router.push('/ogretmen/panel');
+      } else {
+        setPinError('Bilinmeyen bir hata oluştu.');
+        setIsLoggingIn(false);
       }
-
-      if (!pinResult) {
-        setPinError('PIN kontrol fonksiyonu yanıt vermedi')
-        setIsLoggingIn(false)
-        return
-      }
-
-      if (!pinResult.basarili) {
-        if (pinResult.kilitli) {
-          setPinError(pinResult.mesaj + (pinResult.kilitlenme_tarihi ? 
-            ` (${new Date(pinResult.kilitlenme_tarihi).toLocaleString('tr-TR')})` : ''))
-        } else {
-          setPinError(pinResult.mesaj)
-        }
-        return
-      }
-
-      // 2. Başarılı giriş - session kaydet ve redirect
-      sessionStorage.setItem('ogretmen_id', selectedOgretmen.id)
-      
-      setTimeout(() => {
-        router.push('/ogretmen/panel')
-      }, 1000)
-
     } catch (error) {
-      setPinError('Beklenmeyen bir hata oluştu: ' + (error as Error).message)
-    } finally {
-      setIsLoggingIn(false)
+      console.error('Login error:', error);
+      setPinError('Giriş sırasında beklenmeyen bir hata oluştu.');
+      setIsLoggingIn(false);
     }
-  }
+  };
 
   // Loading state for maintenance check
   if (maintenanceCheckLoading) {
@@ -315,7 +322,7 @@ export default function OgretmenLoginPage() {
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-2 text-blue-700">
                       <User className="h-4 w-4" />
-                      {selectedOgretmen.ad} {selectedOgretmen.soyad}
+                      {selectedOgretmen.name} {selectedOgretmen.surname}
                     </span>
                     <button
                       type="button"
@@ -351,7 +358,7 @@ export default function OgretmenLoginPage() {
                       >
                         <User className="h-4 w-4 text-gray-400" />
                         <div>
-                          <div className="font-medium text-gray-900">{ogretmen.ad} {ogretmen.soyad}</div>
+                          <div className="font-medium text-gray-900">{ogretmen.name} {ogretmen.surname}</div>
                         </div>
                       </button>
                     ))

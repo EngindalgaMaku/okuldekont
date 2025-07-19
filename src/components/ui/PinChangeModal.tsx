@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { Key, Eye, EyeOff, X, AlertTriangle } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 
 interface Props {
   isOpen: boolean
@@ -44,22 +43,18 @@ export default function PinChangeModal({ isOpen, onClose, onSuccess, teacherId, 
     try {
       setLoading(true)
       
-      // Update PIN in database
-      const { error: updateError } = await supabase
-        .from('ogretmenler')
-        .update({ pin: newPin })
-        .eq('id', teacherId)
+      // Update PIN using API
+      const response = await fetch(`/api/admin/teachers/${teacherId}/pin`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ pin: newPin }),
+      })
       
-      if (updateError) throw updateError
-      
-      // Clear old login attempts
-      const { error: clearError } = await supabase
-        .from('ogretmen_giris_denemeleri')
-        .delete()
-        .eq('ogretmen_id', teacherId)
-      
-      if (clearError) {
-        console.warn('Eski giriş denemelerini temizleme hatası:', clearError)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'PIN güncellenirken hata oluştu')
       }
       
       setNewPin('')
