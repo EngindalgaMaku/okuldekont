@@ -3,96 +3,116 @@ import { exec } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 
-export async function POST(): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
   try {
-    // Use simple data-only backup
-    const scriptPath = path.join(process.cwd(), 'scripts', 'simple-data-backup.js');
+    const body = await request.json().catch(() => ({}));
+    const backupType = body.type || 'full'; // 'full' or comma-separated table names
+    
+    // Use MariaDB backup script
+    const scriptPath = path.join(process.cwd(), 'scripts', 'mariadb-backup.js');
 
     if (!fs.existsSync(scriptPath)) {
-      console.error(`❌ Simple data backup script not found at: ${scriptPath}`);
-      return NextResponse.json({ success: false, message: 'Data backup script not found.' }, { status: 500 });
+      console.error(`❌ MariaDB backup script not found at: ${scriptPath}`);
+      return NextResponse.json({ success: false, message: 'MariaDB backup script not found.' }, { status: 500 });
     }
     
-    console.log(`🚀 Executing simple data backup: ${scriptPath}`);
+    console.log(`🚀 Executing MariaDB backup: ${scriptPath} (Type: ${backupType})`);
     
-    // Execute the simple data backup script
-    const command = `node "${scriptPath}"`;
+    // Execute the MariaDB backup script with type parameter
+    const command = `node "${scriptPath}" "${backupType}"`;
     
     return new Promise<Response>((resolve) => {
-      const backupProcess = exec(command, { maxBuffer: 5 * 1024 * 1024 }); // 5MB buffer
+      const backupProcess = exec(command, { maxBuffer: 10 * 1024 * 1024 }); // 10MB buffer
 
       let stdout = '';
       let stderr = '';
 
       backupProcess.stdout?.on('data', (data) => {
         const output = data.toString();
-        console.log(`Data backup: ${output}`);
+        console.log(`MariaDB backup: ${output}`);
         stdout += output;
       });
 
       backupProcess.stderr?.on('data', (data) => {
         const error = data.toString();
-        console.error(`Data backup warning: ${error}`);
+        console.error(`MariaDB backup warning: ${error}`);
         stderr += error;
       });
 
       backupProcess.on('close', (code) => {
         if (code === 0) {
-          console.log('✅ Data backup completed successfully.');
+          console.log('✅ MariaDB backup completed successfully.');
           
-          // Extract file information from simple backup output
+          // Extract file information from MariaDB backup output
           const jsonFileMatch = stdout.match(/JSON:\s*([^\s]+)/);
+          const sqlFileMatch = stdout.match(/SQL:\s*([^\s]+)/);
           const reportFileMatch = stdout.match(/Report:\s*([^\s]+)/);
+          const filesFileMatch = stdout.match(/Files:\s*([^\s]+)/);
           const recordsMatch = stdout.match(/Records:\s*(\d+)/);
-          const sizeMatch = stdout.match(/Size:\s*([\d.]+)\s*MB/);
+          const jsonSizeMatch = stdout.match(/JSONSize:\s*([\d.]+)\s*MB/);
+          const sqlSizeMatch = stdout.match(/SQLSize:\s*([\d.]+)\s*MB/);
+          const filesSizeMatch = stdout.match(/FilesSize:\s*([\d.]+)\s*MB/);
           
           // Check if all tables were successful
           const allTablesSuccess = stdout.includes('TÜM TABLOLAR BAŞARIYLA YEDEKLENDİ!');
+          const physicalFilesSuccess = stdout.includes('FİZİKSEL DOSYALAR BAŞARIYLA YEDEKLENDİ!');
+          
+          let message = 'MariaDB veri yedeği başarıyla oluşturuldu!';
+          if (physicalFilesSuccess) {
+            message = 'MariaDB kapsamlı yedeği (veri + dosyalar) başarıyla oluşturuldu!';
+          }
           
           resolve(NextResponse.json({
             success: true,
-            message: 'Veri yedekleme başarıyla tamamlandı!',
+            message: message,
             backupFile: jsonFileMatch ? path.basename(jsonFileMatch[1].trim()) : null,
+            sqlFile: sqlFileMatch ? path.basename(sqlFileMatch[1].trim()) : null,
             reportFile: reportFileMatch ? path.basename(reportFileMatch[1].trim()) : null,
-            backup_type: 'data_only',
+            filesFile: filesFileMatch ? path.basename(filesFileMatch[1].trim()) : null,
+            backup_type: backupType === 'full' ? 'full_backup' : 'selective_backup',
             statistics: {
               total_records: recordsMatch ? parseInt(recordsMatch[1]) : 0,
-              backup_size_mb: sizeMatch ? parseFloat(sizeMatch[1]) : 0,
-              all_tables_successful: allTablesSuccess
+              json_size_mb: jsonSizeMatch ? parseFloat(jsonSizeMatch[1]) : 0,
+              sql_size_mb: sqlSizeMatch ? parseFloat(sqlSizeMatch[1]) : 0,
+              files_size_mb: filesSizeMatch ? parseFloat(filesSizeMatch[1]) : 0,
+              all_tables_successful: allTablesSuccess,
+              physical_files_successful: physicalFilesSuccess
             },
-            note: 'Bu yedek sadece tablo verilerini içerir. SQL yapısı dahil değildir.',
+            note: physicalFilesSuccess
+              ? 'Bu yedek JSON, SQL formatında veri ve fiziksel dosyaları (dekontlar + belgeler) içerir. SQL dosyası MariaDB\'ye, ZIP dosyası da uploads klasörüne geri yüklenebilir.'
+              : 'Bu yedek hem JSON hem de SQL formatında oluşturuldu. SQL dosyası MariaDB\'ye geri yüklenebilir.',
             output: stdout
           }));
         } else {
-          console.error(`❌ Data backup failed with code ${code}.`);
+          console.error(`❌ MariaDB backup failed with code ${code}.`);
           resolve(NextResponse.json({
             success: false,
-            message: 'Veri yedekleme başarısız oldu.',
+            message: 'MariaDB veri yedekleme başarısız oldu.',
             error: stderr || 'Bilinmeyen hata oluştu',
-            backup_type: 'data_only'
+            backup_type: backupType === 'full' ? 'full_backup' : 'selective_backup'
           }, { status: 500 }));
         }
       });
 
       backupProcess.on('error', (err) => {
-        console.error('💥 Failed to start data backup:', err);
+        console.error('💥 Failed to start MariaDB backup:', err);
         resolve(NextResponse.json({
           success: false,
-          message: 'Veri yedekleme başlatılamadı.',
+          message: 'MariaDB veri yedekleme başlatılamadı.',
           error: err.message,
-          backup_type: 'data_only'
+          backup_type: backupType === 'full' ? 'full_backup' : 'selective_backup'
         }, { status: 500 }));
       });
     });
 
   } catch (error) {
-    console.error('💥 API Error during data backup:', error);
+    console.error('💥 API Error during MariaDB backup:', error);
     const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen hata oluştu';
     return NextResponse.json({
       success: false,
-      message: 'Veri yedekleme sırasında API hatası.',
+      message: 'MariaDB veri yedekleme sırasında API hatası.',
       error: errorMessage,
-      backup_type: 'data_only'
+      backup_type: 'full_backup'
     }, { status: 500 });
   }
 }

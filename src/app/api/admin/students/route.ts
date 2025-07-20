@@ -1,49 +1,219 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Get all students with related data
+    const { searchParams } = new URL(request.url)
+    const alanId = searchParams.get('alanId')
+    const page = parseInt(searchParams.get('page') || '1')
+    const search = searchParams.get('search') || ''
+    const sinif = searchParams.get('sinif')
+    const status = searchParams.get('status') // New status filter
+    const limit = parseInt(searchParams.get('limit') || '10')
+
+    // Build where clause
+    const whereClause: any = {}
+
+    // Add alanId filter only if provided
+    if (alanId) {
+      whereClause.alanId = alanId
+    }
+
+    // Add search filter
+    if (search) {
+      whereClause.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { surname: { contains: search, mode: 'insensitive' } },
+        { number: { contains: search, mode: 'insensitive' } }
+      ]
+    }
+
+    // Add class filter
+    if (sinif && sinif !== 'all') {
+      whereClause.className = sinif
+    }
+
+    // Add status-based filtering
+    if (status && status !== 'all') {
+      if (status === 'active') {
+        // Students with active internships
+        whereClause.stajlar = {
+          some: {
+            status: 'ACTIVE'
+          }
+        }
+      } else if (status === 'terminated') {
+        // Students with terminated internships (but no active ones)
+        whereClause.AND = [
+          {
+            stajlar: {
+              some: {
+                status: {
+                  in: ['TERMINATED', 'CANCELLED']
+                }
+              }
+            }
+          },
+          {
+            NOT: {
+              stajlar: {
+                some: {
+                  status: 'ACTIVE'
+                }
+              }
+            }
+          }
+        ]
+      } else if (status === 'completed') {
+        // Students with completed internships (but no active ones)
+        whereClause.AND = [
+          {
+            stajlar: {
+              some: {
+                status: 'COMPLETED'
+              }
+            }
+          },
+          {
+            NOT: {
+              stajlar: {
+                some: {
+                  status: 'ACTIVE'
+                }
+              }
+            }
+          }
+        ]
+      } else if (status === 'unassigned') {
+        // Students with no internships or all inactive
+        whereClause.OR = [
+          {
+            stajlar: {
+              none: {}
+            }
+          },
+          {
+            NOT: {
+              stajlar: {
+                some: {
+                  status: 'ACTIVE'
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+
+    // Get total count
+    const totalCount = await prisma.student.count({
+      where: whereClause
+    })
+
+    const totalPages = Math.ceil(totalCount / limit)
+    const offset = (page - 1) * limit
+
+    // Get students with related data including internships and coordinator teacher
     const students = await prisma.student.findMany({
+      where: whereClause,
       include: {
         alan: true,
-        company: true,
+        company: {
+          include: {
+            teacher: {
+              include: {
+                alan: true
+              }
+            }
+          }
+        },
+        stajlar: {
+          include: {
+            company: {
+              include: {
+                teacher: {
+                  include: {
+                    alan: true
+                  }
+                }
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        },
         class: true
       },
       orderBy: [
         { name: 'asc' },
         { surname: 'asc' }
-      ]
+      ],
+      take: limit,
+      skip: offset
     })
 
-    // Transform data to match expected interface
-    const transformedStudents = students.map(student => ({
-      id: student.id,
-      name: student.name,
-      surname: student.surname,
-      number: student.number || '',
-      className: student.className,
-      tcNo: student.tcNo,
-      phone: student.phone,
-      email: student.email,
-      parentName: student.parentName,
-      parentPhone: student.parentPhone,
-      alan: student.alan ? {
-        id: student.alan.id,
-        name: student.alan.name
-      } : null,
-      company: student.company ? {
-        id: student.company.id,
-        name: student.company.name,
-        contact: student.company.contact
-      } : null
-    }))
+    // Transform data to match expected interface with internship status info
+    const transformedStudents = students.map(student => {
+      const activeInternship = student.stajlar.find((i: any) => i.status === 'ACTIVE')
+      const latestInternship = student.stajlar[0] // Most recent due to ordering
+      
+      return {
+        id: student.id,
+        ad: student.name, // Match the component interface
+        soyad: student.surname,
+        no: student.number || '',
+        sinif: student.className,
+        alanId: student.alanId,
+        alan: student.alan,
+        // Show active company if exists, otherwise show company from student record (legacy)
+        company: activeInternship?.company ? {
+          id: activeInternship.company.id,
+          name: activeInternship.company.name,
+          contact: activeInternship.company.contact,
+          teacher: activeInternship.company.teacher ? {
+            id: activeInternship.company.teacher.id,
+            name: activeInternship.company.teacher.name,
+            surname: activeInternship.company.teacher.surname,
+            alanId: activeInternship.company.teacher.alanId,
+            alan: activeInternship.company.teacher.alan
+          } : null
+        } : (student.company ? {
+          id: student.company.id,
+          name: student.company.name,
+          contact: student.company.contact,
+          teacher: student.company.teacher ? {
+            id: student.company.teacher.id,
+            name: student.company.teacher.name,
+            surname: student.company.teacher.surname,
+            alanId: student.company.teacher.alanId,
+            alan: student.company.teacher.alan
+          } : null
+        } : null),
+        // Add internship status information
+        internshipStatus: activeInternship?.status || latestInternship?.status || 'UNASSIGNED',
+        latestInternship: latestInternship ? {
+          id: latestInternship.id,
+          status: latestInternship.status,
+          startDate: latestInternship.startDate,
+          endDate: latestInternship.endDate,
+          terminationDate: latestInternship.terminationDate,
+          terminationReason: (latestInternship as any).terminationReason,
+          company: latestInternship.company
+        } : null
+      }
+    })
 
-    return NextResponse.json(transformedStudents)
+    return NextResponse.json({
+      students: transformedStudents,
+      totalCount,
+      totalPages,
+      currentPage: page
+    })
   } catch (error) {
     console.error('Students fetch error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch students' },
+      { error: 'Öğrenciler getirilemedi' },
       { status: 500 }
     )
   }
@@ -75,36 +245,144 @@ export async function POST(request: Request) {
       },
       include: {
         alan: true,
-        company: true,
+        company: {
+          include: {
+            teacher: {
+              include: {
+                alan: true
+              }
+            }
+          }
+        },
         class: true
       }
     })
 
     return NextResponse.json({
       id: student.id,
-      name: student.name,
-      surname: student.surname,
-      number: student.number || '',
-      className: student.className,
-      tcNo: student.tcNo,
-      phone: student.phone,
-      email: student.email,
-      parentName: student.parentName,
-      parentPhone: student.parentPhone,
-      alan: student.alan ? {
-        id: student.alan.id,
-        name: student.alan.name
-      } : null,
+      ad: student.name,
+      soyad: student.surname,
+      no: student.number || '',
+      sinif: student.className,
+      alanId: student.alanId,
       company: student.company ? {
         id: student.company.id,
         name: student.company.name,
-        contact: student.company.contact
+        contact: student.company.contact,
+        teacher: student.company.teacher ? {
+          id: student.company.teacher.id,
+          name: student.company.teacher.name,
+          surname: student.company.teacher.surname,
+          alanId: student.company.teacher.alanId,
+          alan: student.company.teacher.alan
+        } : null
       } : null
     })
   } catch (error) {
     console.error('Student creation error:', error)
     return NextResponse.json(
-      { error: 'Failed to create student' },
+      { error: 'Öğrenci oluşturulurken hata oluştu' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const studentId = searchParams.get('id')
+    
+    if (!studentId) {
+      return NextResponse.json(
+        { error: 'Student ID is required' },
+        { status: 400 }
+      )
+    }
+
+    const { name, surname, className, number } = await request.json()
+
+    if (!name || !surname || !className) {
+      return NextResponse.json(
+        { error: 'Ad, soyad ve sınıf alanları zorunludur' },
+        { status: 400 }
+      )
+    }
+
+    // Update student
+    const updatedStudent = await prisma.student.update({
+      where: { id: studentId },
+      data: {
+        name: name.trim(),
+        surname: surname.trim(),
+        className: className.trim(),
+        number: number?.trim() || null
+      },
+      include: {
+        alan: true,
+        company: {
+          include: {
+            teacher: {
+              include: {
+                alan: true
+              }
+            }
+          }
+        },
+        class: true
+      }
+    })
+
+    return NextResponse.json({
+      id: updatedStudent.id,
+      ad: updatedStudent.name,
+      soyad: updatedStudent.surname,
+      no: updatedStudent.number || '',
+      sinif: updatedStudent.className,
+      alanId: updatedStudent.alanId,
+      company: updatedStudent.company ? {
+        id: updatedStudent.company.id,
+        name: updatedStudent.company.name,
+        contact: updatedStudent.company.contact,
+        teacher: updatedStudent.company.teacher ? {
+          id: updatedStudent.company.teacher.id,
+          name: updatedStudent.company.teacher.name,
+          surname: updatedStudent.company.teacher.surname,
+          alanId: updatedStudent.company.teacher.alanId,
+          alan: updatedStudent.company.teacher.alan
+        } : null
+      } : null
+    })
+  } catch (error) {
+    console.error('Student update error:', error)
+    return NextResponse.json(
+      { error: 'Öğrenci güncellenirken hata oluştu' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const studentId = searchParams.get('id')
+    
+    if (!studentId) {
+      return NextResponse.json(
+        { error: 'Student ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Delete student
+    await prisma.student.delete({
+      where: { id: studentId }
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Student deletion error:', error)
+    return NextResponse.json(
+      { error: 'Öğrenci silinirken hata oluştu' },
       { status: 500 }
     )
   }

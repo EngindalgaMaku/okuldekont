@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { User, Mail, Phone, Key, Building2, Save } from 'lucide-react'
+import { User, Mail, Phone, Key, Building2, Save, X } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import Modal from '@/components/ui/Modal'
 import SuccessModal from '@/components/ui/SuccessModal'
@@ -26,7 +26,7 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
     surname: '',
     phone: '',
     email: '',
-    pin: '',
+    pin: '1234',
     alanId: ''
   })
 
@@ -56,7 +56,7 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
         surname: '',
         phone: '',
         email: '',
-        pin: '',
+        pin: '1234',
         alanId: ''
       })
     }
@@ -138,7 +138,7 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
       title="Yeni Öğretmen Ekle"
       titleIcon={User}
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
         {/* Name and Surname */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -156,6 +156,7 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
                 value={formData.name}
                 onChange={handleInputChange}
                 required
+                autoComplete="off"
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="İsim"
               />
@@ -177,6 +178,7 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
                 value={formData.surname}
                 onChange={handleInputChange}
                 required
+                autoComplete="off"
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Soyisim"
               />
@@ -200,6 +202,7 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
+                autoComplete="off"
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="ornek@email.com"
               />
@@ -220,6 +223,7 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
                 name="phone"
                 value={formData.phone}
                 onChange={handleInputChange}
+                autoComplete="off"
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="05xx xxx xx xx"
               />
@@ -238,7 +242,7 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
                 <Key className="h-5 w-5 text-gray-400" />
               </div>
               <input
-                type="password"
+                type="text"
                 id="pin"
                 name="pin"
                 value={formData.pin}
@@ -247,10 +251,16 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
                 maxLength={4}
                 minLength={4}
                 pattern="[0-9]{4}"
+                inputMode="numeric"
+                autoComplete="off"
+                data-form-type="other"
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="****"
+                placeholder="1234"
               />
             </div>
+            <p className="mt-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
+              <span className="font-medium">⚠️ Not:</span> Varsayılan PIN (1234) seçilirse, öğretmen ilk girişte PIN'ini değiştirmek zorunda bırakılır.
+            </p>
           </div>
 
           <div>
@@ -284,25 +294,21 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+            className="flex items-center justify-center w-10 h-10 text-red-600 bg-red-100 border border-red-300 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            title="İptal"
           >
-            İptal
+            <X className="w-5 h-5" />
           </button>
           <button
             type="submit"
             disabled={loading}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center w-10 h-10 border border-transparent rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Öğretmen Ekle"
           >
             {loading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                Ekleniyor...
-              </>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" />
-                Öğretmen Ekle
-              </>
+              <Save className="w-5 h-5" />
             )}
           </button>
         </div>

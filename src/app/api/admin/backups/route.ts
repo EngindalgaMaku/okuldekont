@@ -32,38 +32,62 @@ export async function GET(request: Request): Promise<Response> {
       return NextResponse.json([]);
     }
 
-    const files = fs.readdirSync(backupDir)
-      .filter(file => file.endsWith('.sql') && file.startsWith('professional_backup_'))
+    // Get both JSON and SQL backup files
+    const jsonFiles = fs.readdirSync(backupDir)
+      .filter(file => file.endsWith('.json') && (file.startsWith('mariadb_backup_') || file.startsWith('data_backup_')))
       .map(file => {
         const filePath = path.join(backupDir, file);
         const stats = fs.statSync(filePath);
         
-        // Better date parsing from filename
-        const dateMatch = file.match(/professional_backup_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)/);
-        let date;
-        if (dateMatch) {
-          // Convert the timestamp format back to a valid date
-          const timestamp = dateMatch[1].replace(/-(\d{2})-(\d{2})-(\d{3})Z$/, ':$1:$2.$3Z');
-          date = new Date(timestamp).toISOString();
-        } else {
-          date = stats.mtime.toISOString();
+        // Parse timestamp from filename
+        const timestampMatch = file.match(/_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)/);
+        let date = stats.mtime.toISOString();
+        if (timestampMatch) {
+          try {
+            // Convert filename timestamp back to proper ISO format
+            const timestamp = timestampMatch[1].replace(/-(\d{2})-(\d{2})-(\d{3})Z$/, ':$1:$2.$3Z');
+            date = new Date(timestamp).toISOString();
+          } catch (e) {
+            date = stats.mtime.toISOString();
+          }
         }
+
+        // Determine backup type and get corresponding files
+        const isMariaDB = file.startsWith('mariadb_backup_');
+        const baseTimestamp = timestampMatch ? timestampMatch[1] : '';
+        
+        // SQL file
+        const sqlFile = isMariaDB ? `mariadb_backup_${baseTimestamp}.sql` : null;
+        const sqlPath = sqlFile ? path.join(backupDir, sqlFile) : null;
+        const sqlExists = sqlPath ? fs.existsSync(sqlPath) : false;
+        const sqlSize = sqlExists && sqlPath ? fs.statSync(sqlPath).size : 0;
+        
+        // Physical files ZIP
+        const filesZipFile = isMariaDB ? `mariadb_files_backup_${baseTimestamp}.zip` : null;
+        const filesZipPath = filesZipFile ? path.join(backupDir, filesZipFile) : null;
+        const filesZipExists = filesZipPath ? fs.existsSync(filesZipPath) : false;
+        const filesZipSize = filesZipExists && filesZipPath ? fs.statSync(filesZipPath).size : 0;
 
         return {
           id: file,
           backup_name: file,
           backup_date: date,
           size_mb: (stats.size / 1024 / 1024).toFixed(2),
+          sql_size_mb: sqlExists ? (sqlSize / 1024 / 1024).toFixed(2) : '0',
+          files_size_mb: filesZipExists ? (filesZipSize / 1024 / 1024).toFixed(2) : '0',
           backup_status: 'completed',
+          backup_type: isMariaDB ? 'MariaDB' : 'Legacy',
+          has_sql: sqlExists,
+          has_files: filesZipExists,
+          sql_file: sqlFile,
+          files_zip_file: filesZipFile,
           table_count: 'N/A',
           record_count: 'N/A',
-          rpc_function_count: 'N/A',
-          trigger_count: 'N/A',
-          index_count: 'N/A',
-          policy_count: 'N/A',
         };
       })
       .sort((a, b) => new Date(b.backup_date).getTime() - new Date(a.backup_date).getTime());
+
+    const files = jsonFiles;
 
     return NextResponse.json(files);
   } catch (error) {
@@ -80,17 +104,76 @@ export async function DELETE(request: Request): Promise<Response> {
     }
 
     const backupDir = path.join(process.cwd(), 'database_backups');
-    const filePath = path.join(backupDir, filename);
-    const reportPath = filePath.replace('.sql', '_report.md');
-
+    
     try {
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+        let deletedFiles = [];
+        
+        // Extract timestamp from filename to find all related files
+        const timestampMatch = filename.match(/_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)/);
+        
+        if (timestampMatch) {
+            const timestamp = timestampMatch[1];
+            
+            // For MariaDB backups, delete all related files
+            if (filename.startsWith('mariadb_backup_')) {
+                const jsonFile = `mariadb_backup_${timestamp}.json`;
+                const sqlFile = `mariadb_backup_${timestamp}.sql`;
+                const reportFile = `mariadb_backup_report_${timestamp}.md`;
+                const filesZipFile = `mariadb_files_backup_${timestamp}.zip`;
+                
+                // Delete JSON file
+                const jsonPath = path.join(backupDir, jsonFile);
+                if (fs.existsSync(jsonPath)) {
+                    fs.unlinkSync(jsonPath);
+                    deletedFiles.push(jsonFile);
+                }
+                
+                // Delete SQL file
+                const sqlPath = path.join(backupDir, sqlFile);
+                if (fs.existsSync(sqlPath)) {
+                    fs.unlinkSync(sqlPath);
+                    deletedFiles.push(sqlFile);
+                }
+                
+                // Delete Report file
+                const reportPath = path.join(backupDir, reportFile);
+                if (fs.existsSync(reportPath)) {
+                    fs.unlinkSync(reportPath);
+                    deletedFiles.push(reportFile);
+                }
+                
+                // Delete Physical files ZIP
+                const filesZipPath = path.join(backupDir, filesZipFile);
+                if (fs.existsSync(filesZipPath)) {
+                    fs.unlinkSync(filesZipPath);
+                    deletedFiles.push(filesZipFile);
+                }
+            } else {
+                // For legacy backups, just delete the file itself
+                const filePath = path.join(backupDir, filename);
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                    deletedFiles.push(filename);
+                }
+            }
+        } else {
+            // Fallback: delete just the specified file
+            const filePath = path.join(backupDir, filename);
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+                deletedFiles.push(filename);
+            }
         }
-        if (fs.existsSync(reportPath)) {
-            fs.unlinkSync(reportPath);
+        
+        if (deletedFiles.length === 0) {
+            return NextResponse.json({ message: 'No files were found to delete' }, { status: 404 });
         }
-        return NextResponse.json({ success: true, message: 'Backup deleted successfully.' });
+        
+        return NextResponse.json({
+            success: true,
+            message: `Backup deleted successfully. Files removed: ${deletedFiles.join(', ')}`,
+            deletedFiles
+        });
     } catch (error) {
         console.error('Error deleting backup:', error);
         return NextResponse.json({ message: 'Failed to delete backup', error: (error as Error).message }, { status: 500 });

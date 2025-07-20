@@ -18,9 +18,13 @@ model User {
   updatedAt DateTime @updatedAt
   
   // Relations
-  adminProfile    AdminProfile?
-  teacherProfile  TeacherProfile?
-  companyProfile  CompanyProfile?
+  adminProfile          AdminProfile?
+  teacherProfile        TeacherProfile?
+  companyProfile        CompanyProfile?
+  terminatedInternships Staj[]              @relation("TerminatedBy")
+  modifiedInternships   Staj[]              @relation("LastModifiedBy")
+  internshipHistory     InternshipHistory[]
+  teacherAssignments    TeacherAssignmentHistory[] @relation("TeacherAssignmentPerformer")
   
   @@map("users")
 }
@@ -52,44 +56,56 @@ model TeacherProfile {
   alan Alan? @relation(fields: [alanId], references: [id])
   
   // Relations
-  stajlar        Staj[]
-  dekontlar      Dekont[]
-  companies      CompanyProfile[]
-  gorevBelgeleri GorevBelgesi[]
-  belgeler       Belge[]
+  stajlar                    Staj[]
+  dekontlar                  Dekont[]
+  companies                  CompanyProfile[]
+  gorevBelgeleri             GorevBelgesi[]
+  belgeler                   Belge[]
+  teacherAssignments         TeacherAssignmentHistory[]
+  previousTeacherAssignments TeacherAssignmentHistory[] @relation("PreviousTeacherAssignment")
   
   @@map("teachers")
 }
 
 model CompanyProfile {
-  id          String  @id @default(cuid())
-  name        String
-  contact     String
-  phone       String?
-  email       String?
-  address     String?
-  taxNumber   String?
-  pin         String
-  userId      String  @unique
-  teacherId   String?
-  
+  id                      String    @id @default(cuid())
+  name                    String
+  contact                 String
+  phone                   String?
+  email                   String?
+  address                 String?
+  taxNumber               String?
+  pin                     String
+  userId                  String?   @unique
+  teacherId               String?
+  teacherAssignedAt       DateTime?
+  activityField           String?
+  bankAccountNo           String?
+  employeeCount           String?
+  stateContributionRequest String?
+  masterTeacherName       String?
+  masterTeacherPhone      String?
+
   user    User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
   teacher TeacherProfile? @relation(fields: [teacherId], references: [id])
-  
+
   // Relations
-  stajlar   Staj[]
-  dekontlar Dekont[]
-  students  Student[]
-  belgeler  Belge[]
-  
+  stajlar                 Staj[]
+  dekontlar               Dekont[]
+  students                Student[]
+  belgeler                Belge[]
+  teacherAssignmentHistory TeacherAssignmentHistory[]
+
   @@map("companies")
 }
 
 // Core Entities
 model EgitimYili {
-  id     String  @id @default(cuid())
-  year   String  @unique
-  active Boolean @default(false)
+  id        String    @id @default(cuid())
+  year      String    @unique
+  startDate DateTime?
+  endDate   DateTime?
+  active    Boolean   @default(false)
   
   // Relations
   stajlar Staj[]
@@ -112,9 +128,11 @@ model Alan {
 }
 
 model Class {
-  id     String @id @default(cuid())
-  name   String
-  alanId String
+  id              String @id @default(cuid())
+  name            String
+  alanId          String
+  dal             String? // Branch/Track information
+  haftalik_program Json?   // Weekly schedule as JSON
   
   alan Alan @relation(fields: [alanId], references: [id], onDelete: Cascade)
   
@@ -151,26 +169,60 @@ model Student {
 }
 
 model Staj {
-  id              String     @id @default(cuid())
-  studentId       String
-  companyId       String
-  teacherId       String
-  educationYearId String
-  startDate       DateTime
-  endDate         DateTime
-  status          StajStatus @default(ACTIVE)
-  terminationDate DateTime?
-  createdAt       DateTime   @default(now())
+  id                    String     @id @default(cuid())
+  studentId             String
+  companyId             String
+  teacherId             String?
+  educationYearId       String
+  startDate             DateTime
+  endDate               DateTime
+  status                StajStatus @default(ACTIVE)
+  terminationDate       DateTime?
+  terminationReason     String?
+  terminatedBy          String?
+  terminationDocumentId String?
+  terminationNotes      String?
+  lastModifiedBy        String?
+  lastModifiedAt        DateTime?
+  createdAt             DateTime   @default(now())
   
-  student       Student        @relation(fields: [studentId], references: [id])
-  company       CompanyProfile @relation(fields: [companyId], references: [id])
-  teacher       TeacherProfile @relation(fields: [teacherId], references: [id])
-  educationYear EgitimYili     @relation(fields: [educationYearId], references: [id])
+  student             Student         @relation(fields: [studentId], references: [id])
+  company             CompanyProfile  @relation(fields: [companyId], references: [id])
+  teacher             TeacherProfile? @relation(fields: [teacherId], references: [id])
+  educationYear       EgitimYili     @relation(fields: [educationYearId], references: [id])
+  terminatedByUser    User?          @relation("TerminatedBy", fields: [terminatedBy], references: [id])
+  terminationDocument Belge?         @relation("TerminationDocument", fields: [terminationDocumentId], references: [id])
+  lastModifiedByUser  User?          @relation("LastModifiedBy", fields: [lastModifiedBy], references: [id])
   
   // Relations
-  dekontlar Dekont[]
+  dekontlar         Dekont[]
+  history           InternshipHistory[]
+  relatedDocuments  Belge[]             @relation("RelatedInternship")
   
+  @@index([studentId, status])
+  @@index([companyId, status])
+  @@index([teacherId, status])
   @@map("internships")
+}
+
+model InternshipHistory {
+  id            String            @id @default(cuid())
+  internshipId  String
+  action        InternshipAction
+  previousData  Json?
+  newData       Json?
+  performedBy   String
+  performedAt   DateTime          @default(now())
+  reason        String?
+  notes         String?
+  
+  // Relations
+  internship    Staj             @relation(fields: [internshipId], references: [id], onDelete: Cascade)
+  performer     User             @relation(fields: [performedBy], references: [id])
+  
+  @@index([internshipId])
+  @@index([performedAt])
+  @@map("internship_history")
 }
 
 model Dekont {
@@ -216,23 +268,27 @@ model GorevBelgesi {
 
 // Belgeler için ayrı tablo
 model Belge {
-  id                String      @id @default(cuid())
-  ad                String
-  belgeTuru         String      // Belge türü (sözleşme, protocol vb.)
-  dosyaUrl          String      // Dosya yolu
-  dosyaAdi          String      // Orijinal dosya adı
-  yuklenenTaraf     String      // "ogretmen" veya "isletme"
-  ogretmenId        String?
-  isletmeId         String?
-  status            BelgeStatus @default(PENDING)
-  onaylayanId       String?     // Admin/onaylayan kişinin ID'si
-  onaylanmaTarihi   DateTime?   // Onaylanma tarihi
-  redNedeni         String?     // Reddedilme nedeni
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  id                    String       @id @default(cuid())
+  ad                    String
+  belgeTuru             String       // Belge türü (sözleşme, protocol vb.)
+  documentType          DocumentType?
+  dosyaUrl              String       // Dosya yolu
+  dosyaAdi              String       // Orijinal dosya adı
+  yuklenenTaraf         String       // "ogretmen" veya "isletme"
+  ogretmenId            String?
+  isletmeId             String?
+  relatedInternshipId   String?
+  status                BelgeStatus  @default(PENDING)
+  onaylayanId           String?      // Admin/onaylayan kişinin ID'si
+  onaylanmaTarihi       DateTime?    // Onaylanma tarihi
+  redNedeni             String?      // Reddedilme nedeni
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
   
-  teacher TeacherProfile? @relation(fields: [ogretmenId], references: [id])
-  company CompanyProfile? @relation(fields: [isletmeId], references: [id])
+  teacher               TeacherProfile? @relation(fields: [ogretmenId], references: [id])
+  company               CompanyProfile? @relation(fields: [isletmeId], references: [id])
+  relatedInternship     Staj?           @relation("RelatedInternship", fields: [relatedInternshipId], references: [id])
+  terminatedInternships Staj[]          @relation("TerminationDocument")
   
   @@map("belgeler")
 }
@@ -252,6 +308,28 @@ model Notification {
   updated_at     DateTime @updatedAt
   
   @@map("notifications")
+}
+
+// Teacher Assignment History for Companies
+model TeacherAssignmentHistory {
+  id             String    @id @default(cuid())
+  companyId      String
+  teacherId      String?
+  previousTeacherId String?
+  assignedAt     DateTime  @default(now())
+  assignedBy     String    // Admin user who made the assignment
+  reason         String?   // Reason for assignment/change
+  notes          String?   // Additional notes
+  
+  company        CompanyProfile  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  teacher        TeacherProfile? @relation(fields: [teacherId], references: [id])
+  previousTeacher TeacherProfile? @relation("PreviousTeacherAssignment", fields: [previousTeacherId], references: [id])
+  assignedByUser User      @relation("TeacherAssignmentPerformer", fields: [assignedBy], references: [id])
+  
+  @@index([companyId])
+  @@index([teacherId])
+  @@index([assignedAt])
+  @@map("teacher_assignment_history")
 }
 
 // System Settings
@@ -275,6 +353,9 @@ enum StajStatus {
   ACTIVE
   COMPLETED
   CANCELLED
+  TERMINATED
+  SUSPENDED
+  PENDING_TERMINATION
 }
 
 enum DekontStatus {
@@ -293,4 +374,23 @@ enum NotificationPriority {
   LOW
   NORMAL
   HIGH
+}
+
+enum InternshipAction {
+  CREATED
+  ASSIGNED
+  COMPANY_CHANGED
+  TEACHER_CHANGED
+  TERMINATED
+  REACTIVATED
+  COMPLETED
+  UPDATED
+}
+
+enum DocumentType {
+  ASSIGNMENT_DOCUMENT
+  TERMINATION_DOCUMENT
+  COMPLETION_CERTIFICATE
+  EVALUATION_FORM
+  OTHER
 }

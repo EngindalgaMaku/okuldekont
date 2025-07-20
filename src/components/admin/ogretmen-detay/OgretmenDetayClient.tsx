@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 // Removed Supabase import - migrated to Prisma
 import { useSession } from 'next-auth/react'
-import { Info, Clock, Receipt, Settings, AlertTriangle, CheckCircle, User, Building2, Key, Shield, Edit3, Save, Eye, EyeOff, Trash2, Unlock, Mail, Phone } from 'lucide-react'
+import { Info, Clock, Receipt, Settings, AlertTriangle, CheckCircle, User, Building2, Key, Shield, Edit3, Save, Eye, EyeOff, Trash2, Unlock, Mail, Phone, ChevronDown, ChevronUp } from 'lucide-react'
 import Pagination from '@/components/ui/Pagination'
 import { toast } from 'react-hot-toast'
 import Modal from '@/components/ui/Modal'
@@ -219,8 +219,23 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
     const [loading, setLoading] = useState(false)
     const [lockStatus, setLockStatus] = useState<any>(null)
     const [lockStatusLoading, setLockStatusLoading] = useState(false)
-    const [toggleActiveModal, setToggleActiveModal] = useState(false)
+    
+    // Accordion state management - all sections start closed
+    const [sectionsOpen, setSectionsOpen] = useState({
+        basicInfo: false,
+        accountManagement: false,
+        contactInfo: false,
+        accountSecurity: false
+    })
+    
     const router = useRouter()
+
+    const toggleSection = (section: keyof typeof sectionsOpen) => {
+        setSectionsOpen(prev => ({
+            ...prev,
+            [section]: !prev[section]
+        }))
+    }
 
     // Update forms when ogretmen data changes
     useEffect(() => {
@@ -332,28 +347,6 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
         setLoading(false);
     }
 
-    const handleToggleActive = async () => {
-        setLoading(true);
-        
-        try {
-            const response = await fetch(`/api/admin/teachers/${ogretmen.id}/toggle-active`, {
-                method: 'POST',
-            });
-            
-            if (response.ok) {
-                const newStatus = !(ogretmen.aktif ?? true);
-                toast.success(`Öğretmen ${newStatus ? 'aktif' : 'pasif'} edildi.`);
-                setToggleActiveModal(false);
-                onUpdate();
-            } else {
-                const errorData = await response.json();
-                toast.error(errorData.error || 'Aktiflik durumu değiştirilirken hata oluştu.');
-            }
-        } catch (error) {
-            toast.error('Aktiflik durumu değiştirilirken hata oluştu.');
-        }
-        setLoading(false);
-    }
 
     const handleDeleteOgretmen = async () => {
         if (deleteConfirmText !== 'SİL') {
@@ -388,138 +381,199 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
     }
 
     return (
-        <div className="space-y-8">
-            <div className="bg-gray-50 rounded-lg p-6">
-                <div className="flex items-center justify-between mb-4">
+        <div className="space-y-4">
+            {/* Temel Bilgiler Section */}
+            <div className="bg-gray-50 rounded-lg border border-gray-200">
+                <button
+                    onClick={() => toggleSection('basicInfo')}
+                    className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-100 transition-colors"
+                >
                     <h3 className="text-lg font-medium text-gray-900">Temel Bilgiler</h3>
-                    {!editModeBasicInfo && (
-                        <button onClick={() => setEditModeBasicInfo(true)} className="flex items-center text-sm text-blue-600 hover:underline">
-                            <Edit3 className="h-4 w-4 mr-1" /> Düzenle
-                        </button>
+                    {sectionsOpen.basicInfo ? (
+                        <ChevronUp className="h-5 w-5 text-gray-500" />
+                    ) : (
+                        <ChevronDown className="h-5 w-5 text-gray-500" />
                     )}
-                </div>
-                {editModeBasicInfo ? (
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Ad</label>
-                            <input
-                                type="text"
-                                value={basicInfoForm.ad}
-                                onChange={e => setBasicInfoForm({...basicInfoForm, ad: e.target.value})}
-                                className="w-full p-2 border rounded"
-                            />
+                </button>
+                {sectionsOpen.basicInfo && (
+                    <div className="px-4 pb-4 border-t border-gray-200">
+                        <div className="flex items-center justify-between mb-4">
+                            {!editModeBasicInfo && (
+                                <button onClick={() => setEditModeBasicInfo(true)} className="flex items-center text-sm text-blue-600 hover:underline ml-auto">
+                                    <Edit3 className="h-4 w-4 mr-1" /> Düzenle
+                                </button>
+                            )}
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Soyad</label>
-                            <input
-                                type="text"
-                                value={basicInfoForm.soyad}
-                                onChange={e => setBasicInfoForm({...basicInfoForm, soyad: e.target.value})}
-                                className="w-full p-2 border rounded"
-                            />
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <button
-                                onClick={() => setEditModeBasicInfo(false)}
-                                className="px-4 py-2 border rounded"
-                            >
-                                İptal
-                            </button>
-                            <button
-                                onClick={handleBasicInfoUpdate}
-                                disabled={loading}
-                                className="px-4 py-2 bg-green-600 text-white rounded"
-                            >
-                                Kaydet
-                            </button>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="space-y-2">
-                        <p className="text-sm text-gray-700"><span className="font-medium">Ad:</span> {ogretmen.ad}</p>
-                        <p className="text-sm text-gray-700"><span className="font-medium">Soyad:</span> {ogretmen.soyad}</p>
-                        <p className="text-sm text-gray-700">
-                            <span className="font-medium">Durum:</span>
-                            <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
-                                (ogretmen.aktif ?? true)
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-red-100 text-red-800'
-                            }`}>
-                                {(ogretmen.aktif ?? true) ? 'Aktif' : 'Pasif'}
-                            </span>
-                        </p>
-                    </div>
-                )}
-            </div>
-
-            <div className="bg-gray-50 rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Hesap Yönetimi</h3>
-                <div className="space-y-3">
-                    <button
-                        onClick={() => setPinModalOpen(true)}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                    >
-                        PIN Ata/Değiştir
-                    </button>
-                    <button
-                        onClick={() => setToggleActiveModal(true)}
-                        className={`px-4 py-2 rounded-lg transition-colors ${
-                            (ogretmen.aktif ?? true)
-                                ? 'bg-orange-600 text-white hover:bg-orange-700'
-                                : 'bg-green-600 text-white hover:bg-green-700'
-                        }`}
-                    >
-                        {(ogretmen.aktif ?? true) ? 'Pasif Et' : 'Aktif Et'}
-                    </button>
-                </div>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-medium text-gray-900">İletişim Bilgileri</h3>
-                    {!editModeContact && (
-                        <button onClick={() => setEditModeContact(true)} className="flex items-center text-sm text-blue-600 hover:underline">
-                            <Edit3 className="h-4 w-4 mr-1" /> Düzenle
-                        </button>
-                    )}
-                </div>
-                {editModeContact ? (
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">E-posta</label>
-                            <input type="email" value={contactForm.email} onChange={e => setContactForm({...contactForm, email: e.target.value})} className="w-full p-2 border rounded" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Telefon</label>
-                            <input type="tel" value={contactForm.telefon} onChange={e => setContactForm({...contactForm, telefon: e.target.value})} className="w-full p-2 border rounded" />
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <button onClick={() => setEditModeContact(false)} className="px-4 py-2 border rounded">İptal</button>
-                            <button onClick={handleContactUpdate} disabled={loading} className="px-4 py-2 bg-green-600 text-white rounded">Kaydet</button>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="space-y-2">
-                        <p className="text-sm text-gray-700"><span className="font-medium">E-posta:</span> {ogretmen.email || 'Belirtilmemiş'}</p>
-                        <p className="text-sm text-gray-700"><span className="font-medium">Telefon:</span> {ogretmen.telefon || 'Belirtilmemiş'}</p>
-                    </div>
-                )}
-            </div>
-            <div className="bg-gray-50 rounded-lg p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Hesap Güvenliği</h3>
-                {lockStatusLoading ? <p>Yükleniyor...</p> : lockStatus && (
-                    <div className="space-y-2">
-                        <p className="text-sm"><span className="font-medium">Durum:</span> {lockStatus.kilitli ? <span className="text-red-600">Kilitli</span> : <span className="text-green-600">Aktif</span>}</p>
-                        {lockStatus.kilitli && (
-                            <>
-                                <p className="text-sm"><span className="font-medium">Kilitlenme Tarihi:</span> {new Date(lockStatus.kilitlenme_tarihi).toLocaleString('tr-TR')}</p>
-                                <button onClick={handleUnlockAccount} disabled={loading} className="px-4 py-2 bg-yellow-500 text-white rounded-lg mt-2">Kilidi Aç</button>
-                            </>
+                        {editModeBasicInfo ? (
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Ad</label>
+                                    <input
+                                        type="text"
+                                        value={basicInfoForm.ad}
+                                        onChange={e => setBasicInfoForm({...basicInfoForm, ad: e.target.value})}
+                                        className="w-full p-2 border rounded"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Soyad</label>
+                                    <input
+                                        type="text"
+                                        value={basicInfoForm.soyad}
+                                        onChange={e => setBasicInfoForm({...basicInfoForm, soyad: e.target.value})}
+                                        className="w-full p-2 border rounded"
+                                    />
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <button
+                                        onClick={() => setEditModeBasicInfo(false)}
+                                        className="px-4 py-2 border rounded"
+                                    >
+                                        İptal
+                                    </button>
+                                    <button
+                                        onClick={handleBasicInfoUpdate}
+                                        disabled={loading}
+                                        className="px-4 py-2 bg-green-600 text-white rounded"
+                                    >
+                                        Kaydet
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <p className="text-sm text-gray-700"><span className="font-medium">Ad:</span> {ogretmen.ad}</p>
+                                <p className="text-sm text-gray-700"><span className="font-medium">Soyad:</span> {ogretmen.soyad}</p>
+                                <p className="text-sm text-gray-700">
+                                    <span className="font-medium">Durum:</span>
+                                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                                        (ogretmen.aktif ?? true)
+                                            ? 'bg-green-100 text-green-800'
+                                            : 'bg-red-100 text-red-800'
+                                    }`}>
+                                        {(ogretmen.aktif ?? true) ? 'Aktif' : 'Pasif'}
+                                    </span>
+                                </p>
+                            </div>
                         )}
                     </div>
                 )}
             </div>
+
+            {/* Hesap Yönetimi Section */}
+            <div className="bg-gray-50 rounded-lg border border-gray-200">
+                <button
+                    onClick={() => toggleSection('accountManagement')}
+                    className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-100 transition-colors"
+                >
+                    <h3 className="text-lg font-medium text-gray-900">Hesap Yönetimi</h3>
+                    {sectionsOpen.accountManagement ? (
+                        <ChevronUp className="h-5 w-5 text-gray-500" />
+                    ) : (
+                        <ChevronDown className="h-5 w-5 text-gray-500" />
+                    )}
+                </button>
+                {sectionsOpen.accountManagement && (
+                    <div className="px-4 pb-4 border-t border-gray-200">
+                        <div className="mt-4">
+                            <button
+                                onClick={() => setPinModalOpen(true)}
+                                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                            >
+                                <Key className="h-4 w-4" />
+                                PIN Ata/Değiştir
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* İletişim Bilgileri Section */}
+            <div className="bg-gray-50 rounded-lg border border-gray-200">
+                <button
+                    onClick={() => toggleSection('contactInfo')}
+                    className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-100 transition-colors"
+                >
+                    <h3 className="text-lg font-medium text-gray-900">İletişim Bilgileri</h3>
+                    {sectionsOpen.contactInfo ? (
+                        <ChevronUp className="h-5 w-5 text-gray-500" />
+                    ) : (
+                        <ChevronDown className="h-5 w-5 text-gray-500" />
+                    )}
+                </button>
+                {sectionsOpen.contactInfo && (
+                    <div className="px-4 pb-4 border-t border-gray-200">
+                        <div className="flex items-center justify-between mb-4">
+                            {!editModeContact && (
+                                <button onClick={() => setEditModeContact(true)} className="flex items-center text-sm text-blue-600 hover:underline ml-auto">
+                                    <Edit3 className="h-4 w-4 mr-1" /> Düzenle
+                                </button>
+                            )}
+                        </div>
+                        {editModeContact ? (
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">E-posta</label>
+                                    <input type="email" value={contactForm.email} onChange={e => setContactForm({...contactForm, email: e.target.value})} className="w-full p-2 border rounded" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Telefon</label>
+                                    <input type="tel" value={contactForm.telefon} onChange={e => setContactForm({...contactForm, telefon: e.target.value})} className="w-full p-2 border rounded" />
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <button onClick={() => setEditModeContact(false)} className="px-4 py-2 border rounded">İptal</button>
+                                    <button onClick={handleContactUpdate} disabled={loading} className="px-4 py-2 bg-green-600 text-white rounded">Kaydet</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <p className="text-sm text-gray-700"><span className="font-medium">E-posta:</span> {ogretmen.email || 'Belirtilmemiş'}</p>
+                                <p className="text-sm text-gray-700"><span className="font-medium">Telefon:</span> {ogretmen.telefon || 'Belirtilmemiş'}</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Hesap Güvenliği Section */}
+            <div className="bg-gray-50 rounded-lg border border-gray-200">
+                <button
+                    onClick={() => toggleSection('accountSecurity')}
+                    className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-100 transition-colors"
+                >
+                    <h3 className="text-lg font-medium text-gray-900">Hesap Güvenliği</h3>
+                    {sectionsOpen.accountSecurity ? (
+                        <ChevronUp className="h-5 w-5 text-gray-500" />
+                    ) : (
+                        <ChevronDown className="h-5 w-5 text-gray-500" />
+                    )}
+                </button>
+                {sectionsOpen.accountSecurity && (
+                    <div className="px-4 pb-4 border-t border-gray-200">
+                        <div className="mt-4">
+                            {lockStatusLoading ? <p>Yükleniyor...</p> : lockStatus && (
+                                <div className="space-y-2">
+                                    <p className="text-sm"><span className="font-medium">Durum:</span> {lockStatus.kilitli ? <span className="text-red-600">Kilitli</span> : <span className="text-green-600">Aktif</span>}</p>
+                                    {lockStatus.kilitli && (
+                                        <>
+                                            <p className="text-sm"><span className="font-medium">Kilitlenme Tarihi:</span> {new Date(lockStatus.kilitlenme_tarihi).toLocaleString('tr-TR')}</p>
+                                            <button onClick={handleUnlockAccount} disabled={loading} className="px-4 py-2 bg-yellow-500 text-white rounded-lg mt-2">Kilidi Aç</button>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
             <div>
-                <button onClick={() => setDeleteModal(true)} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">Öğretmeni Kalıcı Olarak Sil</button>
+                <button
+                    onClick={() => setDeleteModal(true)}
+                    className="flex items-center justify-center p-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    title="Öğretmeni Kalıcı Olarak Sil"
+                >
+                    <Trash2 className="h-5 w-5" />
+                </button>
             </div>
 
             <Modal isOpen={pinModalOpen} onClose={() => setPinModalOpen(false)} title="PIN Ata/Değiştir">
@@ -542,13 +596,41 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
                 isOpen={deleteModal} 
                 onClose={() => setDeleteModal(false)} 
                 onConfirm={handleDeleteOgretmen} 
-                title="Öğretmeni Sil" 
+                title="Öğretmeni Kalıcı Olarak Sil"
                 description={
                     <div>
-                        <p>"{ogretmen.ad} {ogretmen.soyad}" adlı öğretmeni silmek istediğinize emin misiniz? Bu işlem geri alınamaz.</p>
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                            <div className="flex items-start">
+                                <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 mr-2 flex-shrink-0" />
+                                <div>
+                                    <h4 className="text-sm font-medium text-red-800 mb-2">⚠️ Dikkat: Kalıcı Veri Kaybı!</h4>
+                                    <p className="text-sm text-red-700">
+                                        Bu işlem <strong>geri alınamaz</strong> ve aşağıdaki verilerin <strong>kalıcı olarak kaybına</strong> neden olacaktır:
+                                    </p>
+                                    <ul className="text-sm text-red-700 mt-2 ml-4 list-disc">
+                                        <li>Öğretmenin tüm kişisel bilgileri</li>
+                                        <li>Sorumlu olduğu öğrenci stajları</li>
+                                        <li>Onayladığı tüm dekont kayıtları</li>
+                                        <li>Haftalık program bilgileri</li>
+                                        <li>Giriş geçmişi ve sistem logları</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <p className="text-gray-900 font-medium mb-4">
+                            "{ogretmen.ad} {ogretmen.soyad}" adlı öğretmeni sistemden kalıcı olarak silmek istediğinize emin misiniz?
+                        </p>
                         <div className="mt-4">
-                            <label className="block text-sm font-medium text-gray-700">Onaylamak için "SİL" yazın:</label>
-                            <input type="text" value={deleteConfirmText} onChange={(e) => setDeleteConfirmText(e.target.value)} className="w-full p-2 border rounded mt-1" />
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Bu işlemi onaylamak için "<strong>SİL</strong>" yazın:
+                            </label>
+                            <input
+                                type="text"
+                                value={deleteConfirmText}
+                                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                                className="w-full p-2 border rounded mt-1 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                                placeholder="SİL"
+                            />
                         </div>
                     </div>
                 }

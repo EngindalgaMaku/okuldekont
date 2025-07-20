@@ -25,6 +25,8 @@ type CompanyWithIncludes = {
   address: string | null
   pin: string
   teacherId: string | null
+  masterTeacherName: string | null
+  masterTeacherPhone: string | null
   teacher: {
     id: string
     name: string
@@ -55,6 +57,8 @@ interface TransformedCompany {
   yetkili_kisi: string
   pin: string
   ogretmen_id: string | null
+  usta_ogretici_ad: string | null
+  usta_ogretici_telefon: string | null
   ogretmenler: {
     id: string
     ad: string
@@ -76,14 +80,81 @@ async function getIsletmelerDataPrisma(searchParams: SearchParams) {
   const page = parseInt(searchParams.page || '1')
   const perPage = parseInt(searchParams.per_page || '10')
   const search = searchParams.search || ''
-  const filterType = searchParams.filter || 'aktif'
+  const filterType = searchParams.filter || 'tum'
 
-  // Calculate offset
-  const from = (page - 1) * perPage
+  // Calculate offset for server-side pagination
+  const skip = (page - 1) * perPage
 
   try {
-    // Get all companies with their teachers and fields
+    // Build where conditions for database-level filtering
+    let whereConditions: any = {}
+    
+    // Apply search filter at database level
+    if (search) {
+      const query = search.toLowerCase().trim()
+      whereConditions.OR = [
+        { name: { contains: query, mode: 'insensitive' } },
+        { contact: { contains: query, mode: 'insensitive' } },
+        { phone: { contains: query } },
+        { email: { contains: query, mode: 'insensitive' } },
+        { address: { contains: query, mode: 'insensitive' } },
+        { pin: { contains: query } },
+        // Teacher search
+        { teacher: { 
+          OR: [
+            { name: { contains: query, mode: 'insensitive' } },
+            { surname: { contains: query, mode: 'insensitive' } }
+          ]
+        }},
+        // Student search
+        { students: {
+          some: {
+            OR: [
+              { name: { contains: query, mode: 'insensitive' } },
+              { surname: { contains: query, mode: 'insensitive' } },
+              { number: { contains: query } }
+            ]
+          }
+        }}
+      ]
+    }
+
+    // For active companies filter, add student condition
+    if (filterType === 'aktif') {
+      const activeStudentCondition = {
+        students: {
+          some: {
+            stajlar: {
+              some: {
+                status: 'ACTIVE',
+                terminationDate: null
+              }
+            }
+          }
+        }
+      }
+      
+      // Combine with search conditions
+      if (whereConditions.OR) {
+        whereConditions = {
+          AND: [
+            activeStudentCondition,
+            { OR: whereConditions.OR }
+          ]
+        }
+      } else {
+        whereConditions = activeStudentCondition
+      }
+    }
+
+    // Get total count for pagination
+    const totalCount = await prisma.companyProfile.count({
+      where: whereConditions
+    })
+
+    // Get paginated companies with server-side pagination
     const allCompanies = await prisma.companyProfile.findMany({
+      where: whereConditions,
       include: {
         teacher: {
           include: {
@@ -91,31 +162,20 @@ async function getIsletmelerDataPrisma(searchParams: SearchParams) {
           }
         },
         students: {
-          where: {
-            stajlar: {
-              some: {
-                status: 'ACTIVE',
-                terminationDate: null
-              }
-            }
-          },
           include: {
-            stajlar: {
-              where: {
-                status: 'ACTIVE',
-                terminationDate: null
-              }
-            }
+            stajlar: true
           }
         }
       },
       orderBy: {
         name: 'asc'
-      }
+      },
+      skip: skip,
+      take: perPage
     })
 
     // Transform data to match the expected format
-    const transformedCompanies: TransformedCompany[] = allCompanies.map((company: CompanyWithIncludes) => ({
+    const transformedCompanies: TransformedCompany[] = allCompanies.map((company: any) => ({
       id: company.id,
       ad: company.name,
       adres: company.address,
@@ -124,6 +184,8 @@ async function getIsletmelerDataPrisma(searchParams: SearchParams) {
       yetkili_kisi: company.contact,
       pin: company.pin,
       ogretmen_id: company.teacherId,
+      usta_ogretici_ad: company.masterTeacherName,
+      usta_ogretici_telefon: company.masterTeacherPhone,
       ogretmenler: company.teacher ? {
         id: company.teacher.id,
         ad: company.teacher.name,
@@ -132,64 +194,28 @@ async function getIsletmelerDataPrisma(searchParams: SearchParams) {
           ad: company.teacher.alan.name
         } : null
       } : null,
-      aktifOgrenciler: company.students.map((student: CompanyWithIncludes['students'][0]) => ({
-        id: student.id,
-        ad: student.name,
-        soyad: student.surname,
-        no: student.number || '',
-        sinif: student.className
-      }))
+      aktifOgrenciler: company.students
+        .filter((student: any) =>
+          student.stajlar.some((staj: any) =>
+            staj.status === 'ACTIVE' && !staj.terminationDate
+          )
+        )
+        .map((student: any) => ({
+          id: student.id,
+          ad: student.name,
+          soyad: student.surname,
+          no: student.number || '',
+          sinif: student.className
+        }))
     }))
 
-    // Apply aktif filter
-    let filteredCompanies = transformedCompanies
-    if (filterType === 'aktif') {
-      filteredCompanies = transformedCompanies.filter((company: TransformedCompany) =>
-        company.aktifOgrenciler && company.aktifOgrenciler.length > 0
-      )
-    }
-
-    // Apply search filter
-    if (search) {
-      const query = search.toLowerCase().trim()
-      filteredCompanies = filteredCompanies.filter((company: TransformedCompany) => {
-        // Basic company fields search
-        const basicSearch =
-          company.ad.toLowerCase().includes(query) ||
-          company.adres?.toLowerCase().includes(query) ||
-          company.telefon?.includes(query) ||
-          company.email?.toLowerCase().includes(query) ||
-          company.yetkili_kisi?.toLowerCase().includes(query) ||
-          company.pin?.includes(query)
-
-        // Teacher search
-        const teacherSearch = company.ogretmenler && (
-          company.ogretmenler.ad?.toLowerCase().includes(query) ||
-          company.ogretmenler.soyad?.toLowerCase().includes(query)
-        )
-
-        // Active students search
-        const studentSearch = company.aktifOgrenciler?.some((student: TransformedCompany['aktifOgrenciler'][0]) =>
-          student.ad.toLowerCase().includes(query) ||
-          student.soyad.toLowerCase().includes(query) ||
-          student.no.includes(query)
-        )
-
-        return basicSearch || teacherSearch || studentSearch
-      })
-    }
-
-    // Apply pagination
-    const totalFiltered = filteredCompanies.length
-    const paginatedCompanies = filteredCompanies.slice(from, from + perPage)
-
     return {
-      isletmeler: paginatedCompanies,
+      isletmeler: transformedCompanies,
       pagination: {
         page,
         perPage,
-        total: totalFiltered,
-        totalPages: Math.ceil(totalFiltered / perPage)
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / perPage)
       }
     }
   } catch (error) {

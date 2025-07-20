@@ -315,17 +315,75 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
 
   if (alanlar.length === 0) {
     return (
-      <div className="text-center py-12">
-        <GraduationCap className="mx-auto h-12 w-12 text-gray-400" />
-        <h3 className="mt-4 text-lg font-medium text-gray-900">Henüz alan yok</h3>
-        <p className="mt-2 text-gray-500">İlk meslek alanını oluşturmak için yeni alan ekleyin.</p>
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="mt-4 inline-flex items-center p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+      <>
+        <div className="text-center py-12">
+          <GraduationCap className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-4 text-lg font-medium text-gray-900">Henüz alan yok</h3>
+          <p className="mt-2 text-gray-500">İlk meslek alanını oluşturmak için yeni alan ekleyin.</p>
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="mt-4 inline-flex items-center p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <Plus className="h-5 w-5 mr-2" /> Yeni Alan Ekle
+          </button>
+        </div>
+
+        <Modal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          title="Yeni Meslek Alanı Ekle"
         >
-          <Plus className="h-5 w-5 mr-2" /> Yeni Alan Ekle
-        </button>
-      </div>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="newAlanName" className="block text-sm font-medium text-gray-700">Alan Adı</label>
+              <input
+                type="text"
+                id="newAlanName"
+                value={newAlanName}
+                onChange={(e) => setNewAlanName(e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                placeholder="Örn: Bilişim Teknolojileri"
+              />
+            </div>
+            <div>
+              <label htmlFor="newAlanDescription" className="block text-sm font-medium text-gray-700">Açıklama</label>
+              <textarea
+                id="newAlanDescription"
+                value={newAlanDescription}
+                onChange={(e) => setNewAlanDescription(e.target.value)}
+                rows={3}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                placeholder="Alanla ilgili kısa bir açıklama"
+              />
+            </div>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="newAlanActive"
+                checked={newAlanActive}
+                onChange={(e) => setNewAlanActive(e.target.checked)}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+              />
+              <label htmlFor="newAlanActive" className="ml-2 block text-sm text-gray-900">Alan başlangıçta aktif olsun</label>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleAddNewAlan}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+              >
+                Ekle
+              </button>
+            </div>
+          </div>
+        </Modal>
+      </>
     )
   }
 

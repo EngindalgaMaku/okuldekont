@@ -20,7 +20,7 @@ export default function YeniOgretmenPage() {
     surname: '',
     phone: '',
     email: '',
-    pin: '',
+    pin: '1234',
     alanId: ''
   })
 
@@ -123,7 +123,7 @@ export default function YeniOgretmenPage() {
 
         {/* Form */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off">
             {/* Name and Surname */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -185,6 +185,8 @@ export default function YeniOgretmenPage() {
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
+                    autoComplete="new-password"
+                    data-form-type="other"
                     className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="ornek@email.com"
                   />
@@ -223,7 +225,7 @@ export default function YeniOgretmenPage() {
                     <Key className="h-5 w-5 text-gray-400" />
                   </div>
                   <input
-                    type="password"
+                    type="text"
                     id="pin"
                     name="pin"
                     value={formData.pin}
@@ -232,10 +234,16 @@ export default function YeniOgretmenPage() {
                     maxLength={4}
                     minLength={4}
                     pattern="[0-9]{4}"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    data-form-type="other"
                     className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="****"
+                    placeholder="1234"
                   />
                 </div>
+                <p className="mt-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
+                  <span className="font-medium">⚠️ Not:</span> Varsayılan PIN (1234) seçilirse, öğretmen ilk girişte PIN'ini değiştirmek zorunda bırakılır.
+                </p>
               </div>
 
               <div>

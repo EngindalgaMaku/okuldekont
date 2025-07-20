@@ -19,6 +19,22 @@ export function useAuth() {
     adminRole: undefined
   })
 
+  // Function to map database roles to frontend roles
+  const mapDatabaseRoleToFrontendRole = (dbRole: string): string | undefined => {
+    switch (dbRole) {
+      case 'ADMIN':
+        return 'super_admin'  // ADMIN users get super_admin privileges
+      case 'USER':
+        return 'operator'     // Regular users get operator privileges
+      case 'TEACHER':
+        return 'operator'     // Teachers get operator privileges
+      case 'COMPANY':
+        return 'operator'     // Companies get operator privileges
+      default:
+        return undefined
+    }
+  }
+
   useEffect(() => {
     if (status === 'loading') {
       setAuthState({
@@ -28,11 +44,12 @@ export function useAuth() {
         adminRole: undefined
       })
     } else if (status === 'authenticated' && session?.user) {
+      const frontendRole = mapDatabaseRoleToFrontendRole(session.user.role)
       setAuthState({
         user: session.user,
         loading: false,
         isAdmin: session.user.role === 'ADMIN',
-        adminRole: session.user.role
+        adminRole: frontendRole
       })
     } else {
       setAuthState({

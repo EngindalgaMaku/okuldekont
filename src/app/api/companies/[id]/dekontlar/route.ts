@@ -183,20 +183,26 @@ export async function POST(
       }
     }
 
-    // Create the dekont
+    // Create the dekont with conditional teacherId
+    const dekontData: any = {
+      stajId: stajId,
+      studentId: staj.studentId,
+      companyId: companyId,
+      month: ay,
+      year: yil,
+      amount: miktar,
+      fileUrl: fileUrl,
+      status: 'PENDING',
+      paymentDate: new Date()
+    };
+    
+    // Only include teacherId if it exists
+    if (staj.teacherId) {
+      dekontData.teacherId = staj.teacherId;
+    }
+    
     const newDekont = await prisma.dekont.create({
-      data: {
-        stajId: stajId,
-        studentId: staj.studentId,
-        companyId: companyId,
-        teacherId: staj.teacherId,
-        month: ay,
-        year: yil,
-        amount: miktar,
-        fileUrl: fileUrl,
-        status: 'PENDING',
-        paymentDate: new Date()
-      }
+      data: dekontData
     })
 
     // Student info is already available from staj relation

@@ -433,10 +433,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <Link
                   href="/admin/stajlar"
                   className="flex items-center gap-x-1 px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
-                  title="Öğrenci Yönetimi - Öğrenci staj süreçleri ve koordinatörlük yönetimi"
+                  title="Staj Yönetimi - Öğrenci staj süreçleri ve koordinatörlük yönetimi"
                 >
                   <GraduationCap className="h-4 w-4" />
-                  <span className="hidden sm:block">Öğrenciler</span>
+                  <span className="hidden sm:block">Stajlar</span>
                 </Link>
               </div>
 

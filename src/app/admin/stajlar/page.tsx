@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { Building2, Users, FileText, Plus, Search, Filter, Download, Upload, Trash2, Eye, UserCheck, UserX, Calendar, GraduationCap, User, AlertTriangle, ChevronDown, X, MoreVertical, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react'
+import { Building2, Users, FileText, Search, Filter, Download, Upload, UserCheck, Calendar, GraduationCap, User, AlertTriangle, ChevronDown, X, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import OgretmenBazliYonetim, { OgretmenStajData } from '@/components/ui/OgretmenBazliYonetim'
@@ -14,7 +14,7 @@ interface Staj {
   educationYearId: string
   startDate: string
   endDate: string | null
-  status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
+  status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'TERMINATED'
   terminationDate: string | null
   createdAt: string
   student?: {
@@ -86,6 +86,8 @@ const getUniqueById = <T extends { id: string }>(items: T[]): T[] => {
 export default function StajYonetimiPage() {
   const [stajlar, setStajlar] = useState<Staj[]>([])
   const [bostOgrenciler, setBostOgrenciler] = useState<Ogrenci[]>([])
+  const [bostOgrencilerTotal, setBostOgrencilerTotal] = useState(0)
+  const [bostOgrencilerTotalPages, setBostOgrencilerTotalPages] = useState(0)
   const [isletmeler, setIsletmeler] = useState<Isletme[]>([])
   const [ogretmenler, setOgretmenler] = useState<Ogretmen[]>([])
   const [ogretmenBazliData, setOgretmenBazliData] = useState<OgretmenStajData[]>([])
@@ -96,45 +98,31 @@ export default function StajYonetimiPage() {
   const [activeTab, setActiveTab] = useState<'aktif' | 'bost' | 'tamamlandi' | 'feshedildi' | 'suresi-gecmis' | 'ogretmen'>('aktif')
   
   // Modal states
-  const [newStajModalOpen, setNewStajModalOpen] = useState(false)
-  const [fesihModalOpen, setFesihModalOpen] = useState(false)
-  const [silmeModalOpen, setSilmeModalOpen] = useState(false)
-  const [koordinatorModalOpen, setKoordinatorModalOpen] = useState(false)
-  const [tarihDuzenleModalOpen, setTarihDuzenleModalOpen] = useState(false)
+  const [newOgretmenModalOpen, setNewOgretmenModalOpen] = useState(false)
+
+
   const [selectedStaj, setSelectedStaj] = useState<Staj | null>(null)
   const [selectedOgrenci, setSelectedOgrenci] = useState<Ogrenci | null>(null)
-  const [belgeModalOpen, setBelgeModalOpen] = useState(false)
-  const [belgeType, setBelgeType] = useState<'sozlesme' | 'fesih'>('sozlesme')
+
   
   // Form states
-  const [newStajForm, setNewStajForm] = useState({
-    alan_id: '',
-    ogrenci_id: '',
-    isletme_id: '',
-    ogretmen_id: '',
-    baslangic_tarihi: '',
-    bitis_tarihi: '',
-    sozlesme_dosya: null as File | null
-  })
   
-  const [tarihDuzenleForm, setTarihDuzenleForm] = useState({
-    baslangic_tarihi: '',
-    bitis_tarihi: ''
-  })
+
   
-  const [fesihForm, setFesihForm] = useState({
-    fesih_tarihi: '',
-    fesih_nedeni: '',
-    fesih_belgesi: null as File | null
-  })
+
   
-  const [koordinatorForm, setKoordinatorForm] = useState({
-    ogretmen_id: '',
-    baslangic_tarihi: '',
-    notlar: ''
+
+  const [submitLoading, setSubmitLoading] = useState(false)
+
+  // New teacher form data
+  const [newOgretmenFormData, setNewOgretmenFormData] = useState({
+    ad: '',
+    soyad: '',
+    email: '',
+    telefon: '',
+    alanId: '',
+    pin: '1234'
   })
-  
-  const [koordinatorAtaLoading, setKoordinatorAtaLoading] = useState(false)
   
   // Search and filter
   const [searchTerm, setSearchTerm] = useState('')
@@ -142,7 +130,7 @@ export default function StajYonetimiPage() {
   const [filterOgretmen, setFilterOgretmen] = useState('')
   const [filterAlan, setFilterAlan] = useState('')
   const [filterSinif, setFilterSinif] = useState('')
-  const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({})
+
   
   // Pagination states
   const [currentPageStajlar, setCurrentPageStajlar] = useState(1)
@@ -162,6 +150,21 @@ export default function StajYonetimiPage() {
     setDataLoading(true)
     fetchData()
   }, [])
+
+  // Tab değiştiğinde veya filtreler değiştiğinde boşta olan öğrencileri fetch et
+  useEffect(() => {
+    if (activeTab === 'bost') {
+      setCurrentPageBost(1) // Reset page
+      fetchBostOgrenciler(1)
+    }
+  }, [activeTab, filterAlan, filterSinif, searchTerm])
+
+  // Boşta olan öğrenciler pagination
+  useEffect(() => {
+    if (activeTab === 'bost') {
+      fetchBostOgrenciler(currentPageBost)
+    }
+  }, [currentPageBost])
 
   // Intersection Observer setup for lazy loading
   useEffect(() => {
@@ -197,72 +200,110 @@ export default function StajYonetimiPage() {
     }
   }, [])
 
+  const fetchBostOgrenciler = async (page: number = 1) => {
+    try {
+      const params = new URLSearchParams({
+        status: 'unassigned',
+        page: page.toString(),
+        limit: '10'
+      })
+      
+      if (filterAlan) params.append('alanId', filterAlan)
+      if (filterSinif) params.append('sinif', filterSinif)
+      if (searchTerm) params.append('search', searchTerm)
+      
+      const response = await fetch(`/api/admin/students?${params.toString()}`)
+      if (response.ok) {
+        const data = await response.json()
+        // Map API response to component interface
+        const mappedStudents = (data.students || []).map((student: any) => ({
+          id: student.id,
+          name: student.ad || student.name,
+          surname: student.soyad || student.surname,
+          number: student.no || student.number,
+          className: student.sinif || student.className,
+          alan: student.alan || null
+        }))
+        setBostOgrenciler(mappedStudents)
+        setBostOgrencilerTotal(data.totalCount || 0)
+        setBostOgrencilerTotalPages(data.totalPages || 0)
+        return data
+      }
+      return { students: [], totalCount: 0, totalPages: 0 }
+    } catch (error) {
+      console.error('Boşta olan öğrenciler getirme hatası:', error)
+      setBostOgrenciler([])
+      setBostOgrencilerTotal(0)
+      setBostOgrencilerTotalPages(0)
+      return { students: [], totalCount: 0, totalPages: 0 }
+    }
+  }
+
   const fetchData = async () => {
     try {
       setDataLoading(true)
       
-      // Fetch all data in parallel
+      // Fetch all data with individual error handling
+      const fetchWithFallback = async (url: string, fallback: any[] = []) => {
+        try {
+          const response = await fetch(url)
+          if (response.ok) {
+            return await response.json()
+          }
+          console.warn(`API request failed: ${url}`)
+          return fallback
+        } catch (error) {
+          console.warn(`API request error: ${url}`, error)
+          return fallback
+        }
+      }
+
       const [
-        stajResponse,
-        studentsResponse,
-        companiesResponse,
-        teachersResponse,
-        fieldsResponse
+        stajData,
+        companiesData,
+        teachersData,
+        fieldsData
       ] = await Promise.all([
-        fetch('/api/admin/internships'),
-        fetch('/api/admin/students'),
-        fetch('/api/admin/companies'),
-        fetch('/api/admin/teachers'),
-        fetch('/api/admin/fields')
+        fetchWithFallback('/api/admin/internships', []),
+        fetchWithFallback('/api/admin/companies', []),
+        fetchWithFallback('/api/admin/teachers', []),
+        fetchWithFallback('/api/admin/fields', [])
       ])
 
-      if (!stajResponse.ok) throw new Error('Staj verileri alınamadı')
-      if (!studentsResponse.ok) throw new Error('Öğrenci verileri alınamadı')
-      if (!companiesResponse.ok) throw new Error('İşletme verileri alınamadı')
-      if (!teachersResponse.ok) throw new Error('Öğretmen verileri alınamadı')
-      if (!fieldsResponse.ok) throw new Error('Alan verileri alınamadı')
-
-      const stajData = await stajResponse.json()
-      const allStudents = await studentsResponse.json()
-      const companiesData = await companiesResponse.json()
-      const teachersData = await teachersResponse.json()
-      const fieldsData = await fieldsResponse.json()
-
-      setStajlar(stajData)
+      // Safely set data with array checks
+      const actualStajData = stajData?.data || stajData
+      setStajlar(Array.isArray(actualStajData) ? actualStajData : [])
       
-      // Filter students without active internships
-      const activeStudentIds = stajData
-        .filter((staj: any) => staj.status === 'ACTIVE')
-        .map((staj: any) => staj.studentId)
+      const safeStajData = Array.isArray(actualStajData) ? actualStajData : []
+      setIsletmeler(Array.isArray(companiesData) ? companiesData : [])
+      setOgretmenler(Array.isArray(teachersData) ? teachersData : [])
       
-      const availableStudents = allStudents.filter((student: any) =>
-        !activeStudentIds.includes(student.id)
-      )
+      // Transform fields data safely
+      const safeFieldsData = Array.isArray(fieldsData) ? fieldsData : []
+      const transformedFields = safeFieldsData.map((field: any) => ({
+        id: field?.id || '',
+        name: field?.ad || field?.name || ''
+      })).filter(field => field.id && field.name)
       
-      setBostOgrenciler(availableStudents)
-      setIsletmeler(companiesData)
-      setOgretmenler(teachersData)
-      
-      // Transform fields data
-      const transformedFields = fieldsData.map((field: any) => ({
-        id: field.id,
-        name: field.ad
-      }))
       setAlanlar(transformedFields)
       
-      // Create teacher-based data structure
+      // Create teacher-based data structure safely
       const ogretmenStajMap: Record<string, OgretmenStajData> = {}
-      teachersData.forEach((teacher: any) => {
-        ogretmenStajMap[teacher.id] = {
-          id: teacher.id,
-          ad: teacher.name,
-          soyad: teacher.surname,
-          stajlar: []
+      const safeTeachersData = Array.isArray(teachersData) ? teachersData : []
+      
+      safeTeachersData.forEach((teacher: any) => {
+        if (teacher && teacher.id) {
+          ogretmenStajMap[teacher.id] = {
+            id: teacher.id,
+            ad: teacher.name || '',
+            soyad: teacher.surname || '',
+            stajlar: []
+          }
         }
       })
 
-      stajData.forEach((staj: any) => {
-        if (staj.teacherId && ogretmenStajMap[staj.teacherId]) {
+      safeStajData.forEach((staj: any) => {
+        if (staj && staj.teacherId && ogretmenStajMap[staj.teacherId]) {
           ogretmenStajMap[staj.teacherId].stajlar.push(staj)
         }
       })
@@ -271,55 +312,95 @@ export default function StajYonetimiPage() {
       
     } catch (error) {
       console.error('Veri yükleme hatası:', error)
+      // Set empty arrays as fallback
+      setStajlar([])
+      setBostOgrenciler([])
+      setIsletmeler([])
+      setOgretmenler([])
+      setAlanlar([])
+      setOgretmenBazliData([])
+      
       showToast({
         type: 'error',
         title: 'Hata',
-        message: 'Veriler yüklenirken bir hata oluştu'
+        message: 'Veriler yüklenirken bir hata oluştu. Sayfa boş veriyle yüklendi.'
       })
     } finally {
       setDataLoading(false)
     }
   }
 
-  const handleNewStaj = async () => {
+  const handleNewOgretmen = async () => {
+    if (!newOgretmenFormData.ad.trim() || !newOgretmenFormData.soyad.trim() || !newOgretmenFormData.email.trim() || !newOgretmenFormData.alanId) {
+      showToast({
+        type: 'error',
+        title: 'Eksik Bilgi',
+        message: 'Ad, soyad, email ve alan alanları zorunludur!'
+      })
+      return
+    }
+
+    setSubmitLoading(true)
     try {
-      if (!newStajForm.alan_id || !newStajForm.ogrenci_id || !newStajForm.isletme_id || !newStajForm.ogretmen_id || !newStajForm.baslangic_tarihi) {
-        showToast({
-          type: 'error',
-          title: 'Eksik Bilgi',
-          message: 'Lütfen tüm gerekli alanları doldurun'
+      const response = await fetch('/api/admin/teachers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newOgretmenFormData.ad.trim(),
+          surname: newOgretmenFormData.soyad.trim(),
+          email: newOgretmenFormData.email.trim(),
+          phone: newOgretmenFormData.telefon.trim() || null,
+          alanId: newOgretmenFormData.alanId,
+          pin: newOgretmenFormData.pin
         })
-        return
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Öğretmen eklenirken hata oluştu')
       }
+
+      const newTeacher = await response.json()
 
       showToast({
         type: 'success',
         title: 'Başarılı',
-        message: 'Yeni staj kaydı oluşturuldu'
+        message: 'Yeni öğretmen başarıyla eklendi!'
       })
 
-      setNewStajModalOpen(false)
-      setNewStajForm({
-        alan_id: '',
-        ogrenci_id: '',
-        isletme_id: '',
-        ogretmen_id: '',
-        baslangic_tarihi: '',
-        bitis_tarihi: '',
-        sozlesme_dosya: null
-      })
-      setDataLoading(true)
-      fetchData()
+      // Update teachers list
+      setOgretmenler(prev => [...prev, {
+        id: newTeacher.id,
+        name: newTeacher.name,
+        surname: newTeacher.surname,
+        alanId: newTeacher.alanId,
+        alan: alanlar.find(a => a.id === newTeacher.alanId) || null
+      }])
 
-    } catch (error) {
-      console.error('Staj oluşturma hatası:', error)
+
+
+      setNewOgretmenModalOpen(false)
+      setNewOgretmenFormData({
+        ad: '',
+        soyad: '',
+        email: '',
+        telefon: '',
+        alanId: '',
+        pin: '1234'
+      })
+
+    } catch (error: any) {
       showToast({
         type: 'error',
         title: 'Hata',
-        message: 'Staj kaydı oluşturulurken bir hata oluştu'
+        message: `Öğretmen eklenirken hata: ${error.message}`
       })
+    } finally {
+      setSubmitLoading(false)
     }
   }
+
+
 
   const handleTamamlandiOlarakKaydet = async (stajId: string) => {
     try {
@@ -341,80 +422,13 @@ export default function StajYonetimiPage() {
     }
   }
 
-  const handleTarihDuzenle = async () => {
-    if (!selectedStaj || !tarihDuzenleForm.baslangic_tarihi) return
 
-    try {
-      showToast({
-        type: 'success',
-        title: 'Başarılı',
-        message: 'Staj tarihleri güncellendi'
-      })
-
-      setTarihDuzenleModalOpen(false)
-      setSelectedStaj(null)
-      setDataLoading(true)
-      fetchData()
-    } catch (error) {
-      console.error('Tarih düzenleme hatası:', error)
-      showToast({
-        type: 'error',
-        title: 'Hata',
-        message: 'Tarihi güncellerken bir hata oluştu'
-      })
-    }
-  }
-
-  const handleFeshet = async () => {
-    if (!selectedStaj || !fesihForm.fesih_tarihi || !fesihForm.fesih_nedeni) return
-
-    try {
-      showToast({
-        type: 'success',
-        title: 'Başarılı',
-        message: 'Staj feshedildi'
-      })
-
-      setFesihModalOpen(false)
-      setSelectedStaj(null)
-      setDataLoading(true)
-      fetchData()
-    } catch (error) {
-      console.error('Fesih hatası:', error)
-      showToast({
-        type: 'error',
-        title: 'Hata',
-        message: 'Staj feshedilirken bir hata oluştu'
-      })
-    }
-  }
-
-  const handleSilme = async () => {
-    if (!selectedStaj) return
-
-    try {
-      showToast({
-        type: 'success',
-        title: 'Başarılı',
-        message: 'Staj kaydı silindi'
-      })
-
-      setSilmeModalOpen(false)
-      setSelectedStaj(null)
-      setDataLoading(true)
-      fetchData()
-    } catch (error) {
-      console.error('Silme hatası:', error)
-      showToast({
-        type: 'error',
-        title: 'Hata',
-        message: 'Staj kaydı silinirken bir hata oluştu'
-      })
-    }
-  }
 
   // Memoized filtreleme mantığı - performans optimizasyonu
   const filteredStajlar = useMemo(() => {
+    if (!Array.isArray(stajlar)) {
+      return []
+    }
     return stajlar.filter(staj => {
       const today = new Date().toISOString().split('T')[0]
       const isExpired = staj.status === 'ACTIVE' && staj.endDate && staj.endDate < today
@@ -424,7 +438,7 @@ export default function StajYonetimiPage() {
       if (activeTab === 'aktif' && !isActive) return false
       if (activeTab === 'suresi-gecmis' && !isExpired) return false
       if (activeTab === 'tamamlandi' && staj.status !== 'COMPLETED') return false
-      if (activeTab === 'feshedildi' && staj.status !== 'CANCELLED') return false
+      if (activeTab === 'feshedildi' && staj.status !== 'TERMINATED') return false
       
       const searchMatch = searchTerm === '' ||
         staj.student?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -444,22 +458,7 @@ export default function StajYonetimiPage() {
     })
   }, [stajlar, activeTab, searchTerm, filterIsletme, filterOgretmen, filterAlan, filterSinif, alanlar])
 
-  const filteredBostOgrenciler = useMemo(() => {
-    return bostOgrenciler.filter(ogrenci => {
-      const searchMatch = searchTerm === '' ||
-        ogrenci.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        ogrenci.surname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        ogrenci.className.toLowerCase().includes(searchTerm.toLowerCase())
-      
-      const alanMatch = filterAlan === '' ||
-        (ogrenci.alan?.name &&
-         alanlar.find(alan => alan.id === filterAlan)?.name === ogrenci.alan.name)
-      
-      const sinifMatch = filterSinif === '' || ogrenci.className === filterSinif
-      
-      return searchMatch && alanMatch && sinifMatch
-    })
-  }, [bostOgrenciler, searchTerm, filterAlan, filterSinif, alanlar])
+
 
   // Sayfa değişikliklerinde filtreleri sıfırla ve lazy loading reset
   useEffect(() => {
@@ -492,73 +491,33 @@ export default function StajYonetimiPage() {
     setFilteredOgretmenBazliData(filtered)
   }, [ogretmenBazliData, searchTerm, filterAlan, ogretmenler])
 
-  // Memoized pagination hesaplamaları
+  // Memoized pagination hesaplamaları - sadece stajlar için
   const paginationData = useMemo(() => {
     const totalStajlar = filteredStajlar.length
-    const totalBostOgrenciler = filteredBostOgrenciler.length
     const totalPagesStajlar = Math.ceil(totalStajlar / itemsPerPage)
-    const totalPagesBost = Math.ceil(totalBostOgrenciler / itemsPerPage)
 
     const startIndexStajlar = (currentPageStajlar - 1) * itemsPerPage
     const endIndexStajlar = startIndexStajlar + itemsPerPage
     const paginatedStajlar = filteredStajlar.slice(startIndexStajlar, endIndexStajlar)
 
-    const startIndexBost = (currentPageBost - 1) * itemsPerPage
-    const endIndexBost = startIndexBost + itemsPerPage
-    const paginatedBostOgrenciler = filteredBostOgrenciler.slice(startIndexBost, endIndexBost)
-
     return {
       totalStajlar,
-      totalBostOgrenciler,
       totalPagesStajlar,
-      totalPagesBost,
       startIndexStajlar,
       endIndexStajlar,
-      paginatedStajlar,
-      startIndexBost,
-      endIndexBost,
-      paginatedBostOgrenciler
+      paginatedStajlar
     }
-  }, [filteredStajlar, filteredBostOgrenciler, currentPageStajlar, currentPageBost, itemsPerPage])
+  }, [filteredStajlar, currentPageStajlar, itemsPerPage])
 
-  // Memoized modal için alan bazlı öğrenci filtreleme
-  const modalOgrenciler = useMemo(() => {
-    return newStajForm.alan_id === ''
-      ? bostOgrenciler
-      : bostOgrenciler.filter(ogrenci =>
-          ogrenci.alan?.name &&
-          alanlar.find(alan => alan.id === newStajForm.alan_id)?.name === ogrenci.alan.name
-        )
-  }, [newStajForm.alan_id, bostOgrenciler, alanlar])
 
-  // Memoized modal için alan bazlı öğretmen filtreleme
-  const modalOgretmenler = useMemo(() => {
-    return newStajForm.alan_id === ''
-      ? ogretmenler
-      : ogretmenler.filter(ogretmen =>
-          ogretmen.alan?.name &&
-          alanlar.find(alan => alan.id === newStajForm.alan_id)?.name === ogretmen.alan.name
-        )
-  }, [newStajForm.alan_id, ogretmenler, alanlar])
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-8 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Staj Yönetimi</h1>
-            <p className="text-indigo-100">Öğrenci staj süreçlerini koordine edin</p>
-          </div>
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setNewStajModalOpen(true)}
-              className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-lg transition-all duration-200"
-            >
-              <Plus className="h-5 w-5" />
-              <span>Yeni Staj Kaydı</span>
-            </button>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Staj Yönetimi</h1>
+          <p className="text-indigo-100">Öğrenci staj süreçlerini koordine edin</p>
         </div>
       </div>
 
@@ -568,19 +527,20 @@ export default function StajYonetimiPage() {
           <nav className="-mb-px flex space-x-8 px-6">
             {(() => {
               const today = new Date().toISOString().split('T')[0]
-              const aktifStajlar = stajlar.filter(s =>
+              const safeStajlar = Array.isArray(stajlar) ? stajlar : []
+              const aktifStajlar = safeStajlar.filter(s =>
                 s.status === 'ACTIVE' && (!s.endDate || s.endDate >= today)
               )
-              const suresiGecmisStajlar = stajlar.filter(s =>
+              const suresiGecmisStajlar = safeStajlar.filter(s =>
                 s.status === 'ACTIVE' && s.endDate && s.endDate < today
               )
-              const tamamlananStajlar = stajlar.filter(s => s.status === 'COMPLETED')
-              const feshedilenStajlar = stajlar.filter(s => s.status === 'CANCELLED')
+              const tamamlananStajlar = safeStajlar.filter(s => s.status === 'COMPLETED')
+              const feshedilenStajlar = safeStajlar.filter(s => s.status === 'TERMINATED')
               
               return [
                 { id: 'aktif', label: 'Aktif Stajlar', count: aktifStajlar.length },
                 { id: 'suresi-gecmis', label: 'Süresi Geçmiş', count: suresiGecmisStajlar.length },
-                { id: 'bost', label: 'Boşta Olan Öğrenciler', count: bostOgrenciler.length },
+                { id: 'bost', label: 'Boşta Olan Öğrenciler', count: bostOgrencilerTotal },
                 { id: 'tamamlandi', label: 'Tamamlanan', count: tamamlananStajlar.length },
                 { id: 'feshedildi', label: 'Feshedilen', count: feshedilenStajlar.length },
                 { id: 'ogretmen', label: 'Öğretmen Bazlı', count: ogretmenler.length }
@@ -826,59 +786,88 @@ export default function StajYonetimiPage() {
           ) : activeTab === 'bost' ? (
             // Boşta olan öğrenciler
             <div className="space-y-4">
-              {filteredBostOgrenciler.length === 0 ? (
+              {bostOgrenciler.length === 0 ? (
                 <div className="text-center py-12">
                   <UserCheck className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-2 text-sm font-medium text-gray-900">Boşta öğrenci yok</h3>
                   <p className="mt-1 text-sm text-gray-500">Tüm öğrencilerin aktif stajları bulunuyor.</p>
                 </div>
               ) : (
-                paginationData.paginatedBostOgrenciler.map((ogrenci) => (
-                  <div
-                    key={ogrenci.id}
-                    className="bg-yellow-50 border border-yellow-200 rounded-lg p-4"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                          <User className="h-6 w-6 text-yellow-600" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-medium text-gray-900">
-                            {ogrenci.name} {ogrenci.surname}
-                          </h3>
-                          <div className="flex items-center space-x-4 text-sm text-gray-600">
-                            <span className="flex items-center">
-                              <GraduationCap className="h-4 w-4 mr-1" />
-                              {ogrenci.className} - No: {ogrenci.number}
-                            </span>
-                            <span>{ogrenci.alan?.name || 'Alan belirtilmemiş'}</span>
+                <>
+                  {bostOgrenciler.map((ogrenci) => (
+                    <div
+                      key={ogrenci.id}
+                      className="bg-yellow-50 border border-yellow-200 rounded-lg p-4"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                            <User className="h-6 w-6 text-yellow-600" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-medium text-gray-900">
+                              {ogrenci.name} {ogrenci.surname}
+                            </h3>
+                            <div className="flex items-center space-x-4 text-sm text-gray-600">
+                              <span className="flex items-center">
+                                <GraduationCap className="h-4 w-4 mr-1" />
+                                {ogrenci.className} - No: {ogrenci.number}
+                              </span>
+                              <span>{ogrenci.alan?.name || 'Alan belirtilmemiş'}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
+                    </div>
+                  ))}
+                  
+                  {/* Pagination for Boşta Öğrenciler */}
+                  {bostOgrencilerTotalPages > 1 && (
+                    <div className="flex items-center justify-between mt-6">
+                      <div className="text-sm text-gray-700">
+                        Toplam {bostOgrencilerTotal} öğrenci, sayfa {currentPageBost} / {bostOgrencilerTotalPages}
+                      </div>
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => {
-                            const ogrenciAlani = ogrenci.alan?.name ?
-                              alanlar.find(alan => alan.name === ogrenci.alan?.name)?.id || '' : ''
-                            
-                            setNewStajForm({
-                              ...newStajForm,
-                              alan_id: ogrenciAlani,
-                              ogrenci_id: ogrenci.id,
-                              ogretmen_id: ''
-                            })
-                            setNewStajModalOpen(true)
-                          }}
-                          className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+                          onClick={() => setCurrentPageBost(Math.max(1, currentPageBost - 1))}
+                          disabled={currentPageBost === 1}
+                          className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <Plus className="h-4 w-4" />
-                          <span>İşletme Girişi Yap</span>
+                          <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        
+                        {/* Sayfa numaraları */}
+                        {Array.from({ length: Math.min(5, bostOgrencilerTotalPages) }, (_, i) => {
+                          const startPage = Math.max(1, currentPageBost - 2)
+                          const pageNum = startPage + i
+                          if (pageNum > bostOgrencilerTotalPages) return null
+                          
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setCurrentPageBost(pageNum)}
+                              className={`px-3 py-2 text-sm font-medium rounded-md ${
+                                currentPageBost === pageNum
+                                  ? 'text-indigo-600 bg-indigo-50 border border-indigo-500'
+                                  : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          )
+                        })}
+                        
+                        <button
+                          onClick={() => setCurrentPageBost(Math.min(bostOgrencilerTotalPages, currentPageBost + 1))}
+                          disabled={currentPageBost === bostOgrencilerTotalPages}
+                          className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ChevronRight className="h-4 w-4" />
                         </button>
                       </div>
                     </div>
-                  </div>
-                ))
+                  )}
+                </>
               )}
             </div>
           ) : (
@@ -909,7 +898,7 @@ export default function StajYonetimiPage() {
                       className={`border rounded-lg p-6 ${
                         isExpired ? 'bg-orange-50 border-orange-200' :
                         staj.status === 'ACTIVE' ? 'bg-green-50 border-green-200' :
-                        staj.status === 'CANCELLED' ? 'bg-red-50 border-red-200' :
+                        staj.status === 'TERMINATED' ? 'bg-red-50 border-red-200' :
                         'bg-gray-50 border-gray-200'
                       }`}
                     >
@@ -933,12 +922,12 @@ export default function StajYonetimiPage() {
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                   isExpired ? 'bg-orange-100 text-orange-800' :
                                   staj.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
-                                  staj.status === 'CANCELLED' ? 'bg-red-100 text-red-800' :
+                                  staj.status === 'TERMINATED' ? 'bg-red-100 text-red-800' :
                                   'bg-gray-100 text-gray-800'
                                 }`}>
                                   {isExpired ? 'Süresi Geçmiş' :
                                    staj.status === 'ACTIVE' ? 'Aktif' :
-                                   staj.status === 'CANCELLED' ? 'Feshedildi' :
+                                   staj.status === 'TERMINATED' ? 'Feshedildi' :
                                    'Tamamlandı'}
                                 </span>
                               </div>
@@ -959,16 +948,28 @@ export default function StajYonetimiPage() {
                                 <span className="flex items-center">
                                   <UserCheck className="h-4 w-4 mr-1" />
                                   <span className="font-medium">Koordinatör:</span>
-                                  {staj.teacher ?
-                                    `${staj.teacher.name} ${staj.teacher.surname}` :
-                                    <span className="text-orange-600 font-medium">Atanmamış</span>
-                                  }
+                                  {staj.teacher ? (
+                                    <span>
+                                      {`${staj.teacher.name} ${staj.teacher.surname}`}
+                                      {staj.status === 'TERMINATED' && (
+                                        <span className="text-xs text-gray-500 ml-1">(Fesih zamanında)</span>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span className="text-orange-600 font-medium">Koordinatör Öğretmen atanmadı</span>
+                                  )}
                                 </span>
                               </div>
                               <div className="flex items-center space-x-4 text-sm text-gray-600">
                                 <span className="flex items-center">
                                   <Calendar className="h-4 w-4 mr-1" />
-                                  {staj.startDate ? new Date(staj.startDate).toLocaleDateString('tr-TR') : 'Tarih yok'} - {staj.endDate ? new Date(staj.endDate).toLocaleDateString('tr-TR') : 'Devam ediyor'}
+                                  {staj.startDate ? new Date(staj.startDate).toLocaleDateString('tr-TR') : 'Tarih yok'} - {
+                                    staj.status === 'TERMINATED' && staj.terminationDate 
+                                      ? new Date(staj.terminationDate).toLocaleDateString('tr-TR') + ' (Fesih)'
+                                      : staj.endDate 
+                                        ? new Date(staj.endDate).toLocaleDateString('tr-TR') 
+                                        : 'Devam ediyor'
+                                  }
                                 </span>
                               </div>
                             </div>
@@ -987,81 +988,7 @@ export default function StajYonetimiPage() {
                               </button>
                             )}
                             
-                            {/* Dropdown Menu */}
-                            <div className="relative">
-                              <button
-                                onClick={() => setOpenDropdowns(prev => ({ ...prev, [staj.id]: !prev[staj.id] }))}
-                                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
-                              >
-                                <MoreVertical className="h-5 w-5" />
-                              </button>
-                              
-                              {openDropdowns[staj.id] && (
-                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
-                                  <div className="py-1">
-                                    <button
-                                      onClick={() => {
-                                        setSelectedStaj(staj)
-                                        setTarihDuzenleForm({
-                                          baslangic_tarihi: staj.startDate,
-                                          bitis_tarihi: staj.endDate || ''
-                                        })
-                                        setTarihDuzenleModalOpen(true)
-                                        setOpenDropdowns(prev => ({ ...prev, [staj.id]: false }))
-                                      }}
-                                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                                    >
-                                      <Calendar className="h-4 w-4 mr-2" />
-                                      Tarih Düzenle
-                                    </button>
-                                    
-                                    {staj.status === 'ACTIVE' && (
-                                      <button
-                                        onClick={() => {
-                                          setSelectedStaj(staj)
-                                          setFesihForm({
-                                            fesih_tarihi: new Date().toISOString().split('T')[0],
-                                            fesih_nedeni: '',
-                                            fesih_belgesi: null
-                                          })
-                                          setFesihModalOpen(true)
-                                          setOpenDropdowns(prev => ({ ...prev, [staj.id]: false }))
-                                        }}
-                                        className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                                      >
-                                        <UserX className="h-4 w-4 mr-2" />
-                                        Feshet
-                                      </button>
-                                    )}
-                                    
-                                    <button
-                                      onClick={() => {
-                                        setSelectedStaj(staj)
-                                        setBelgeType('sozlesme')
-                                        setBelgeModalOpen(true)
-                                        setOpenDropdowns(prev => ({ ...prev, [staj.id]: false }))
-                                      }}
-                                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                                    >
-                                      <Eye className="h-4 w-4 mr-2" />
-                                      Belgeleri Görüntüle
-                                    </button>
-                                    
-                                    <button
-                                      onClick={() => {
-                                        setSelectedStaj(staj)
-                                        setSilmeModalOpen(true)
-                                        setOpenDropdowns(prev => ({ ...prev, [staj.id]: false }))
-                                      }}
-                                      className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                                    >
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      Sil
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+
                           </div>
                         </div>
                       ) : (
@@ -1077,23 +1004,93 @@ export default function StajYonetimiPage() {
       </div>
 
       {/* Modals */}
-      {newStajModalOpen && (
+
+
+
+      {/* New Teacher Modal */}
+      {newOgretmenModalOpen && (
         <Modal
-          title="Yeni Staj Kaydı"
-          isOpen={newStajModalOpen}
-          onClose={() => setNewStajModalOpen(false)}
-          onConfirm={handleNewStaj}
-          confirmText="Kaydet"
+          title="Yeni Öğretmen Ekle"
+          isOpen={newOgretmenModalOpen}
+          onClose={() => {
+            setNewOgretmenModalOpen(false)
+            setNewOgretmenFormData({
+              ad: '',
+              soyad: '',
+              email: '',
+              telefon: '',
+              alanId: '',
+              pin: '1234'
+            })
+          }}
+          onConfirm={handleNewOgretmen}
+          confirmText={submitLoading ? 'Ekleniyor...' : 'Ekle'}
+          confirmButtonColor="bg-indigo-600 hover:bg-indigo-700"
         >
           <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="text-blue-800 text-sm">
+                <div className="font-medium">🔒 Güvenlik Bilgisi:</div>
+                <div className="mt-1">Varsayılan PIN: <strong>1234</strong> (Admin tarafından görünür)</div>
+                <div className="text-xs mt-1 text-blue-600">Öğretmen ilk girişte PIN'ini değiştirmelidir.</div>
+              </div>
+            </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Alan *
-              </label>
-              <select
-                value={newStajForm.alan_id}
-                onChange={(e) => setNewStajForm({...newStajForm, alan_id: e.target.value})}
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ad *</label>
+              <input
+                type="text"
+                value={newOgretmenFormData.ad}
+                onChange={(e) => setNewOgretmenFormData({ ...newOgretmenFormData, ad: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="Öğretmen adı"
+                disabled={submitLoading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Soyad *</label>
+              <input
+                type="text"
+                value={newOgretmenFormData.soyad}
+                onChange={(e) => setNewOgretmenFormData({ ...newOgretmenFormData, soyad: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="Öğretmen soyadı"
+                disabled={submitLoading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">E-posta *</label>
+              <input
+                type="email"
+                value={newOgretmenFormData.email}
+                onChange={(e) => setNewOgretmenFormData({ ...newOgretmenFormData, email: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="ornek@email.com"
+                disabled={submitLoading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Telefon</label>
+              <input
+                type="tel"
+                value={newOgretmenFormData.telefon}
+                onChange={(e) => setNewOgretmenFormData({ ...newOgretmenFormData, telefon: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="05XX XXX XX XX"
+                disabled={submitLoading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Alan *</label>
+              <select
+                value={newOgretmenFormData.alanId}
+                onChange={(e) => setNewOgretmenFormData({ ...newOgretmenFormData, alanId: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                disabled={submitLoading}
               >
                 <option value="">Alan Seçin</option>
                 {alanlar.map((alan) => (
@@ -1105,184 +1102,17 @@ export default function StajYonetimiPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Öğrenci *
-              </label>
-              <select
-                value={newStajForm.ogrenci_id}
-                onChange={(e) => setNewStajForm({...newStajForm, ogrenci_id: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                disabled={!newStajForm.alan_id}
-              >
-                <option value="">Öğrenci Seçin</option>
-                {modalOgrenciler.map((ogrenci) => (
-                  <option key={ogrenci.id} value={ogrenci.id}>
-                    {ogrenci.name} {ogrenci.surname} - {ogrenci.className}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                İşletme *
-              </label>
-              <select
-                value={newStajForm.isletme_id}
-                onChange={(e) => setNewStajForm({...newStajForm, isletme_id: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              >
-                <option value="">İşletme Seçin</option>
-                {isletmeler.map((isletme) => (
-                  <option key={isletme.id} value={isletme.id}>
-                    {isletme.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Koordinatör Öğretmen *
-              </label>
-              <select
-                value={newStajForm.ogretmen_id}
-                onChange={(e) => setNewStajForm({...newStajForm, ogretmen_id: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                disabled={!newStajForm.alan_id}
-              >
-                <option value="">Koordinatör Seçin</option>
-                {modalOgretmenler.map((ogretmen) => (
-                  <option key={ogretmen.id} value={ogretmen.id}>
-                    {ogretmen.name} {ogretmen.surname}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Başlangıç Tarihi *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">PIN</label>
               <input
-                type="date"
-                value={newStajForm.baslangic_tarihi}
-                onChange={(e) => setNewStajForm({...newStajForm, baslangic_tarihi: e.target.value})}
+                type="text"
+                value={newOgretmenFormData.pin}
+                onChange={(e) => setNewOgretmenFormData({ ...newOgretmenFormData, pin: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="1234"
+                disabled={submitLoading}
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Bitiş Tarihi
-              </label>
-              <input
-                type="date"
-                value={newStajForm.bitis_tarihi}
-                onChange={(e) => setNewStajForm({...newStajForm, bitis_tarihi: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* Tarih Düzenleme Modal */}
-      {tarihDuzenleModalOpen && selectedStaj && (
-        <Modal
-          title="Staj Tarihlerini Düzenle"
-          isOpen={tarihDuzenleModalOpen}
-          onClose={() => setTarihDuzenleModalOpen(false)}
-          onConfirm={handleTarihDuzenle}
-          confirmText="Güncelle"
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Başlangıç Tarihi *
-              </label>
-              <input
-                type="date"
-                value={tarihDuzenleForm.baslangic_tarihi}
-                onChange={(e) => setTarihDuzenleForm({...tarihDuzenleForm, baslangic_tarihi: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Bitiş Tarihi
-              </label>
-              <input
-                type="date"
-                value={tarihDuzenleForm.bitis_tarihi}
-                onChange={(e) => setTarihDuzenleForm({...tarihDuzenleForm, bitis_tarihi: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* Fesih Modal */}
-      {fesihModalOpen && selectedStaj && (
-        <Modal
-          title="Staj Feshi"
-          isOpen={fesihModalOpen}
-          onClose={() => setFesihModalOpen(false)}
-          onConfirm={handleFeshet}
-          confirmText="Feshet"
-          confirmButtonColor="bg-red-600 hover:bg-red-700"
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Fesih Tarihi *
-              </label>
-              <input
-                type="date"
-                value={fesihForm.fesih_tarihi}
-                onChange={(e) => setFesihForm({...fesihForm, fesih_tarihi: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Fesih Nedeni *
-              </label>
-              <textarea
-                value={fesihForm.fesih_nedeni}
-                onChange={(e) => setFesihForm({...fesihForm, fesih_nedeni: e.target.value})}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Fesih nedenini açıklayın..."
-              />
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* Silme Modal */}
-      {silmeModalOpen && selectedStaj && (
-        <Modal
-          title="Staj Kaydını Sil"
-          isOpen={silmeModalOpen}
-          onClose={() => setSilmeModalOpen(false)}
-          onConfirm={handleSilme}
-          confirmText="Sil"
-          confirmButtonColor="bg-red-600 hover:bg-red-700"
-        >
-          <div className="space-y-4">
-            <div className="flex items-center space-x-3">
-              <AlertTriangle className="h-8 w-8 text-red-600" />
-              <div>
-                <h3 className="text-lg font-medium text-gray-900">
-                  Bu staj kaydını silmek istediğinizden emin misiniz?
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Bu işlem geri alınamaz. Tüm staj verileri kalıcı olarak silinecektir.
-                </p>
+              <div className="text-xs text-gray-500 mt-1">
+                Admin görünümü için metin olarak gösteriliyor
               </div>
             </div>
           </div>

@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { User, Plus, Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react'
+import { User, Plus, Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight, UserPlus, UserMinus, History, Users, Minus } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import StudentAssignmentModal from '@/components/admin/StudentAssignmentModal'
+import StudentHistoryView from '@/components/admin/StudentHistoryView'
 import { toast } from 'react-hot-toast'
 
 interface Ogrenci {
@@ -14,6 +16,21 @@ interface Ogrenci {
   no: string
   sinif: string
   alanId: string
+  company?: {
+    id: string
+    name: string
+    contact: string
+    teacher?: {
+      id: string
+      name: string
+      surname: string
+      alanId?: string
+      alan?: {
+        id: string
+        name: string
+      }
+    } | null
+  } | null
 }
 
 interface Sinif {
@@ -28,15 +45,17 @@ interface Props {
   initialTotalOgrenciler: number
   initialTotalPages: number
   initialCurrentPage: number
+  onDataChange?: (tabName?: string) => void
 }
 
-export default function OgrencilerTab({ 
-  alanId, 
-  siniflar, 
-  initialOgrenciler, 
-  initialTotalOgrenciler, 
-  initialTotalPages, 
-  initialCurrentPage 
+export default function OgrencilerTab({
+  alanId,
+  siniflar,
+  initialOgrenciler,
+  initialTotalOgrenciler,
+  initialTotalPages,
+  initialCurrentPage,
+  onDataChange
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -50,29 +69,48 @@ export default function OgrencilerTab({
   
   // Modal states
   const [ogrenciModalOpen, setOgrenciModalOpen] = useState(false)
+  const [topluOgrenciModalOpen, setTopluOgrenciModalOpen] = useState(false)
   const [editOgrenciModal, setEditOgrenciModal] = useState(false)
   const [deleteOgrenciModal, setDeleteOgrenciModal] = useState(false)
+  const [assignmentModalOpen, setAssignmentModalOpen] = useState(false)
+  const [historyModalOpen, setHistoryModalOpen] = useState(false)
+  const [terminationModalOpen, setTerminationModalOpen] = useState(false)
   const [selectedOgrenci, setSelectedOgrenci] = useState<Ogrenci | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSinif, setSelectedSinif] = useState<string>('all')
+  const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  
+  // Deletion confirmation state
+  const [confirmationText, setConfirmationText] = useState('')
+  
+  // Termination form state
+  const [terminationData, setTerminationData] = useState({
+    reason: '',
+    notes: '',
+    terminationDate: new Date().toISOString().split('T')[0]
+  })
   
   // Form data
   const initialFormState = { ad: '', soyad: '', no: '', sinif: '' }
   const [ogrenciFormData, setOgrenciFormData] = useState(initialFormState)
   const [editOgrenciFormData, setEditOgrenciFormData] = useState(initialFormState)
+  
+  // Bulk form data
+  const [topluOgrenciler, setTopluOgrenciler] = useState([{ ad: '', soyad: '', no: '', sinif: '' }])
 
   // Fetch filtered students
-  const fetchOgrenciler = async (page: number = 1, search: string = '', sinifFilter: string = 'all') => {
+  const fetchOgrenciler = async (page: number = 1, search: string = '', sinifFilter: string = 'all', statusFilter: string = 'all') => {
     setLoading(true)
     try {
       const params = new URLSearchParams({
         alanId,
         page: page.toString(),
         ...(search && { search }),
-        ...(sinifFilter !== 'all' && { sinif: sinifFilter })
+        ...(sinifFilter !== 'all' && { sinif: sinifFilter }),
+        ...(statusFilter !== 'all' && { status: statusFilter })
       })
       
       const response = await fetch(`/api/admin/students?${params}`)
@@ -91,6 +129,8 @@ export default function OgrencilerTab({
       else newParams.delete('search')
       if (sinifFilter !== 'all') newParams.set('sinif', sinifFilter)
       else newParams.delete('sinif')
+      if (statusFilter !== 'all') newParams.set('status', statusFilter)
+      else newParams.delete('status')
       
       router.push(`?${newParams.toString()}`, { scroll: false })
     } catch (error: any) {
@@ -100,16 +140,16 @@ export default function OgrencilerTab({
     }
   }
 
-  // Handle search
+  // Handle search and filters
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (searchTerm !== '' || selectedSinif !== 'all') {
-        fetchOgrenciler(1, searchTerm, selectedSinif)
+      if (searchTerm !== '' || selectedSinif !== 'all' || selectedStatus !== 'all') {
+        fetchOgrenciler(1, searchTerm, selectedSinif, selectedStatus)
       }
     }, 500)
     
     return () => clearTimeout(timeoutId)
-  }, [searchTerm, selectedSinif])
+  }, [searchTerm, selectedSinif, selectedStatus])
 
   // Add student
   const handleOgrenciEkle = async () => {
@@ -140,7 +180,74 @@ export default function OgrencilerTab({
       toast.success('Öğrenci başarıyla eklendi!')
       setOgrenciModalOpen(false)
       setOgrenciFormData(initialFormState)
-      fetchOgrenciler(currentPage, searchTerm, selectedSinif)
+      fetchOgrenciler(currentPage, searchTerm, selectedSinif, selectedStatus)
+    } catch (error: any) {
+      toast.error(`Hata: ${error.message}`)
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  // Bulk student add functions
+  const handleSatirEkle = () => {
+    setTopluOgrenciler([...topluOgrenciler, { ad: '', soyad: '', no: '', sinif: '' }])
+  }
+
+  const handleSatirSil = (index: number) => {
+    if (topluOgrenciler.length > 1) {
+      const yeniListe = topluOgrenciler.filter((_, i) => i !== index)
+      setTopluOgrenciler(yeniListe)
+    }
+  }
+
+  const handleTopluFormDegisiklik = (index: number, field: string, value: string) => {
+    const yeniListe = [...topluOgrenciler]
+    yeniListe[index] = { ...yeniListe[index], [field]: value }
+    setTopluOgrenciler(yeniListe)
+  }
+
+  const handleTopluOgrenciEkle = async () => {
+    // Validation
+    const hatalar = []
+    for (let i = 0; i < topluOgrenciler.length; i++) {
+      const ogrenci = topluOgrenciler[i]
+      if (!ogrenci.ad.trim()) hatalar.push(`${i + 1}. satır: Ad gereklidir`)
+      if (!ogrenci.soyad.trim()) hatalar.push(`${i + 1}. satır: Soyad gereklidir`)
+      if (!ogrenci.no.trim()) hatalar.push(`${i + 1}. satır: Okul numarası gereklidir`)
+      if (!ogrenci.sinif.trim()) hatalar.push(`${i + 1}. satır: Sınıf gereklidir`)
+    }
+
+    if (hatalar.length > 0) {
+      toast.error(hatalar[0]) // Show first error
+      return
+    }
+
+    setSubmitLoading(true)
+    try {
+      const response = await fetch('/api/admin/students/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          students: topluOgrenciler.map(ogrenci => ({
+            name: ogrenci.ad.trim(),
+            surname: ogrenci.soyad.trim(),
+            number: ogrenci.no.trim(),
+            className: ogrenci.sinif.trim()
+          })),
+          alanId
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Öğrenciler eklenirken hata oluştu')
+      }
+
+      const result = await response.json()
+      toast.success(result.message || 'Öğrenciler başarıyla eklendi!')
+      setTopluOgrenciModalOpen(false)
+      setTopluOgrenciler([{ ad: '', soyad: '', no: '', sinif: '' }])
+      fetchOgrenciler(currentPage, searchTerm, selectedSinif, selectedStatus)
     } catch (error: any) {
       toast.error(`Hata: ${error.message}`)
     } finally {
@@ -161,8 +268,8 @@ export default function OgrencilerTab({
   }
 
   const handleOgrenciGuncelle = async () => {
-    if (!selectedOgrenci || !editOgrenciFormData.ad.trim() || !editOgrenciFormData.soyad.trim() || !editOgrenciFormData.no.trim() || !editOgrenciFormData.sinif) {
-      toast.error('Tüm alanlar zorunludur!')
+    if (!selectedOgrenci || !editOgrenciFormData.ad.trim() || !editOgrenciFormData.soyad.trim() || !editOgrenciFormData.sinif) {
+      toast.error('Ad, soyad ve sınıf alanları zorunludur!')
       return
     }
     
@@ -184,10 +291,16 @@ export default function OgrencilerTab({
         throw new Error(error.message || 'Öğrenci güncellenirken hata oluştu')
       }
       
-      toast.success('Öğrenci başarıyla güncellendi!')
-      setEditOgrenciModal(false)
-      setSelectedOgrenci(null)
-      fetchOgrenciler(currentPage, searchTerm, selectedSinif)
+      // Show success message
+      toast.success('Öğrenci başarıyla güncellendi! Modal 2 saniye sonra kapanacak...')
+      
+      // Auto-close modal after 2 seconds
+      setTimeout(() => {
+        setEditOgrenciModal(false)
+        setSelectedOgrenci(null)
+        fetchOgrenciler(currentPage, searchTerm, selectedSinif, selectedStatus)
+      }, 2000)
+      
     } catch (error: any) {
       toast.error(`Hata: ${error.message}`)
     } finally {
@@ -198,11 +311,12 @@ export default function OgrencilerTab({
   // Delete student
   const handleOgrenciSil = (ogrenci: Ogrenci) => {
     setSelectedOgrenci(ogrenci)
+    setConfirmationText('') // Reset confirmation text
     setDeleteOgrenciModal(true)
   }
 
   const handleOgrenciSilOnayla = async () => {
-    if (!selectedOgrenci) return
+    if (!selectedOgrenci || confirmationText !== 'onay') return
     
     setSubmitLoading(true)
     try {
@@ -218,7 +332,8 @@ export default function OgrencilerTab({
       toast.success('Öğrenci başarıyla silindi!')
       setDeleteOgrenciModal(false)
       setSelectedOgrenci(null)
-      fetchOgrenciler(currentPage, searchTerm, selectedSinif)
+      setConfirmationText('')
+      fetchOgrenciler(currentPage, searchTerm, selectedSinif, selectedStatus)
     } catch (error: any) {
       toast.error(`Hata: ${error.message}`)
     } finally {
@@ -226,9 +341,76 @@ export default function OgrencilerTab({
     }
   }
 
+  // Assignment functions
+  const handleOgrenciAta = (ogrenci: Ogrenci) => {
+    setSelectedOgrenci(ogrenci)
+    setAssignmentModalOpen(true)
+  }
+
+  const handleAssignmentComplete = () => {
+    fetchOgrenciler(currentPage, searchTerm, selectedSinif, selectedStatus)
+    // İşletmeler tabını da yenile (öğrenci atandığında işletme listesi değişir)
+    if (onDataChange) {
+      onDataChange('isletmeler')
+    }
+  }
+
+  const handleOgrenciFesih = (ogrenci: Ogrenci) => {
+    setSelectedOgrenci(ogrenci)
+    setTerminationData({ reason: '', notes: '', terminationDate: new Date().toISOString().split('T')[0] })
+    setTerminationModalOpen(true)
+  }
+
+  const handleFesihOnayla = async () => {
+    if (!selectedOgrenci) return
+
+    if (!terminationData.reason.trim()) {
+      toast.error('Fesih nedeni zorunludur!')
+      return
+    }
+
+    setSubmitLoading(true)
+    try {
+      const response = await fetch(`/api/admin/students/${selectedOgrenci.id}/assign-company`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: terminationData.reason.trim(),
+          notes: terminationData.notes.trim() || null,
+          terminationDate: terminationData.terminationDate
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Fesih işlemi başarısız')
+      }
+
+      toast.success('Staj başarıyla fesih edildi!')
+      setTerminationModalOpen(false)
+      setSelectedOgrenci(null)
+      setTerminationData({ reason: '', notes: '', terminationDate: new Date().toISOString().split('T')[0] })
+      fetchOgrenciler(currentPage, searchTerm, selectedSinif, selectedStatus)
+      // İşletmeler tabını da yenile (öğrenci çıkarıldığında işletme listesi değişir)
+      if (onDataChange) {
+        onDataChange('isletmeler')
+      }
+    } catch (error: any) {
+      toast.error(`Hata: ${error.message}`)
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  // History functions
+  const handleOgrenciGecmis = (ogrenci: Ogrenci) => {
+    setSelectedOgrenci(ogrenci)
+    setHistoryModalOpen(true)
+  }
+
   // Pagination
   const handlePageChange = (page: number) => {
-    fetchOgrenciler(page, searchTerm, selectedSinif)
+    fetchOgrenciler(page, searchTerm, selectedSinif, selectedStatus)
   }
 
   return (
@@ -238,16 +420,28 @@ export default function OgrencilerTab({
         <h2 className="text-xl font-semibold text-gray-900">
           Öğrenciler ({totalOgrenciler})
         </h2>
-        <button
-          onClick={() => {
-            setOgrenciFormData(initialFormState)
-            setOgrenciModalOpen(true)
-          }}
-          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-sm"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Yeni Öğrenci Ekle
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setOgrenciFormData(initialFormState)
+              setOgrenciModalOpen(true)
+            }}
+            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-sm"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Yeni Öğrenci Ekle
+          </button>
+          <button
+            onClick={() => {
+              setTopluOgrenciler([{ ad: '', soyad: '', no: '', sinif: '' }])
+              setTopluOgrenciModalOpen(true)
+            }}
+            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-colors shadow-sm"
+          >
+            <Users className="h-4 w-4 mr-2" />
+            Toplu Öğrenci Ekle
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -277,6 +471,20 @@ export default function OgrencilerTab({
             ))}
           </select>
         </div>
+        <div className="relative w-full sm:w-48">
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
+          >
+            <option value="all">Tüm Durumlar</option>
+            <option value="active">Aktif Stajda</option>
+            <option value="unassigned">Atanmamış</option>
+            <option value="terminated">Fesih Edilmiş</option>
+            <option value="completed">Tamamlanmış</option>
+          </select>
+        </div>
       </div>
 
       {/* Student List */}
@@ -295,10 +503,10 @@ export default function OgrencilerTab({
                     Öğrenci
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Numara
+                    İşletme
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Sınıf
+                    Koordinatör Öğretmen
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     İşlemler
@@ -317,19 +525,66 @@ export default function OgrencilerTab({
                           <div className="text-sm font-medium text-gray-900">
                             {ogrenci.ad} {ogrenci.soyad}
                           </div>
+                          <div className="text-sm text-gray-500">
+                            {ogrenci.sinif} - No: {ogrenci.no || 'Belirtilmemiş'}
+                          </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{ogrenci.no}</div>
+                      {ogrenci.company ? (
+                        <div className="text-sm">
+                          <div className="text-gray-900 font-medium">{ogrenci.company.name}</div>
+                          <div className="text-gray-500">{ogrenci.company.contact}</div>
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          Atanmamış
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                        {ogrenci.sinif}
-                      </span>
+                      {ogrenci.company?.teacher ? (
+                        <div className="text-sm">
+                          <div className="text-gray-900 font-medium">
+                            {ogrenci.company.teacher.name} {ogrenci.company.teacher.surname}
+                          </div>
+                          <div className="text-gray-500 text-xs">
+                            {ogrenci.company.teacher.alan?.name || 'Alan Belirtilmemiş'}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          Atanmamış
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
+                        <button
+                          onClick={() => handleOgrenciGecmis(ogrenci)}
+                          className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors"
+                          title="Staj Geçmişini Görüntüle"
+                        >
+                          <History className="h-4 w-4" />
+                        </button>
+                        {ogrenci.company ? (
+                          <button
+                            onClick={() => handleOgrenciFesih(ogrenci)}
+                            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Stajı Fesih Et"
+                          >
+                            <UserMinus className="h-4 w-4" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleOgrenciAta(ogrenci)}
+                            className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-colors"
+                            title="İşletmeye Ata"
+                          >
+                            <UserPlus className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleOgrenciDuzenle(ogrenci)}
                           className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -424,7 +679,7 @@ export default function OgrencilerTab({
           <User className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">Öğrenci bulunamadı</h3>
           <p className="mt-1 text-sm text-gray-500">
-            {searchTerm || selectedSinif !== 'all' 
+            {searchTerm || selectedSinif !== 'all' || selectedStatus !== 'all'
               ? 'Arama kriterlerinize uygun öğrenci bulunamadı.'
               : 'Bu alan için henüz öğrenci eklenmemiş.'
             }
@@ -563,13 +818,317 @@ export default function OgrencilerTab({
       )}
 
       {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={deleteOgrenciModal}
-        onClose={() => setDeleteOgrenciModal(false)}
-        onConfirm={handleOgrenciSilOnayla}
-        title="Öğrenciyi Sil"
-        description={`"${selectedOgrenci?.ad} ${selectedOgrenci?.soyad}" adlı öğrenciyi kalıcı olarak silmek istediğinizden emin misiniz?`}
-        isLoading={submitLoading}
+      <Modal isOpen={deleteOgrenciModal} onClose={() => {
+        setDeleteOgrenciModal(false)
+        setConfirmationText('')
+      }} title="⚠️ ÖNEMLİ: Öğrenci Kaydını Sil">
+        <div className="space-y-4">
+          <div className="space-y-3">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="flex items-center space-x-2">
+                <div className="text-red-600">⚠️</div>
+                <div className="text-red-800 font-semibold">VERİ KAYBI UYARISI</div>
+              </div>
+            </div>
+            <div className="text-gray-700">
+              <strong>"{selectedOgrenci?.ad} {selectedOgrenci?.soyad}"</strong> adlı öğrenciyi kalıcı olarak silmek üzeresiniz.
+            </div>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <div className="text-yellow-800 text-sm">
+                <div className="font-semibold mb-2">Bu işlem geri alınamaz ve aşağıdaki veriler kaybolacak:</div>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Öğrenci kişisel bilgileri</li>
+                  <li>Staj kayıtları</li>
+                  <li>Dekont geçmişi</li>
+                  <li>İlişkili tüm belgeler</li>
+                </ul>
+              </div>
+            </div>
+            <div className="text-red-600 font-semibold mb-4">
+              Bu işlemi onaylamak için devam etmek istediğinizden emin misiniz?
+            </div>
+            
+            {/* Confirmation Input */}
+            <div className="bg-gray-50 border-2 border-gray-300 rounded-lg p-4">
+              <div className="text-sm font-medium text-gray-700 mb-2">
+                Silme işlemini onaylamak için aşağıdaki kutuya "<span className="font-bold text-red-600">onay</span>" yazın:
+              </div>
+              <input
+                type="text"
+                value={confirmationText}
+                onChange={(e) => setConfirmationText(e.target.value)}
+                placeholder="onay yazın..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                autoComplete="off"
+              />
+              {confirmationText && confirmationText !== 'onay' && (
+                <div className="text-red-500 text-xs mt-1">
+                  Lütfen tam olarak "onay" yazın
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              onClick={() => {
+                setDeleteOgrenciModal(false)
+                setConfirmationText('')
+              }}
+              disabled={submitLoading}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleOgrenciSilOnayla}
+              disabled={submitLoading || confirmationText !== 'onay'}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitLoading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Siliniyor...</span>
+                </div>
+              ) : (
+                'EVET, SİL'
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Student Assignment Modal */}
+      <StudentAssignmentModal
+        isOpen={assignmentModalOpen}
+        onClose={() => setAssignmentModalOpen(false)}
+        student={selectedOgrenci}
+        alanId={alanId}
+        onAssignmentComplete={handleAssignmentComplete}
+      />
+
+      {/* Bulk Student Add Modal */}
+      <Modal isOpen={topluOgrenciModalOpen} onClose={() => setTopluOgrenciModalOpen(false)} title="Toplu Öğrenci Ekle">
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="text-blue-800 text-sm">
+              <div className="font-medium">💡 Nasıl Kullanılır:</div>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>Her satıra bir öğrenci bilgilerini girin</li>
+                <li>Yeni satır eklemek için "+" butonunu kullanın</li>
+                <li>Satırı silmek için "-" butonunu kullanın</li>
+                <li>Tüm alanlar zorunludur</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {topluOgrenciler.map((ogrenci, index) => (
+              <div key={index} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium text-gray-600">Öğrenci {index + 1}</span>
+                  <button
+                    onClick={() => handleSatirSil(index)}
+                    disabled={topluOgrenciler.length === 1}
+                    className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Bu satırı sil"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Ad *</label>
+                    <input
+                      type="text"
+                      value={ogrenci.ad}
+                      onChange={(e) => handleTopluFormDegisiklik(index, 'ad', e.target.value)}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="Öğrenci adı"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Soyad *</label>
+                    <input
+                      type="text"
+                      value={ogrenci.soyad}
+                      onChange={(e) => handleTopluFormDegisiklik(index, 'soyad', e.target.value)}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="Öğrenci soyadı"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Okul No *</label>
+                    <input
+                      type="text"
+                      value={ogrenci.no}
+                      onChange={(e) => handleTopluFormDegisiklik(index, 'no', e.target.value)}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="Örn: 1234"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Sınıf *</label>
+                    <select
+                      value={ogrenci.sinif}
+                      onChange={(e) => handleTopluFormDegisiklik(index, 'sinif', e.target.value)}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                      <option value="">Seçin</option>
+                      {siniflar.map((sinif) => (
+                        <option key={sinif.id} value={sinif.ad}>
+                          {sinif.ad}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-center">
+            <button
+              onClick={handleSatirEkle}
+              className="inline-flex items-center px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Yeni Satır Ekle
+            </button>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              onClick={() => setTopluOgrenciModalOpen(false)}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleTopluOgrenciEkle}
+              disabled={submitLoading}
+              className="px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+            >
+              {submitLoading ? 'Ekleniyor...' : `${topluOgrenciler.length} Öğrenciyi Ekle`}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Termination Modal */}
+      <Modal isOpen={terminationModalOpen} onClose={() => {
+        setTerminationModalOpen(false)
+        setSelectedOgrenci(null)
+        setTerminationData({ reason: '', notes: '', terminationDate: new Date().toISOString().split('T')[0] })
+      }} title="⚠️ Stajı Fesih Et">
+        <div className="space-y-4">
+          {selectedOgrenci && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="text-red-800 text-sm">
+                <div className="font-medium">🎓 Öğrenci: {selectedOgrenci.ad} {selectedOgrenci.soyad}</div>
+                <div className="mt-1">🏢 İşletme: {selectedOgrenci.company?.name}</div>
+                {selectedOgrenci.company?.teacher && (
+                  <div className="mt-1">👨‍🏫 Koordinatör: {selectedOgrenci.company.teacher.name} {selectedOgrenci.company.teacher.surname}</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fesih Nedeni <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={terminationData.reason}
+              onChange={(e) => setTerminationData({ ...terminationData, reason: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+            >
+              <option value="">Fesih nedeni seçin</option>
+              <option value="İşletme isteği">İşletme isteği</option>
+              <option value="Disiplin sorunu">Disiplin sorunu</option>
+              <option value="Devamsızlık">Devamsızlık</option>
+              <option value="Sağlık sorunu">Sağlık sorunu</option>
+              <option value="Akademik yetersizlik">Akademik yetersizlik</option>
+              <option value="İş güvenliği sorunu">İş güvenliği sorunu</option>
+              <option value="İşletme koşullarının uygun olmaması">İşletme koşullarının uygun olmaması</option>
+              <option value="Diğer">Diğer</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fesih Tarihi <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              value={terminationData.terminationDate}
+              onChange={(e) => setTerminationData({ ...terminationData, terminationDate: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Açıklama/Notlar (Opsiyonel)
+            </label>
+            <textarea
+              value={terminationData.notes}
+              onChange={(e) => setTerminationData({ ...terminationData, notes: e.target.value })}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+              placeholder="Fesih ile ilgili detayları buraya yazabilirsiniz..."
+            />
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            <div className="text-yellow-800 text-sm">
+              <div className="font-medium mb-1">⚠️ DİKKAT:</div>
+              <div>Bu işlem staj geçmişine kaydedilecek ve geri alınamaz.</div>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              onClick={() => {
+                setTerminationModalOpen(false)
+                setSelectedOgrenci(null)
+                setTerminationData({ reason: '', notes: '', terminationDate: new Date().toISOString().split('T')[0] })
+              }}
+              disabled={submitLoading}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleFesihOnayla}
+              disabled={submitLoading || !terminationData.reason.trim()}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitLoading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Fesih Ediliyor...</span>
+                </div>
+              ) : (
+                'Stajı Fesih Et'
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Student History Modal */}
+      <StudentHistoryView
+        isOpen={historyModalOpen}
+        onClose={() => setHistoryModalOpen(false)}
+        student={selectedOgrenci ? {
+          id: selectedOgrenci.id,
+          name: selectedOgrenci.ad,
+          surname: selectedOgrenci.soyad,
+          className: selectedOgrenci.sinif,
+          number: selectedOgrenci.no
+        } : null}
       />
     </div>
   )

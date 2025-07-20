@@ -1,29 +1,11 @@
 import { cookies } from 'next/headers'
-import Link from 'next/link'
-import { User, Users, GraduationCap, Building2 } from 'lucide-react'
-import AlanDetayHeader from '@/components/admin/alan-detay/AlanDetayHeader'
 import { prisma } from '@/lib/prisma'
+import AlanDetayClient from '@/components/admin/alan-detay/AlanDetayClient'
 
 export const dynamic = 'force-dynamic'
 
-import OgretmenlerTab from '@/components/admin/alan-detay/OgretmenlerTab'
-import SiniflarTab from '@/components/admin/alan-detay/SiniflarTab'
-import OgrencilerTab from '@/components/admin/alan-detay/OgrencilerTab'
-import IsletmelerTab from '@/components/admin/alan-detay/IsletmelerTab'
-
-// Tipler ortak bir dosyaya taşınabilir
-interface Alan {
-  id: string;
-  ad: string;
-  aciklama?: string;
-  aktif: boolean;
-}
-
-// Sunucu tarafında veri çekme fonksiyonu
-async function getAlanData(alanId: string, currentPage: number = 1) {
-  const itemsPerPage = 10
-  const skip = (currentPage - 1) * itemsPerPage
-
+// Sadece temel alan bilgilerini ve sayıları getir
+async function getAlanBasicData(alanId: string) {
   try {
     // Alan bilgisini getir
     const alan = await prisma.alan.findUnique({
@@ -34,48 +16,21 @@ async function getAlanData(alanId: string, currentPage: number = 1) {
       throw new Error('Alan bulunamadı')
     }
 
-    // Öğretmenler ve onların staj bilgilerini getir
-    const ogretmenlerData = await prisma.teacherProfile.findMany({
-      where: { alanId: alanId },
-      include: {
-        stajlar: {
-          select: {
-            studentId: true,
-            companyId: true
-          }
-        }
-      },
-      orderBy: { name: 'asc' }
-    })
+    // Basit sayıları getir (optimize edilmiş query'ler)
+    const [ogretmenCount, sinifCount, ogrenciCount] = await Promise.all([
+      prisma.teacherProfile.count({
+        where: { alanId: alanId }
+      }),
+      prisma.class.count({
+        where: { alanId: alanId }
+      }),
+      prisma.student.count({
+        where: { alanId: alanId }
+      })
+    ])
 
-    // Sınıfları getir
-    const siniflarData = await prisma.class.findMany({
-      where: { alanId: alanId },
-      orderBy: { name: 'asc' }
-    })
-
-    // Öğrencileri sayfalı olarak getir
-    const ogrencilerData = await prisma.student.findMany({
-      where: { alanId: alanId },
-      select: {
-        id: true,
-        name: true,
-        surname: true,
-        number: true,
-        className: true
-      },
-      orderBy: { name: 'asc' },
-      skip: skip,
-      take: itemsPerPage
-    })
-
-    // Toplam öğrenci sayısını getir
-    const totalOgrencilerCount = await prisma.student.count({
-      where: { alanId: alanId }
-    })
-
-    // Bu alan için staj yapan öğrencilerin çalıştığı işletmeleri getir
-    const isletmelerData = await prisma.companyProfile.findMany({
+    // İşletme sayısı (bu alan için staj yapan öğrencilerin çalıştığı işletmeler)
+    const isletmeCount = await prisma.companyProfile.count({
       where: {
         stajlar: {
           some: {
@@ -84,81 +39,8 @@ async function getAlanData(alanId: string, currentPage: number = 1) {
             }
           }
         }
-      },
-      include: {
-        stajlar: {
-          where: {
-            student: {
-              alanId: alanId
-            }
-          },
-          include: {
-            student: {
-              select: {
-                id: true,
-                name: true,
-                surname: true
-              }
-            }
-          }
-        }
       }
     })
-
-    // Öğretmen verilerini dönüştür
-    const ogretmenler = ogretmenlerData.map((ogretmen: any) => {
-      const stajlar = ogretmen.stajlar || []
-      const ogrenciSayisi = new Set(stajlar.map((s: any) => s.studentId)).size
-      const isletmeSayisi = new Set(stajlar.map((s: any) => s.companyId)).size
-      return {
-        ...ogretmen,
-        ad: ogretmen.name,
-        soyad: ogretmen.surname,
-        ogrenci_sayisi: ogrenciSayisi,
-        isletme_sayisi: isletmeSayisi,
-      }
-    })
-
-    const totalOgrenciler = totalOgrencilerCount || 0
-    const totalPages = Math.ceil(totalOgrenciler / itemsPerPage)
-
-    // Her sınıf için öğrenci sayısını hesapla
-    const studentCounts = ogrencilerData.reduce((acc: any, ogrenci: any) => {
-      acc[ogrenci.className] = (acc[ogrenci.className] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    // Sınıfları dönüştür ve öğrenci sayılarını ekle
-    const siniflarMap = new Map();
-    siniflarData.forEach((sinif: any) => {
-      if (!siniflarMap.has(sinif.name)) {
-        siniflarMap.set(sinif.name, {
-          ...sinif,
-          ad: sinif.name,
-          ogrenci_sayisi: studentCounts[sinif.name] || 0
-        });
-      }
-    });
-    const uniqueSiniflar = Array.from(siniflarMap.values());
-
-    // Öğrenci verilerini dönüştür
-    const transformedOgrenciler = ogrencilerData.map((ogrenci: any) => ({
-      ...ogrenci,
-      ad: ogrenci.name,
-      soyad: ogrenci.surname,
-      no: ogrenci.number,
-      sinif: ogrenci.className
-    }));
-
-    // İşletme verilerini dönüştür
-    const transformedIsletmeler = isletmelerData.map((isletme: any) => ({
-      ...isletme,
-      ad: isletme.name,
-      yetkili: isletme.contact,
-      telefon: isletme.phone,
-      email: isletme.email,
-      adres: isletme.address
-    }));
 
     return {
       alan: {
@@ -166,14 +48,13 @@ async function getAlanData(alanId: string, currentPage: number = 1) {
         ad: alan.name,
         aciklama: alan.description || undefined,
         aktif: alan.active
-      } as Alan,
-      ogretmenler: ogretmenler,
-      siniflar: uniqueSiniflar,
-      ogrenciler: transformedOgrenciler || [],
-      isletmeListesi: transformedIsletmeler || [],
-      totalOgrenciler,
-      totalPages,
-      currentPage
+      },
+      counts: {
+        ogretmenler: ogretmenCount,
+        siniflar: sinifCount,
+        ogrenciler: ogrenciCount,
+        isletmeler: isletmeCount
+      }
     }
   } catch (error) {
     console.error('Alan verileri yüklenirken hata:', error)
@@ -181,54 +62,37 @@ async function getAlanData(alanId: string, currentPage: number = 1) {
   }
 }
 
-export default async function AlanDetayPageSSR({ params, searchParams }: { params: Promise<{ id: string }>, searchParams: Promise<{ tab: string, page?: string }> }) {
+export default async function AlanDetayPageSSR({ 
+  params, 
+  searchParams 
+}: { 
+  params: Promise<{ id: string }>, 
+  searchParams: Promise<{ tab?: string }> 
+}) {
   const resolvedParams = await params
   const resolvedSearchParams = await searchParams
   const alanId = resolvedParams.id
   const activeTab = resolvedSearchParams.tab || 'ogretmenler'
-  const currentPage = Number(resolvedSearchParams.page) || 1
   
-  const { alan, ogretmenler, siniflar, ogrenciler, isletmeListesi, totalOgrenciler, totalPages } = await getAlanData(alanId, currentPage)
+  const { alan, counts } = await getAlanBasicData(alanId)
 
   if (!alan) {
-    return <div>Alan bulunamadı.</div>
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Alan Bulunamadı</h2>
+          <p className="text-gray-600">Aradığınız alan mevcut değil veya silinmiş olabilir.</p>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        <AlanDetayHeader alan={alan} />
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="border-b border-gray-200">
-            <nav className="flex -mb-px">
-              <Link href={`/admin/alanlar/${alanId}?tab=ogretmenler`} className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${activeTab === 'ogretmenler' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-                <Users className="h-5 w-5" />
-                Öğretmenler ({ogretmenler.length})
-              </Link>
-              <Link href={`/admin/alanlar/${alanId}?tab=siniflar`} className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${activeTab === 'siniflar' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-                <GraduationCap className="h-5 w-5" />
-                Sınıflar ({siniflar.length})
-              </Link>
-              <Link href={`/admin/alanlar/${alanId}?tab=ogrenciler`} className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${activeTab === 'ogrenciler' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-                <User className="h-5 w-5" />
-                Öğrenciler ({totalOgrenciler})
-              </Link>
-              <Link href={`/admin/alanlar/${alanId}?tab=isletmeler`} className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 ${activeTab === 'isletmeler' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-                <Building2 className="h-5 w-5" />
-                İşletmeler ({isletmeListesi.length})
-              </Link>
-            </nav>
-          </div>
-
-          <div className="p-6">
-            {activeTab === 'ogretmenler' && <OgretmenlerTab ogretmenler={ogretmenler} />}
-            {activeTab === 'siniflar' && <SiniflarTab initialSiniflar={siniflar} alanId={alanId} />}
-            {activeTab === 'ogrenciler' && <OgrencilerTab initialOgrenciler={ogrenciler} initialTotalOgrenciler={totalOgrenciler} initialTotalPages={totalPages} initialCurrentPage={currentPage} siniflar={siniflar} alanId={alanId} />}
-            {activeTab === 'isletmeler' && <IsletmelerTab alanId={alanId} initialIsletmeListesi={isletmeListesi} />}
-          </div>
-        </div>
-      </div>
-    </div>
+    <AlanDetayClient 
+      alan={alan} 
+      counts={counts} 
+      initialActiveTab={activeTab}
+      alanId={alanId}
+    />
   )
 }

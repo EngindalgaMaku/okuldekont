@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CheckSquare, Square, Send, Bell, Building, Search, Plus, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { CheckSquare, Square, Send, Bell, Building, Search, Plus, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, User, MapPin, Phone, Mail } from 'lucide-react'
 import Link from 'next/link'
 import Modal from '@/components/ui/Modal'
 import IsletmeRow from './IsletmeRow'
@@ -30,6 +30,37 @@ export default function IsletmelerClient({ isletmeler, fullIsletmeler, searchPar
     priority: 'normal' as 'low' | 'normal' | 'high'
   })
   const [sending, setSending] = useState(false)
+  
+  // Yeni işletme modal state'leri
+  const [yeniIsletmeModalOpen, setYeniIsletmeModalOpen] = useState(false)
+  const [yeniIsletmeData, setYeniIsletmeData] = useState({
+    ad: '',
+    yetkili_kisi: '',
+    telefon: '',
+    email: '',
+    adres: '',
+    pin: '2025',
+    usta_ogretici_ad: '',
+    usta_ogretici_telefon: ''
+  })
+  const [yeniIsletmeLoading, setYeniIsletmeLoading] = useState(false)
+  const [basariliModal, setBasariliModal] = useState(false)
+  const [countdownSeconds, setCountdownSeconds] = useState(5)
+  const [basariliMesaj, setBasariliMesaj] = useState('')
+
+  // Countdown effect for success modal
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (basariliModal && countdownSeconds > 0) {
+      interval = setInterval(() => {
+        setCountdownSeconds(prev => prev - 1)
+      }, 1000)
+    } else if (basariliModal && countdownSeconds === 0) {
+      setBasariliModal(false)
+      window.location.reload()
+    }
+    return () => clearInterval(interval)
+  }, [basariliModal, countdownSeconds])
 
   const createSearchURL = (newParams: any) => {
     const params = new URLSearchParams()
@@ -38,14 +69,14 @@ export default function IsletmelerClient({ isletmeler, fullIsletmeler, searchPar
     const current = {
       page: searchParams.page || '1',
       search: searchParams.search || '',
-      filter: searchParams.filter || 'aktif',
+      filter: searchParams.filter || 'tum',
       per_page: searchParams.per_page || '10',
       ...newParams
     }
 
     // Only add non-empty params
     Object.entries(current).forEach(([key, value]) => {
-      if (value && value !== '' && value !== 'aktif') {
+      if (value && value !== '') {
         params.set(key, String(value))
       }
     })
@@ -117,6 +148,61 @@ export default function IsletmelerClient({ isletmeler, fullIsletmeler, searchPar
     }
   }
 
+  const handleYeniIsletmeEkle = async () => {
+    if (!yeniIsletmeData.ad.trim() || !yeniIsletmeData.yetkili_kisi.trim()) {
+      alert('İşletme adı ve yetkili kişi zorunludur!')
+      return
+    }
+
+    setYeniIsletmeLoading(true)
+    try {
+      const response = await fetch('/api/admin/companies', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: yeniIsletmeData.ad,
+          contact: yeniIsletmeData.yetkili_kisi,
+          phone: yeniIsletmeData.telefon || null,
+          email: yeniIsletmeData.email || null,
+          address: yeniIsletmeData.adres || null,
+          pin: yeniIsletmeData.pin,
+          usta_ogretici_ad: yeniIsletmeData.usta_ogretici_ad || null,
+          usta_ogretici_telefon: yeniIsletmeData.usta_ogretici_telefon || null
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'İşletme ekleme başarısız')
+      }
+
+      const result = await response.json()
+      setBasariliMesaj(result.message || 'İşletme başarıyla eklendi!')
+      setYeniIsletmeModalOpen(false)
+      setYeniIsletmeData({
+        ad: '',
+        yetkili_kisi: '',
+        telefon: '',
+        email: '',
+        adres: '',
+        pin: '2025',
+        usta_ogretici_ad: '',
+        usta_ogretici_telefon: ''
+      })
+      
+      // Show success modal with countdown
+      setBasariliModal(true)
+      setCountdownSeconds(5)
+    } catch (error) {
+      console.error('İşletme ekleme hatası:', error)
+      alert(`Hata: ${(error as Error).message}`)
+    } finally {
+      setYeniIsletmeLoading(false)
+    }
+  }
+
   return (
     <>
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
@@ -131,13 +217,13 @@ export default function IsletmelerClient({ isletmeler, fullIsletmeler, searchPar
             </div>
             
             <div className="flex items-center gap-3">
-              <Link
-                href="/admin/isletmeler/yeni"
+              <button
+                onClick={() => setYeniIsletmeModalOpen(true)}
                 className="inline-flex items-center p-3 border border-transparent text-sm font-medium rounded-xl shadow-lg text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200"
                 title="Yeni İşletme Ekle"
               >
                 <Plus className="h-5 w-5" />
-              </Link>
+              </button>
             </div>
           </div>
 
@@ -182,7 +268,11 @@ export default function IsletmelerClient({ isletmeler, fullIsletmeler, searchPar
                     
                     <select
                       name="filter"
-                      defaultValue={searchParams.filter || 'aktif'}
+                      defaultValue={searchParams.filter || 'tum'}
+                      onChange={(e) => {
+                        const form = e.target.closest('form')
+                        if (form) form.submit()
+                      }}
                       className="px-3 py-1 border border-gray-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     >
                       <option value="aktif">Aktif İşletmeler</option>
@@ -298,6 +388,9 @@ export default function IsletmelerClient({ isletmeler, fullIsletmeler, searchPar
                         </th>
                         <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                           İşletme
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          Usta Öğretici
                         </th>
                         <th className="px-6 py-4 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                           Koordinatör
@@ -497,6 +590,219 @@ export default function IsletmelerClient({ isletmeler, fullIsletmeler, searchPar
               {sending ? 'Gönderiliyor...' : 'Mesaj Gönder'}
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Yeni İşletme Ekleme Modalı */}
+      <Modal
+        isOpen={yeniIsletmeModalOpen}
+        onClose={() => setYeniIsletmeModalOpen(false)}
+        title="Yeni İşletme Ekle"
+      >
+        <div className="space-y-6">
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-center gap-2 text-blue-700">
+              <Building className="h-5 w-5" />
+              <span className="font-medium">🔒 PIN Bilgisi:</span>
+            </div>
+            <div className="mt-1 text-blue-800">Varsayılan PIN: <strong>2025</strong></div>
+            <p className="text-sm text-blue-600 mt-1">
+              Bu PINi default bırakırsanız işletme ilk girişte PINi değiştirir.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                İşletme Adı <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={yeniIsletmeData.ad}
+                onChange={(e) => setYeniIsletmeData({...yeniIsletmeData, ad: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="İşletme adını girin"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Yetkili Kişi <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={yeniIsletmeData.yetkili_kisi}
+                  onChange={(e) => setYeniIsletmeData({...yeniIsletmeData, yetkili_kisi: e.target.value})}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Yetkili kişi adı"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Telefon
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="tel"
+                  value={yeniIsletmeData.telefon}
+                  onChange={(e) => setYeniIsletmeData({...yeniIsletmeData, telefon: e.target.value})}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="0XXX XXX XX XX"
+                />
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                E-posta
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="email"
+                  value={yeniIsletmeData.email}
+                  onChange={(e) => setYeniIsletmeData({...yeniIsletmeData, email: e.target.value})}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="isletme@example.com"
+                />
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Adres
+              </label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <textarea
+                  value={yeniIsletmeData.adres}
+                  onChange={(e) => setYeniIsletmeData({...yeniIsletmeData, adres: e.target.value})}
+                  rows={3}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="İşletme adresi"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Usta Öğretici Adı
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={yeniIsletmeData.usta_ogretici_ad}
+                  onChange={(e) => setYeniIsletmeData({...yeniIsletmeData, usta_ogretici_ad: e.target.value})}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Usta öğretici adı"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Usta Öğretici Telefon
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="tel"
+                  value={yeniIsletmeData.usta_ogretici_telefon}
+                  onChange={(e) => setYeniIsletmeData({...yeniIsletmeData, usta_ogretici_telefon: e.target.value})}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="0XXX XXX XX XX"
+                />
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                PIN
+              </label>
+              <input
+                type="text"
+                value={yeniIsletmeData.pin}
+                onChange={(e) => setYeniIsletmeData({...yeniIsletmeData, pin: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="2025"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Bu PINi default bırakırsanız işletme ilk girişte PINi değiştirir
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <button
+              onClick={() => setYeniIsletmeModalOpen(false)}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              disabled={yeniIsletmeLoading}
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleYeniIsletmeEkle}
+              disabled={yeniIsletmeLoading || !yeniIsletmeData.ad.trim() || !yeniIsletmeData.yetkili_kisi.trim()}
+              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {yeniIsletmeLoading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Ekleniyor...
+                </div>
+              ) : (
+                'İşletme Ekle'
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Başarı Modalı */}
+      <Modal
+        isOpen={basariliModal}
+        onClose={() => {
+          setBasariliModal(false)
+          window.location.reload()
+        }}
+        title="İşletme Başarıyla Eklendi!"
+      >
+        <div className="text-center space-y-6">
+          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100">
+            <svg className="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">İşlem Başarılı!</h3>
+            <p className="text-sm text-gray-600 mb-4">{basariliMesaj}</p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-700">
+              Sayfa otomatik olarak yenilenecek...
+            </p>
+            <div className="mt-2 text-2xl font-bold text-blue-600">
+              {countdownSeconds}
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              setBasariliModal(false)
+              window.location.reload()
+            }}
+            className="w-full px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
+          >
+            Hemen Yenile
+          </button>
         </div>
       </Modal>
     </>

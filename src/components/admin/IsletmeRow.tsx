@@ -15,6 +15,8 @@ interface Isletme {
   yetkili_kisi?: string
   pin?: string
   ogretmen_id?: string
+  usta_ogretici_ad?: string
+  usta_ogretici_telefon?: string
   ogretmenler?: {
     id: string
     ad: string
@@ -85,6 +87,26 @@ export default function IsletmeRow({ isletme, isSelected, onSelectionChange }: P
               )}
             </div>
           </div>
+        </div>
+      </td>
+      <td className="px-6 py-4">
+        <div>
+          {isletme.usta_ogretici_ad ? (
+            <div className="space-y-1">
+              <div className="text-sm text-gray-900">
+                {isletme.usta_ogretici_ad}
+              </div>
+              {isletme.usta_ogretici_telefon && (
+                <div className="text-xs text-gray-600">
+                  📞 {isletme.usta_ogretici_telefon}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-400">
+              Atanmamış
+            </div>
+          )}
         </div>
       </td>
       <td className="px-6 py-4">

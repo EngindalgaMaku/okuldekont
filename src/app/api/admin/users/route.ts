@@ -26,15 +26,25 @@ export async function GET() {
     })
 
     // Transform to match expected format
-    const transformedProfiles = adminProfiles.map((profile: any) => ({
-      id: profile.id,
-      ad: profile.name,
-      soyad: profile.name.split(' ')[1] || '',
-      email: profile.email,
-      yetki_seviyesi: profile.role.toLowerCase(),
-      aktif: true,
-      created_at: profile.user?.createdAt || new Date()
-    }))
+    const transformedProfiles = adminProfiles.map((profile: any) => {
+      const nameParts = profile.name.split(' ')
+      return {
+        id: profile.id,
+        ad: nameParts[0] || '',
+        soyad: nameParts.slice(1).join(' ') || '',
+        email: profile.email,
+        yetki_seviyesi: profile.role.toLowerCase(),
+        aktif: true,
+        created_at: profile.user?.createdAt || new Date()
+      }
+    })
+
+    // Sort to put super admin (admin@ozdilek) at the top
+    transformedProfiles.sort((a, b) => {
+      if (a.email === 'admin@ozdilek') return -1
+      if (b.email === 'admin@ozdilek') return 1
+      return 0
+    })
 
     return NextResponse.json(transformedProfiles)
   } catch (error) {
@@ -100,7 +110,52 @@ export async function PUT(request: NextRequest) {
 
     const { userId, ad, soyad, yetki_seviyesi, aktif, password } = await request.json()
 
-    // Update admin profile
+    // Get admin profile to check if it's admin@ozdilek
+    const adminProfile = await prisma.adminProfile.findUnique({
+      where: { id: userId }
+    })
+
+    if (!adminProfile) {
+      return NextResponse.json({ error: 'Admin kullanıcı bulunamadı' }, { status: 404 })
+    }
+
+    // Protect admin@ozdilek from role and status changes, but allow name changes
+    if (adminProfile.email === 'admin@ozdilek') {
+      // Allow name and password updates for admin@ozdilek
+      const updateData: any = {}
+      
+      if (ad && soyad) {
+        updateData.name = `${ad} ${soyad}`
+      }
+      
+      // Update admin profile name if provided
+      if (updateData.name) {
+        await prisma.adminProfile.update({
+          where: { id: userId },
+          data: updateData
+        })
+      }
+      
+      // Update password if provided
+      if (password) {
+        if (adminProfile.userId) {
+          const hashedPassword = await bcrypt.hash(password, 10)
+          await prisma.user.update({
+            where: { id: adminProfile.userId },
+            data: { password: hashedPassword }
+          })
+        }
+      }
+      
+      // Block role and status changes
+      if (yetki_seviyesi !== undefined || aktif !== undefined) {
+        return NextResponse.json({ error: 'Koordinatör Müdür Yardımcısı yetki seviyesi ve aktif durumu değiştirilemez. Güvenlik koruması aktif.' }, { status: 403 })
+      }
+      
+      return NextResponse.json({ message: 'Koordinatör Müdür Yardımcısı başarıyla güncellendi' })
+    }
+
+    // Update admin profile for other users
     await prisma.adminProfile.update({
       where: { id: userId },
       data: {
@@ -111,10 +166,6 @@ export async function PUT(request: NextRequest) {
 
     // Update password if provided
     if (password) {
-      const adminProfile = await prisma.adminProfile.findUnique({
-        where: { id: userId }
-      })
-      
       if (adminProfile?.userId) {
         const hashedPassword = await bcrypt.hash(password, 10)
         await prisma.user.update({
@@ -148,6 +199,11 @@ export async function DELETE(request: NextRequest) {
 
     if (!adminProfile) {
       return NextResponse.json({ error: 'Admin kullanıcı bulunamadı' }, { status: 404 })
+    }
+
+    // Protect admin@ozdilek from deletion
+    if (adminProfile.email === 'admin@ozdilek') {
+      return NextResponse.json({ error: 'Koordinatör Müdür Yardımcısı silinemez. Güvenlik koruması aktif.' }, { status: 403 })
     }
 
     // Delete admin profile first

@@ -1,62 +1,88 @@
-const bcrypt = require('bcryptjs');
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require('@prisma/client')
+const bcrypt = require('bcryptjs')
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient()
 
-async function createAdmin() {
+async function createAdminUser() {
   try {
-    // Admin kullanıcısı var mı kontrol et
+    // Şifreyi hash'le
+    const hashedPassword = await bcrypt.hash('123456', 12)
+    
+    // Önce mevcut admin@ozdilek kullanıcısını kontrol et
     const existingUser = await prisma.user.findUnique({
       where: { email: 'admin@ozdilek' }
-    });
+    })
 
     if (existingUser) {
-      console.log('Admin kullanıcısı mevcut, şifre güncelleniyor...');
-      // Şifreyi hash'le
-      const hashedPassword = await bcrypt.hash('admin123', 10);
+      console.log('Mevcut admin kullanıcısı bulundu, şifre güncelleniyor...')
       
       // Şifreyi güncelle
       await prisma.user.update({
         where: { email: 'admin@ozdilek' },
-        data: { password: hashedPassword }
-      });
+        data: {
+          password: hashedPassword,
+          role: 'ADMIN'
+        }
+      })
+
+      // AdminProfile'ı kontrol et ve oluştur
+      const adminProfile = await prisma.adminProfile.findUnique({
+        where: { userId: existingUser.id }
+      })
+
+      if (!adminProfile) {
+        await prisma.adminProfile.create({
+          data: {
+            name: 'System Administrator',
+            email: 'admin@ozdilek',
+            role: 'ADMIN',
+            userId: existingUser.id
+          }
+        })
+        console.log('Admin profili oluşturuldu.')
+      }
+
+      console.log('✅ Admin kullanıcısı güncellendi!')
+      console.log('📧 Email: admin@ozdilek')
+      console.log('🔒 Şifre: 123456')
       
-      console.log('Admin kullanıcısı şifresi güncellendi!');
-      console.log('Email: admin@ozdilek');
-      console.log('Şifre: admin123');
-      return;
+    } else {
+      console.log('Yeni admin kullanıcısı oluşturuluyor...')
+      
+      // Yeni kullanıcı oluştur
+      const newUser = await prisma.user.create({
+        data: {
+          email: 'admin@ozdilek',
+          password: hashedPassword,
+          role: 'ADMIN'
+        }
+      })
+
+      // Admin profili oluştur
+      await prisma.adminProfile.create({
+        data: {
+          name: 'System Administrator',
+          email: 'admin@ozdilek',
+          role: 'ADMIN',
+          userId: newUser.id
+        }
+      })
+
+      console.log('✅ Admin kullanıcısı başarıyla oluşturuldu!')
+      console.log('📧 Email: admin@ozdilek')
+      console.log('🔒 Şifre: 123456')
     }
 
-    // Şifreyi hash'le
-    const hashedPassword = await bcrypt.hash('admin123', 10);
-
-    // Admin kullanıcısı yarat
-    const user = await prisma.user.create({
-      data: {
-        email: 'admin@ozdilek',
-        password: hashedPassword,
-        role: 'ADMIN'
-      }
-    });
-
-    // Admin profile yarat
-    await prisma.adminProfile.create({
-      data: {
-        name: 'Admin',
-        email: 'admin@ozdilek',
-        role: 'ADMIN',
-        userId: user.id
-      }
-    });
-
-    console.log('Admin kullanıcısı başarıyla yaratıldı!');
-    console.log('Email: admin@ozdilek');
-    console.log('Şifre: admin123');
   } catch (error) {
-    console.error('Admin kullanıcısı yaratılırken hata:', error);
+    console.error('❌ Hata:', error)
+    
+    if (error.code === 'P2002') {
+      console.log('Bu email adresi zaten kayıtlı.')
+    }
   } finally {
-    await prisma.$disconnect();
+    await prisma.$disconnect()
   }
 }
 
-createAdmin();
+// Script'i çalıştır
+createAdminUser()

@@ -32,7 +32,10 @@ export async function GET() {
       } : null
     }))
 
-    return NextResponse.json(transformedCompanies)
+    return NextResponse.json({
+      success: true,
+      data: transformedCompanies
+    })
   } catch (error) {
     console.error('Companies fetch error:', error)
     return NextResponse.json(
@@ -44,14 +47,17 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { name, contact, phone, email, address, taxNumber, pin, teacherId } = await request.json()
+    const { name, contact, phone, email, address, taxNumber, teacherId, pin, usta_ogretici_ad, usta_ogretici_telefon } = await request.json()
 
-    if (!name || !contact || !pin) {
+    if (!name || !contact) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'İşletme adı ve yetkili kişi zorunludur' },
         { status: 400 }
       )
     }
+
+    // Use provided PIN or generate a random 4-digit PIN for the company
+    const companyPin = pin || Math.floor(1000 + Math.random() * 9000).toString()
 
     const company = await prisma.companyProfile.create({
       data: {
@@ -61,13 +67,10 @@ export async function POST(request: Request) {
         email: email?.trim() || null,
         address: address?.trim() || null,
         taxNumber: taxNumber?.trim() || null,
-        pin: pin.trim(),
-        teacherId: teacherId || null,
-        userId: '' // This will need to be handled properly when user management is implemented
-      },
-      include: {
-        teacher: true,
-        user: true
+        pin: companyPin,
+        masterTeacherName: usta_ogretici_ad?.trim() || null,
+        masterTeacherPhone: usta_ogretici_telefon?.trim() || null
+        // teacherId and userId are handled via relations, not direct fields
       }
     })
 
@@ -80,17 +83,14 @@ export async function POST(request: Request) {
       address: company.address,
       taxNumber: company.taxNumber,
       pin: company.pin,
-      teacherId: company.teacherId,
-      teacher: company.teacher ? {
-        id: company.teacher.id,
-        name: company.teacher.name,
-        surname: company.teacher.surname
-      } : null
+      masterTeacherName: company.masterTeacherName,
+      masterTeacherPhone: company.masterTeacherPhone,
+      message: `İşletme başarıyla oluşturuldu. Giriş PIN kodu: ${companyPin}`
     })
   } catch (error) {
     console.error('Company creation error:', error)
     return NextResponse.json(
-      { error: 'Failed to create company' },
+      { error: 'İşletme oluşturulurken bir hata oluştu: ' + (error as Error).message },
       { status: 500 }
     )
   }

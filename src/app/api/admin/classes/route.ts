@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 
 export async function GET(request: Request) {
   try {
@@ -24,7 +25,9 @@ export async function GET(request: Request) {
       id: cls.id,
       ad: cls.name,
       alan_id: cls.alanId,
-      ogrenci_sayisi: cls._count.students
+      ogrenci_sayisi: cls._count.students,
+      dal: cls.dal,
+      haftalik_program: cls.haftalik_program
     }))
 
     return NextResponse.json({
@@ -56,8 +59,8 @@ export async function POST(request: Request) {
       data: {
         name,
         alanId,
-        // Note: dal and haftalik_program are not in the current schema
-        // If needed, they should be added to the schema first
+        dal: dal || null,
+        haftalik_program: haftalik_program ? haftalik_program : Prisma.JsonNull
       }
     })
 
@@ -96,8 +99,8 @@ export async function PUT(request: Request) {
       where: { id },
       data: {
         name,
-        // Note: dal and haftalik_program are not in the current schema
-        // If needed, they should be added to the schema first
+        dal: dal || null,
+        haftalik_program: haftalik_program ? haftalik_program : Prisma.JsonNull
       }
     })
 

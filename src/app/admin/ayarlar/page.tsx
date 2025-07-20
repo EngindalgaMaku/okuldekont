@@ -33,15 +33,26 @@ export default function AyarlarPage() {
   const [settings, setSettings] = useState({
     schoolName: '',
     coordinator_deputy_head_name: '',
-    emailNotifications: true,
-    autoApproval: false,
     maxFileSize: 5, // MB
     allowedFileTypes: 'pdf,jpg,png',
     systemMaintenance: false,
     showPerformanceMonitoring: false
   })
+  
+  // Education Years
+  const [educationYears, setEducationYears] = useState<any[]>([])
+  const [activeEducationYear, setActiveEducationYear] = useState<any>(null)
+  const [showEducationYearModal, setShowEducationYearModal] = useState(false)
+  const [newEducationYear, setNewEducationYear] = useState({
+    year: '',
+    startDate: '',
+    endDate: '',
+    active: false
+  })
+  const [educationYearLoading, setEducationYearLoading] = useState(false)
   const [settingsLoading, setSettingsLoading] = useState(true)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [successCountdown, setSuccessCountdown] = useState(5)
 
   // Backup state
   const [backupList, setBackupList] = useState<any[]>([])
@@ -59,6 +70,18 @@ export default function AyarlarPage() {
   const [backupCreationLoading, setBackupCreationLoading] = useState(false)
   const [downloadingBackup, setDownloadingBackup] = useState(false)
   const [downloadingBackupId, setDownloadingBackupId] = useState('')
+  
+  // New MariaDB backup options
+  const [backupType, setBackupType] = useState<'full' | 'selective'>('full')
+  const [selectedTables, setSelectedTables] = useState<string[]>([])
+  const [showTableSelector, setShowTableSelector] = useState(false)
+  
+  // Available tables for backup
+  const availableTables = [
+    'users', 'admin_profiles', 'teachers', 'companies', 'education_years',
+    'fields', 'classes', 'students', 'internships', 'dekonts',
+    'gorev_belgeleri', 'belgeler', 'notifications', 'system_settings'
+  ]
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -68,10 +91,35 @@ export default function AyarlarPage() {
   useEffect(() => {
     fetchStats()
     fetchSettings()
+    fetchEducationYears()
     if (activeTab === 'backup') {
       fetchBackupData()
     }
   }, [activeTab])
+
+  // Success modal countdown effect
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null
+    
+    if (showSuccessModal && successCountdown > 0) {
+      timer = setTimeout(() => {
+        setSuccessCountdown(prev => {
+          const newCount = prev - 1
+          if (newCount === 0) {
+            setShowSuccessModal(false)
+            return 5 // Reset for next time
+          }
+          return newCount
+        })
+      }, 1000)
+    }
+    
+    return () => {
+      if (timer) {
+        clearTimeout(timer)
+      }
+    }
+  }, [showSuccessModal, successCountdown])
 
   const fetchStats = async () => {
     setLoading(true)
@@ -109,8 +157,6 @@ export default function AyarlarPage() {
       setSettings({
         schoolName: settingsMap.school_name || '',
         coordinator_deputy_head_name: settingsMap.coordinator_deputy_head_name || '',
-        emailNotifications: settingsMap.email_notifications === 'true',
-        autoApproval: settingsMap.auto_approval === 'true',
         maxFileSize: parseInt(settingsMap.max_file_size || '5'),
         allowedFileTypes: settingsMap.allowed_file_types || 'pdf,jpg,png',
         systemMaintenance: settingsMap.maintenance_mode === 'true',
@@ -123,14 +169,26 @@ export default function AyarlarPage() {
     }
   }
 
+  const fetchEducationYears = async () => {
+    try {
+      const response = await fetch('/api/admin/education-years')
+      if (!response.ok) throw new Error('Failed to fetch education years')
+      const data = await response.json()
+      
+      setEducationYears(data)
+      const active = data.find((year: any) => year.active)
+      setActiveEducationYear(active || null)
+    } catch (error) {
+      console.error('Eğitim yılları çekilirken hata:', error)
+    }
+  }
+
   const handleSaveSettings = async () => {
     setSaveLoading(true)
     try {
       const settingsToUpdate = [
         { key: 'school_name', value: settings.schoolName },
         { key: 'coordinator_deputy_head_name', value: settings.coordinator_deputy_head_name },
-        { key: 'email_notifications', value: settings.emailNotifications.toString() },
-        { key: 'auto_approval', value: settings.autoApproval.toString() },
         { key: 'max_file_size', value: settings.maxFileSize.toString() },
         { key: 'allowed_file_types', value: settings.allowedFileTypes },
         { key: 'maintenance_mode', value: settings.systemMaintenance.toString() },
@@ -149,6 +207,7 @@ export default function AyarlarPage() {
       }
       
       setShowSuccessModal(true)
+      setSuccessCountdown(5) // Reset countdown when showing modal
       await fetchSettings()
     } catch (error) {
       console.error('Ayarlar kaydedilirken hata:', error)
@@ -212,16 +271,64 @@ export default function AyarlarPage() {
     setDeletingBackup(false);
   };
 
-  const handleCreateBackup = async () => {
+  const handleCreateBackup = async (type: 'full' | 'selective' = 'full') => {
+    if (type === 'selective' && selectedTables.length === 0) {
+      alert('Lütfen en az bir tablo seçin.');
+      return;
+    }
+    
     setBackupCreationLoading(true);
     try {
+      const backupRequest = type === 'full' ? 'full' : selectedTables.join(',');
+      
       const response = await fetch('/api/admin/backup', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: backupRequest
+        })
       });
       const result = await response.json();
       if (response.ok && result.success) {
-        alert(`Veri yedeği başarıyla oluşturuldu!\n\nYedek Dosyası: ${result.backupFile}\nRapor Dosyası: ${result.reportFile}\n\nNot: Bu yedek sadece tablo verilerini içerir.`);
+        const message = type === 'full'
+          ? `Tam veri yedeği başarıyla oluşturuldu!
+
+📁 Oluşturulan Dosyalar:
+• JSON: ${result.backupFile}
+• SQL: ${result.sqlFile}
+• Rapor: ${result.reportFile}
+
+📊 İstatistikler:
+• Kayıt Sayısı: ${result.statistics.total_records}
+• JSON Boyut: ${result.statistics.json_size_mb} MB
+• SQL Boyut: ${result.statistics.sql_size_mb} MB
+${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics.files_size_mb} MB` : ''}
+
+💡 SQL dosyası MariaDB'ye geri yüklenebilir.${result.statistics.files_size_mb > 0 ? '\n📁 ZIP dosyası fiziksel dosyaları içerir (dekontlar + belgeler).' : ''}`
+          : `Seçili tablolar yedeği başarıyla oluşturuldu!
+
+📋 Yedeklenen Tablolar: ${selectedTables.join(', ')}
+
+📁 Oluşturulan Dosyalar:
+• JSON: ${result.backupFile}
+• SQL: ${result.sqlFile}
+• Rapor: ${result.reportFile}
+${result.filesFile ? `• Dosyalar: ${result.filesFile}` : ''}
+
+📊 İstatistikler:
+• Kayıt Sayısı: ${result.statistics.total_records}
+• JSON Boyut: ${result.statistics.json_size_mb} MB
+• SQL Boyut: ${result.statistics.sql_size_mb} MB
+${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics.files_size_mb} MB` : ''}
+
+💡 SQL dosyası MariaDB'ye geri yüklenebilir.${result.statistics.files_size_mb > 0 ? '\n📁 ZIP dosyası fiziksel dosyaları içerir (dekontlar + belgeler).' : ''}`;
+
+        alert(message);
         fetchBackupData();
+        setShowTableSelector(false);
+        setSelectedTables([]);
       } else {
         const errorMessage = result.error || result.message || 'Veri yedekleme başarısız oldu.';
         throw new Error(errorMessage);
@@ -232,6 +339,25 @@ export default function AyarlarPage() {
     } finally {
       setBackupCreationLoading(false);
     }
+  };
+
+  const handleFullBackup = () => handleCreateBackup('full');
+  const handleSelectiveBackup = () => handleCreateBackup('selective');
+
+  const toggleTableSelection = (tableName: string) => {
+    setSelectedTables(prev =>
+      prev.includes(tableName)
+        ? prev.filter(t => t !== tableName)
+        : [...prev, tableName]
+    );
+  };
+
+  const selectAllTables = () => {
+    setSelectedTables(availableTables);
+  };
+
+  const clearTableSelection = () => {
+    setSelectedTables([]);
   };
 
   const handleDownloadBackup = async (backup: any) => {
@@ -254,6 +380,31 @@ export default function AyarlarPage() {
     } catch (error) {
       console.error('Yedek indirme hatası:', error);
       alert(`Yedek indirilirken hata: ${(error as Error).message}`);
+    }
+    setDownloadingBackup(false);
+    setDownloadingBackupId('');
+  };
+
+  const handleDownloadZip = async (backup: any) => {
+    setDownloadingBackup(true);
+    setDownloadingBackupId(backup.id);
+    try {
+      const response = await fetch(`/api/admin/backups/zip?filename=${backup.id}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'ZIP indirme başarısız oldu.');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', backup.id.replace('.json', '.zip'));
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+    } catch (error) {
+      console.error('ZIP indirme hatası:', error);
+      alert(`ZIP indirilirken hata: ${(error as Error).message}`);
     }
     setDownloadingBackup(false);
     setDownloadingBackupId('');
@@ -343,6 +494,92 @@ export default function AyarlarPage() {
     }
   }
 
+  // Education Year Management Functions
+  const handleCreateEducationYear = async () => {
+    if (!newEducationYear.year.trim()) {
+      alert('Eğitim yılı adı gerekli')
+      return
+    }
+
+    setEducationYearLoading(true)
+    try {
+      const response = await fetch('/api/admin/education-years', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newEducationYear)
+      })
+
+      if (!response.ok) throw new Error('Failed to create education year')
+      
+      await fetchEducationYears()
+      setShowEducationYearModal(false)
+      setNewEducationYear({
+        year: '',
+        startDate: '',
+        endDate: '',
+        active: false
+      })
+      alert('Eğitim yılı başarıyla oluşturuldu')
+    } catch (error) {
+      console.error('Eğitim yılı oluşturulurken hata:', error)
+      alert('Eğitim yılı oluşturulamadı')
+    }
+    setEducationYearLoading(false)
+  }
+
+  const handleSetActiveEducationYear = async (yearId: string) => {
+    setEducationYearLoading(true)
+    try {
+      const year = educationYears.find(y => y.id === yearId)
+      if (!year) return
+
+      const response = await fetch('/api/admin/education-years', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...year,
+          active: true
+        })
+      })
+
+      if (!response.ok) throw new Error('Failed to set active education year')
+      
+      await fetchEducationYears()
+      alert('Aktif dönem başarıyla güncellendi')
+    } catch (error) {
+      console.error('Aktif dönem ayarlanırken hata:', error)
+      alert('Aktif dönem ayarlanamadı')
+    }
+    setEducationYearLoading(false)
+  }
+
+  const handleDeleteEducationYear = async (yearId: string) => {
+    if (!confirm('Bu eğitim yılını silmek istediğinizden emin misiniz?')) return
+
+    setEducationYearLoading(true)
+    try {
+      const response = await fetch(`/api/admin/education-years?id=${yearId}`, {
+        method: 'DELETE'
+      })
+
+      const result = await response.json()
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete education year')
+      }
+      
+      await fetchEducationYears()
+      alert('Eğitim yılı başarıyla silindi')
+    } catch (error) {
+      console.error('Eğitim yılı silinirken hata:', error)
+      alert((error as Error).message || 'Eğitim yılı silinemedi')
+    }
+    setEducationYearLoading(false)
+  }
+
   if (settingsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -361,14 +598,16 @@ export default function AyarlarPage() {
             </h1>
             <p className="text-gray-600 mt-2">Sistem genelinde geçerli ayarları yönetin.</p>
           </div>
-          <button
-            onClick={fetchStats}
-            disabled={loading}
-            className="inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 border border-indigo-300 rounded-xl hover:bg-indigo-200 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Yenile
-          </button>
+          {activeTab !== 'backup' && (
+            <button
+              onClick={fetchStats}
+              disabled={loading}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 border border-indigo-300 rounded-xl hover:bg-indigo-200 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Yenile
+            </button>
+          )}
         </div>
 
         <div className="mb-8">
@@ -421,14 +660,82 @@ export default function AyarlarPage() {
                       <input type="text" value={settings.coordinator_deputy_head_name} onChange={(e) => setSettings({ ...settings, coordinator_deputy_head_name: e.target.value })} className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Örn: Ali Veli" />
                       <p className="text-xs text-gray-500 mt-1">Bu isim, görev belgelerindeki "Koordinatör Müdür Yardımcısı" imza alanında görünecektir.</p>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div><h3 className="text-sm font-medium text-gray-900">E-posta Bildirimleri</h3><p className="text-sm text-gray-500">Sistem olayları için e-posta gönder</p></div>
-                    <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked={settings.emailNotifications} onChange={(e) => setSettings({ ...settings, emailNotifications: e.target.checked })} className="sr-only peer" /><div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div></label>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div><h3 className="text-sm font-medium text-gray-900">Otomatik Onay</h3><p className="text-sm text-gray-500">Belirli koşullarda dekontları otomatik onayla</p></div>
-                    <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked={settings.autoApproval} onChange={(e) => setSettings({ ...settings, autoApproval: e.target.checked })} className="sr-only peer" /><div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div></label>
+                    <div className="mt-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-medium text-gray-900">Aktif Eğitim Dönemi</h3>
+                        <button
+                          onClick={() => setShowEducationYearModal(true)}
+                          className="px-3 py-1 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                        >
+                          Yeni Dönem Ekle
+                        </button>
+                      </div>
+                      
+                      {activeEducationYear ? (
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-medium text-green-900">{activeEducationYear.year}</div>
+                              {activeEducationYear.startDate && activeEducationYear.endDate && (
+                                <div className="text-sm text-green-700 mt-1">
+                                  {new Date(activeEducationYear.startDate).toLocaleDateString('tr-TR')} - {new Date(activeEducationYear.endDate).toLocaleDateString('tr-TR')}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center">
+                              <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                              <span className="text-xs text-green-700 font-medium">Aktif</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                          <div className="flex items-center">
+                            <div className="w-2 h-2 bg-amber-500 rounded-full mr-2"></div>
+                            <span className="text-sm text-amber-800">Aktif eğitim dönemi seçilmemiş</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {educationYears.length > 0 && (
+                        <div className="mt-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Tüm Dönemler</label>
+                          <div className="space-y-2 max-h-32 overflow-y-auto">
+                            {educationYears.map((year) => (
+                              <div key={year.id} className={`flex items-center justify-between p-3 rounded-lg border-2 ${year.active ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+                                <div className="flex-1">
+                                  <div className="font-medium text-gray-900">{year.year}</div>
+                                  {year.startDate && year.endDate && (
+                                    <div className="text-xs text-gray-600">
+                                      {new Date(year.startDate).toLocaleDateString('tr-TR')} - {new Date(year.endDate).toLocaleDateString('tr-TR')}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  {!year.active && (
+                                    <button
+                                      onClick={() => handleSetActiveEducationYear(year.id)}
+                                      disabled={educationYearLoading}
+                                      className="px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                                    >
+                                      Aktif Yap
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleDeleteEducationYear(year.id)}
+                                    disabled={educationYearLoading || year.active}
+                                    className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                                    title={year.active ? "Aktif dönem silinemez" : "Dönemi sil"}
+                                  >
+                                    Sil
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <h3 className="text-sm font-medium text-gray-900 mb-3">Dosya Ayarları</h3>
@@ -481,11 +788,57 @@ export default function AyarlarPage() {
                 <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200"><div className="text-2xl font-bold text-purple-600">{Math.round((backupStats.total_size_kb || 0) / 1024)}MB</div><div className="text-sm text-purple-700 mt-1">Toplam Boyut</div></div>
               </div>
               <div className="space-y-6 mb-6">
+                {/* Tam Yedek */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-lg font-medium text-blue-900 flex items-center">
+                        <Database className="h-5 w-5 mr-2" />
+                        Tam Veri Yedeği
+                      </h3>
+                      <p className="text-sm text-blue-700 mt-1">
+                        Tüm tabloları JSON ve SQL formatında yedekler. SQL dosyası MariaDB'ye geri yüklenebilir.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleFullBackup}
+                      disabled={backupCreationLoading}
+                      className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-600 border border-transparent rounded-xl hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 shadow-lg"
+                    >
+                      {backupCreationLoading ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Oluşturuluyor...
+                        </>
+                      ) : (
+                        <>
+                          <Database className="h-4 w-4 mr-2" />
+                          Tam Yedek Al
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Seçmeli Yedek */}
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
                   <div className="flex justify-between items-center">
-                    <div><h3 className="text-lg font-medium text-green-900 flex items-center"><Database className="h-5 w-5 mr-2" />Veri Yedekle</h3><p className="text-sm text-green-700 mt-1">Tüm tablo verilerini güvenli bir şekilde yedekler (SQL yapısı dahil değil).</p></div>
-                    <button onClick={handleCreateBackup} disabled={backupCreationLoading} className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-green-600 to-emerald-600 border border-transparent rounded-xl hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 shadow-lg">
-                      {backupCreationLoading ? (<><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Oluşturuluyor...</>) : (<><Database className="h-4 w-4 mr-2" />Veri Yedekle</>)}
+                    <div>
+                      <h3 className="text-lg font-medium text-green-900 flex items-center">
+                        <Database className="h-5 w-5 mr-2" />
+                        Seçmeli Veri Yedeği
+                      </h3>
+                      <p className="text-sm text-green-700 mt-1">
+                        İstediğiniz tabloları seçerek JSON ve SQL formatında yedekleyin.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowTableSelector(true)}
+                      disabled={backupCreationLoading}
+                      className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-green-600 to-emerald-600 border border-transparent rounded-xl hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 shadow-lg"
+                    >
+                      <Database className="h-4 w-4 mr-2" />
+                      Tablo Seç
                     </button>
                   </div>
                 </div>
@@ -509,24 +862,96 @@ export default function AyarlarPage() {
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Yedek Dosyası</th>
                         <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarih</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Boyut</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Durum</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tip</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">JSON</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SQL</th>
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dosyalar</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">İşlemler</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {currentBackups.map((backup: any) => (
                         <tr key={backup.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-4"><div className="text-sm font-medium text-gray-900 truncate max-w-xs">{backup.backup_name}</div></td>
-                          <td className="px-3 py-4 text-sm text-gray-900"><div className="whitespace-nowrap">{new Date(backup.backup_date).toLocaleString('tr-TR')}</div></td>
+                          <td className="px-4 py-4">
+                            <div className="text-sm font-medium text-gray-900 truncate max-w-xs">{backup.backup_name}</div>
+                          </td>
+                          <td className="px-3 py-4 text-sm text-gray-900">
+                            <div className="whitespace-nowrap">{new Date(backup.backup_date).toLocaleString('tr-TR')}</div>
+                          </td>
+                          <td className="px-3 py-4">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              backup.backup_type === 'MariaDB'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {backup.backup_type || 'Legacy'}
+                            </span>
+                          </td>
                           <td className="px-3 py-4 text-sm text-gray-900">{backup.size_mb} MB</td>
-                          <td className="px-3 py-4"><span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Tamamlandı</span></td>
+                          <td className="px-3 py-4 text-sm text-gray-900">
+                            {backup.has_sql ? (
+                              <span className="text-green-600 font-medium">{backup.sql_size_mb} MB</span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-4 text-sm text-gray-900">
+                            {backup.has_files ? (
+                              <span className="text-blue-600 font-medium">{backup.files_size_mb} MB</span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
                           <td className="px-4 py-4">
                             <div className="flex space-x-2">
-                              <button onClick={() => handleDownloadBackup(backup)} disabled={downloadingBackup && downloadingBackupId === backup.id} className="text-green-600 hover:text-green-900 disabled:opacity-50 p-1 hover:bg-green-50 rounded" title="İndir">
-                                {downloadingBackup && downloadingBackupId === backup.id ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                              <button
+                                onClick={() => handleDownloadBackup(backup)}
+                                disabled={downloadingBackup && downloadingBackupId === backup.id}
+                                className="text-blue-600 hover:text-blue-900 disabled:opacity-50 p-1 hover:bg-blue-50 rounded"
+                                title="JSON İndir"
+                              >
+                                {downloadingBackup && downloadingBackupId === backup.id ?
+                                  <RefreshCw className="h-4 w-4 animate-spin" /> :
+                                  <Download className="h-4 w-4" />
+                                }
                               </button>
-                              <button onClick={() => handleDeleteBackup(backup.id, backup.backup_name)} className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded" title="Sil"><Trash2 className="h-4 w-4" /></button>
+                              {backup.has_sql && (
+                                <button
+                                  onClick={() => handleDownloadBackup({...backup, id: backup.sql_file})}
+                                  disabled={downloadingBackup}
+                                  className="text-green-600 hover:text-green-900 disabled:opacity-50 p-1 hover:bg-green-50 rounded"
+                                  title="SQL İndir"
+                                >
+                                  <Database className="h-4 w-4" />
+                                </button>
+                              )}
+                              {backup.has_files && (
+                                <button
+                                  onClick={() => handleDownloadBackup({...backup, id: backup.files_zip_file})}
+                                  disabled={downloadingBackup}
+                                  className="text-blue-600 hover:text-blue-900 disabled:opacity-50 p-1 hover:bg-blue-50 rounded"
+                                  title="Fiziksel Dosyalar İndir (Dekontlar + Belgeler)"
+                                >
+                                  <HardDrive className="h-4 w-4" />
+                                </button>
+                              )}
+                              {backup.backup_type === 'MariaDB' && (
+                                <button
+                                  onClick={() => handleDownloadZip(backup)}
+                                  disabled={downloadingBackup}
+                                  className="text-purple-600 hover:text-purple-900 disabled:opacity-50 p-1 hover:bg-purple-50 rounded"
+                                  title="ZIP İndir (JSON + SQL + Rapor)"
+                                >
+                                  <HardDrive className="h-4 w-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeleteBackup(backup.id, backup.backup_name)}
+                                className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded"
+                                title="Sil"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -856,8 +1281,243 @@ export default function AyarlarPage() {
             <div className="text-center">
               <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4"><Save className="h-8 w-8 text-green-600" /></div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Başarılı!</h3>
-              <p className="text-gray-600 mb-6">Sistem ayarları başarıyla kaydedildi.</p>
-              <button onClick={() => setShowSuccessModal(false)} className="w-full px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium">Tamam</button>
+              <p className="text-gray-600 mb-4">Sistem ayarları başarıyla kaydedildi.</p>
+              <div className="flex items-center justify-center mb-6">
+                <div className="bg-gray-100 rounded-full px-4 py-2 flex items-center">
+                  <div className="w-4 h-4 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                  <span className="text-sm text-gray-600">
+                    {successCountdown} saniye sonra otomatik kapanacak
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
+              >
+                Şimdi Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tablo Seçici Modal */}
+      {showTableSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 transform transition-all max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <Database className="h-6 w-6 text-green-600 mr-3" />
+                <h3 className="text-xl font-semibold text-gray-900">Yedeklenecek Tabloları Seçin</h3>
+              </div>
+              <button
+                onClick={() => setShowTableSelector(false)}
+                className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-gray-600">
+                  Yedeklemek istediğiniz tabloları seçin. Seçilen tablolar hem JSON hem de SQL formatında yedeklenecek.
+                </p>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={selectAllTables}
+                    className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200"
+                  >
+                    Tümünü Seç
+                  </button>
+                  <button
+                    onClick={clearTableSelection}
+                    className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  >
+                    Temizle
+                  </button>
+                </div>
+              </div>
+              
+              <div className="bg-green-50 rounded-xl p-4 border border-green-200 mb-4">
+                <div className="flex items-center">
+                  <Database className="h-5 w-5 text-green-600 mr-2" />
+                  <span className="text-sm font-medium text-green-800">
+                    Seçilen: {selectedTables.length} / {availableTables.length} tablo
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
+                {availableTables.map((tableName) => (
+                  <label
+                    key={tableName}
+                    className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                      selectedTables.includes(tableName)
+                        ? 'border-green-500 bg-green-50'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTables.includes(tableName)}
+                      onChange={() => toggleTableSelection(tableName)}
+                      className="rounded border-gray-300 text-green-600 focus:ring-green-500 mr-3"
+                    />
+                    <div>
+                      <div className="font-medium text-gray-900">{tableName}</div>
+                      <div className="text-xs text-gray-500">
+                        {tableName === 'users' && 'Kullanıcı hesapları'}
+                        {tableName === 'teachers' && 'Öğretmen bilgileri'}
+                        {tableName === 'companies' && 'İşletme bilgileri'}
+                        {tableName === 'students' && 'Öğrenci bilgileri'}
+                        {tableName === 'internships' && 'Staj kayıtları'}
+                        {tableName === 'dekonts' && 'Dekont kayıtları'}
+                        {tableName === 'system_settings' && 'Sistem ayarları'}
+                        {tableName === 'notifications' && 'Bildirimler'}
+                        {tableName === 'belgeler' && 'Belgeler'}
+                        {tableName === 'gorev_belgeleri' && 'Görev belgeleri'}
+                        {tableName === 'fields' && 'Alan bilgileri'}
+                        {tableName === 'classes' && 'Sınıf bilgileri'}
+                        {tableName === 'education_years' && 'Eğitim yılları'}
+                        {tableName === 'admin_profiles' && 'Admin profilleri'}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowTableSelector(false);
+                  setSelectedTables([]);
+                }}
+                disabled={backupCreationLoading}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-xl hover:bg-gray-200 disabled:opacity-50"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleSelectiveBackup}
+                disabled={backupCreationLoading || selectedTables.length === 0}
+                className="inline-flex items-center px-6 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-xl hover:bg-green-700 disabled:opacity-50"
+              >
+                {backupCreationLoading ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Yedekleniyor...
+                  </>
+                ) : (
+                  <>
+                    <Database className="h-4 w-4 mr-2" />
+                    Seçili Tabloları Yedekle ({selectedTables.length})
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Eğitim Yılı Ekleme Modal'ı */}
+      {showEducationYearModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-gray-900">Yeni Eğitim Dönemi</h3>
+              <button
+                onClick={() => setShowEducationYearModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Dönem Adı *
+                </label>
+                <input
+                  type="text"
+                  value={newEducationYear.year}
+                  onChange={(e) => setNewEducationYear({ ...newEducationYear, year: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Örn: 2024-2025"
+                  disabled={educationYearLoading}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Başlangıç Tarihi
+                </label>
+                <input
+                  type="date"
+                  value={newEducationYear.startDate}
+                  onChange={(e) => setNewEducationYear({ ...newEducationYear, startDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  disabled={educationYearLoading}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Bitiş Tarihi
+                </label>
+                <input
+                  type="date"
+                  value={newEducationYear.endDate}
+                  onChange={(e) => setNewEducationYear({ ...newEducationYear, endDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  disabled={educationYearLoading}
+                />
+              </div>
+              
+              <div className="flex items-center">
+                <input
+                  id="setActive"
+                  type="checkbox"
+                  checked={newEducationYear.active}
+                  onChange={(e) => setNewEducationYear({ ...newEducationYear, active: e.target.checked })}
+                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  disabled={educationYearLoading}
+                />
+                <label htmlFor="setActive" className="ml-2 text-sm text-gray-700">
+                  Bu dönemi aktif dönem olarak ayarla
+                </label>
+              </div>
+              
+              {newEducationYear.active && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <p className="text-sm text-amber-800">
+                    ⚠️ Bu dönem aktif olarak ayarlanırsa, mevcut aktif dönem pasif hale getirilecektir.
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => setShowEducationYearModal(false)}
+                disabled={educationYearLoading}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-xl hover:bg-gray-200 disabled:opacity-50"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleCreateEducationYear}
+                disabled={educationYearLoading || !newEducationYear.year.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-xl hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {educationYearLoading ? 'Oluşturuluyor...' : 'Dönem Oluştur'}
+              </button>
             </div>
           </div>
         </div>

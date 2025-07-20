@@ -55,17 +55,6 @@ async function getAlanlar(): Promise<Alan[]> {
 export default async function AlanlarPage() {
   const alanlar = await getAlanlar()
 
-  if (alanlar.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <GraduationCap className="mx-auto h-12 w-12 text-gray-400" />
-        <h3 className="mt-4 text-lg font-medium text-gray-900">Henüz alan yok</h3>
-        <p className="mt-2 text-gray-500">Başlamak için yeni bir meslek alanı ekleyin.</p>
-        {/* Yeni alan ekleme butonu artık Client Component içinde */}
-        <AlanlarClient initialAlanlar={[]} />
-      </div>
-    )
-  }
-
+  // Always render AlanlarClient - it handles empty state internally
   return <AlanlarClient initialAlanlar={alanlar} />
 }

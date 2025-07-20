@@ -335,7 +335,7 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
                     >
                       <Edit className="h-4 w-4" />
                     </button>
-                    {user.yetki_seviyesi !== 'super_admin' && (
+                    {user.yetki_seviyesi !== 'super_admin' && user.email !== 'admin@ozdilek' && (
                       <button
                         onClick={() => openDeleteModal(user)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -344,8 +344,8 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
                         <Trash2 className="h-4 w-4" />
                       </button>
                     )}
-                    {user.yetki_seviyesi === 'super_admin' && (
-                      <div className="p-2 text-gray-300" title="Süper admin silinemez">
+                    {(user.yetki_seviyesi === 'super_admin' || user.email === 'admin@ozdilek') && (
+                      <div className="p-2 text-gray-300" title={user.email === 'admin@ozdilek' ? "Koordinatör Müdür Yardımcısı silinemez" : "Süper admin silinemez"}>
                         <Shield className="h-4 w-4" />
                       </div>
                     )}
@@ -504,7 +504,13 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
                 value={editUser.ad}
                 onChange={(e) => setEditUser({...editUser, ad: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="Admin adı"
               />
+              {selectedUser?.email === 'admin@ozdilek' && (
+                <p className="text-xs text-blue-600 mt-1">
+                  Koordinatör Müdür Yardımcısı adı değiştirilebilir.
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Soyad</label>
@@ -513,7 +519,13 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
                 value={editUser.soyad}
                 onChange={(e) => setEditUser({...editUser, soyad: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="Admin soyadı"
               />
+              {selectedUser?.email === 'admin@ozdilek' && (
+                <p className="text-xs text-blue-600 mt-1">
+                  Koordinatör Müdür Yardımcısı soyadı değiştirilebilir.
+                </p>
+              )}
             </div>
           </div>
           
@@ -523,12 +535,12 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
               value={editUser.yetki_seviyesi}
               onChange={(e) => setEditUser({...editUser, yetki_seviyesi: e.target.value as any})}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              disabled={selectedUser?.yetki_seviyesi === 'super_admin'}
+              disabled={selectedUser?.yetki_seviyesi === 'super_admin' || selectedUser?.email === 'admin@ozdilek'}
             >
               {Object.entries(YetkiSeviyeleri)
                 .filter(([key]) => {
-                  // Süper admin düzenlenmiyorsa süper admin seçeneğini gizle
-                  if (selectedUser?.yetki_seviyesi !== 'super_admin' && key === 'super_admin') {
+                  // Süper admin düzenlenmiyorsa ve admin@ozdilek değilse süper admin seçeneğini gizle
+                  if (selectedUser?.yetki_seviyesi !== 'super_admin' && selectedUser?.email !== 'admin@ozdilek' && key === 'super_admin') {
                     return false;
                   }
                   return true;
@@ -539,9 +551,12 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
                   </option>
                 ))}
             </select>
-            {selectedUser?.yetki_seviyesi === 'super_admin' && (
+            {(selectedUser?.yetki_seviyesi === 'super_admin' || selectedUser?.email === 'admin@ozdilek') && (
               <p className="text-xs text-red-500 mt-1">
-                Süper admin yetki seviyesi değiştirilemez. Güvenlik koruması aktif.
+                {selectedUser?.email === 'admin@ozdilek'
+                  ? 'Koordinatör Müdür Yardımcısı yetki seviyesi değiştirilemez. Güvenlik koruması aktif.'
+                  : 'Süper admin yetki seviyesi değiştirilemez. Güvenlik koruması aktif.'
+                }
               </p>
             )}
           </div>
@@ -574,21 +589,24 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-gray-700">Aktif Durum</span>
             <div className="flex items-center">
-              <label className={`relative inline-flex items-center ${selectedUser?.yetki_seviyesi === 'super_admin' ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+              <label className={`relative inline-flex items-center ${selectedUser?.yetki_seviyesi === 'super_admin' || selectedUser?.email === 'admin@ozdilek' ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                 <input
                   type="checkbox"
                   checked={editUser.aktif}
                   onChange={(e) => setEditUser({...editUser, aktif: e.target.checked})}
-                  disabled={selectedUser?.yetki_seviyesi === 'super_admin'}
+                  disabled={selectedUser?.yetki_seviyesi === 'super_admin' || selectedUser?.email === 'admin@ozdilek'}
                   className="sr-only peer"
                 />
-                <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600 ${selectedUser?.yetki_seviyesi === 'super_admin' ? 'opacity-50 cursor-not-allowed' : ''}`}></div>
+                <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600 ${selectedUser?.yetki_seviyesi === 'super_admin' || selectedUser?.email === 'admin@ozdilek' ? 'opacity-50 cursor-not-allowed' : ''}`}></div>
               </label>
             </div>
           </div>
-          {selectedUser?.yetki_seviyesi === 'super_admin' && (
+          {(selectedUser?.yetki_seviyesi === 'super_admin' || selectedUser?.email === 'admin@ozdilek') && (
             <p className="text-xs text-red-500 mt-1">
-              Süper admin aktif durumu değiştirilemez. Güvenlik koruması aktif.
+              {selectedUser?.email === 'admin@ozdilek'
+                ? 'Koordinatör Müdür Yardımcısı aktif durumu değiştirilemez. Güvenlik koruması aktif.'
+                : 'Süper admin aktif durumu değiştirilemez. Güvenlik koruması aktif.'
+              }
             </p>
           )}
           
