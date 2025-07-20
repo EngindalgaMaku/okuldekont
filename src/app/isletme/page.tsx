@@ -255,12 +255,28 @@ export default function PanelPage() {
     return grouped;
   };
 
-  // Toggle group expansion
+  // Toggle group expansion - accordion behavior
   const toggleGroupExpansion = (studentName: string) => {
-    setExpandedGroups(prev => ({
-      ...prev,
-      [studentName]: !prev[studentName]
-    }));
+    setExpandedGroups(prev => {
+      const isCurrentlyExpanded = prev[studentName];
+      
+      // If clicking on an already expanded student, just close it
+      if (isCurrentlyExpanded) {
+        return {
+          ...prev,
+          [studentName]: false
+        };
+      }
+      
+      // Otherwise, close all others and open the clicked one
+      const newState: {[key: string]: boolean} = {};
+      Object.keys(prev).forEach(key => {
+        newState[key] = false;
+      });
+      newState[studentName] = true;
+      
+      return newState;
+    });
   };
 
   const eksikDekontOgrenciler = getEksikDekontOgrenciler();
@@ -1094,7 +1110,7 @@ export default function PanelPage() {
         <div className="relative max-w-7xl mx-auto pt-6 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 hidden sm:block">
                 <div className="relative">
                   <div className="absolute inset-0 bg-white rounded-2xl transform rotate-6 scale-105 opacity-20" />
                   <div className="relative p-3 bg-white bg-opacity-20 backdrop-blur-lg rounded-2xl">
@@ -1102,7 +1118,7 @@ export default function PanelPage() {
                   </div>
                 </div>
               </div>
-              <div className="ml-6">
+              <div className="sm:ml-6">
                 <h1 className="text-2xl font-bold text-white">
                   {isletme.ad}
                 </h1>
@@ -1144,7 +1160,7 @@ export default function PanelPage() {
 
           {/* Tabs */}
           <div className="mt-8">
-            <nav className="-mb-px flex space-x-4" aria-label="Tabs">
+            <nav className="-mb-px flex space-x-2 sm:space-x-4" aria-label="Tabs">
               {[
                 { id: 'ogrenciler', icon: Users, label: 'Öğrenciler', count: ogrenciler.length },
                 { id: 'dekontlar', icon: Receipt, label: 'Dekontlar', count: dekontlar.length },
@@ -1157,15 +1173,20 @@ export default function PanelPage() {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as ActiveTab)}
                     className={`
-                      group relative min-w-0 flex-1 overflow-hidden py-3 px-6 rounded-t-xl text-sm font-medium text-center hover:bg-white hover:bg-opacity-10 transition-all duration-200
-                      ${isActive 
-                        ? 'bg-white text-indigo-700' 
+                      group relative min-w-0 flex-1 overflow-hidden py-3 px-3 sm:px-6 rounded-t-xl text-sm font-medium text-center hover:bg-white hover:bg-opacity-10 transition-all duration-200
+                      ${isActive
+                        ? 'bg-white text-indigo-700'
                         : 'text-indigo-100 hover:text-white'}
                     `}
                   >
-                    <div className="flex items-center justify-center">
-                      <Icon className={`h-5 w-5 ${isActive ? 'text-indigo-700' : 'text-indigo-300 group-hover:text-white'} mr-2`} />
-                      {tab.label} ({tab.count})
+                    <div className="flex flex-col sm:flex-row items-center justify-center">
+                      <Icon className={`h-5 w-5 ${isActive ? 'text-indigo-700' : 'text-indigo-300 group-hover:text-white'} sm:mr-2`} />
+                      <span className="hidden sm:inline">
+                        {tab.label} ({tab.count})
+                      </span>
+                      <span className="sm:hidden text-[10px] mt-1">
+                        ({tab.count})
+                      </span>
                     </div>
                     {isActive && (
                       <span className="absolute inset-x-0 bottom-0 h-0.5 bg-indigo-700" />
@@ -1289,14 +1310,7 @@ export default function PanelPage() {
                                 ? 'bg-blue-100 text-blue-700'
                                 : 'bg-purple-100 text-purple-700'
                             }`}>
-                              {ogrenci.sinif}
-                            </div>
-                            <div className={`px-3 py-1.5 rounded-lg font-medium ${
-                              index % 2 === 0
-                                ? 'bg-indigo-100 text-indigo-700'
-                                : 'bg-pink-100 text-pink-700'
-                            }`}>
-                              No: {ogrenci.no}
+                              {ogrenci.sinif}-{ogrenci.no}
                             </div>
                           </div>
                         </div>
@@ -1326,7 +1340,7 @@ export default function PanelPage() {
                       </div>
                       <div className="flex items-center text-sm text-gray-500">
                         <Calendar className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="font-medium text-gray-700">Staja Başlama:</span>
+                        <span className="font-medium text-gray-700">Sözleşme Tarihi:</span>
                         <span className="ml-2 text-gray-900">
                           {new Date(ogrenci.baslangic_tarihi).toLocaleDateString('tr-TR')}
                         </span>
@@ -1446,28 +1460,35 @@ export default function PanelPage() {
                         <div key={studentName} className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
                           {/* Student Header - Clickable */}
                           <div
-                            className="flex items-center justify-between mb-4 cursor-pointer hover:bg-blue-100/50 rounded-lg p-2 -m-2 transition-colors"
+                            className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 cursor-pointer hover:bg-blue-100/50 rounded-lg p-2 -m-2 transition-colors"
                             onClick={() => toggleGroupExpansion(studentName)}
                           >
                             <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 bg-gradient-to-br from-blue-100 to-indigo-100 text-blue-600 rounded-lg flex items-center justify-center">
+                              <div className="h-10 w-10 bg-gradient-to-br from-blue-100 to-indigo-100 text-blue-600 rounded-lg flex items-center justify-center hidden sm:block">
                                 <User className="h-5 w-5" />
                               </div>
-                              <div>
-                                <h3 className="text-lg font-semibold text-gray-900">
-                                  {studentName}
-                                  {studentDekontlar[0]?.stajlar?.ogrenciler?.sinif && (
-                                    <span className="ml-2 text-sm font-medium text-blue-600">
-                                      {studentDekontlar[0].stajlar.ogrenciler.sinif}
-                                    </span>
-                                  )}
-                                  {studentDekontlar[0]?.stajlar?.ogrenciler?.no && (
-                                    <span className="ml-1 text-sm font-medium text-gray-600">
-                                      - No: {studentDekontlar[0].stajlar.ogrenciler.no}
-                                    </span>
-                                  )}
-                                </h3>
-                                <div className="flex items-center gap-2 mt-1">
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between sm:justify-start">
+                                  <h3 className="text-lg font-semibold text-gray-900">
+                                    {studentName}
+                                    {studentDekontlar[0]?.stajlar?.ogrenciler?.sinif && studentDekontlar[0]?.stajlar?.ogrenciler?.no && (
+                                      <span className="ml-2 text-sm font-medium text-blue-600">
+                                        {studentDekontlar[0].stajlar.ogrenciler.sinif}-{studentDekontlar[0].stajlar.ogrenciler.no}
+                                      </span>
+                                    )}
+                                  </h3>
+                                  <div className="flex items-center gap-2 sm:hidden">
+                                    <div className="text-xs text-gray-500">
+                                      {studentDekontlar.length} dekont
+                                    </div>
+                                    {isExpanded ? (
+                                      <ChevronUp className="h-4 w-4 text-gray-400" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 mt-1">
                                   {pendingCount > 0 && (
                                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                                       <Clock className="h-3 w-3 mr-1" />
@@ -1486,7 +1507,7 @@ export default function PanelPage() {
                                 </div>
                               </div>
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="hidden sm:flex items-center gap-3">
                               <div className="text-sm text-gray-500">
                                 {studentDekontlar.length} dekont
                               </div>
@@ -1654,16 +1675,16 @@ export default function PanelPage() {
                   <div className="space-y-6">
                     {filteredBelgeler.map((belge) => (
                       <div key={belge.id} className="pt-6 first:pt-0">
-                        <div className="flex items-start justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
                           <div className="flex items-center">
-                            <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center">
+                            <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center hidden sm:block">
                               <FileText className="h-6 w-6 text-indigo-600" />
                             </div>
-                            <div className="ml-4">
+                            <div className="sm:ml-4 flex-1">
                               <h3 className="text-lg font-medium text-gray-900">
                                 {belge.ad}
                               </h3>
-                              <div className="flex items-center space-x-3 mt-2 text-sm">
+                              <div className="flex flex-wrap items-center gap-2 mt-2 text-sm">
                                 <div className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg font-medium">
                                   {formatBelgeTur(belge.tur)}
                                 </div>
@@ -1685,7 +1706,7 @@ export default function PanelPage() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center gap-2 mt-3 sm:mt-0 self-end sm:self-auto">
                             {belge.dosya_url && (
                               <button
                                 onClick={() => handleFileView(belge.dosya_url!)}

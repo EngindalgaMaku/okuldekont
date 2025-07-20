@@ -579,20 +579,52 @@ const TeacherPanel = () => {
     }
   };
 
-  // İşletme öğrenci listesi toggle fonksiyonu
+  // İşletme öğrenci listesi toggle fonksiyonu - accordion behavior
   const toggleIsletmeExpanded = (isletmeId: string) => {
-    setExpandedIsletmeler(prev => ({
-      ...prev,
-      [isletmeId]: !prev[isletmeId]
-    }));
+    setExpandedIsletmeler(prev => {
+      const isCurrentlyExpanded = prev[isletmeId];
+      
+      // If clicking on an already expanded company, just close it
+      if (isCurrentlyExpanded) {
+        return {
+          ...prev,
+          [isletmeId]: false
+        };
+      }
+      
+      // Otherwise, close all others and open the clicked one
+      const newState: {[key: string]: boolean} = {};
+      Object.keys(prev).forEach(key => {
+        newState[key] = false;
+      });
+      newState[isletmeId] = true;
+      
+      return newState;
+    });
   };
 
-  // Dekont grupları toggle fonksiyonu
+  // Dekont grupları toggle fonksiyonu - accordion behavior
   const toggleStudentExpanded = (studentKey: string) => {
-    setExpandedStudents(prev => ({
-      ...prev,
-      [studentKey]: !prev[studentKey]
-    }));
+    setExpandedStudents(prev => {
+      const isCurrentlyExpanded = prev[studentKey];
+      
+      // If clicking on an already expanded student, just close it
+      if (isCurrentlyExpanded) {
+        return {
+          ...prev,
+          [studentKey]: false
+        };
+      }
+      
+      // Otherwise, close all others and open the clicked one
+      const newState: {[key: string]: boolean} = {};
+      Object.keys(prev).forEach(key => {
+        newState[key] = false;
+      });
+      newState[studentKey] = true;
+      
+      return newState;
+    });
   };
 
   // Dekontları işletme ve öğrenciye göre gruplandır
@@ -985,7 +1017,7 @@ const TeacherPanel = () => {
         <div className="relative max-w-7xl mx-auto pt-6 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 hidden sm:block">
                 <div className="relative">
                   <div className="absolute inset-0 bg-white rounded-2xl transform rotate-6 scale-105 opacity-20" />
                   <div className="relative p-3 bg-white bg-opacity-20 backdrop-blur-lg rounded-2xl">
@@ -993,11 +1025,11 @@ const TeacherPanel = () => {
                   </div>
                 </div>
               </div>
-              <div className="ml-6">
-                <h1 className="text-2xl font-bold text-white">
+              <div className="sm:ml-6">
+                <h1 className="text-lg sm:text-2xl font-bold text-white">
                   Öğretmen Paneli
                 </h1>
-                <p className="text-indigo-200 text-sm">Staj Takip Sistemi</p>
+                <p className="text-indigo-200 text-sm">Koordinatörlük Yönetimi</p>
               </div>
             </div>
             
@@ -1040,7 +1072,7 @@ const TeacherPanel = () => {
 
           {/* Tabs */}
           <div className="mt-8">
-            <nav className="-mb-px flex space-x-4" aria-label="Tabs">
+            <nav className="-mb-px flex space-x-2 sm:space-x-4" aria-label="Tabs">
               {[
                 { id: 'isletmeler', icon: Building2, label: 'İşletmeler', count: isletmeler.length },
                 { id: 'dekontlar', icon: Receipt, label: 'Dekont Listesi', count: dekontlar.length },
@@ -1053,15 +1085,20 @@ const TeacherPanel = () => {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as 'isletmeler' | 'dekontlar' | 'belgeler')}
                     className={`
-                      group relative min-w-0 flex-1 overflow-hidden py-3 px-6 rounded-t-xl text-sm font-medium text-center hover:bg-white hover:bg-opacity-10 transition-all duration-200
+                      group relative min-w-0 flex-1 overflow-hidden py-3 px-3 sm:px-6 rounded-t-xl text-sm font-medium text-center hover:bg-white hover:bg-opacity-10 transition-all duration-200
                       ${isActive
                         ? 'bg-white text-indigo-700'
                         : 'text-indigo-100 hover:text-white'}
                     `}
                   >
-                    <div className="flex items-center justify-center">
-                      <Icon className={`h-5 w-5 ${isActive ? 'text-indigo-700' : 'text-indigo-300 group-hover:text-white'} mr-2`} />
-                      {tab.label} ({tab.count})
+                    <div className="flex flex-col sm:flex-row items-center justify-center">
+                      <Icon className={`h-5 w-5 ${isActive ? 'text-indigo-700' : 'text-indigo-300 group-hover:text-white'} sm:mr-2`} />
+                      <span className="hidden sm:inline">
+                        {tab.label} ({tab.count})
+                      </span>
+                      <span className="sm:hidden text-[10px] mt-1">
+                        ({tab.count})
+                      </span>
                     </div>
                     {isActive && (
                       <span className="absolute inset-x-0 bottom-0 h-0.5 bg-indigo-700" />
@@ -1292,9 +1329,6 @@ const TeacherPanel = () => {
                               background: `linear-gradient(90deg, transparent 0%, ${isletme.separator_color || '#E5E7EB'} 50%, transparent 100%)`
                             }}
                           />
-                          <span className="text-xs font-medium text-gray-500 px-3 py-1 bg-gray-100 rounded-full">
-                            İşletme {isletme.display_order || index + 1}
-                          </span>
                           <div
                             className="h-1 flex-1 rounded-full mx-4"
                             style={{
@@ -1329,7 +1363,7 @@ const TeacherPanel = () => {
 
                         <div className="flex items-center">
                           <div
-                            className="h-12 w-12 rounded-xl flex items-center justify-center border-2"
+                            className="h-12 w-12 rounded-xl flex items-center justify-center border-2 hidden sm:block"
                             style={{
                               backgroundColor: styles.iconBg,
                               borderColor: styles.iconColor + '40'
@@ -1340,11 +1374,11 @@ const TeacherPanel = () => {
                               style={{ color: styles.iconColor }}
                             />
                           </div>
-                          <div className="ml-4 flex-1">
-                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                              {isletme.ad}
+                          <div className="sm:ml-4 flex-1 pr-16 sm:pr-20">
+                            <h3 className="text-lg font-bold text-gray-900 flex flex-col sm:flex-row sm:items-center sm:gap-2">
+                              <span className="break-words">{isletme.ad}</span>
                               {isletme.total_students && (
-                                <span className="text-sm font-normal text-gray-600">
+                                <span className="text-xs sm:text-sm font-normal text-gray-600 mt-1 sm:mt-0">
                                   ({isletme.total_students} öğrenci)
                                 </span>
                               )}
@@ -1391,10 +1425,10 @@ const TeacherPanel = () => {
                             return (
                               <div key={ogrenci.id} className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 space-y-3 border border-blue-100 hover:border-blue-200 transition-all duration-200 hover:shadow-md">
                                 <div className="flex items-center">
-                                  <div className="h-10 w-10 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg flex items-center justify-center">
+                                  <div className="h-10 w-10 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg flex items-center justify-center hidden sm:block">
                                     <User className="h-5 w-5 text-indigo-600" />
                                   </div>
-                                  <div className="ml-3 flex-1">
+                                  <div className="sm:ml-3 flex-1">
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <p className="text-sm font-medium text-gray-900">{ogrenci.ad} {ogrenci.soyad}</p>
                                       {(pendingCount > 0 || rejectedCount > 0) && (
@@ -1414,10 +1448,7 @@ const TeacherPanel = () => {
                                     </div>
                                     <div className="flex items-center space-x-3 mt-1 text-xs">
                                       <div className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-md font-medium">
-                                        {ogrenci.sinif}
-                                      </div>
-                                      <div className="px-2 py-1 bg-purple-50 text-purple-700 rounded-md font-medium">
-                                        No: {ogrenci.no}
+                                        {ogrenci.sinif}-{ogrenci.no}
                                       </div>
                                       <div className="flex items-center gap-1 text-gray-500">
                                         <Calendar className="h-3 w-3" />
@@ -1577,7 +1608,7 @@ const TeacherPanel = () => {
                                 <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4">
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
-                                      <div className="h-10 w-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                                      <div className="h-10 w-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center hidden sm:block">
                                         <Building2 className="h-5 w-5 text-white" />
                                       </div>
                                       <div>
@@ -1624,7 +1655,7 @@ const TeacherPanel = () => {
                                           className="w-full text-left p-4 hover:bg-gray-100 transition-colors flex items-center justify-between"
                                         >
                                           <div className="flex items-center gap-3">
-                                            <div className="h-8 w-8 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg flex items-center justify-center">
+                                            <div className="h-8 w-8 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg flex items-center justify-center hidden sm:block">
                                               <User className="h-4 w-4 text-indigo-600" />
                                             </div>
                                             <div className="flex-1">
@@ -1824,7 +1855,7 @@ const TeacherPanel = () => {
                                 {/* Company Header */}
                                 <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-4">
                                   <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                                    <div className="h-10 w-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center hidden sm:block">
                                       <Building2 className="h-5 w-5 text-white" />
                                     </div>
                                     <div>
@@ -1842,10 +1873,10 @@ const TeacherPanel = () => {
                                     <div key={belge.id} className="bg-gray-50 rounded-xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
                                       <div className="flex flex-col">
                                         <div className="flex items-start">
-                                          <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                                          <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center flex-shrink-0 hidden sm:block">
                                             <FileText className="h-6 w-6 text-indigo-600" />
                                           </div>
-                                          <div className="ml-4 flex-1 min-w-0">
+                                          <div className="sm:ml-4 flex-1 min-w-0">
                                             <h3 className="text-lg font-medium text-gray-900 truncate" title={belge.dosya_adi}>
                                               {belge.dosya_adi}
                                             </h3>
