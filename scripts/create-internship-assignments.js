@@ -10,8 +10,12 @@ function getRandomDate(start, end) {
   return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
 }
 
-async function createInternshipAssignments() {
-  console.log('🚀 100 öğrenciye staj ataması yapılıyor...');
+async function createInternshipAssignments(dryRun = false) {
+  if (dryRun) {
+    console.log('🔍 DRY-RUN MOD: Sadece kontrol yapılıyor, veritabanı değiştirilmiyor...');
+  } else {
+    console.log(' 100 öğrenciye staj ataması yapılıyor...');
+  }
   
   try {
     // Mevcut verileri al
@@ -47,6 +51,22 @@ async function createInternshipAssignments() {
     console.log(`   - ${companies.length} işletme bulundu`);
     console.log(`   - ${teachers.length} öğretmen bulundu`);
 
+    // Temel kontroller
+    if (teachers.length === 0) {
+      console.error('❌ Hiç öğretmen bulunamadı! İşlem durduruluyor.');
+      return;
+    }
+
+    if (companies.length === 0) {
+      console.error('❌ Hiç işletme bulunamadı! İşlem durduruluyor.');
+      return;
+    }
+
+    if (students.length === 0) {
+      console.error('❌ Hiç atanacak öğrenci bulunamadı! İşlem durduruluyor.');
+      return;
+    }
+
     // En fazla 100 öğrenci seç
     const studentsToAssign = students.slice(0, Math.min(100, students.length));
     
@@ -64,6 +84,12 @@ async function createInternshipAssignments() {
       if (!teacher) {
         teacher = getRandomElement(teachers);
       }
+      
+      // Öğretmen kontrolü - eğer hala null ise hata ver
+      if (!teacher) {
+        console.error(`❌ ${student.name} için öğretmen atanamadı! Teachers: ${teachers.length}, Company teacher: ${company.teacher?.name || 'YOK'}`);
+        continue;
+      }
 
       // Staj başlangıç tarihi (son 3 ay içinde)
       const startDate = getRandomDate(
@@ -75,24 +101,40 @@ async function createInternshipAssignments() {
       const endDate = new Date(startDate);
       endDate.setMonth(endDate.getMonth() + 6);
 
-      // Öğrenciyi işletmeye ata
-      await prisma.student.update({
-        where: { id: student.id },
-        data: { companyId: company.id }
-      });
+      let internship;
+      
+      if (!dryRun) {
+        // Öğrenciyi işletmeye ata
+        await prisma.student.update({
+          where: { id: student.id },
+          data: { companyId: company.id }
+        });
 
-      // Staj kaydı oluştur
-      const internship = await prisma.staj.create({
-        data: {
+        // Staj kaydı oluştur
+        internship = await prisma.staj.create({
+          data: {
+            studentId: student.id,
+            companyId: company.id,
+            teacherId: teacher.id,
+            educationYearId: educationYear.id,
+            startDate: startDate,
+            endDate: endDate,
+            status: 'ACTIVE'
+          }
+        });
+      } else {
+        // Dry-run için sahte internship objesi
+        internship = {
+          id: `dry-run-${student.id}`,
           studentId: student.id,
           companyId: company.id,
           teacherId: teacher.id,
-          educationYearId: educationYear.id,
           startDate: startDate,
           endDate: endDate,
           status: 'ACTIVE'
-        }
-      });
+        };
+        console.log(`   [DRY-RUN] ${student.name} -> ${company.name} (${teacher.name} ${teacher.surname})`);
+      }
 
       createdInternships.push(internship);
       assignedCount++;
@@ -105,7 +147,11 @@ async function createInternshipAssignments() {
     console.log(`\n🎉 ${assignedCount} öğrenci başarıyla işletmelere atandı!`);
 
     // Şimdi 20 stajı fesih et
-    console.log('\n🔥 20 stajın feshini gerçekleştiriliyor...');
+    if (dryRun) {
+      console.log('\n🔥 [DRY-RUN] 20 stajın feshi simüle ediliyor...');
+    } else {
+      console.log('\n🔥 20 stajın feshini gerçekleştiriliyor...');
+    }
     
     const internshipsToTerminate = createdInternships.slice(0, 20);
     
@@ -120,25 +166,28 @@ async function createInternshipAssignments() {
 
       const terminationReasons = [
         'Öğrenci isteği ile fesih',
-        'İşletme isteği ile fesih', 
+        'İşletme isteği ile fesih',
         'Karşılıklı anlaşma ile fesih',
         'Devamsızlık nedeni ile fesih',
         'İş güvenliği ihlali nedeni ile fesih',
         'Disiplin problemi nedeni ile fesih'
       ];
 
-      // Stajı fesih et
-      await prisma.staj.update({
-        where: { id: internship.id },
-        data: {
-          status: 'TERMINATED',
-          terminationDate: terminationDate,
-          terminationReason: getRandomElement(terminationReasons)
-          // terminatedBy alanını boş bırakıyoruz çünkü foreign key constraint var
-        }
-      });
-
-      console.log(`   🔴 Staj feshedildi: ${i + 1}/20`);
+      if (!dryRun) {
+        // Stajı fesih et
+        await prisma.staj.update({
+          where: { id: internship.id },
+          data: {
+            status: 'TERMINATED',
+            terminationDate: terminationDate,
+            terminationReason: getRandomElement(terminationReasons)
+            // terminatedBy alanını boş bırakıyoruz çünkü foreign key constraint var
+          }
+        });
+        console.log(`   🔴 Staj feshedildi: ${i + 1}/20`);
+      } else {
+        console.log(`   🔴 [DRY-RUN] Staj feshedilecek: ${i + 1}/20 (${getRandomElement(terminationReasons)})`);
+      }
     }
 
     console.log('\n📈 Özet:');
@@ -154,4 +203,9 @@ async function createInternshipAssignments() {
   }
 }
 
-createInternshipAssignments();
+// Script'i çalıştır
+// Dry-run için: createInternshipAssignments(true);
+// Gerçek çalıştırma için: createInternshipAssignments(false); veya createInternshipAssignments();
+
+const isDryRun = process.argv.includes('--dry-run');
+createInternshipAssignments(isDryRun);
