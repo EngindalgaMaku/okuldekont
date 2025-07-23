@@ -590,19 +590,19 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 py-8">
-        <div className="flex justify-between items-center mb-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 py-4 sm:py-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 sm:mb-8 space-y-4 sm:space-y-0">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
               Sistem Ayarları
             </h1>
-            <p className="text-gray-600 mt-2">Sistem genelinde geçerli ayarları yönetin.</p>
+            <p className="text-gray-600 mt-2 text-sm sm:text-base">Sistem genelinde geçerli ayarları yönetin.</p>
           </div>
           {activeTab !== 'backup' && (
             <button
               onClick={fetchStats}
               disabled={loading}
-              className="inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 border border-indigo-300 rounded-xl hover:bg-indigo-200 disabled:opacity-50"
+              className="inline-flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-indigo-700 bg-indigo-100 border border-indigo-300 rounded-xl hover:bg-indigo-200 disabled:opacity-50 w-full sm:w-auto justify-center"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Yenile
@@ -610,19 +610,19 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
           )}
         </div>
 
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
-              <button onClick={() => setActiveTab('genel')} className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'genel' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+            <nav className="-mb-px flex flex-col sm:flex-row sm:space-x-8 space-y-2 sm:space-y-0">
+              <button onClick={() => setActiveTab('genel')} className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm ${activeTab === 'genel' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} text-left sm:text-center`}>
                 <Settings className="h-4 w-4 inline mr-2" /> Genel Ayarlar
               </button>
-              <button onClick={() => setActiveTab('admin')} className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'admin' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+              <button onClick={() => setActiveTab('admin')} className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm ${activeTab === 'admin' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} text-left sm:text-center`}>
                 <Users className="h-4 w-4 inline mr-2" /> Admin Yönetimi
               </button>
-              <button onClick={() => setActiveTab('backup')} className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'backup' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+              <button onClick={() => setActiveTab('backup')} className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm ${activeTab === 'backup' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} text-left sm:text-center`}>
                 <HardDrive className="h-4 w-4 inline mr-2" /> Veri Yedekleme
               </button>
-              <button onClick={() => setActiveTab('pin')} className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'pin' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+              <button onClick={() => setActiveTab('pin')} className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm ${activeTab === 'pin' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} text-left sm:text-center`}>
                 <Key className="h-4 w-4 inline mr-2" /> PIN Yönetimi
               </button>
             </nav>
@@ -630,42 +630,42 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
         </div>
 
         {activeTab === 'genel' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
             <div className="lg:col-span-2">
-              <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-6 mb-8">
-                <div className="flex items-center mb-6">
-                  <Database className="h-6 w-6 text-indigo-600 mr-3" />
-                  <h2 className="text-xl font-semibold text-gray-900">Sistem İstatistikleri</h2>
+              <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-4 sm:p-6 mb-6 sm:mb-8">
+                <div className="flex items-center mb-4 sm:mb-6">
+                  <Database className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600 mr-2 sm:mr-3" />
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Sistem İstatistikleri</h2>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-                  <div className="text-center"><div className="text-3xl font-bold text-blue-600">{stats.ogrenciler}</div><div className="text-sm text-gray-600 mt-1">Öğrenci</div></div>
-                  <div className="text-center"><div className="text-3xl font-bold text-green-600">{stats.ogretmenler}</div><div className="text-sm text-gray-600 mt-1">Öğretmen</div></div>
-                  <div className="text-center"><div className="text-3xl font-bold text-orange-600">{stats.isletmeler}</div><div className="text-sm text-gray-600 mt-1">İşletme</div></div>
-                  <div className="text-center"><div className="text-3xl font-bold text-purple-600">{stats.dekontlar}</div><div className="text-sm text-gray-600 mt-1">Toplam Dekont</div></div>
-                  <div className="text-center"><div className="text-3xl font-bold text-yellow-600">{stats.bekleyenDekontlar}</div><div className="text-sm text-gray-600 mt-1">Bekleyen</div></div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-6">
+                  <div className="text-center"><div className="text-xl sm:text-3xl font-bold text-blue-600">{stats.ogrenciler}</div><div className="text-xs sm:text-sm text-gray-600 mt-1">Öğrenci</div></div>
+                  <div className="text-center"><div className="text-xl sm:text-3xl font-bold text-green-600">{stats.ogretmenler}</div><div className="text-xs sm:text-sm text-gray-600 mt-1">Öğretmen</div></div>
+                  <div className="text-center"><div className="text-xl sm:text-3xl font-bold text-orange-600">{stats.isletmeler}</div><div className="text-xs sm:text-sm text-gray-600 mt-1">İşletme</div></div>
+                  <div className="text-center"><div className="text-xl sm:text-3xl font-bold text-purple-600">{stats.dekontlar}</div><div className="text-xs sm:text-sm text-gray-600 mt-1">Toplam Dekont</div></div>
+                  <div className="text-center"><div className="text-xl sm:text-3xl font-bold text-yellow-600">{stats.bekleyenDekontlar}</div><div className="text-xs sm:text-sm text-gray-600 mt-1">Bekleyen</div></div>
                 </div>
               </div>
-              <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-6">
-                <div className="flex items-center mb-6"><Settings className="h-6 w-6 text-indigo-600 mr-3" /><h2 className="text-xl font-semibold text-gray-900">Genel Ayarlar</h2></div>
-                <div className="space-y-6">
+              <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-4 sm:p-6">
+                <div className="flex items-center mb-4 sm:mb-6"><Settings className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600 mr-2 sm:mr-3" /><h2 className="text-lg sm:text-xl font-semibold text-gray-900">Genel Ayarlar</h2></div>
+                <div className="space-y-4 sm:space-y-6">
                   <div>
                     <h3 className="text-sm font-medium text-gray-900 mb-3">Okul Bilgileri</h3>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Okul Adı</label>
-                      <input type="text" value={settings.schoolName} onChange={(e) => setSettings({ ...settings, schoolName: e.target.value })} className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Okul adını giriniz" />
+                      <input type="text" value={settings.schoolName} onChange={(e) => setSettings({ ...settings, schoolName: e.target.value })} className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base" placeholder="Okul adını giriniz" />
                       <p className="text-xs text-gray-500 mt-1">Bu isim sistem genelinde görüntülenecektir</p>
                     </div>
                     <div className="mt-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">Koordinatör Müdür Yardımcısı Adı Soyadı</label>
-                      <input type="text" value={settings.coordinator_deputy_head_name} onChange={(e) => setSettings({ ...settings, coordinator_deputy_head_name: e.target.value })} className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Örn: Ali Veli" />
+                      <input type="text" value={settings.coordinator_deputy_head_name} onChange={(e) => setSettings({ ...settings, coordinator_deputy_head_name: e.target.value })} className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base" placeholder="Örn: Ali Veli" />
                       <p className="text-xs text-gray-500 mt-1">Bu isim, görev belgelerindeki "Koordinatör Müdür Yardımcısı" imza alanında görünecektir.</p>
                     </div>
-                    <div className="mt-6">
-                      <div className="flex items-center justify-between mb-4">
+                    <div className="mt-4 sm:mt-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 space-y-2 sm:space-y-0">
                         <h3 className="text-sm font-medium text-gray-900">Aktif Eğitim Dönemi</h3>
                         <button
                           onClick={() => setShowEducationYearModal(true)}
-                          className="px-3 py-1 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                          className="px-3 py-1 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 w-full sm:w-auto text-center"
                         >
                           Yeni Dönem Ekle
                         </button>
@@ -739,34 +739,34 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                   </div>
                   <div>
                     <h3 className="text-sm font-medium text-gray-900 mb-3">Dosya Ayarları</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><label className="block text-sm font-medium text-gray-700 mb-2">Maksimum Dosya Boyutu (MB)</label><input type="number" min="1" max="50" value={settings.maxFileSize} onChange={(e) => setSettings({ ...settings, maxFileSize: parseInt(e.target.value) })} className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" /></div>
-                      <div><label className="block text-sm font-medium text-gray-700 mb-2">İzin Verilen Dosya Türleri</label><input type="text" value={settings.allowedFileTypes} onChange={(e) => setSettings({ ...settings, allowedFileTypes: e.target.value })} className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="pdf,jpg,png" /></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div><label className="block text-sm font-medium text-gray-700 mb-2">Maksimum Dosya Boyutu (MB)</label><input type="number" min="1" max="50" value={settings.maxFileSize} onChange={(e) => setSettings({ ...settings, maxFileSize: parseInt(e.target.value) })} className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base" /></div>
+                      <div><label className="block text-sm font-medium text-gray-700 mb-2">İzin Verilen Dosya Türleri</label><input type="text" value={settings.allowedFileTypes} onChange={(e) => setSettings({ ...settings, allowedFileTypes: e.target.value })} className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base" placeholder="pdf,jpg,png" /></div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
                     <div><h3 className="text-sm font-medium text-gray-900">Bakım Modu</h3><p className="text-sm text-gray-500">Sistemi geçici olarak kullanıma kapat</p></div>
                     <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked={settings.systemMaintenance} onChange={(e) => setSettings({ ...settings, systemMaintenance: e.target.checked })} className="sr-only peer" /><div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div></label>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
                     <div><h3 className="text-sm font-medium text-gray-900">Performans İzleme</h3><p className="text-sm text-gray-500">Sayfalarda performans butonu göster</p></div>
                     <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked={settings.showPerformanceMonitoring} onChange={(e) => setSettings({ ...settings, showPerformanceMonitoring: e.target.checked })} className="sr-only peer" /><div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div></label>
                   </div>
                 </div>
-                <div className="flex justify-end mt-8 pt-6 border-t border-gray-200">
-                  <button onClick={handleSaveSettings} disabled={saveLoading} className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-xl hover:bg-indigo-700 disabled:opacity-50">{saveLoading ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}{saveLoading ? 'Kaydediliyor...' : 'Ayarları Kaydet'}</button>
+                <div className="flex justify-center sm:justify-end mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200">
+                  <button onClick={handleSaveSettings} disabled={saveLoading} className="inline-flex items-center px-4 sm:px-6 py-2 sm:py-3 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-xl hover:bg-indigo-700 disabled:opacity-50 w-full sm:w-auto justify-center">{saveLoading ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}{saveLoading ? 'Kaydediliyor...' : 'Ayarları Kaydet'}</button>
                 </div>
               </div>
             </div>
-            <div className="space-y-6">
-              <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-6">
-                <div className="flex items-center mb-4"><Shield className="h-6 w-6 text-indigo-600 mr-3" /><h2 className="text-lg font-semibold text-gray-900">Lisans</h2></div>
-                <div className="space-y-4"><div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-100"><h3 className="text-sm font-medium text-gray-900 mb-3">Geliştirme Bilgileri</h3><p className="text-sm text-gray-700 leading-relaxed mb-3">Okulun bilişim teknolojileri alan öğretmenleri tarafından yapılmıştır.</p><div className="flex items-center"><Mail className="h-4 w-4 text-indigo-600 mr-2" /><span className="text-sm text-indigo-600 font-medium">İletişim: mackaengin@gmail.com</span></div></div></div>
+            <div className="space-y-4 sm:space-y-6">
+              <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-4 sm:p-6">
+                <div className="flex items-center mb-4"><Shield className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600 mr-2 sm:mr-3" /><h2 className="text-base sm:text-lg font-semibold text-gray-900">Lisans</h2></div>
+                <div className="space-y-4"><div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-3 sm:p-4 border border-indigo-100"><h3 className="text-sm font-medium text-gray-900 mb-2 sm:mb-3">Geliştirme Bilgileri</h3><p className="text-xs sm:text-sm text-gray-700 leading-relaxed mb-2 sm:mb-3">Okulun bilişim teknolojileri alan öğretmenleri tarafından yapılmıştır.</p><div className="flex items-center"><Mail className="h-3 w-3 sm:h-4 sm:w-4 text-indigo-600 mr-2" /><span className="text-xs sm:text-sm text-indigo-600 font-medium">İletişim: mackaengin@gmail.com</span></div></div></div>
               </div>
-              <div className={`rounded-2xl p-6 text-white ${settings.systemMaintenance ? 'bg-gradient-to-r from-red-500 to-orange-600' : 'bg-gradient-to-r from-indigo-500 to-purple-600'}`}>
-                <h3 className="text-lg font-semibold mb-2">Sistem Durumu</h3>
-                <p className={`text-sm mb-4 ${settings.systemMaintenance ? 'text-red-100' : 'text-indigo-100'}`}>{settings.systemMaintenance ? 'Sistem bakım modunda. Kullanıcı girişleri engellendi.' : `Sistem normal çalışıyor. Son güncelleme: ${new Date().toLocaleDateString('tr-TR')}`}</p>
-                <div className="flex items-center"><div className={`w-3 h-3 rounded-full mr-2 ${settings.systemMaintenance ? 'bg-orange-400' : 'bg-green-400'}`}></div><span className="text-sm">{settings.systemMaintenance ? 'Bakım Modunda' : 'Çevrimiçi'}</span></div>
+              <div className={`rounded-2xl p-4 sm:p-6 text-white ${settings.systemMaintenance ? 'bg-gradient-to-r from-red-500 to-orange-600' : 'bg-gradient-to-r from-indigo-500 to-purple-600'}`}>
+                <h3 className="text-base sm:text-lg font-semibold mb-2">Sistem Durumu</h3>
+                <p className={`text-xs sm:text-sm mb-3 sm:mb-4 ${settings.systemMaintenance ? 'text-red-100' : 'text-indigo-100'}`}>{settings.systemMaintenance ? 'Sistem bakım modunda. Kullanıcı girişleri engellendi.' : `Sistem normal çalışıyor. Son güncelleme: ${new Date().toLocaleDateString('tr-TR')}`}</p>
+                <div className="flex items-center"><div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full mr-2 ${settings.systemMaintenance ? 'bg-orange-400' : 'bg-green-400'}`}></div><span className="text-xs sm:text-sm">{settings.systemMaintenance ? 'Bakım Modunda' : 'Çevrimiçi'}</span></div>
               </div>
             </div>
           </div>
@@ -775,35 +775,35 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
         {activeTab === 'admin' && (<AdminManagement currentUserRole={adminRole} />)}
 
         {activeTab === 'backup' && (
-          <div className="space-y-8">
-            <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center"><HardDrive className="h-6 w-6 text-indigo-600 mr-3" /><h2 className="text-xl font-semibold text-gray-900">Veri Yedekleme Sistemi</h2></div>
-                <button onClick={fetchBackupData} disabled={backupLoading} className="inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 border border-indigo-300 rounded-xl hover:bg-indigo-200 disabled:opacity-50"><RefreshCw className={`h-4 w-4 mr-2 ${backupLoading ? 'animate-spin' : ''}`} />Yenile</button>
+          <div className="space-y-6 sm:space-y-8">
+            <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 space-y-3 sm:space-y-0">
+                <div className="flex items-center"><HardDrive className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600 mr-2 sm:mr-3" /><h2 className="text-lg sm:text-xl font-semibold text-gray-900">Veri Yedekleme Sistemi</h2></div>
+                <button onClick={fetchBackupData} disabled={backupLoading} className="inline-flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-indigo-700 bg-indigo-100 border border-indigo-300 rounded-xl hover:bg-indigo-200 disabled:opacity-50 w-full sm:w-auto justify-center"><RefreshCw className={`h-4 w-4 mr-2 ${backupLoading ? 'animate-spin' : ''}`} />Yenile</button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200"><div className="text-2xl font-bold text-blue-600">{backupStats.total_backups}</div><div className="text-sm text-blue-700 mt-1">Toplam Yedek</div></div>
-                <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-4 border border-green-200"><div className="text-2xl font-bold text-green-600">{backupStats.successful_backups}</div><div className="text-sm text-green-700 mt-1">Başarılı</div></div>
-                <div className="bg-gradient-to-r from-red-50 to-red-100 rounded-xl p-4 border border-red-200"><div className="text-2xl font-bold text-red-600">{backupStats.failed_backups}</div><div className="text-sm text-red-700 mt-1">Başarısız</div></div>
-                <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200"><div className="text-2xl font-bold text-purple-600">{Math.round((backupStats.total_size_kb || 0) / 1024)}MB</div><div className="text-sm text-purple-700 mt-1">Toplam Boyut</div></div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-3 sm:p-4 border border-blue-200"><div className="text-lg sm:text-2xl font-bold text-blue-600">{backupStats.total_backups}</div><div className="text-xs sm:text-sm text-blue-700 mt-1">Toplam Yedek</div></div>
+                <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-3 sm:p-4 border border-green-200"><div className="text-lg sm:text-2xl font-bold text-green-600">{backupStats.successful_backups}</div><div className="text-xs sm:text-sm text-green-700 mt-1">Başarılı</div></div>
+                <div className="bg-gradient-to-r from-red-50 to-red-100 rounded-xl p-3 sm:p-4 border border-red-200"><div className="text-lg sm:text-2xl font-bold text-red-600">{backupStats.failed_backups}</div><div className="text-xs sm:text-sm text-red-700 mt-1">Başarısız</div></div>
+                <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-3 sm:p-4 border border-purple-200"><div className="text-lg sm:text-2xl font-bold text-purple-600">{Math.round((backupStats.total_size_kb || 0) / 1024)}MB</div><div className="text-xs sm:text-sm text-purple-700 mt-1">Toplam Boyut</div></div>
               </div>
-              <div className="space-y-6 mb-6">
+              <div className="space-y-4 sm:space-y-6 mb-4 sm:mb-6">
                 {/* Tam Yedek */}
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-lg font-medium text-blue-900 flex items-center">
-                        <Database className="h-5 w-5 mr-2" />
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 sm:p-6 border border-blue-200">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
+                    <div className="flex-1">
+                      <h3 className="text-base sm:text-lg font-medium text-blue-900 flex items-center">
+                        <Database className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                         Tam Veri Yedeği
                       </h3>
-                      <p className="text-sm text-blue-700 mt-1">
+                      <p className="text-xs sm:text-sm text-blue-700 mt-1">
                         Tüm tabloları JSON ve SQL formatında yedekler. SQL dosyası MariaDB'ye geri yüklenebilir.
                       </p>
                     </div>
                     <button
                       onClick={handleFullBackup}
                       disabled={backupCreationLoading}
-                      className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-600 border border-transparent rounded-xl hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 shadow-lg"
+                      className="inline-flex items-center px-4 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-600 border border-transparent rounded-xl hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 shadow-lg w-full sm:w-auto justify-center"
                     >
                       {backupCreationLoading ? (
                         <>
@@ -821,21 +821,21 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                 </div>
 
                 {/* Seçmeli Yedek */}
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-lg font-medium text-green-900 flex items-center">
-                        <Database className="h-5 w-5 mr-2" />
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 sm:p-6 border border-green-200">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
+                    <div className="flex-1">
+                      <h3 className="text-base sm:text-lg font-medium text-green-900 flex items-center">
+                        <Database className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                         Seçmeli Veri Yedeği
                       </h3>
-                      <p className="text-sm text-green-700 mt-1">
+                      <p className="text-xs sm:text-sm text-green-700 mt-1">
                         İstediğiniz tabloları seçerek JSON ve SQL formatında yedekleyin.
                       </p>
                     </div>
                     <button
                       onClick={() => setShowTableSelector(true)}
                       disabled={backupCreationLoading}
-                      className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-green-600 to-emerald-600 border border-transparent rounded-xl hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 shadow-lg"
+                      className="inline-flex items-center px-4 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium text-white bg-gradient-to-r from-green-600 to-emerald-600 border border-transparent rounded-xl hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 shadow-lg w-full sm:w-auto justify-center"
                     >
                       <Database className="h-4 w-4 mr-2" />
                       Tablo Seç
@@ -849,37 +849,37 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                 </div>
               )}
             </div>
-            <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-6">
-              <div className="flex items-center mb-6"><Database className="h-6 w-6 text-indigo-600 mr-3" /><h2 className="text-xl font-semibold text-gray-900">Yedek Listesi</h2></div>
+            <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-4 sm:p-6">
+              <div className="flex items-center mb-4 sm:mb-6"><Database className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600 mr-2 sm:mr-3" /><h2 className="text-lg sm:text-xl font-semibold text-gray-900">Yedek Listesi</h2></div>
               {backupLoading ? (
-                <div className="text-center py-8"><RefreshCw className="h-8 w-8 animate-spin text-indigo-600 mx-auto mb-4" /><p className="text-gray-600">Yedek listesi yükleniyor...</p></div>
+                <div className="text-center py-6 sm:py-8"><RefreshCw className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-indigo-600 mx-auto mb-3 sm:mb-4" /><p className="text-sm sm:text-base text-gray-600">Yedek listesi yükleniyor...</p></div>
               ) : backupList.length === 0 ? (
-                <div className="text-center py-8"><HardDrive className="h-12 w-12 text-gray-300 mx-auto mb-4" /><p className="text-gray-600">Henüz yedek bulunmuyor</p><p className="text-sm text-gray-500 mt-1">İlk yedeğinizi oluşturmak için yukarıdaki butonu kullanın</p></div>
+                <div className="text-center py-6 sm:py-8"><HardDrive className="h-8 w-8 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-3 sm:mb-4" /><p className="text-sm sm:text-base text-gray-600">Henüz yedek bulunmuyor</p><p className="text-xs sm:text-sm text-gray-500 mt-1">İlk yedeğinizi oluşturmak için yukarıdaki butonu kullanın</p></div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Yedek Dosyası</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarih</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tip</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">JSON</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SQL</th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dosyalar</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">İşlemler</th>
+                        <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Yedek Dosyası</th>
+                        <th className="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarih</th>
+                        <th className="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tip</th>
+                        <th className="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">JSON</th>
+                        <th className="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SQL</th>
+                        <th className="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dosyalar</th>
+                        <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">İşlemler</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {currentBackups.map((backup: any) => (
                         <tr key={backup.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-4">
-                            <div className="text-sm font-medium text-gray-900 truncate max-w-xs">{backup.backup_name}</div>
+                          <td className="px-2 sm:px-4 py-3 sm:py-4">
+                            <div className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-xs">{backup.backup_name}</div>
                           </td>
-                          <td className="px-3 py-4 text-sm text-gray-900">
+                          <td className="px-2 sm:px-3 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">
                             <div className="whitespace-nowrap">{new Date(backup.backup_date).toLocaleString('tr-TR')}</div>
                           </td>
-                          <td className="px-3 py-4">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          <td className="px-2 sm:px-3 py-3 sm:py-4">
+                            <span className={`inline-flex px-1 sm:px-2 py-1 text-xs font-semibold rounded-full ${
                               backup.backup_type === 'MariaDB'
                                 ? 'bg-blue-100 text-blue-800'
                                 : 'bg-gray-100 text-gray-800'
@@ -887,23 +887,23 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                               {backup.backup_type || 'Legacy'}
                             </span>
                           </td>
-                          <td className="px-3 py-4 text-sm text-gray-900">{backup.size_mb} MB</td>
-                          <td className="px-3 py-4 text-sm text-gray-900">
+                          <td className="px-2 sm:px-3 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">{backup.size_mb} MB</td>
+                          <td className="px-2 sm:px-3 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">
                             {backup.has_sql ? (
                               <span className="text-green-600 font-medium">{backup.sql_size_mb} MB</span>
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
                           </td>
-                          <td className="px-3 py-4 text-sm text-gray-900">
+                          <td className="px-2 sm:px-3 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">
                             {backup.has_files ? (
                               <span className="text-blue-600 font-medium">{backup.files_size_mb} MB</span>
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
                           </td>
-                          <td className="px-4 py-4">
-                            <div className="flex space-x-2">
+                          <td className="px-2 sm:px-4 py-3 sm:py-4">
+                            <div className="flex flex-wrap gap-1 sm:gap-2">
                               <button
                                 onClick={() => handleDownloadBackup(backup)}
                                 disabled={downloadingBackup && downloadingBackupId === backup.id}
@@ -911,8 +911,8 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                                 title="JSON İndir"
                               >
                                 {downloadingBackup && downloadingBackupId === backup.id ?
-                                  <RefreshCw className="h-4 w-4 animate-spin" /> :
-                                  <Download className="h-4 w-4" />
+                                  <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> :
+                                  <Download className="h-3 w-3 sm:h-4 sm:w-4" />
                                 }
                               </button>
                               {backup.has_sql && (
@@ -922,7 +922,7 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                                   className="text-green-600 hover:text-green-900 disabled:opacity-50 p-1 hover:bg-green-50 rounded"
                                   title="SQL İndir"
                                 >
-                                  <Database className="h-4 w-4" />
+                                  <Database className="h-3 w-3 sm:h-4 sm:w-4" />
                                 </button>
                               )}
                               {backup.has_files && (
@@ -932,7 +932,7 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                                   className="text-blue-600 hover:text-blue-900 disabled:opacity-50 p-1 hover:bg-blue-50 rounded"
                                   title="Fiziksel Dosyalar İndir (Dekontlar + Belgeler)"
                                 >
-                                  <HardDrive className="h-4 w-4" />
+                                  <HardDrive className="h-3 w-3 sm:h-4 sm:w-4" />
                                 </button>
                               )}
                               {backup.backup_type === 'MariaDB' && (
@@ -942,7 +942,7 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                                   className="text-purple-600 hover:text-purple-900 disabled:opacity-50 p-1 hover:bg-purple-50 rounded"
                                   title="ZIP İndir (JSON + SQL + Rapor)"
                                 >
-                                  <HardDrive className="h-4 w-4" />
+                                  <HardDrive className="h-3 w-3 sm:h-4 sm:w-4" />
                                 </button>
                               )}
                               <button
@@ -950,7 +950,7 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                                 className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded"
                                 title="Sil"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                               </button>
                             </div>
                           </td>
@@ -961,11 +961,11 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                 </div>
               )}
               {backupList.length > itemsPerPage && (
-                <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+                <div className="bg-white px-3 sm:px-4 py-3 border-t border-gray-200 sm:px-6">
                   <div className="flex items-center justify-between">
                     <div className="flex flex-1 justify-between sm:hidden">
-                      <button onClick={goToPreviousPage} disabled={currentPage === 1} className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">Önceki</button>
-                      <button onClick={goToNextPage} disabled={currentPage === totalPages} className="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">Sonraki</button>
+                      <button onClick={goToPreviousPage} disabled={currentPage === 1} className="relative inline-flex items-center px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">Önceki</button>
+                      <button onClick={goToNextPage} disabled={currentPage === totalPages} className="relative ml-2 inline-flex items-center px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">Sonraki</button>
                     </div>
                     <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
                       <div><p className="text-sm text-gray-700"><span className="font-medium">{startIndex + 1}</span> - <span className="font-medium">{Math.min(endIndex, backupList.length)}</span> arası, <span className="font-medium">{backupList.length}</span> toplam yedek</p></div>
@@ -987,39 +987,39 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
         )}
 
         {activeTab === 'pin' && (
-          <div className="space-y-8">
-            <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-6">
-              <div className="flex items-center justify-between mb-6">
+          <div className="space-y-6 sm:space-y-8">
+            <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 space-y-3 sm:space-y-0">
                 <div className="flex items-center">
-                  <Key className="h-6 w-6 text-red-600 mr-3" />
-                  <h2 className="text-xl font-semibold text-gray-900">PIN Yönetimi</h2>
+                  <Key className="h-5 w-5 sm:h-6 sm:w-6 text-red-600 mr-2 sm:mr-3" />
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">PIN Yönetimi</h2>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-red-600" />
-                  <span className="text-sm font-medium text-red-600">Güvenlik</span>
+                  <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />
+                  <span className="text-xs sm:text-sm font-medium text-red-600">Güvenlik</span>
                 </div>
               </div>
 
-              <p className="text-gray-600 mb-8">
+              <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">
                 Öğretmen ve işletme PIN kodlarını toplu olarak resetleyin. Bu işlem sonrasında tüm kullanıcılar ilk girişlerinde yeni PIN belirlemek zorunda kalacaklar.
               </p>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
                 {/* Teacher PIN Reset */}
-                <div className="bg-blue-50 rounded-2xl p-6 border border-blue-200">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                      <Users className="w-6 h-6 text-blue-600" />
+                <div className="bg-blue-50 rounded-2xl p-4 sm:p-6 border border-blue-200">
+                  <div className="flex items-center gap-3 mb-4 sm:mb-6">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                      <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-blue-900">Öğretmen PIN Reset</h3>
-                      <p className="text-sm text-blue-700">Tüm öğretmenlerin PIN kodlarını resetle</p>
+                      <h3 className="text-base sm:text-lg font-semibold text-blue-900">Öğretmen PIN Reset</h3>
+                      <p className="text-xs sm:text-sm text-blue-700">Tüm öğretmenlerin PIN kodlarını resetle</p>
                     </div>
                   </div>
                   
-                  <div className="space-y-6">
+                  <div className="space-y-4 sm:space-y-6">
                     <div>
-                      <label className="block text-sm font-medium text-blue-700 mb-3">
+                      <label className="block text-sm font-medium text-blue-700 mb-2 sm:mb-3">
                         Yeni PIN Değeri (4 haneli)
                       </label>
                       <input
@@ -1029,7 +1029,7 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                           const value = e.target.value.replace(/\D/g, '').slice(0, 4)
                           setTeacherPinValue(value)
                         }}
-                        className="w-full px-4 py-3 border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-lg text-center font-mono tracking-widest"
+                        className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-base sm:text-lg text-center font-mono tracking-widest"
                         placeholder="2025"
                         maxLength={4}
                         disabled={pinResetLoading}
@@ -1039,18 +1039,18 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                     <button
                       onClick={handleTeacherResetClick}
                       disabled={pinResetLoading || !teacherPinValue || teacherPinValue.length !== 4}
-                      className="w-full flex items-center justify-center gap-3 bg-blue-600 text-white px-6 py-4 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                      className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-blue-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base"
                     >
                       {pinResetLoading ? (
-                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                       ) : (
-                        <RotateCcw className="w-5 h-5" />
+                        <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
                       )}
                       {pinResetLoading ? 'Resetleniyor...' : 'Öğretmen PINleri Resetle'}
                     </button>
                   </div>
                   
-                  <div className="mt-6 p-4 bg-blue-100 rounded-xl">
+                  <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-blue-100 rounded-xl">
                     <p className="text-xs text-blue-800">
                       <strong>⚠️ Uyarı:</strong> Bu işlem tüm öğretmenlerin PIN kodlarını değiştirir. İlk girişlerinde yeni PIN belirlemeye zorlanacaklar.
                     </p>
@@ -1058,20 +1058,20 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                 </div>
 
                 {/* Business PIN Reset */}
-                <div className="bg-green-50 rounded-2xl p-6 border border-green-200">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                      <Shield className="w-6 h-6 text-green-600" />
+                <div className="bg-green-50 rounded-2xl p-4 sm:p-6 border border-green-200">
+                  <div className="flex items-center gap-3 mb-4 sm:mb-6">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                      <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-green-900">İşletme PIN Reset</h3>
-                      <p className="text-sm text-green-700">Tüm işletmelerin PIN kodlarını resetle</p>
+                      <h3 className="text-base sm:text-lg font-semibold text-green-900">İşletme PIN Reset</h3>
+                      <p className="text-xs sm:text-sm text-green-700">Tüm işletmelerin PIN kodlarını resetle</p>
                     </div>
                   </div>
                   
-                  <div className="space-y-6">
+                  <div className="space-y-4 sm:space-y-6">
                     <div>
-                      <label className="block text-sm font-medium text-green-700 mb-3">
+                      <label className="block text-sm font-medium text-green-700 mb-2 sm:mb-3">
                         Yeni PIN Değeri (4 haneli)
                       </label>
                       <input
@@ -1081,7 +1081,7 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                           const value = e.target.value.replace(/\D/g, '').slice(0, 4)
                           setBusinessPinValue(value)
                         }}
-                        className="w-full px-4 py-3 border border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-lg text-center font-mono tracking-widest"
+                        className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-base sm:text-lg text-center font-mono tracking-widest"
                         placeholder="1234"
                         maxLength={4}
                         disabled={pinResetLoading}
@@ -1091,18 +1091,18 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                     <button
                       onClick={handleBusinessResetClick}
                       disabled={pinResetLoading || !businessPinValue || businessPinValue.length !== 4}
-                      className="w-full flex items-center justify-center gap-3 bg-green-600 text-white px-6 py-4 rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                      className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-green-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base"
                     >
                       {pinResetLoading ? (
-                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                       ) : (
-                        <RotateCcw className="w-5 h-5" />
+                        <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
                       )}
                       {pinResetLoading ? 'Resetleniyor...' : 'İşletme PINleri Resetle'}
                     </button>
                   </div>
                   
-                  <div className="mt-6 p-4 bg-green-100 rounded-xl">
+                  <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-green-100 rounded-xl">
                     <p className="text-xs text-green-800">
                       <strong>⚠️ Uyarı:</strong> Bu işlem tüm işletmelerin PIN kodlarını değiştirir. İlk girişlerinde yeni PIN belirlemeye zorlanacaklar.
                     </p>

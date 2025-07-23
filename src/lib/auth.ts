@@ -4,6 +4,12 @@ import { prisma } from './prisma'
 import bcrypt from 'bcryptjs'
 
 export const authOptions: NextAuthOptions = {
+  debug: process.env.NODE_ENV === 'development',
+  secret: process.env.NEXTAUTH_SECRET,
+  
+  // SSL/HTTPS configuration for production
+  useSecureCookies: process.env.NODE_ENV === 'production',
+  
   providers: [
     CredentialsProvider({
       id: 'credentials',

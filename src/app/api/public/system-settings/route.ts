@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
     const settings = await prisma.systemSetting.findMany({
       where: {
         key: {
-          in: ['aktif_egitim_yili', 'okul_adi', 'school_name']
+          in: ['aktif_egitim_yili', 'school_name']
         }
       },
       select: {

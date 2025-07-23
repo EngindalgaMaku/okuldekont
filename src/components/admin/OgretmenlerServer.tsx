@@ -83,22 +83,22 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
 
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold flex items-center gap-3">
-            <Users className="h-8 w-8 text-blue-500" />
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2 sm:gap-3">
+            <Users className="h-6 w-6 sm:h-8 sm:w-8 text-blue-500" />
             Öğretmen Yönetimi
           </h1>
-          <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2">
-            <span className="text-sm text-gray-600">Toplam: {pagination.total}</span>
+          <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2 w-fit">
+            <span className="text-xs sm:text-sm text-gray-600">Toplam: {pagination.total}</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           {/* Search Form */}
-          <form action="/admin/ogretmenler" method="GET" className="flex items-center gap-2">
+          <form action="/admin/ogretmenler" method="GET" className="flex flex-col sm:flex-row sm:items-center gap-2">
             {/* Hidden inputs to preserve other params */}
             {searchParams.alan && <input type="hidden" name="alan" value={searchParams.alan} />}
             {searchParams.per_page && <input type="hidden" name="per_page" value={searchParams.per_page} />}
@@ -110,12 +110,12 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
                 name="search"
                 defaultValue={searchParams.search || ''}
                 placeholder="Öğretmen ara..."
-                className="pl-10 pr-4 py-2 w-64 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="pl-10 pr-4 py-2 w-full sm:w-64 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
               />
             </div>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto text-sm sm:text-base"
             >
               Ara
             </button>
@@ -157,9 +157,9 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-700">
+        <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+            <div className="text-xs sm:text-sm text-gray-700 text-center sm:text-left">
               <span className="font-medium">{((pagination.page - 1) * pagination.perPage) + 1}</span>
               {' '}-{' '}
               <span className="font-medium">
@@ -169,15 +169,15 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
               <span className="font-medium">{pagination.total}</span> kayıt
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center gap-1 sm:gap-2">
               {/* First page */}
               {pagination.page > 1 && (
                 <Link
                   href={createSearchURL({ page: '1' })}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                  className="p-1 sm:p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
                   title="İlk sayfa"
                 >
-                  <ChevronsLeft className="w-4 h-4" />
+                  <ChevronsLeft className="w-3 h-3 sm:w-4 sm:h-4" />
                 </Link>
               )}
 
@@ -185,10 +185,10 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
               {pagination.page > 1 && (
                 <Link
                   href={createSearchURL({ page: (pagination.page - 1).toString() })}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                  className="p-1 sm:p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
                   title="Önceki sayfa"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4" />
                 </Link>
               )}
 
@@ -212,7 +212,7 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
                     <Link
                       key={pageNum}
                       href={createSearchURL({ page: pageNum.toString() })}
-                      className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      className={`px-2 sm:px-3 py-1 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors ${
                         isCurrentPage
                           ? 'bg-blue-600 text-white'
                           : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
@@ -228,10 +228,10 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
               {pagination.page < pagination.totalPages && (
                 <Link
                   href={createSearchURL({ page: (pagination.page + 1).toString() })}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                  className="p-1 sm:p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
                   title="Sonraki sayfa"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4" />
                 </Link>
               )}
 
@@ -239,10 +239,10 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
               {pagination.page < pagination.totalPages && (
                 <Link
                   href={createSearchURL({ page: pagination.totalPages.toString() })}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                  className="p-1 sm:p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
                   title="Son sayfa"
                 >
-                  <ChevronsRight className="w-4 h-4" />
+                  <ChevronsRight className="w-3 h-3 sm:w-4 sm:h-4" />
                 </Link>
               )}
             </div>

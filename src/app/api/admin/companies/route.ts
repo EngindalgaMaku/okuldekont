@@ -1,17 +1,61 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Get all companies with related data
+    const { searchParams } = new URL(request.url)
+    const page = parseInt(searchParams.get('page') || '1')
+    const perPage = parseInt(searchParams.get('per_page') || '10')
+    const search = searchParams.get('search') || ''
+    const filter = searchParams.get('filter') || ''
+
+    // Calculate skip for pagination
+    const skip = (page - 1) * perPage
+
+    // Build where condition
+    let whereCondition: any = {}
+    
+    if (search) {
+      whereCondition.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { contact: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } }
+      ]
+    }
+
+    if (filter === 'active') {
+      whereCondition.students = {
+        some: {}
+      }
+    } else if (filter === 'empty') {
+      whereCondition.students = {
+        none: {}
+      }
+    }
+
+    // Get total count for pagination
+    const totalCount = await prisma.companyProfile.count({
+      where: whereCondition
+    })
+
+    // Get companies with pagination
     const companies = await prisma.companyProfile.findMany({
+      where: whereCondition,
       include: {
         teacher: true,
-        user: true
+        user: true,
+        _count: {
+          select: {
+            students: true
+          }
+        }
       },
       orderBy: {
         name: 'asc'
-      }
+      },
+      skip,
+      take: perPage
     })
 
     // Transform data to match expected interface
@@ -25,6 +69,7 @@ export async function GET() {
       taxNumber: company.taxNumber,
       pin: company.pin,
       teacherId: company.teacherId,
+      _count: company._count,
       teacher: company.teacher ? {
         id: company.teacher.id,
         name: company.teacher.name,
@@ -32,14 +77,28 @@ export async function GET() {
       } : null
     }))
 
+    const totalPages = Math.ceil(totalCount / perPage)
+
     return NextResponse.json({
       success: true,
-      data: transformedCompanies
+      data: transformedCompanies,
+      pagination: {
+        page,
+        perPage,
+        totalCount,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
     })
   } catch (error) {
     console.error('Companies fetch error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch companies' },
+      {
+        success: false,
+        error: 'Database bağlantı hatası - İşletmeler yüklenemedi',
+        data: []
+      },
       { status: 500 }
     )
   }

@@ -310,6 +310,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                                 href={item.href}
                                 className={`flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 group transition-colors duration-150
                                   ${pathname === item.href ? 'bg-indigo-50 text-indigo-700' : ''}`}
+                                onClick={() => setSidebarOpen(false)}
                               >
                                 <item.icon className={`w-5 h-5 ${pathname === item.href ? 'text-indigo-600' : 'text-gray-400 group-hover:text-indigo-600'}`} />
                                 <span className="font-medium">{item.title}</span>
@@ -319,6 +320,113 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                           ))}
                         </ul>
                       </li>
+                      
+                      {/* Quick Links for Mobile */}
+                      <li>
+                        <div className="text-xs font-semibold leading-6 text-gray-400 px-3">Hızlı Erişim</div>
+                        <ul role="list" className="-mx-2 mt-2 space-y-1">
+                          <Link
+                            href="/admin/isletmeler"
+                            className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-orange-50 hover:text-orange-700 group transition-colors duration-150"
+                            onClick={() => setSidebarOpen(false)}
+                          >
+                            <Building2 className="w-5 h-5 text-gray-400 group-hover:text-orange-600" />
+                            <span className="font-medium">İşletmeler</span>
+                          </Link>
+                          <Link
+                            href="/admin/ogretmenler"
+                            className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-blue-50 hover:text-blue-700 group transition-colors duration-150"
+                            onClick={() => setSidebarOpen(false)}
+                          >
+                            <UserCheck className="w-5 h-5 text-gray-400 group-hover:text-blue-600" />
+                            <span className="font-medium">Öğretmenler</span>
+                          </Link>
+                          <Link
+                            href="/admin/stajlar"
+                            className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-green-50 hover:text-green-700 group transition-colors duration-150"
+                            onClick={() => setSidebarOpen(false)}
+                          >
+                            <GraduationCap className="w-5 h-5 text-gray-400 group-hover:text-green-600" />
+                            <span className="font-medium">Stajlar</span>
+                          </Link>
+                        </ul>
+                      </li>
+
+                      {/* User Menu for Mobile */}
+                      {user && (
+                        <li className="mt-auto">
+                          <div className="border-t border-gray-200 pt-4">
+                            <div className="px-3 mb-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center shadow-sm">
+                                  <span className="text-sm font-medium text-indigo-600">
+                                    {(adminUserName ||
+                                      user.user_metadata?.full_name ||
+                                      user.user_metadata?.name ||
+                                      user.email ||
+                                      'A').charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {adminUserName ||
+                                     user.user_metadata?.full_name ||
+                                     user.user_metadata?.name ||
+                                     user.email?.split('@')[0] ||
+                                     'Admin Kullanıcı'}
+                                  </p>
+                                  <p className="text-xs font-medium bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                                    {adminRole === 'super_admin' ? 'K. Müd. Yard.' :
+                                     adminRole === 'admin' ? 'Admin' :
+                                     adminRole === 'operator' ? 'Admin' : 'Admin'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            <ul role="list" className="-mx-2 space-y-1">
+                              <Link
+                                href="/admin/mesajlar"
+                                className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-purple-50 hover:text-purple-700 group transition-colors duration-150"
+                                onClick={() => setSidebarOpen(false)}
+                              >
+                                <MessageCircle className="w-5 h-5 text-gray-400 group-hover:text-purple-600" />
+                                <span className="font-medium">Mesajlar</span>
+                              </Link>
+                              <Link
+                                href="/admin/profil"
+                                className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 group transition-colors duration-150"
+                                onClick={() => setSidebarOpen(false)}
+                              >
+                                <User className="w-5 h-5 text-gray-400 group-hover:text-indigo-600" />
+                                <span className="font-medium">Profil</span>
+                              </Link>
+                              <Link
+                                href="/admin/ayarlar"
+                                className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 group transition-colors duration-150"
+                                onClick={() => setSidebarOpen(false)}
+                              >
+                                <Settings className="w-5 h-5 text-gray-400 group-hover:text-indigo-600" />
+                                <span className="font-medium">Ayarlar</span>
+                              </Link>
+                              <button
+                                onClick={() => {
+                                  setSidebarOpen(false)
+                                  handleLogout()
+                                }}
+                                disabled={isSigningOut}
+                                className="flex w-full items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-700 group transition-colors duration-150 disabled:opacity-50"
+                              >
+                                {isSigningOut ? (
+                                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-400"></div>
+                                ) : (
+                                  <LogOut className="w-5 h-5 text-gray-400 group-hover:text-red-600" />
+                                )}
+                                <span className="font-medium">{isSigningOut ? 'Çıkış Yapılıyor...' : 'Çıkış Yap'}</span>
+                              </button>
+                            </ul>
+                          </div>
+                        </li>
+                      )}
                     </ul>
                   </nav>
                 </div>

@@ -17,7 +17,7 @@ export default async function IsletmeYonetimiPage({ searchParams }: PageProps) {
   const params = await searchParams
   
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-8">
       <Suspense fallback={<IsletmelerLoading />}>
         <IsletmelerServerPrisma searchParams={params} />
       </Suspense>

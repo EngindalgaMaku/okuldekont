@@ -35,8 +35,8 @@ export default function OgretmenlerFilterClient({ alanlar, currentAlan, currentS
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-4">
-      <div className="flex flex-wrap items-center gap-4">
+    <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-gray-500" />
           <span className="text-sm font-medium text-gray-700">Filtreler:</span>
@@ -46,7 +46,7 @@ export default function OgretmenlerFilterClient({ alanlar, currentAlan, currentS
         <select
           value={currentAlan || 'all'}
           onChange={handleAlanChange}
-          className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto"
         >
           <option value="all">Tüm Alanlar</option>
           {alanlar.map((alan: Alan) => (
@@ -57,7 +57,7 @@ export default function OgretmenlerFilterClient({ alanlar, currentAlan, currentS
         </select>
 
         {/* Active filters display */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {currentSearch && (
             <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-md">
               Arama: "{currentSearch}"
@@ -94,7 +94,7 @@ export default function OgretmenlerFilterClient({ alanlar, currentAlan, currentS
         {(currentSearch || (currentAlan && currentAlan !== 'all')) && (
           <button
             onClick={() => router.push('/admin/ogretmenler')}
-            className="text-sm text-gray-500 hover:text-gray-700 underline"
+            className="text-sm text-gray-500 hover:text-gray-700 underline w-full sm:w-auto text-center"
           >
             Tüm filtreleri temizle
           </button>

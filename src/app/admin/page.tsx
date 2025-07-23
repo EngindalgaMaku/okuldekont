@@ -293,156 +293,160 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Bar */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 mb-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 sm:py-4 mb-4 sm:mb-6">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <GraduationCap className="w-8 h-8" />
-              <div>
-                <h1 className="text-xl font-bold">{schoolName || 'Okul Adı'} - Koordinatörlük Yönetimi</h1>
-                <p className="text-indigo-100 text-sm">Eğitim ve staj süreçlerini koordine edin</p>
+            <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+              <GraduationCap className="w-6 h-6 sm:w-8 sm:h-8 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                {/* Mobile Title */}
+                <h1 className="text-sm font-bold truncate sm:hidden">{schoolName || 'Okul'}</h1>
+                {/* Desktop Title */}
+                <h1 className="hidden sm:block text-xl font-bold">{schoolName || 'Okul Adı'} - Koordinatörlük Yönetimi</h1>
+                <p className="text-indigo-100 text-xs sm:text-sm hidden sm:block">Eğitim ve staj süreçlerini koordine edin</p>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
               {showPerformanceIndicator && (
                 <button
                   onClick={() => setShowPerformanceModal(true)}
-                  className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-sm transition-colors"
+                  className="hidden sm:flex items-center space-x-2 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-sm transition-colors"
                 >
                   <Zap className="w-4 h-4" />
                   <span>⏱️ {performanceData.totalTime}ms</span>
                 </button>
               )}
-              <button 
+              <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-sm transition-colors disabled:opacity-50"
+                className="flex items-center space-x-1 sm:space-x-2 bg-white/20 hover:bg-white/30 px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm transition-colors disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span>Yenile</span>
+                <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Yenile</span>
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         {/* Welcome Message */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-center justify-between">
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
             <div className="flex items-center space-x-3">
-              <GraduationCap className="w-8 h-8 text-indigo-600" />
+              <GraduationCap className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-600" />
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
                   Hoşgeldiniz, {stats.userName}!
                 </h2>
-                <p className="text-gray-600">
+                <p className="text-sm sm:text-base text-gray-600">
                   Koordinatörlük yönetim sistemi
                 </p>
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <label className="flex items-center space-x-2 text-sm text-gray-600">
+              <label className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600">
                 <input
                   type="checkbox"
                   checked={showPerformanceIndicator}
                   onChange={(e) => setShowPerformanceIndicator(e.target.checked)}
                   className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                 />
-                <span>Performans göstergesi</span>
+                <span className="hidden sm:inline">Performans göstergesi</span>
+                <span className="sm:hidden">Performans</span>
               </label>
             </div>
           </div>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6 sm:mb-8">
+          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Toplam Dekont</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.dekontStats.total}</p>
-                <p className="text-xs text-green-600 mt-1">↗️ Bu ay</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Toplam Dekont</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.total}</p>
+                <p className="text-xs text-green-600 mt-1 hidden sm:block">↗️ Bu ay</p>
               </div>
-              <FileText className="w-8 h-8 text-blue-600" />
+              <FileText className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 flex-shrink-0" />
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Bekleyen</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.dekontStats.pending}</p>
-                <p className="text-xs text-blue-600 mt-1">İncele →</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Bekleyen</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.pending}</p>
+                <p className="text-xs text-blue-600 mt-1 hidden sm:block">İncele →</p>
               </div>
-              <Clock className="w-8 h-8 text-yellow-600" />
+              <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-600 flex-shrink-0" />
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Onaylanan</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.dekontStats.approved}</p>
-                <p className="text-xs text-green-600 mt-1">Bu hafta</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Onaylanan</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.approved}</p>
+                <p className="text-xs text-green-600 mt-1 hidden sm:block">Bu hafta</p>
               </div>
-              <CheckCircle className="w-8 h-8 text-green-600" />
+              <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 flex-shrink-0" />
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Reddedilen</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.dekontStats.rejected}</p>
-                <p className="text-xs text-red-600 mt-1">Bu hafta</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Reddedilen</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.rejected}</p>
+                <p className="text-xs text-red-600 mt-1 hidden sm:block">Bu hafta</p>
               </div>
-              <XCircle className="w-8 h-8 text-red-600" />
+              <XCircle className="w-6 h-6 sm:w-8 sm:h-8 text-red-600 flex-shrink-0" />
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Aktif Öğretmen</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.teacherCount}</p>
-                <p className="text-xs text-blue-600 mt-1">Yönet →</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Öğretmen</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.teacherCount}</p>
+                <p className="text-xs text-blue-600 mt-1 hidden sm:block">Yönet →</p>
               </div>
-              <Users className="w-8 h-8 text-purple-600" />
+              <Users className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600 flex-shrink-0" />
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Kayıtlı İşletme</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.companyCount}</p>
-                <p className="text-xs text-orange-600 mt-1">Görüntüle →</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">İşletme</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.companyCount}</p>
+                <p className="text-xs text-orange-600 mt-1 hidden sm:block">Görüntüle →</p>
               </div>
-              <Building2 className="w-8 h-8 text-orange-600" />
+              <Building2 className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600 flex-shrink-0" />
             </div>
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Hızlı İşlemler</h3>
-            <button className="text-sm text-indigo-600 hover:text-indigo-700">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900">Hızlı İşlemler</h3>
+            <button className="text-xs sm:text-sm text-indigo-600 hover:text-indigo-700 hidden sm:block">
               Tümünü Gör →
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {quickActions.map((action, index) => (
-              <div key={index} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow cursor-pointer">
-                <div className={`w-12 h-12 rounded-lg ${action.bgColor} flex items-center justify-center mb-4`}>
-                  <action.icon className={`w-6 h-6 ${action.color}`} />
+              <div key={index} className="bg-white rounded-lg shadow-sm p-4 sm:p-6 hover:shadow-md transition-shadow cursor-pointer">
+                <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-lg ${action.bgColor} flex items-center justify-center mb-3 sm:mb-4`}>
+                  <action.icon className={`w-4 h-4 sm:w-6 sm:h-6 ${action.color}`} />
                 </div>
-                <h4 className="text-lg font-semibold text-gray-900 mb-2">{action.title}</h4>
-                <p className="text-sm text-gray-600 mb-3">{action.description}</p>
+                <h4 className="text-sm sm:text-lg font-semibold text-gray-900 mb-1 sm:mb-2 leading-tight">{action.title}</h4>
+                <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3 hidden sm:block">{action.description}</p>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-indigo-600">Başlat</span>
-                  <ArrowRight className="w-4 h-4 text-indigo-600" />
+                  <span className="text-xs sm:text-sm text-indigo-600">Başlat</span>
+                  <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-indigo-600" />
                 </div>
               </div>
             ))}
@@ -450,24 +454,26 @@ export default function AdminDashboard() {
         </div>
 
         {/* Recent Activities */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Son Aktiviteler</h3>
-            <button className="text-sm text-indigo-600 hover:text-indigo-700">
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900">Son Aktiviteler</h3>
+            <button className="text-xs sm:text-sm text-indigo-600 hover:text-indigo-700 hidden sm:block">
               Tümünü Gör →
             </button>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {activities.map((activity) => (
-              <div key={activity.id} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getActivityColor(activity.color)}`}>
-                  {getActivityIcon(activity.icon)}
+              <div key={activity.id} className="flex items-center space-x-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center ${getActivityColor(activity.color)} flex-shrink-0`}>
+                  <div className="w-4 h-4 sm:w-5 sm:h-5">
+                    {getActivityIcon(activity.icon)}
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <h4 className="text-sm font-medium text-gray-900">{activity.title}</h4>
-                  <p className="text-sm text-gray-600">{activity.description}</p>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-xs sm:text-sm font-medium text-gray-900 truncate">{activity.title}</h4>
+                  <p className="text-xs sm:text-sm text-gray-600 truncate">{activity.description}</p>
                 </div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-gray-500 flex-shrink-0">
                   {activity.time}
                 </div>
               </div>

@@ -20,28 +20,36 @@ export function EgitimYiliProvider({ children }: { children: ReactNode }) {
     const loadSystemData = async () => {
       setLoading(true)
       try {
-        const response = await fetch('/api/public/system-settings')
+        // Cache-busting için timestamp ekliyoruz
+        const timestamp = new Date().getTime()
+        const response = await fetch(`/api/public/system-settings?t=${timestamp}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        })
         
         if (!response.ok) {
-          throw new Error('API isteği başarısız')
+          throw new Error(`API isteği başarısız: ${response.status}`)
         }
 
         const data = await response.json()
 
         const settings: { [key: string]: string } = {}
-        if (data) {
+        if (data && Array.isArray(data)) {
           data.forEach((setting: { key: string; value: string }) => {
             settings[setting.key] = setting.value
           })
         }
 
-        setEgitimYili(settings.aktif_egitim_yili || 'Eğitim Yılı Yok')
-        setOkulAdi(settings.okul_adi || 'Okul Adı Yok')
+        setEgitimYili(settings.aktif_egitim_yili || '2023-2024')
+        setOkulAdi(settings.school_name || 'Hüsniye Özdilek Ticaret MTAL')
 
       } catch (error) {
         console.error('Sistem verileri yüklenemedi, varsayılan değerler kullanılıyor:', error)
         setEgitimYili('2023-2024')
-        setOkulAdi('')
+        setOkulAdi('Hüsniye Özdilek Ticaret MTAL') // Mobilde de varsayılan okul adı
       } finally {
         setLoading(false)
       }
