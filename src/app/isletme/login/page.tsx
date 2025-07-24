@@ -3,13 +3,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
-import { User, Lock, Building, ChevronDown, Loader, AlertTriangle, Search } from 'lucide-react'
+import { Building, Lock, ChevronDown, Loader, AlertTriangle, Search } from 'lucide-react'
 import PinPad from '@/components/ui/PinPad'
 
-interface Ogretmen {
+interface Isletme {
   id: string;
   name: string;
-  surname: string;
+  contact: string;
 }
 
 // Debounce hook
@@ -29,13 +29,13 @@ function useDebounce(value: string, delay: number) {
   return debouncedValue
 }
 
-export default function OgretmenLoginPage() {
+export default function IsletmeLoginPage() {
   const router = useRouter()
-  const [selectedOgretmen, setSelectedOgretmen] = useState<Ogretmen | null>(null)
+  const [selectedIsletme, setSelectedIsletme] = useState<Isletme | null>(null)
   const [pinInput, setPinInput] = useState('')
   const [pinError, setPinError] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
-  const [searchResults, setSearchResults] = useState<Ogretmen[]>([])
+  const [searchResults, setSearchResults] = useState<Isletme[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
@@ -48,7 +48,7 @@ export default function OgretmenLoginPage() {
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
   // Server-side arama fonksiyonu
-  const searchOgretmenler = useCallback(async (term: string) => {
+  const searchIsletmeler = useCallback(async (term: string) => {
     if (term.length < 2) {
       setSearchResults([]);
       return;
@@ -57,21 +57,21 @@ export default function OgretmenLoginPage() {
     setIsSearching(true);
 
     try {
-      const response = await fetch(`/api/search/teachers?term=${encodeURIComponent(term)}&limit=10`);
+      const response = await fetch(`/api/search/companies?term=${encodeURIComponent(term)}&limit=10`);
       if (response.ok) {
         const data = await response.json();
-        // API'den gelen veriyi Ogretmen arayüzüne uygun hale getir
+        // API'den gelen veriyi Isletme arayüzüne uygun hale getir
         const formattedData = data.map((item: any) => ({
           id: item.id,
           name: item.name,
-          surname: item.surname,
+          contact: item.contact,
         }));
         setSearchResults(formattedData);
       } else {
         setSearchResults([]);
       }
     } catch (error) {
-      console.error('Öğretmen arama hatası:', error);
+      console.error('İşletme arama hatası:', error);
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -115,11 +115,11 @@ export default function OgretmenLoginPage() {
   // Debounced search term değiştiğinde arama yap
   useEffect(() => {
     if (debouncedSearchTerm) {
-      searchOgretmenler(debouncedSearchTerm)
+      searchIsletmeler(debouncedSearchTerm)
     } else {
       setSearchResults([])
     }
-  }, [debouncedSearchTerm, searchOgretmenler])
+  }, [debouncedSearchTerm, searchIsletmeler])
 
   // PIN 4 hane olduğunda otomatik giriş yap
   useEffect(() => {
@@ -128,15 +128,15 @@ export default function OgretmenLoginPage() {
     }
   }, [pinInput, isLoggingIn])
 
-  const handleItemSelect = (ogretmen: Ogretmen) => {
-    setSelectedOgretmen(ogretmen);
-    setSearchTerm(`${ogretmen.name} ${ogretmen.surname}`);
+  const handleItemSelect = (isletme: Isletme) => {
+    setSelectedIsletme(isletme);
+    setSearchTerm(`${isletme.name}`);
     setIsDropdownOpen(false)
     setSearchResults([])
   }
 
   const resetSelection = () => {
-    setSelectedOgretmen(null)
+    setSelectedIsletme(null)
     setSearchTerm('')
     setIsDropdownOpen(false)
     setSearchResults([])
@@ -164,8 +164,8 @@ export default function OgretmenLoginPage() {
       // Continue with login if maintenance check fails
     }
     
-    if (!selectedOgretmen) {
-      setPinError('Lütfen bir öğretmen seçin');
+    if (!selectedIsletme) {
+      setPinError('Lütfen bir işletme seçin');
       setIsLoggingIn(false);
       return;
     }
@@ -184,8 +184,8 @@ export default function OgretmenLoginPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          entityType: 'teacher',
-          entityId: selectedOgretmen.id,
+          entityType: 'company',
+          entityId: selectedIsletme.id,
         }),
       });
 
@@ -207,8 +207,8 @@ export default function OgretmenLoginPage() {
 
     try {
       const result = await signIn('pin', {
-        type: 'ogretmen',
-        entityId: selectedOgretmen.id,
+        type: 'isletme',
+        entityId: selectedIsletme.id,
         pin: pinInput,
         ipAddress: window.location.hostname,
         userAgent: navigator.userAgent,
@@ -219,7 +219,7 @@ export default function OgretmenLoginPage() {
         setPinError('Hatalı PIN kodu girdiniz veya hesabınız bloke edilmiştir.');
         setIsLoggingIn(false);
       } else if (result?.ok) {
-        router.push('/ogretmen/panel');
+        router.push('/isletme');
       } else {
         setPinError('Bilinmeyen bir hata oluştu.');
         setIsLoggingIn(false);
@@ -234,9 +234,9 @@ export default function OgretmenLoginPage() {
   // Loading state for maintenance check
   if (maintenanceCheckLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-100 flex items-center justify-center">
         <div className="bg-white p-8 rounded-xl shadow-lg">
-          <Loader className="h-8 w-8 animate-spin text-blue-500 mx-auto" />
+          <Loader className="h-8 w-8 animate-spin text-orange-500 mx-auto" />
           <p className="text-gray-600 mt-4 text-center">Sistem kontrol ediliyor...</p>
         </div>
       </div>
@@ -254,7 +254,7 @@ export default function OgretmenLoginPage() {
                 <AlertTriangle className="h-8 w-8 text-red-600" />
               </div>
               <h1 className="text-2xl font-bold text-red-900 mb-2">Sistem Bakımda</h1>
-              <p className="text-red-700 mb-4">Öğretmen paneli şu anda bakım modunda olduğu için giriş yapılamaz.</p>
+              <p className="text-red-700 mb-4">İşletme paneli şu anda bakım modunda olduğu için giriş yapılamaz.</p>
             </div>
 
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
@@ -293,22 +293,22 @@ export default function OgretmenLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
         <div className="p-8">
           <div className="text-center mb-8">
-            <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <User className="h-8 w-8 text-blue-600" />
+            <div className="bg-orange-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Building className="h-8 w-8 text-orange-600" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Öğretmen Girişi</h1>
-            <p className="text-gray-600">Öğretmen adınızı arayın ve PIN kodunuzu girin</p>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">İşletme Girişi</h1>
+            <p className="text-gray-600">İşletme adınızı arayın ve PIN kodunuzu girin</p>
           </div>
           
           <div className="space-y-6">
-          {/* Öğretmen Seçimi */}
+          {/* İşletme Seçimi */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Öğretmen Seçin
+              İşletme Seçin
             </label>
             <div className="relative">
               {/* Arama input'u */}
@@ -327,19 +327,19 @@ export default function OgretmenLoginPage() {
                   onFocus={() => {
                     setIsDropdownOpen(true)
                     if (searchTerm.length >= 2) {
-                      searchOgretmenler(searchTerm)
+                      searchIsletmeler(searchTerm)
                     }
                   }}
                   onBlur={() => {
                     // Timeout ile kapat ki item seçimi çalışsın
                     setTimeout(() => setIsDropdownOpen(false), 150)
                   }}
-                  placeholder="Öğretmen adı yazın (min. 2 karakter)..."
-                  className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="İşletme adı yazın (min. 2 karakter)..."
+                  className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                 />
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center">
                   {isSearching && (
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent mr-2"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-orange-500 border-t-transparent mr-2"></div>
                   )}
                   <ChevronDown
                     className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`}
@@ -347,13 +347,18 @@ export default function OgretmenLoginPage() {
                 </div>
               </div>
 
-              {/* Seçilen öğretmen gösterimi */}
-              {selectedOgretmen && (
-                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              {/* Seçilen işletme gösterimi */}
+              {selectedIsletme && (
+                <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                   <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-blue-700">
-                      <User className="h-4 w-4" />
-                      {selectedOgretmen.name} {selectedOgretmen.surname}
+                    <span className="flex items-center gap-2 text-orange-700">
+                      <Building className="h-4 w-4" />
+                      <div>
+                        <div className="font-medium">{selectedIsletme.name}</div>
+                        {selectedIsletme.contact && (
+                          <div className="text-xs text-orange-600">{selectedIsletme.contact}</div>
+                        )}
+                      </div>
                     </span>
                     <button
                       type="button"
@@ -361,7 +366,7 @@ export default function OgretmenLoginPage() {
                         resetSelection()
                         setPinError('')
                       }}
-                      className="text-blue-600 hover:text-blue-800 text-sm"
+                      className="text-orange-600 hover:text-orange-800 text-sm"
                     >
                       Değiştir
                     </button>
@@ -375,21 +380,24 @@ export default function OgretmenLoginPage() {
                   {isSearching ? (
                     <div className="px-4 py-3 text-gray-500 text-center">
                       <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent mr-2"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-orange-500 border-t-transparent mr-2"></div>
                         Aranıyor...
                       </div>
                     </div>
                   ) : searchResults.length > 0 ? (
-                    searchResults.map((ogretmen) => (
+                    searchResults.map((isletme) => (
                       <button
-                        key={ogretmen.id}
+                        key={isletme.id}
                         type="button"
-                        onClick={() => handleItemSelect(ogretmen)}
+                        onClick={() => handleItemSelect(isletme)}
                         className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none flex items-center gap-2 border-b border-gray-100 last:border-b-0"
                       >
-                        <User className="h-4 w-4 text-gray-400" />
+                        <Building className="h-4 w-4 text-gray-400" />
                         <div>
-                          <div className="font-medium text-gray-900">{ogretmen.name} {ogretmen.surname}</div>
+                          <div className="font-medium text-gray-900">{isletme.name}</div>
+                          {isletme.contact && (
+                            <div className="text-sm text-gray-500">{isletme.contact}</div>
+                          )}
                         </div>
                       </button>
                     ))
@@ -422,7 +430,7 @@ export default function OgretmenLoginPage() {
                   setPinError('')
                 }}
                 maxLength={4}
-                disabled={!selectedOgretmen || isLoggingIn}
+                disabled={!selectedIsletme || isLoggingIn}
               />
             </div>
 
@@ -433,8 +441,8 @@ export default function OgretmenLoginPage() {
             )}
 
             {isLoggingIn && (
-              <div className="flex items-center justify-center space-x-2 text-blue-600 p-3">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+              <div className="flex items-center justify-center space-x-2 text-orange-600 p-3">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-orange-600 border-t-transparent"></div>
                 <span className="text-sm">Giriş yapılıyor...</span>
               </div>
             )}
@@ -452,4 +460,4 @@ export default function OgretmenLoginPage() {
       </div>
     </div>
   )
-} 
+}

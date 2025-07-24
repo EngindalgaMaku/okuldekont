@@ -51,10 +51,14 @@ model TeacherProfile {
   userId   String  @unique
   alanId   String?
   active   Boolean @default(true)
-  
+  isLocked Boolean @default(false)
+  lockStartTime DateTime?
+  failedAttempts Int @default(0)
+  lastFailedAttempt DateTime?
+
   user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   alan Alan? @relation(fields: [alanId], references: [id])
-  
+
   // Relations
   stajlar                    Staj[]
   dekontlar                  Dekont[]
@@ -63,7 +67,8 @@ model TeacherProfile {
   belgeler                   Belge[]
   teacherAssignments         TeacherAssignmentHistory[]
   previousTeacherAssignments TeacherAssignmentHistory[] @relation("PreviousTeacherAssignment")
-  
+  pinAttempts                PinAttempt[] @relation("TeacherPinAttempts")
+
   @@map("teachers")
 }
 
@@ -85,6 +90,10 @@ model CompanyProfile {
   stateContributionRequest String?
   masterTeacherName       String?
   masterTeacherPhone      String?
+  isLocked                Boolean   @default(false)
+  lockStartTime           DateTime?
+  failedAttempts          Int       @default(0)
+  lastFailedAttempt       DateTime?
 
   user    User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
   teacher TeacherProfile? @relation(fields: [teacherId], references: [id])
@@ -95,6 +104,7 @@ model CompanyProfile {
   students                Student[]
   belgeler                Belge[]
   teacherAssignmentHistory TeacherAssignmentHistory[]
+  pinAttempts             PinAttempt[] @relation("CompanyPinAttempts")
 
   @@map("companies")
 }
@@ -330,6 +340,27 @@ model TeacherAssignmentHistory {
   @@index([teacherId])
   @@index([assignedAt])
   @@map("teacher_assignment_history")
+}
+
+// PIN Security System
+model PinAttempt {
+  id           String   @id @default(cuid())
+  entityType   String   // 'teacher' or 'company'
+  entityId     String   // Generic ID for teacher or company
+  teacherId    String?  // Specific teacher ID
+  companyId    String?  // Specific company ID
+  ipAddress    String?
+  userAgent    String?
+  successful   Boolean  @default(false)
+  attemptedAt  DateTime @default(now())
+  
+  // Relations
+  teacher      TeacherProfile? @relation("TeacherPinAttempts", fields: [teacherId], references: [id])
+  company      CompanyProfile? @relation("CompanyPinAttempts", fields: [companyId], references: [id])
+  
+  @@index([entityType, entityId])
+  @@index([attemptedAt])
+  @@map("pin_attempts")
 }
 
 // System Settings

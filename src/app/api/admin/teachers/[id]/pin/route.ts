@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { resetFailedAttempts } from '@/lib/pin-security'
 
 export async function PUT(
   request: NextRequest,
@@ -22,13 +23,8 @@ export async function PUT(
       data: { pin }
     })
 
-    // Giriş denemelerini temizle (eğer böyle bir tablo varsa)
-    // Bu tabloyu henüz Prisma schema'da tanımlamadığımız için try-catch kullanıyoruz
-    try {
-      await prisma.$executeRaw`DELETE FROM ogretmen_giris_denemeleri WHERE ogretmen_id = ${id}`
-    } catch (error) {
-      console.warn('Giriş denemelerini temizleme hatası:', error)
-    }
+    // PIN güvenlik sistemini resetle (bloke kaldır ve denemeleri temizle)
+    await resetFailedAttempts('teacher', id)
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -61,13 +57,8 @@ export async function POST(
       data: { pin }
     })
 
-    // Giriş denemelerini temizle (eğer böyle bir tablo varsa)
-    // Bu tabloyu henüz Prisma schema'da tanımlamadığımız için try-catch kullanıyoruz
-    try {
-      await prisma.$executeRaw`DELETE FROM ogretmen_giris_denemeleri WHERE ogretmen_id = ${id}`
-    } catch (error) {
-      console.warn('Giriş denemelerini temizleme hatası:', error)
-    }
+    // PIN güvenlik sistemini resetle (bloke kaldır ve denemeleri temizle)
+    await resetFailedAttempts('teacher', id)
 
     return NextResponse.json({ success: true })
   } catch (error) {

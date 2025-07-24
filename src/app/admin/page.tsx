@@ -2,14 +2,15 @@
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { 
-  GraduationCap, 
-  Users, 
-  Building2, 
-  BookOpen, 
-  CheckCircle, 
-  Clock, 
-  XCircle, 
+import Link from 'next/link'
+import {
+  GraduationCap,
+  Users,
+  Building2,
+  BookOpen,
+  CheckCircle,
+  Clock,
+  XCircle,
   FileText,
   BarChart3,
   Settings,
@@ -136,6 +137,8 @@ export default function AdminDashboard() {
   const [showPerformanceIndicator, setShowPerformanceIndicator] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [schoolName, setSchoolName] = useState('')
+  const [activities, setActivities] = useState<any[]>([])
+  const [activitiesLoading, setActivitiesLoading] = useState(true)
 
   useEffect(() => {
     if (status === 'loading') return
@@ -146,6 +149,7 @@ export default function AdminDashboard() {
 
     fetchDashboardData()
     fetchSchoolName()
+    fetchRecentActivities()
   }, [session, status])
 
   const fetchDashboardData = async () => {
@@ -186,8 +190,23 @@ export default function AdminDashboard() {
     }
   }
 
+  const fetchRecentActivities = async () => {
+    setActivitiesLoading(true)
+    try {
+      const response = await fetch('/api/admin/recent-activities')
+      const data = await response.json()
+      setActivities(data)
+    } catch (error) {
+      console.error('Recent activities fetch error:', error)
+      setActivities([])
+    } finally {
+      setActivitiesLoading(false)
+    }
+  }
+
   const handleRefresh = () => {
     fetchDashboardData()
+    fetchRecentActivities()
   }
 
   const quickActions = [
@@ -222,36 +241,6 @@ export default function AdminDashboard() {
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
       href: '/admin/isletmeler'
-    }
-  ]
-
-  const activities = [
-    {
-      id: '1',
-      type: 'dekont_pending',
-      title: 'Yeni dekont bekleniyor',
-      description: 'Ahmet Yılmaz - ABC Teknoloji Ltd.',
-      time: '2 saat önce',
-      icon: 'clock',
-      color: 'yellow'
-    },
-    {
-      id: '2',
-      type: 'dekont_approved',
-      title: 'Dekont onaylandı',
-      description: 'Fatma Demir - XYZ İnşaat A.Ş.',
-      time: '1 gün önce',
-      icon: 'check',
-      color: 'green'
-    },
-    {
-      id: '3',
-      type: 'dekont_rejected',
-      title: 'Dekont reddedildi',
-      description: 'Mehmet Kaya - DEF Makine Ltd.',
-      time: '2 gün önce',
-      icon: 'x',
-      color: 'red'
     }
   ]
 
@@ -438,7 +427,7 @@ export default function AdminDashboard() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {quickActions.map((action, index) => (
-              <div key={index} className="bg-white rounded-lg shadow-sm p-4 sm:p-6 hover:shadow-md transition-shadow cursor-pointer">
+              <Link key={index} href={action.href} className="bg-white rounded-lg shadow-sm p-4 sm:p-6 hover:shadow-md transition-shadow cursor-pointer block">
                 <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-lg ${action.bgColor} flex items-center justify-center mb-3 sm:mb-4`}>
                   <action.icon className={`w-4 h-4 sm:w-6 sm:h-6 ${action.color}`} />
                 </div>
@@ -448,7 +437,7 @@ export default function AdminDashboard() {
                   <span className="text-xs sm:text-sm text-indigo-600">Başlat</span>
                   <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-indigo-600" />
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -462,22 +451,33 @@ export default function AdminDashboard() {
             </button>
           </div>
           <div className="space-y-3 sm:space-y-4">
-            {activities.map((activity) => (
-              <div key={activity.id} className="flex items-center space-x-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
-                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center ${getActivityColor(activity.color)} flex-shrink-0`}>
-                  <div className="w-4 h-4 sm:w-5 sm:h-5">
-                    {getActivityIcon(activity.icon)}
+            {activitiesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                <span className="ml-2 text-gray-600">Aktiviteler yükleniyor...</span>
+              </div>
+            ) : activities.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">Henüz aktivite bulunmuyor.</p>
+              </div>
+            ) : (
+              activities.map((activity) => (
+                <div key={activity.id} className="flex items-center space-x-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                  <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center ${getActivityColor(activity.color)} flex-shrink-0`}>
+                    <div className="w-4 h-4 sm:w-5 sm:h-5">
+                      {getActivityIcon(activity.icon)}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-xs sm:text-sm font-medium text-gray-900 truncate">{activity.title}</h4>
+                    <p className="text-xs sm:text-sm text-gray-600 truncate">{activity.description}</p>
+                  </div>
+                  <div className="text-xs text-gray-500 flex-shrink-0">
+                    {activity.time}
                   </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-xs sm:text-sm font-medium text-gray-900 truncate">{activity.title}</h4>
-                  <p className="text-xs sm:text-sm text-gray-600 truncate">{activity.description}</p>
-                </div>
-                <div className="text-xs text-gray-500 flex-shrink-0">
-                  {activity.time}
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

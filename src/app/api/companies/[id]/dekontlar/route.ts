@@ -46,6 +46,7 @@ export async function GET(
       dosya_url: dekont.fileUrl,
       onay_durumu: dekont.status === 'APPROVED' ? 'onaylandi' :
                    dekont.status === 'REJECTED' ? 'reddedildi' : 'bekliyor',
+      red_nedeni: dekont.rejectReason,
       yukleyen_kisi: 'İşletme',
       odeme_tarihi: dekont.paymentDate.toISOString(),
       created_at: dekont.createdAt || new Date().toISOString(),
@@ -160,9 +161,33 @@ export async function POST(
     let fileUrl = null
     if (dosya && dosya.size > 0) {
       try {
+        console.log('📁 Dosya yükleme başlıyor:', {
+          fileName: dosya.name,
+          fileSize: dosya.size,
+          fileType: dosya.type
+        })
+
+        // Dosya boyutu kontrolü (max 10MB)
+        if (dosya.size > 10 * 1024 * 1024) {
+          return NextResponse.json(
+            { error: 'Dosya boyutu çok büyük (maksimum 10MB)' },
+            { status: 400 }
+          )
+        }
+
+        // Dosya türü kontrolü
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
+        if (!allowedTypes.includes(dosya.type)) {
+          return NextResponse.json(
+            { error: 'Desteklenmeyen dosya türü (sadece PDF, JPG, PNG)' },
+            { status: 400 }
+          )
+        }
+
         // Create uploads directory if it doesn't exist
         const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'dekontlar')
         await mkdir(uploadDir, { recursive: true })
+        console.log('📁 Upload dizini oluşturuldu:', uploadDir)
         
         // Check for existing dekontlar for this month to handle additional dekontlar
         const existingDekontlar = await prisma.dekont.findMany({
@@ -189,23 +214,45 @@ export async function POST(
         }
 
         const fileName = generateDekontFileName(dekontNamingData)
-        
         const filePath = path.join(uploadDir, fileName)
+        
+        console.log('📁 Dosya adı oluşturuldu:', fileName)
+        console.log('📁 Dosya yolu:', filePath)
         
         // Convert File to Buffer and save
         const bytes = await dosya.arrayBuffer()
         const buffer = Buffer.from(bytes)
         await writeFile(filePath, buffer)
         
+        // Dosya gerçekten oluşturuldu mu kontrol et
+        const fs = require('fs')
+        if (!fs.existsSync(filePath)) {
+          throw new Error('Dosya kaydedilemedi')
+        }
+        
+        const fileStats = fs.statSync(filePath)
+        console.log('📁 Dosya başarıyla kaydedildi:', {
+          path: filePath,
+          size: fileStats.size
+        })
+        
         // Set public URL
         fileUrl = `/uploads/dekontlar/${fileName}`
         
-        console.log('File uploaded successfully:', fileUrl)
+        console.log('✅ Dosya yükleme tamamlandı:', fileUrl)
       } catch (fileError) {
-        console.error('File upload error:', fileError)
-        // Continue without file if upload fails
-        fileUrl = null
+        console.error('❌ Dosya yükleme hatası:', fileError)
+        const errorMessage = fileError instanceof Error ? fileError.message : 'Bilinmeyen hata'
+        return NextResponse.json(
+          { error: `Dosya yüklenemedi: ${errorMessage}` },
+          { status: 500 }
+        )
       }
+    } else {
+      return NextResponse.json(
+        { error: 'Dosya seçilmedi veya dosya boş' },
+        { status: 400 }
+      )
     }
 
     // Create the dekont with conditional teacherId

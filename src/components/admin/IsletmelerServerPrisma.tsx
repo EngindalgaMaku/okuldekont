@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Building2, Search, Filter, Plus, Eye, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Building2, Search, Filter, Plus, Eye, RefreshCw, ChevronLeft, ChevronRight, Shield, Unlock, Send, Bell } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import CompanyQuickPinButton from './CompanyQuickPinButton'
+import Modal from '@/components/ui/Modal'
+import { toast } from 'react-hot-toast'
 
 interface Company {
   id: string
@@ -20,6 +22,7 @@ interface Company {
     name: string
     surname: string
   }
+  isLocked?: boolean
 }
 
 interface PaginationInfo {
@@ -50,6 +53,16 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
   const [pagination, setPagination] = useState<PaginationInfo | null>(null)
   const [searchInput, setSearchInput] = useState('')
   const [filterInput, setFilterInput] = useState('')
+  const [securityStatuses, setSecurityStatuses] = useState<Record<string, any>>({})
+  const [unlockingCompanies, setUnlockingCompanies] = useState<Set<string>>(new Set())
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([])
+  const [mesajModalOpen, setMesajModalOpen] = useState(false)
+  const [mesajData, setMesajData] = useState({
+    title: '',
+    content: '',
+    priority: 'NORMAL' as 'LOW' | 'NORMAL' | 'HIGH'
+  })
+  const [sending, setSending] = useState(false)
   
   const router = useRouter()
   
@@ -97,6 +110,141 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
     setSearchInput(search)
     setFilterInput(filter)
   }, [search, filter])
+
+  // Fetch security statuses for all companies
+  useEffect(() => {
+    const fetchSecurityStatuses = async () => {
+      const statuses: Record<string, any> = {}
+      await Promise.all(
+        companies.map(async (company) => {
+          try {
+            const response = await fetch('/api/admin/security/status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ entityType: 'company', entityId: company.id })
+            })
+            if (response.ok) {
+              const status = await response.json()
+              statuses[company.id] = status
+            }
+          } catch (error) {
+            // Ignore errors for individual companies
+          }
+        })
+      )
+      setSecurityStatuses(statuses)
+    }
+
+    if (companies.length > 0) {
+      fetchSecurityStatuses()
+    }
+  }, [companies])
+
+  // Handle unlock company
+  const handleUnlockCompany = async (companyId: string) => {
+    setUnlockingCompanies(prev => new Set(prev).add(companyId))
+    try {
+      const response = await fetch('/api/admin/security/unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'company', entityId: companyId })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Blok açılırken hata oluştu')
+      }
+
+      toast.success('İşletme bloğu başarıyla açıldı!')
+      
+      // Refresh security status for this company
+      const statusResponse = await fetch('/api/admin/security/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'company', entityId: companyId })
+      })
+      
+      if (statusResponse.ok) {
+        const status = await statusResponse.json()
+        setSecurityStatuses(prev => ({ ...prev, [companyId]: status }))
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Blok açılırken hata oluştu.')
+    } finally {
+      setUnlockingCompanies(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(companyId)
+        return newSet
+      })
+    }
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedCompanies(companies.map(c => c.id))
+    } else {
+      setSelectedCompanies([])
+    }
+  }
+
+  const handleSelectCompany = (companyId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedCompanies(prev => [...prev, companyId])
+    } else {
+      setSelectedCompanies(prev => prev.filter(id => id !== companyId))
+    }
+  }
+
+  const handleSendMesaj = async () => {
+    if (!mesajData.title.trim() || !mesajData.content.trim()) {
+      toast.error('Başlık ve içerik zorunludur!')
+      return
+    }
+
+    if (selectedCompanies.length === 0) {
+      toast.error('Lütfen en az bir işletme seçin!')
+      return
+    }
+
+    setSending(true)
+    try {
+      // Seçili işletmelere mesaj gönder (işletme contact'larına)
+      const notifications = selectedCompanies.map(companyId => ({
+        recipient_id: companyId,
+        recipient_type: 'isletme',
+        title: mesajData.title,
+        content: mesajData.content,
+        priority: mesajData.priority,
+        sent_by: 'Admin',
+        is_read: false
+      }))
+
+      const response = await fetch('/api/admin/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(notifications)
+      })
+
+      if (!response.ok) {
+        throw new Error('API isteği başarısız')
+      }
+
+      toast.success(`${selectedCompanies.length} işletmeye mesaj başarıyla gönderildi!`)
+      setMesajModalOpen(false)
+      setMesajData({ title: '', content: '', priority: 'NORMAL' })
+      setSelectedCompanies([])
+    } catch (error) {
+      console.error('Mesaj gönderme hatası:', error)
+      toast.error('Mesaj gönderilirken hata oluştu!')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const isAllSelected = companies.length > 0 && selectedCompanies.length === companies.length
+  const isPartiallySelected = selectedCompanies.length > 0 && selectedCompanies.length < companies.length
 
   const handleSearch = () => {
     const params = new URLSearchParams()
@@ -236,9 +384,38 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
       <div className="hidden lg:block">
         {companies.length > 0 ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            {/* Bulk Actions */}
+            {selectedCompanies.length > 0 && (
+              <div className="bg-blue-50 border-b border-blue-200 px-6 py-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-blue-700">
+                    {selectedCompanies.length} işletme seçildi
+                  </span>
+                  <button
+                    onClick={() => setMesajModalOpen(true)}
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Mesaj Gönder
+                  </button>
+                </div>
+              </div>
+            )}
+            
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  <th className="px-6 py-4 text-left">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      ref={input => {
+                        if (input) input.indeterminate = isPartiallySelected
+                      }}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     İşletme
                   </th>
@@ -262,6 +439,14 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
               <tbody className="bg-white divide-y divide-gray-200">
                 {companies.map((company) => (
                   <tr key={company.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedCompanies.includes(company.id)}
+                        onChange={(e) => handleSelectCompany(company.id, e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
@@ -274,6 +459,12 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                           {company.address && (
                             <div className="text-sm text-gray-500 truncate max-w-xs">
                               {company.address}
+                            </div>
+                          )}
+                          {securityStatuses[company.id]?.isLocked && (
+                            <div className="text-xs text-red-600 flex items-center mt-1">
+                              <Shield className="w-3 h-3 mr-1" />
+                              Blokeli
                             </div>
                           )}
                         </div>
@@ -304,6 +495,16 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
+                        {securityStatuses[company.id]?.isLocked && (
+                          <button
+                            onClick={() => handleUnlockCompany(company.id)}
+                            disabled={unlockingCompanies.has(company.id)}
+                            className="inline-flex items-center p-1.5 text-orange-600 hover:text-orange-900 hover:bg-orange-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Bloğu Aç"
+                          >
+                            <Unlock className="h-4 w-4" />
+                          </button>
+                        )}
                         <CompanyQuickPinButton company={{ id: company.id, name: company.name }} />
                         <Link
                           href={`/admin/isletmeler/${company.id}`}
@@ -335,6 +536,40 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
 
       {/* Mobile Card View - Hidden on desktop */}
       <div className="lg:hidden">
+        {/* Bulk Actions for Mobile */}
+        {selectedCompanies.length > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <div className="flex flex-col space-y-2">
+              <span className="text-sm text-blue-700">
+                {selectedCompanies.length} işletme seçildi
+              </span>
+              <button
+                onClick={() => setMesajModalOpen(true)}
+                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Mesaj Gönder
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* Select All for Mobile */}
+        <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 mb-4">
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={isAllSelected}
+              ref={input => {
+                if (input) input.indeterminate = isPartiallySelected
+              }}
+              onChange={(e) => handleSelectAll(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
+            />
+            <span className="text-sm text-gray-700">Tümünü Seç</span>
+          </label>
+        </div>
+        
         {companies.length > 0 ? (
           <div className="grid grid-cols-1 gap-4">
             {companies.map((company) => (
@@ -344,6 +579,12 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center flex-1 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={selectedCompanies.includes(company.id)}
+                      onChange={(e) => handleSelectCompany(company.id, e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3 mt-1"
+                    />
                     <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center mr-2 flex-shrink-0">
                       <Building2 className="h-4 w-4 text-indigo-600" />
                     </div>
@@ -351,12 +592,30 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                       <h3 className="font-semibold text-gray-900 text-sm truncate">
                         {company.name}
                       </h3>
-                      <p className="text-xs text-gray-500">
-                        {company._count?.students || 0} öğrenci
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-gray-500">
+                          {company._count?.students || 0} öğrenci
+                        </p>
+                        {securityStatuses[company.id]?.isLocked && (
+                          <span className="text-xs text-red-600 flex items-center">
+                            <Shield className="w-3 h-3 mr-1" />
+                            Blokeli
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
+                    {securityStatuses[company.id]?.isLocked && (
+                      <button
+                        onClick={() => handleUnlockCompany(company.id)}
+                        disabled={unlockingCompanies.has(company.id)}
+                        className="p-1.5 text-orange-600 hover:text-orange-900 hover:bg-orange-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50"
+                        title="Bloğu Aç"
+                      >
+                        <Unlock className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     <CompanyQuickPinButton company={{ id: company.id, name: company.name }} />
                     <Link
                       href={`/admin/isletmeler/${company.id}`}
@@ -410,6 +669,89 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
           </div>
         )}
       </div>
+
+      {/* Mesaj Gönderme Modalı */}
+      <Modal
+        isOpen={mesajModalOpen}
+        onClose={() => setMesajModalOpen(false)}
+        title="Seçili İşletmelere Mesaj Gönder"
+      >
+        <div className="space-y-6">
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-center gap-2 text-blue-700">
+              <Bell className="h-5 w-5" />
+              <span className="font-medium">
+                {selectedCompanies.length} işletmeye mesaj gönderilecek
+              </span>
+            </div>
+            <div className="mt-2 text-sm text-blue-600">
+              Seçili işletmeler: {companies
+                .filter(c => selectedCompanies.includes(c.id))
+                .map(c => c.name)
+                .join(', ')
+              }
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Başlık <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={mesajData.title}
+              onChange={(e) => setMesajData({...mesajData, title: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Mesaj başlığını girin"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              İçerik <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={mesajData.content}
+              onChange={(e) => setMesajData({...mesajData, content: e.target.value})}
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Mesaj içeriğini girin"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Öncelik
+            </label>
+            <select
+              value={mesajData.priority}
+              onChange={(e) => setMesajData({...mesajData, priority: e.target.value as 'LOW' | 'NORMAL' | 'HIGH'})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="LOW">Düşük</option>
+              <option value="NORMAL">Normal</option>
+              <option value="HIGH">Yüksek</option>
+            </select>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              onClick={() => setMesajModalOpen(false)}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              disabled={sending}
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleSendMesaj}
+              disabled={sending}
+              className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 disabled:opacity-50"
+            >
+              {sending ? 'Gönderiliyor...' : 'Mesaj Gönder'}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (

@@ -2,6 +2,7 @@ import NextAuth, { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { prisma } from './prisma'
 import bcrypt from 'bcryptjs'
+import { recordPinAttempt, checkSecurityStatus } from './pin-security'
 
 export const authOptions: NextAuthOptions = {
   debug: process.env.NODE_ENV === 'development',
@@ -61,7 +62,9 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         type: { label: 'Type', type: 'text' },
         entityId: { label: 'Entity ID', type: 'text' },
-        pin: { label: 'PIN', type: 'password' }
+        pin: { label: 'PIN', type: 'password' },
+        ipAddress: { label: 'IP Address', type: 'text' },
+        userAgent: { label: 'User Agent', type: 'text' }
       },
       async authorize(credentials) {
         if (!credentials?.type || !credentials?.entityId || !credentials?.pin) {
@@ -69,22 +72,36 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
+          const entityType = credentials.type === 'isletme' ? 'company' : 'teacher'
+          const ipAddress = credentials.ipAddress
+          const userAgent = credentials.userAgent
+
+          // Önce güvenlik durumunu kontrol et
+          const securityStatus = await checkSecurityStatus(entityType, credentials.entityId)
+          
+          if (securityStatus.isLocked) {
+            console.log(`${entityType} ${credentials.entityId} is locked until ${securityStatus.lockEndTime}`)
+            return null
+          }
+
+          let pinValid = false
+          let entityData = null
+
           if (credentials.type === 'isletme') {
             const company = await prisma.companyProfile.findUnique({
               where: { id: credentials.entityId },
               select: { id: true, name: true, pin: true }
             })
 
-            if (!company || company.pin !== credentials.pin) {
-              return null
-            }
-
-            return {
-              id: company.id,
-              email: `company_${company.id}@system.local`,
-              name: company.name,
-              role: 'COMPANY',
-              profile: company
+            if (company && company.pin === credentials.pin) {
+              pinValid = true
+              entityData = {
+                id: company.id,
+                email: `company_${company.id}@system.local`,
+                name: company.name,
+                role: 'COMPANY',
+                profile: company
+              }
             }
           } else if (credentials.type === 'ogretmen') {
             const teacher = await prisma.teacherProfile.findUnique({
@@ -92,20 +109,34 @@ export const authOptions: NextAuthOptions = {
               select: { id: true, name: true, surname: true, pin: true }
             })
 
-            if (!teacher || teacher.pin !== credentials.pin) {
-              return null
-            }
-
-            return {
-              id: teacher.id,
-              email: `teacher_${teacher.id}@system.local`,
-              name: `${teacher.name} ${teacher.surname}`,
-              role: 'TEACHER',
-              profile: teacher
+            if (teacher && teacher.pin === credentials.pin) {
+              pinValid = true
+              entityData = {
+                id: teacher.id,
+                email: `teacher_${teacher.id}@system.local`,
+                name: `${teacher.name} ${teacher.surname}`,
+                role: 'TEACHER',
+                profile: teacher
+              }
             }
           }
 
-          return null
+          // PIN denemesini kaydet
+          const attemptResult = await recordPinAttempt(
+            entityType,
+            credentials.entityId,
+            pinValid,
+            ipAddress,
+            userAgent
+          )
+
+          if (pinValid) {
+            console.log(`Successful PIN authentication for ${entityType} ${credentials.entityId}`)
+            return entityData
+          } else {
+            console.log(`Failed PIN authentication for ${entityType} ${credentials.entityId}. ${attemptResult.message}`)
+            return null
+          }
         } catch (error) {
           console.error('PIN authentication error:', error)
           return null

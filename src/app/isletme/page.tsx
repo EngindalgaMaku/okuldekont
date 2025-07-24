@@ -36,6 +36,7 @@ interface Dekont {
   odeme_tarihi?: string
   onay_durumu: 'bekliyor' | 'onaylandi' | 'reddedildi'
   aciklama?: string
+  red_nedeni?: string
   dosya_url?: string
   ay: number
   yil: number | string
@@ -750,6 +751,8 @@ export default function PanelPage() {
 
   const handleDekontEkle = async () => {
     try {
+      console.log('🚀 Dekont yükleme işlemi başlatılıyor...')
+
       if (!selectedOgrenci) {
         setErrorModal({
           isOpen: true,
@@ -764,6 +767,33 @@ export default function PanelPage() {
           isOpen: true,
           title: 'Dosya Seçimi',
           message: 'Lütfen bir dekont dosyası seçiniz!'
+        });
+        return;
+      }
+
+      console.log('📁 Seçilen dosya:', {
+        name: dekontFormData.dosya.name,
+        size: dekontFormData.dosya.size,
+        type: dekontFormData.dosya.type
+      })
+
+      // Dosya boyutu kontrolü (frontend)
+      if (dekontFormData.dosya.size > 10 * 1024 * 1024) {
+        setErrorModal({
+          isOpen: true,
+          title: 'Dosya Boyutu Hatası',
+          message: 'Dosya boyutu 10MB\'dan büyük olamaz!'
+        });
+        return;
+      }
+
+      // Dosya türü kontrolü (frontend)
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+      if (!allowedTypes.includes(dekontFormData.dosya.type)) {
+        setErrorModal({
+          isOpen: true,
+          title: 'Dosya Türü Hatası',
+          message: 'Sadece PDF, JPG ve PNG dosyaları yükleyebilirsiniz!'
         });
         return;
       }
@@ -824,6 +854,14 @@ export default function PanelPage() {
         return;
       }
 
+      console.log('📋 FormData oluşturuluyor...', {
+        staj_id: selectedOgrenci.staj_id,
+        ay: dekontFormData.ay,
+        yil: dekontFormData.yil,
+        aciklama: dekontFormData.aciklama,
+        miktar: dekontFormData.miktar
+      })
+
       const formData = new FormData();
       formData.append('staj_id', selectedOgrenci.staj_id);
       formData.append('ay', dekontFormData.ay.toString());
@@ -832,11 +870,19 @@ export default function PanelPage() {
       formData.append('miktar', dekontFormData.miktar);
       formData.append('dosya', dekontFormData.dosya);
 
+      console.log('🌐 API çağrısı yapılıyor:', `/api/companies/${isletme.id}/dekontlar`)
+
       // Doğru endpoint'i kullan
       const response = await fetch(`/api/companies/${isletme.id}/dekontlar`, {
         method: 'POST',
         body: formData
       });
+
+      console.log('📡 API yanıtı:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      })
 
       // Ek dekont uyarısı (409 status code)
       if (response.status === 409) {
@@ -854,11 +900,12 @@ export default function PanelPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('❌ API hatası:', errorData)
         throw new Error(errorData.error || 'Dekont yüklenemedi');
       }
 
       const result = await response.json();
-      const newDekont = result.data || result;
+      console.log('✅ Dekont başarıyla yüklendi:', result)
       
       // Modal'ı kapat
       setDekontModalOpen(false);
@@ -881,11 +928,12 @@ export default function PanelPage() {
       setSuccessModalOpen(true);
       setActiveTab('dekontlar');
       
-      // Mobil cache sorunu için hard refresh
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500); // Kullanıcı başarı mesajını görsün diye kısa bir gecikme
+      // Veri yenileme - hard refresh yerine veri çekme
+      console.log('🔄 Veri yenileniyor...')
+      await fetchData();
+      
     } catch (error: any) {
+      console.error('❌ Dekont yükleme hatası:', error)
       setErrorModal({
         isOpen: true,
         title: 'Dekont Yükleme Hatası',
@@ -897,6 +945,8 @@ export default function PanelPage() {
   const handleEkDekontOnay = async () => {
     if (ekDekontData && isletme) {
       try {
+        console.log('🚀 Ek dekont yükleme işlemi başlatılıyor...', ekDekontData)
+
         // Öğrenci listesinden doğru öğrenciyi bul
         const ogrenci = ogrenciler.find(o => String(o.id) === String(ekDekontData.ogrenci.id));
         const selectedOgrenciToUse = ogrenci || ekDekontData.ogrenci;
@@ -908,6 +958,33 @@ export default function PanelPage() {
         input.onchange = async (e) => {
           const file = (e.target as HTMLInputElement).files?.[0];
           if (file) {
+            console.log('📁 Ek dekont dosyası seçildi:', {
+              name: file.name,
+              size: file.size,
+              type: file.type
+            })
+
+            // Dosya boyutu kontrolü
+            if (file.size > 10 * 1024 * 1024) {
+              setErrorModal({
+                isOpen: true,
+                title: 'Dosya Boyutu Hatası',
+                message: 'Dosya boyutu 10MB\'dan büyük olamaz!'
+              });
+              return;
+            }
+
+            // Dosya türü kontrolü
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+            if (!allowedTypes.includes(file.type)) {
+              setErrorModal({
+                isOpen: true,
+                title: 'Dosya Türü Hatası',
+                message: 'Sadece PDF, JPG ve PNG dosyaları yükleyebilirsiniz!'
+              });
+              return;
+            }
+
             // FormData hazırla
             const formData = new FormData();
             formData.append('staj_id', selectedOgrenciToUse.staj_id);
@@ -917,29 +994,39 @@ export default function PanelPage() {
             formData.append('miktar', '');
             formData.append('dosya', file);
 
+            console.log('🌐 Ek dekont API çağrısı yapılıyor...')
+
             try {
               const response = await fetch(`/api/companies/${isletme.id}/dekontlar`, {
                 method: 'POST',
                 body: formData
               });
 
+              console.log('📡 Ek dekont API yanıtı:', {
+                status: response.status,
+                statusText: response.statusText,
+                ok: response.ok
+              })
+
               if (!response.ok) {
                 const errorData = await response.json();
+                console.error('❌ Ek dekont API hatası:', errorData)
                 throw new Error(errorData.error || 'Ek dekont yüklenemedi');
               }
 
               const result = await response.json();
-              const newDekont = result.data || result;
+              console.log('✅ Ek dekont başarıyla yüklendi:', result)
               
               setSuccessMessage('Ek dekont başarıyla yüklendi!');
               setSuccessModalOpen(true);
               setActiveTab('dekontlar');
               
-              // Mobil cache sorunu için hard refresh
-              setTimeout(() => {
-                window.location.reload();
-              }, 1500);
+              // Veri yenileme - hard refresh yerine fetchData
+              console.log('🔄 Ek dekont sonrası veri yenileniyor...')
+              await fetchData();
+              
             } catch (error: any) {
+              console.error('❌ Ek dekont yükleme hatası:', error)
               setErrorModal({
                 isOpen: true,
                 title: 'Ek Dekont Yükleme Hatası',
@@ -954,6 +1041,7 @@ export default function PanelPage() {
         input.click();
         
       } catch (error: any) {
+        console.error('❌ Ek dekont hatası:', error)
         setErrorModal({
           isOpen: true,
           title: 'Ek Dekont Hatası',
@@ -1014,14 +1102,30 @@ export default function PanelPage() {
     }
 
     try {
+      console.log('🗑️ Dekont silme işlemi başlatılıyor:', {
+        dekontId: dekont.id,
+        ogrenci: `${dekont.stajlar?.ogrenciler?.ad} ${dekont.stajlar?.ogrenciler?.soyad}`,
+        ay: dekont.ay,
+        yil: dekont.yil
+      })
+
       const response = await fetch(`/api/companies/${isletme.id}/dekontlar?dekontId=${dekont.id}`, {
         method: 'DELETE'
       });
 
+      console.log('📡 Dekont silme API yanıtı:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      })
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('❌ Dekont silme API hatası:', errorData)
         throw new Error(errorData.error || 'Dekont silinemedi');
       }
+
+      console.log('✅ Dekont başarıyla silindi')
 
       // Başarılı silme işlemi
       setDeleteConfirmOpen(false);
@@ -1029,12 +1133,12 @@ export default function PanelPage() {
       setSuccessMessage('Dekont başarıyla silindi!');
       setSuccessModalOpen(true);
       
-      // Mobil cache sorunu için hard refresh
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      // Veri yenileme - hard refresh yerine fetchData
+      console.log('🔄 Dekont silme sonrası veri yenileniyor...')
+      await fetchData();
+      
     } catch (error: any) {
-      console.error('Dekont silme hatası:', error);
+      console.error('❌ Dekont silme hatası:', error);
       setDeleteConfirmOpen(false);
       setPendingDeleteDekont(null);
       setErrorModal({
@@ -1266,6 +1370,54 @@ export default function PanelPage() {
       {/* Main Content */}
       <main className="relative -mt-24 sm:-mt-32 pb-8">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          {/* Okunmamış Mesaj Bildirimi */}
+          {unreadCount > 0 && (
+            <div className="mb-4 sm:mb-6 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-black ring-opacity-5 p-4 sm:p-6 bg-gradient-to-r from-purple-50 to-indigo-100 border-l-4 border-purple-500">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <Bell className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
+                </div>
+                <div className="ml-2 sm:ml-3 flex-1">
+                  <h3 className="text-base sm:text-lg font-medium text-purple-800">
+                    📬 Okunmamış Mesajınız Var!
+                  </h3>
+                  <div className="mt-2 text-xs sm:text-sm text-purple-700">
+                    <p className="font-medium mb-2">
+                      Size gönderilmiş {unreadCount} adet okunmamış mesaj bulunmaktadır.
+                    </p>
+                    <div className="space-y-2">
+                      {notifications.filter(n => !n.is_read).slice(0, 3).map((notification) => (
+                        <div key={notification.id} className="p-2 sm:p-3 bg-purple-100 border border-purple-200 rounded-lg">
+                          <div className="font-medium text-purple-900 text-sm">
+                            {notification.title}
+                          </div>
+                          <div className="text-xs text-purple-700 mt-1">
+                            Gönderen: {notification.sent_by} - {new Date(notification.created_at).toLocaleDateString('tr-TR')}
+                          </div>
+                          <div className="text-xs text-purple-600 mt-1 truncate">
+                            {notification.content.length > 80 ? notification.content.substring(0, 80) + '...' : notification.content}
+                          </div>
+                        </div>
+                      ))}
+                      {unreadCount > 3 && (
+                        <div className="text-xs text-purple-600 font-medium">
+                          ... ve {unreadCount - 3} mesaj daha
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={markAllAsRead}
+                      className="mt-3 w-full flex items-center justify-center px-3 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      Okundu Olarak İşaretle
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Dekont Takip Uyarı Sistemi */}
           {eksikDekontOgrenciler.length > 0 && (
             <div className={`mb-4 sm:mb-6 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-black ring-opacity-5 p-4 sm:p-6 ${
@@ -1637,6 +1789,17 @@ export default function PanelPage() {
                                         <span className="font-bold">Gönderen:</span> {dekont.yukleyen_kisi || 'Bilinmiyor'}
                                       </span>
                                     </div>
+                                    {dekont.onay_durumu === 'reddedildi' && dekont.red_nedeni && (
+                                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                        <div className="flex items-start">
+                                          <XCircle className="h-4 w-4 text-red-600 mr-2 mt-0.5 flex-shrink-0" />
+                                          <div>
+                                            <div className="text-sm font-medium text-red-800 mb-1">Reddetme Gerekçesi:</div>
+                                            <div className="text-sm text-red-700">{dekont.red_nedeni}</div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                   <div className="flex items-center gap-2 self-end sm:self-auto">
                                     {dekont.dosya_url && (

@@ -9,7 +9,7 @@ interface Dekont {
   ogrenci_ad: string
   miktar: number | null
   odeme_tarihi: string
-  onay_durumu: 'PENDING' | 'APPROVED' | 'REJECTED'
+  onay_durumu: 'bekliyor' | 'onaylandi' | 'reddedildi'
   ay: number
   yil: number
   dosya_url: string | null
@@ -19,21 +19,40 @@ interface Dekont {
   created_at: string
 }
 
+// Güvenli tarih formatlama yardımcısı
+const formatDate = (dateString: string | null | undefined): string => {
+  if (!dateString) return '-'
+  
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return '-'
+    return date.toLocaleDateString('tr-TR')
+  } catch (error) {
+    return '-'
+  }
+}
+
+// Güvenli para formatlaması
+const formatCurrency = (amount: number | null | undefined): string => {
+  if (amount === null || amount === undefined || isNaN(amount)) return '-'
+  return `₺${amount.toLocaleString('tr-TR')}`
+}
+
 const MONTHS = [
   'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
   'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
 ]
 
 const STATUS_COLORS = {
-  PENDING: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  APPROVED: 'bg-green-100 text-green-800 border-green-200', 
-  REJECTED: 'bg-red-100 text-red-800 border-red-200'
+  bekliyor: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  onaylandi: 'bg-green-100 text-green-800 border-green-200',
+  reddedildi: 'bg-red-100 text-red-800 border-red-200'
 }
 
 const STATUS_LABELS = {
-  PENDING: 'Beklemede',
-  APPROVED: 'Onaylandı',
-  REJECTED: 'Reddedildi'
+  bekliyor: 'Beklemede',
+  onaylandi: 'Onaylandı',
+  reddedildi: 'Reddedildi'
 }
 
 export default function DekontlarPage() {
@@ -47,6 +66,7 @@ export default function DekontlarPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
   const [showRejectModal, setShowRejectModal] = useState(false)
+  const [showApproveModal, setShowApproveModal] = useState(false)
   const [selectedDekont, setSelectedDekont] = useState<Dekont | null>(null)
   const [rejectReason, setRejectReason] = useState('')
 
@@ -110,8 +130,8 @@ export default function DekontlarPage() {
       const updateData = {
         status,
         ...(status === 'APPROVED' && { approvedBy: 'admin', approvedAt: new Date() }),
-        ...(status === 'REJECTED' && { 
-          rejectedBy: 'admin', 
+        ...(status === 'REJECTED' && {
+          rejectedBy: 'admin',
           rejectedAt: new Date(),
           rejectReason: reason || null
         })
@@ -128,25 +148,33 @@ export default function DekontlarPage() {
       if (response.ok) {
         await fetchDekontlar() // Refresh the list
         setShowRejectModal(false)
+        setShowApproveModal(false)
         setSelectedDekont(null)
         setRejectReason('')
       } else {
         console.error('Dekont güncelleme hatası')
+        alert('Dekont güncellenirken bir hata oluştu')
       }
     } catch (error) {
       console.error('Dekont durumu güncellenirken hata:', error)
+      alert('Dekont durumu güncellenirken bir hata oluştu')
     }
   }
 
-  const handleApprove = async (dekont: Dekont) => {
-    if (confirm(`${dekont.ogrenci_ad} öğrencisinin ${MONTHS[dekont.ay - 1]} ${dekont.yil} dekontunu onaylıyor musunuz?`)) {
-      await updateDekontStatus(dekont.id, 'APPROVED')
-    }
+  const handleApprove = (dekont: Dekont) => {
+    setSelectedDekont(dekont)
+    setShowApproveModal(true)
   }
 
   const handleReject = (dekont: Dekont) => {
     setSelectedDekont(dekont)
     setShowRejectModal(true)
+  }
+
+  const submitApprove = async () => {
+    if (selectedDekont) {
+      await updateDekontStatus(selectedDekont.id, 'APPROVED')
+    }
   }
 
   const submitReject = async () => {
@@ -155,11 +183,56 @@ export default function DekontlarPage() {
     }
   }
 
-  const downloadFile = (fileUrl: string, filename: string) => {
-    const link = document.createElement('a')
-    link.href = fileUrl
-    link.download = filename
-    link.click()
+  const closeModals = () => {
+    setShowRejectModal(false)
+    setShowApproveModal(false)
+    setSelectedDekont(null)
+    setRejectReason('')
+  }
+
+  const downloadFile = async (fileUrl: string, filename: string) => {
+    try {
+      // Dosya URL'inden dosya adını çıkar
+      const urlParts = fileUrl.split('/')
+      const actualFilename = urlParts[urlParts.length - 1]
+      
+      if (!actualFilename) {
+        alert('Dosya adı bulunamadı')
+        return
+      }
+
+      // Güvenli download API'sini kullan
+      const response = await fetch(`/api/admin/dekontlar/download/${encodeURIComponent(actualFilename)}`)
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          alert('Dosya bulunamadı')
+        } else if (response.status === 401) {
+          alert('Bu işlem için yetkiniz yok')
+        } else {
+          alert('Dosya indirilemedi')
+        }
+        return
+      }
+
+      // Blob oluştur ve indir
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      
+      // Cleanup
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(downloadUrl)
+      
+    } catch (error) {
+      console.error('Download error:', error)
+      alert('Dosya indirme sırasında bir hata oluştu')
+    }
   }
 
   // Pagination logic
@@ -210,9 +283,9 @@ export default function DekontlarPage() {
             className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">Tüm Durumlar</option>
-            <option value="PENDING">Beklemede</option>
-            <option value="APPROVED">Onaylandı</option>
-            <option value="REJECTED">Reddedildi</option>
+            <option value="bekliyor">Beklemede</option>
+            <option value="onaylandi">Onaylandı</option>
+            <option value="reddedildi">Reddedildi</option>
           </select>
 
           {/* Month Filter */}
@@ -303,13 +376,20 @@ export default function DekontlarPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {dekont.miktar ? `₺${dekont.miktar.toLocaleString('tr-TR')}` : '-'}
+                      {formatCurrency(dekont.miktar)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${STATUS_COLORS[dekont.onay_durumu]}`}>
-                      {STATUS_LABELS[dekont.onay_durumu]}
-                    </span>
+                    <div>
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${STATUS_COLORS[dekont.onay_durumu]}`}>
+                        {STATUS_LABELS[dekont.onay_durumu]}
+                      </span>
+                      {dekont.onay_durumu === 'reddedildi' && dekont.red_nedeni && (
+                        <div className="mt-1 text-xs text-red-600 max-w-xs">
+                          <strong>Gerekçe:</strong> {dekont.red_nedeni}
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
@@ -318,32 +398,34 @@ export default function DekontlarPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {new Date(dekont.created_at).toLocaleDateString('tr-TR')}
+                      {formatDate(dekont.created_at)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end gap-2">
-                      {dekont.dosya_url && (
+                      {dekont.dosya_url && dekont.dosya_url.trim() !== '' ? (
                         <button
-                          onClick={() => downloadFile(dekont.dosya_url!, `dekont-${dekont.ogrenci_ad}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.pdf`)}
-                          className="text-blue-600 hover:text-blue-900 p-1"
+                          onClick={() => downloadFile(dekont.dosya_url!, `dekont-${dekont.ogrenci_ad.replace(/\s+/g, '_')}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.pdf`)}
+                          className="text-blue-600 hover:text-blue-900 p-1 transition-colors"
                           title="Dosyayı İndir"
                         >
                           <Download className="h-4 w-4" />
                         </button>
+                      ) : (
+                        <span className="text-gray-400 text-xs">Dosya yok</span>
                       )}
-                      {dekont.onay_durumu === 'PENDING' && (
+                      {dekont.onay_durumu === 'bekliyor' && (
                         <>
                           <button
                             onClick={() => handleApprove(dekont)}
-                            className="text-green-600 hover:text-green-900 p-1"
+                            className="text-green-600 hover:text-green-900 p-1 transition-colors"
                             title="Onayla"
                           >
                             <Check className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => handleReject(dekont)}
-                            className="text-red-600 hover:text-red-900 p-1"
+                            className="text-red-600 hover:text-red-900 p-1 transition-colors"
                             title="Reddet"
                           >
                             <X className="h-4 w-4" />
@@ -473,11 +555,53 @@ export default function DekontlarPage() {
                   Reddet
                 </button>
                 <button
-                  onClick={() => {
-                    setShowRejectModal(false)
-                    setSelectedDekont(null)
-                    setRejectReason('')
-                  }}
+                  onClick={closeModals}
+                  className="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  İptal
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approve Modal */}
+      {showApproveModal && selectedDekont && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center">
+                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
+                  <Check className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+              <div className="mt-3 text-center">
+                <h3 className="text-lg font-medium text-gray-900">Dekont Onayla</h3>
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600">
+                    <strong>{selectedDekont.ogrenci_ad}</strong> öğrencisinin <strong>{MONTHS[selectedDekont.ay - 1]} {selectedDekont.yil}</strong> ayına ait dekontunu onaylıyor musunuz?
+                  </p>
+                  <div className="mt-4 bg-gray-50 rounded-lg p-3">
+                    <div className="text-sm text-gray-700">
+                      <div><strong>İşletme:</strong> {selectedDekont.isletme_ad}</div>
+                      {selectedDekont.miktar && (
+                        <div><strong>Tutar:</strong> {formatCurrency(selectedDekont.miktar)}</div>
+                      )}
+                      <div><strong>Yükleyen:</strong> {selectedDekont.yukleyen_kisi}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5 sm:flex sm:flex-row-reverse gap-3">
+                <button
+                  onClick={submitApprove}
+                  className="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                >
+                  Onayla
+                </button>
+                <button
+                  onClick={closeModals}
                   className="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   İptal

@@ -71,13 +71,19 @@ export async function PUT(
     });
 
     // Format the response to match what frontend expects
+    const statusMapping = {
+      'PENDING': 'bekliyor',
+      'APPROVED': 'onaylandi',
+      'REJECTED': 'reddedildi'
+    };
+
     const formattedData = {
       id: data.id,
       isletme_ad: data.staj.company.name,
       ogrenci_ad: `${data.staj.student.name} ${data.staj.student.surname}`,
       miktar: data.amount,
       odeme_tarihi: data.paymentDate,
-      onay_durumu: data.status,
+      onay_durumu: statusMapping[data.status as keyof typeof statusMapping] || data.status,
       ay: data.month,
       yil: data.year,
       dosya_url: data.fileUrl,
@@ -139,13 +145,19 @@ export async function GET(
     }
 
     // Format the response to match what frontend expects
+    const statusMapping = {
+      'PENDING': 'bekliyor',
+      'APPROVED': 'onaylandi',
+      'REJECTED': 'reddedildi'
+    };
+
     const formattedData = {
       id: dekont.id,
       isletme_ad: dekont.staj.company.name,
       ogrenci_ad: `${dekont.staj.student.name} ${dekont.staj.student.surname}`,
       miktar: dekont.amount,
       odeme_tarihi: dekont.paymentDate,
-      onay_durumu: dekont.status,
+      onay_durumu: statusMapping[dekont.status as keyof typeof statusMapping] || dekont.status,
       ay: dekont.month,
       yil: dekont.year,
       dosya_url: dekont.fileUrl,

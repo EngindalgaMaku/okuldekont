@@ -1,64 +1,86 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { join } from 'path'
+import { existsSync } from 'fs'
+import { readFile } from 'fs/promises'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ filename: string }> }
+  { params }: { params: { filename: string } }
 ) {
   try {
-    const { filename } = await params;
+    const session = await getServerSession(authOptions)
     
-    // Güvenlik kontrolü: sadece dekont dosyalarına izin ver ve desteklenen formatlara
-    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp'];
-    const hasValidExtension = allowedExtensions.some(ext => filename.toLowerCase().endsWith(ext));
-    
-    // Güvenlik kontrolü: dekont klasöründen sadece valid uzantılı dosyalar
-    // Eski format: dekont_ ile başlayan dosyalar
-    // Yeni format: structured naming (ad_soyad_... formatı)
-    const isValidDekontFile = filename.includes('dekont_') ||
-      /^[a-z]+_[a-z]+_\d+[a-z]*_\d*_[a-z_]+_[a-z_]+_[a-z]+_\d{4}(_ek\d+)?\./.test(filename);
-    
-    if (!isValidDekontFile || !hasValidExtension) {
-      return NextResponse.json({ error: 'Geçersiz dosya formatı' }, { status: 400 });
+    // Admin yetkisi kontrolü
+    if (!session || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Dosya yolunu oluştur
-    const filePath = join(process.cwd(), 'public', 'uploads', 'dekontlar', filename);
+    const { filename } = params
     
-    // Dosya var mı kontrol et
+    // Güvenlik kontrolü - sadece uploads/dekontlar klasöründeki dosyalar
+    if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return NextResponse.json({ error: 'Invalid filename' }, { status: 400 })
+    }
+
+    // Dosya yolu
+    const filePath = join(process.cwd(), 'public', 'uploads', 'dekontlar', filename)
+    
+    // Dosya varlığı kontrolü
     if (!existsSync(filePath)) {
-      return NextResponse.json({ error: 'Dosya bulunamadı' }, { status: 404 });
+      return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
-    // Dosyayı oku
-    const fileBuffer = await readFile(filePath);
-    
-    // Content-Type'ı dosya uzantısına göre belirle
-    const getContentType = (filename: string): string => {
-      const ext = filename.toLowerCase().split('.').pop();
-      switch (ext) {
-        case 'pdf': return 'application/pdf';
+    try {
+      // Dosyayı oku
+      const fileBuffer = await readFile(filePath)
+      
+      // Dosya uzantısına göre MIME type belirleme
+      const extension = filename.split('.').pop()?.toLowerCase()
+      let contentType = 'application/octet-stream'
+      
+      switch (extension) {
+        case 'pdf':
+          contentType = 'application/pdf'
+          break
         case 'jpg':
-        case 'jpeg': return 'image/jpeg';
-        case 'png': return 'image/png';
-        case 'gif': return 'image/gif';
-        case 'webp': return 'image/webp';
-        default: return 'application/octet-stream';
+        case 'jpeg':
+          contentType = 'image/jpeg'
+          break
+        case 'png':
+          contentType = 'image/png'
+          break
+        case 'doc':
+          contentType = 'application/msword'
+          break
+        case 'docx':
+          contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          break
+        case 'xls':
+          contentType = 'application/vnd.ms-excel'
+          break
+        case 'xlsx':
+          contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          break
       }
-    };
-    
-    // Dosya response header'larını ayarla
-    return new NextResponse(fileBuffer, {
-      headers: {
-        'Content-Type': getContentType(filename),
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Cache-Control': 'public, max-age=31536000',
-      },
-    });
+
+      // Response oluştur
+      const response = new NextResponse(fileBuffer)
+      
+      response.headers.set('Content-Type', contentType)
+      response.headers.set('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`)
+      response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+      response.headers.set('Pragma', 'no-cache')
+      response.headers.set('Expires', '0')
+      
+      return response
+    } catch (fileError) {
+      console.error('File reading error:', fileError)
+      return NextResponse.json({ error: 'Error reading file' }, { status: 500 })
+    }
   } catch (error) {
-    console.error('Dosya indirme hatası:', error);
-    return NextResponse.json({ error: 'Dosya indirilemedi' }, { status: 500 });
+    console.error('Download API error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

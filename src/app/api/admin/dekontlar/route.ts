@@ -7,7 +7,7 @@ import { existsSync } from 'fs'
 // Dekontları listele
 export async function GET() {
   try {
-    const data = await prisma.dekont.findMany({
+    const rawData = await prisma.dekont.findMany({
       include: {
         staj: {
           include: {
@@ -52,7 +52,31 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({ data })
+    // Status mapping from database enum to Turkish frontend values
+    const statusMapping = {
+      'PENDING': 'bekliyor',
+      'APPROVED': 'onaylandi',
+      'REJECTED': 'reddedildi'
+    };
+
+    // Format data to match frontend interface
+    const formattedData = rawData.map(dekont => ({
+      id: dekont.id,
+      isletme_ad: dekont.company?.name || dekont.staj?.company?.name || 'Bilinmiyor',
+      ogrenci_ad: dekont.staj?.student ? `${dekont.staj.student.name} ${dekont.staj.student.surname}` : 'Bilinmiyor',
+      miktar: dekont.amount ? Number(dekont.amount) : null,
+      odeme_tarihi: dekont.paymentDate.toISOString(),
+      onay_durumu: statusMapping[dekont.status] || dekont.status,
+      ay: dekont.month,
+      yil: dekont.year,
+      dosya_url: dekont.fileUrl,
+      aciklama: dekont.rejectReason,
+      red_nedeni: dekont.rejectReason,
+      yukleyen_kisi: dekont.teacher ? `${dekont.teacher.name} ${dekont.teacher.surname} (Öğretmen)` : 'Bilinmiyor',
+      created_at: dekont.createdAt.toISOString()
+    }))
+
+    return NextResponse.json({ data: formattedData })
   } catch (error) {
     console.error('Dekont listesi alınırken hata:', error)
     return NextResponse.json(

@@ -43,6 +43,7 @@ import Modal from '@/components/ui/Modal'
 import TerminationModal from '@/components/admin/TerminationModal'
 import StudentHistoryView from '@/components/admin/StudentHistoryView'
 import { toast } from 'react-hot-toast'
+// Remove pin-security import since we'll use API endpoints
 
 interface Company {
   id: string;
@@ -65,6 +66,9 @@ interface Company {
     name: string;
     surname: string;
   };
+  isLocked?: boolean;
+  lockUntil?: string;
+  failedAttempts?: number;
 }
 
 interface Student {
@@ -232,6 +236,8 @@ export default function IsletmeDetayPage() {
   const [teacherModalOpen, setTeacherModalOpen] = useState(false)
   const [availableTeachers, setAvailableTeachers] = useState<any[]>([])
   const [teacherAssignmentLoading, setTeacherAssignmentLoading] = useState(false)
+  const [securityStatus, setSecurityStatus] = useState<any>(null)
+  const [unlockLoading, setUnlockLoading] = useState(false)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -337,6 +343,21 @@ export default function IsletmeDetayPage() {
         masterTeacherName: data.masterTeacherName || '',
         masterTeacherPhone: data.masterTeacherPhone || ''
       })
+
+      // Fetch security status
+      try {
+        const response = await fetch('/api/admin/security/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entityType: 'company', entityId: data.id })
+        })
+        if (response.ok) {
+          const securityData = await response.json()
+          setSecurityStatus(securityData)
+        }
+      } catch (securityError) {
+        console.error('Security status fetch error:', securityError)
+      }
     } catch (error) {
       console.error('General error:', error)
     }
@@ -695,6 +716,41 @@ export default function IsletmeDetayPage() {
     }
   }
 
+  // Handle unlock company
+  const handleUnlockCompany = async () => {
+    setUnlockLoading(true)
+    try {
+      const response = await fetch('/api/admin/security/unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'company', entityId: companyId })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Blok açılırken hata oluştu')
+      }
+
+      toast.success('İşletme bloğu başarıyla açıldı!')
+      
+      // Refresh security status
+      const statusResponse = await fetch('/api/admin/security/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'company', entityId: companyId })
+      })
+      
+      if (statusResponse.ok) {
+        const securityData = await statusResponse.json()
+        setSecurityStatus(securityData)
+      }
+    } catch (error: any) {
+      toast.error(`Hata: ${error.message}`)
+    } finally {
+      setUnlockLoading(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center">
@@ -741,6 +797,21 @@ export default function IsletmeDetayPage() {
             </button>
             
             <div className="flex gap-3">
+              {securityStatus?.isLocked && !editMode && (
+                <button
+                  onClick={handleUnlockCompany}
+                  disabled={unlockLoading}
+                  className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg hover:from-orange-700 hover:to-red-700 transition-all duration-200 disabled:opacity-50"
+                >
+                  {unlockLoading ? (
+                    <Loader className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Shield className="h-4 w-4 mr-2" />
+                  )}
+                  Bloğu Aç
+                </button>
+              )}
+
               {!editMode && (
                 <button
                   onClick={() => setDeleteModalOpen(true)}
@@ -1064,7 +1135,7 @@ export default function IsletmeDetayPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Key className="h-4 w-4 inline mr-1" />
-                    Sistem PIN Kodu
+                    Sistem PIN Kodu & Güvenlik
                   </label>
                   {editMode ? (
                     <input
@@ -1076,8 +1147,42 @@ export default function IsletmeDetayPage() {
                       placeholder="0000"
                     />
                   ) : (
-                    <div className="px-4 py-3 bg-gray-50 rounded-lg text-gray-900 font-mono">
-                      {company.pin || 'Belirtilmemiş'}
+                    <div className="space-y-2">
+                      <div className="px-4 py-3 bg-gray-50 rounded-lg text-gray-900 font-mono">
+                        PIN: {company.pin || 'Belirtilmemiş'}
+                      </div>
+                      {securityStatus && (
+                        <div className={`px-4 py-3 rounded-lg ${
+                          securityStatus.isLocked
+                            ? 'bg-red-50 border border-red-200'
+                            : 'bg-green-50 border border-green-200'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <Shield className={`h-4 w-4 mr-2 ${
+                                securityStatus.isLocked ? 'text-red-600' : 'text-green-600'
+                              }`} />
+                              <span className={`text-sm font-medium ${
+                                securityStatus.isLocked ? 'text-red-800' : 'text-green-800'
+                              }`}>
+                                {securityStatus.isLocked ? 'BLOKELİ' : 'AKTİF'}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <div className={`text-xs ${
+                                securityStatus.isLocked ? 'text-red-600' : 'text-green-600'
+                              }`}>
+                                Kalan deneme: {securityStatus.remainingAttempts}/4
+                              </div>
+                              {securityStatus.isLocked && securityStatus.lockEndTime && (
+                                <div className="text-xs text-red-600">
+                                  {new Date(securityStatus.lockEndTime).toLocaleString('tr-TR')} kadar
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

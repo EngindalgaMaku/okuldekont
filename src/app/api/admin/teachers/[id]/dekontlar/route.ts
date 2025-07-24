@@ -45,6 +45,13 @@ export async function GET(
       }
     });
 
+    // Status mapping from database enum to Turkish frontend values
+    const statusMapping: {[key: string]: string} = {
+      'PENDING': 'bekliyor',
+      'APPROVED': 'onaylandi',
+      'REJECTED': 'reddedildi'
+    };
+
     // Formatla
     const formattedDekontlar = dekontlar.map((d: any) => ({
       id: d.id,
@@ -52,7 +59,7 @@ export async function GET(
       ogrenci_ad: `${d.staj.student.name} ${d.staj.student.surname}`,
       miktar: d.amount,
       odeme_tarihi: d.paymentDate,
-      onay_durumu: d.status,
+      onay_durumu: statusMapping[d.status as string] || d.status,
       ay: d.month,
       yil: d.year,
       dosya_url: d.fileUrl,

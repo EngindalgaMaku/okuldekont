@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { User, Mail, Phone, Info, Building2, Send, Bell } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { User, Mail, Phone, Info, Building2, Send, Bell, Shield, Unlock } from 'lucide-react'
 import Link from 'next/link'
 import QuickPinButton from './QuickPinButton'
 import Modal from '@/components/ui/Modal'
@@ -33,6 +33,8 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
     priority: 'NORMAL' as 'LOW' | 'NORMAL' | 'HIGH'
   })
   const [sending, setSending] = useState(false)
+  const [securityStatuses, setSecurityStatuses] = useState<Record<string, any>>({})
+  const [unlockingTeachers, setUnlockingTeachers] = useState<Set<string>>(new Set())
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -95,6 +97,74 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
       toast.error('Mesaj gönderilirken hata oluştu!')
     } finally {
       setSending(false)
+    }
+  }
+
+  // Fetch security statuses for all teachers
+  useEffect(() => {
+    const fetchSecurityStatuses = async () => {
+      const statuses: Record<string, any> = {}
+      await Promise.all(
+        ogretmenler.map(async (ogretmen) => {
+          try {
+            const response = await fetch('/api/admin/security/status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ entityType: 'teacher', entityId: ogretmen.id })
+            })
+            if (response.ok) {
+              const status = await response.json()
+              statuses[ogretmen.id] = status
+            }
+          } catch (error) {
+            // Ignore errors for individual teachers
+          }
+        })
+      )
+      setSecurityStatuses(statuses)
+    }
+
+    if (ogretmenler.length > 0) {
+      fetchSecurityStatuses()
+    }
+  }, [ogretmenler])
+
+  // Handle unlock teacher
+  const handleUnlockTeacher = async (teacherId: string) => {
+    setUnlockingTeachers(prev => new Set(prev).add(teacherId))
+    try {
+      const response = await fetch('/api/admin/security/unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'teacher', entityId: teacherId })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Blok açılırken hata oluştu')
+      }
+
+      toast.success('Öğretmen bloğu başarıyla açıldı!')
+      
+      // Refresh security status for this teacher
+      const statusResponse = await fetch('/api/admin/security/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'teacher', entityId: teacherId })
+      })
+      
+      if (statusResponse.ok) {
+        const status = await statusResponse.json()
+        setSecurityStatuses(prev => ({ ...prev, [teacherId]: status }))
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Blok açılırken hata oluştu.')
+    } finally {
+      setUnlockingTeachers(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(teacherId)
+        return newSet
+      })
     }
   }
 

@@ -12,6 +12,7 @@ import Modal from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import KoordinatoerlukProgrami from '@/components/ui/KoordinatoerlukProgrami'
 import OgretmenDekontListesi, { DekontDetay } from '@/components/ui/OgretmenDekontListesi'
+// Remove pin-security import since we'll use API endpoints
 
 // Type definitions
 interface Ogretmen {
@@ -245,8 +246,31 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
 
     const fetchLockStatus = async () => {
         setLockStatusLoading(true);
-        // Since the lock system is being migrated, we'll disable this for now
-        setLockStatus({ kilitli: false });
+        try {
+            const response = await fetch('/api/admin/security/status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entityType: 'teacher', entityId: ogretmen.id })
+            });
+            
+            if (response.ok) {
+                const securityData = await response.json();
+                setLockStatus(securityData);
+            } else {
+                setLockStatus({
+                    isLocked: false,
+                    remainingAttempts: 4,
+                    canAttempt: true
+                });
+            }
+        } catch (error) {
+            console.error('Lock status fetch error:', error);
+            setLockStatus({
+                isLocked: false,
+                remainingAttempts: 4,
+                canAttempt: true
+            });
+        }
         setLockStatusLoading(false);
     };
 
@@ -375,8 +399,23 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
 
     const handleUnlockAccount = async () => {
         setLoading(true);
-        // Unlock functionality disabled during migration
-        toast.error('Kilit açma özelliği geçici olarak devre dışı.');
+        try {
+            const response = await fetch('/api/admin/security/unlock', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ entityType: 'teacher', entityId: ogretmen.id })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Hesap kilidi açılırken hata oluştu');
+            }
+
+            toast.success('Hesap kilidi başarıyla açıldı.');
+            await fetchLockStatus(); // Refresh lock status
+        } catch (error: any) {
+            toast.error(error.message || 'Hesap kilidi açılırken hata oluştu.');
+        }
         setLoading(false);
     }
 
@@ -551,14 +590,63 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
                 {sectionsOpen.accountSecurity && (
                     <div className="px-4 pb-4 border-t border-gray-200">
                         <div className="mt-4">
-                            {lockStatusLoading ? <p>Yükleniyor...</p> : lockStatus && (
-                                <div className="space-y-2">
-                                    <p className="text-sm"><span className="font-medium">Durum:</span> {lockStatus.kilitli ? <span className="text-red-600">Kilitli</span> : <span className="text-green-600">Aktif</span>}</p>
-                                    {lockStatus.kilitli && (
-                                        <>
-                                            <p className="text-sm"><span className="font-medium">Kilitlenme Tarihi:</span> {new Date(lockStatus.kilitlenme_tarihi).toLocaleString('tr-TR')}</p>
-                                            <button onClick={handleUnlockAccount} disabled={loading} className="px-4 py-2 bg-yellow-500 text-white rounded-lg mt-2">Kilidi Aç</button>
-                                        </>
+                            {lockStatusLoading ? (
+                                <div className="flex items-center gap-2">
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                                    <span className="text-sm text-gray-600">Güvenlik durumu kontrol ediliyor...</span>
+                                </div>
+                            ) : lockStatus && (
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium">Hesap Durumu:</span>
+                                        {lockStatus.isLocked ? (
+                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                <Shield className="h-3 w-3 mr-1" />
+                                                Kilitli
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                <CheckCircle className="h-3 w-3 mr-1" />
+                                                Aktif
+                                            </span>
+                                        )}
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                        <div>
+                                            <span className="font-medium text-gray-700">Kalan Deneme:</span>
+                                            <span className="ml-2 text-gray-900">{lockStatus.remainingAttempts} / 4</span>
+                                        </div>
+                                        {lockStatus.lockStartTime && (
+                                            <div>
+                                                <span className="font-medium text-gray-700">Kilit Başlangıcı:</span>
+                                                <span className="ml-2 text-gray-900">{new Date(lockStatus.lockStartTime).toLocaleString('tr-TR')}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {lockStatus.isLocked && (
+                                        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                            <div className="flex items-start gap-2">
+                                                <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5" />
+                                                <div className="flex-1">
+                                                    <p className="text-sm font-medium text-red-800">Hesap Kilitlendi</p>
+                                                    {lockStatus.lockEndTime && (
+                                                        <p className="text-sm text-red-700 mt-1">
+                                                            Kilit Bitiş: {new Date(lockStatus.lockEndTime).toLocaleString('tr-TR')}
+                                                        </p>
+                                                    )}
+                                                    <button
+                                                        onClick={handleUnlockAccount}
+                                                        disabled={loading}
+                                                        className="flex items-center gap-2 mt-3 px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors disabled:opacity-50"
+                                                    >
+                                                        <Unlock className="h-4 w-4" />
+                                                        {loading ? 'Kilit Açılıyor...' : 'Kilidi Aç'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
                             )}
