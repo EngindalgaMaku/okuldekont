@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Eye, Download, Check, X, Filter, Search, Calendar } from 'lucide-react'
+import { Eye, Download, Check, X, Filter, Search, Calendar, Trash2 } from 'lucide-react'
 
 interface Dekont {
   id: string
@@ -67,6 +67,7 @@ export default function DekontlarPage() {
   const [itemsPerPage] = useState(10)
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [showApproveModal, setShowApproveModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedDekont, setSelectedDekont] = useState<Dekont | null>(null)
   const [rejectReason, setRejectReason] = useState('')
 
@@ -171,6 +172,31 @@ export default function DekontlarPage() {
     setShowRejectModal(true)
   }
 
+  const handleDelete = (dekont: Dekont) => {
+    setSelectedDekont(dekont)
+    setShowDeleteModal(true)
+  }
+
+  const deleteDekont = async (dekontId: string) => {
+    try {
+      const response = await fetch(`/api/admin/dekontlar/${dekontId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        await fetchDekontlar() // Refresh the list
+        setShowDeleteModal(false)
+        setSelectedDekont(null)
+      } else {
+        console.error('Dekont silme hatası')
+        alert('Dekont silinirken bir hata oluştu')
+      }
+    } catch (error) {
+      console.error('Dekont silinirken hata:', error)
+      alert('Dekont silinirken bir hata oluştu')
+    }
+  }
+
   const submitApprove = async () => {
     if (selectedDekont) {
       await updateDekontStatus(selectedDekont.id, 'APPROVED')
@@ -186,6 +212,7 @@ export default function DekontlarPage() {
   const closeModals = () => {
     setShowRejectModal(false)
     setShowApproveModal(false)
+    setShowDeleteModal(false)
     setSelectedDekont(null)
     setRejectReason('')
   }
@@ -432,6 +459,13 @@ export default function DekontlarPage() {
                           </button>
                         </>
                       )}
+                      <button
+                        onClick={() => handleDelete(dekont)}
+                        className="text-red-600 hover:text-red-900 p-1 transition-colors"
+                        title="Sil"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -599,6 +633,64 @@ export default function DekontlarPage() {
                   className="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                 >
                   Onayla
+                </button>
+                <button
+                  onClick={closeModals}
+                  className="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  İptal
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
+      {showDeleteModal && selectedDekont && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center">
+                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                  <Trash2 className="h-6 w-6 text-red-600" />
+                </div>
+              </div>
+              <div className="mt-3 text-center">
+                <h3 className="text-lg font-medium text-gray-900">Dekont Sil</h3>
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600 mb-4">
+                    <strong>{selectedDekont.ogrenci_ad}</strong> öğrencisinin <strong>{MONTHS[selectedDekont.ay - 1]} {selectedDekont.yil}</strong> ayına ait dekontunu kalıcı olarak silmek istediğinizden emin misiniz?
+                  </p>
+                  <div className="mt-4 bg-red-50 rounded-lg p-3 border border-red-200">
+                    <div className="text-sm text-red-700">
+                      <div className="flex items-center mb-2">
+                        <strong>⚠️ DİKKAT:</strong>
+                      </div>
+                      <ul className="text-xs space-y-1">
+                        <li>• Bu işlem geri alınamaz</li>
+                        <li>• Dekont ve tüm veriler kalıcı olarak silinecek</li>
+                        <li>• Durum: <span className="font-medium">{STATUS_LABELS[selectedDekont.onay_durumu]}</span></li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="mt-4 bg-gray-50 rounded-lg p-3">
+                    <div className="text-sm text-gray-700">
+                      <div><strong>İşletme:</strong> {selectedDekont.isletme_ad}</div>
+                      {selectedDekont.miktar && (
+                        <div><strong>Tutar:</strong> {formatCurrency(selectedDekont.miktar)}</div>
+                      )}
+                      <div><strong>Yükleyen:</strong> {selectedDekont.yukleyen_kisi}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5 sm:flex sm:flex-row-reverse gap-3">
+                <button
+                  onClick={() => selectedDekont && deleteDekont(selectedDekont.id)}
+                  className="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                >
+                  Evet, Sil
                 </button>
                 <button
                   onClick={closeModals}
