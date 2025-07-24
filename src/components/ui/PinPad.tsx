@@ -58,19 +58,19 @@ export default function PinPad({
   ]
 
   return (
-    <div className={`space-y-6 ${className}`}>
+    <div className={`space-y-3 sm:space-y-6 ${className}`}>
       {/* PIN Display */}
-      <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-6">
-        <div className="text-center mb-4">
-          <Lock className="h-6 w-6 text-gray-400 mx-auto mb-2" />
-          <p className="text-sm text-gray-600 font-medium">PIN Kodunuz</p>
+      <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-3 sm:p-6">
+        <div className="text-center mb-2 sm:mb-4">
+          <Lock className="h-5 w-5 sm:h-6 sm:w-6 text-gray-400 mx-auto mb-1 sm:mb-2" />
+          <p className="text-xs sm:text-sm text-gray-600 font-medium">PIN Kodunuz</p>
         </div>
         
-        <div className="flex justify-center space-x-3">
+        <div className="flex justify-center space-x-2 sm:space-x-3">
           {renderPinDisplay()}
         </div>
         
-        <div className="text-center mt-3">
+        <div className="text-center mt-2 sm:mt-3">
           <p className="text-xs text-gray-500">
             {value.length}/{maxLength} haneli PIN kodu
           </p>
@@ -78,8 +78,8 @@ export default function PinPad({
       </div>
 
       {/* Number Pad */}
-      <div className="grid grid-cols-3 gap-3">
-        {numberButtons.map((row, rowIndex) => 
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        {numberButtons.map((row, rowIndex) =>
           row.map((number, colIndex) => {
             if (number === '') {
               if (rowIndex === 3 && colIndex === 0) {
@@ -90,7 +90,7 @@ export default function PinPad({
                     type="button"
                     onClick={handleClear}
                     disabled={disabled || value.length === 0}
-                    className="h-14 bg-red-100 text-red-600 rounded-xl font-semibold text-lg hover:bg-red-200 active:bg-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    className="h-10 sm:h-14 bg-red-100 text-red-600 rounded-lg sm:rounded-xl font-semibold text-sm sm:text-lg hover:bg-red-200 active:bg-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                     title="Temizle"
                   >
                     C
@@ -104,10 +104,10 @@ export default function PinPad({
                     type="button"
                     onClick={handleBackspace}
                     disabled={disabled || value.length === 0}
-                    className="h-14 bg-yellow-100 text-yellow-600 rounded-xl font-semibold hover:bg-yellow-200 active:bg-yellow-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    className="h-10 sm:h-14 bg-yellow-100 text-yellow-600 rounded-lg sm:rounded-xl font-semibold hover:bg-yellow-200 active:bg-yellow-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                     title="Geri sil"
                   >
-                    <Delete className="h-5 w-5" />
+                    <Delete className="h-4 w-4 sm:h-5 sm:w-5" />
                   </button>
                 )
               }
@@ -122,7 +122,7 @@ export default function PinPad({
                 type="button"
                 onClick={() => handleNumberClick(number)}
                 disabled={disabled || value.length >= maxLength}
-                className="h-14 bg-blue-100 text-blue-900 rounded-xl font-bold text-xl hover:bg-blue-200 active:bg-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="h-10 sm:h-14 bg-blue-100 text-blue-900 rounded-lg sm:rounded-xl font-bold text-lg sm:text-xl hover:bg-blue-200 active:bg-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 {number}
               </button>
@@ -131,29 +131,8 @@ export default function PinPad({
         )}
       </div>
 
-      {/* Action Buttons Row */}
-      <div className="grid grid-cols-2 gap-3 mt-4">
-        <button
-          type="button"
-          onClick={handleClear}
-          disabled={disabled || value.length === 0}
-          className="py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 active:bg-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Temizle
-        </button>
-        <button
-          type="button"
-          onClick={handleBackspace}
-          disabled={disabled || value.length === 0}
-          className="py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 active:bg-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-        >
-          <Delete className="h-4 w-4" />
-          Sil
-        </button>
-      </div>
-
-      {/* Güvenlik Uyarısı */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+      {/* Güvenlik Uyarısı - Sadece desktop'ta göster */}
+      <div className="hidden sm:block bg-amber-50 border border-amber-200 rounded-lg p-3">
         <div className="flex items-start gap-2">
           <Lock className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
           <div>

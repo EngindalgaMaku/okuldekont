@@ -1015,7 +1015,7 @@ const TeacherPanel = () => {
   return (
     <div className="min-h-screen flex flex-col pb-16">
       {/* Header */}
-      <div className="relative bg-gradient-to-b from-indigo-600 to-indigo-800 pb-32">
+      <div className="relative bg-gradient-to-b from-indigo-600 to-indigo-800 pb-24 sm:pb-32">
         {/* Pattern Background */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0" style={{
@@ -1024,9 +1024,9 @@ const TeacherPanel = () => {
           }} />
         </div>
 
-        <div className="relative max-w-7xl mx-auto pt-6 px-4 sm:px-6 lg:px-8">
+        <div className="relative max-w-7xl mx-auto pt-4 sm:pt-6 px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
-            <div className="flex items-center">
+            <div className="flex items-center min-w-0 flex-1">
               <div className="flex-shrink-0 hidden sm:block">
                 <div className="relative">
                   <div className="absolute inset-0 bg-white rounded-2xl transform rotate-6 scale-105 opacity-20" />
@@ -1035,24 +1035,24 @@ const TeacherPanel = () => {
                   </div>
                 </div>
               </div>
-              <div className="sm:ml-6">
+              <div className="sm:ml-6 min-w-0 flex-1">
                 <h1 className="text-lg sm:text-2xl font-bold text-white">
                   Öğretmen Paneli
                 </h1>
-                <p className="text-indigo-200 text-sm">Koordinatörlük Yönetimi</p>
+                <p className="text-indigo-200 text-xs sm:text-sm">Koordinatörlük Yönetimi</p>
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               {/* Bildirim Butonu */}
               <button
                 onClick={() => setNotificationModalOpen(true)}
                 className="relative flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
                 title="Bildirimler"
               >
-                <Bell className="h-5 w-5 text-white" />
+                <Bell className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center text-[10px] sm:text-xs">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
@@ -1065,7 +1065,7 @@ const TeacherPanel = () => {
                 className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
                 title="PIN Değiştir"
               >
-                <Key className="h-5 w-5 text-white" />
+                <Key className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                 <span className="sr-only">PIN Değiştir</span>
               </button>
               
@@ -1074,15 +1074,15 @@ const TeacherPanel = () => {
                 className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
                 title="Çıkış Yap"
               >
-                <LogOut className="h-5 w-5 text-white" />
+                <LogOut className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                 <span className="sr-only">Çıkış Yap</span>
               </button>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="mt-8">
-            <nav className="-mb-px flex space-x-2 sm:space-x-4" aria-label="Tabs">
+          <div className="mt-6 sm:mt-8">
+            <nav className="-mb-px flex space-x-1 sm:space-x-4" aria-label="Tabs">
               {[
                 { id: 'isletmeler', icon: Building2, label: 'İşletmeler', count: isletmeler.length },
                 { id: 'dekontlar', icon: Receipt, label: 'Dekont Listesi', count: dekontlar.length },
@@ -1095,20 +1095,22 @@ const TeacherPanel = () => {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as 'isletmeler' | 'dekontlar' | 'belgeler')}
                     className={`
-                      group relative min-w-0 flex-1 overflow-hidden py-3 px-3 sm:px-6 rounded-t-xl text-sm font-medium text-center hover:bg-white hover:bg-opacity-10 transition-all duration-200
+                      group relative min-w-0 flex-1 overflow-hidden py-2 sm:py-3 px-2 sm:px-6 rounded-t-xl text-xs sm:text-sm font-medium text-center hover:bg-white hover:bg-opacity-10 transition-all duration-200
                       ${isActive
                         ? 'bg-white text-indigo-700'
                         : 'text-indigo-100 hover:text-white'}
                     `}
                   >
-                    <div className="flex flex-col sm:flex-row items-center justify-center">
-                      <Icon className={`h-5 w-5 ${isActive ? 'text-indigo-700' : 'text-indigo-300 group-hover:text-white'} sm:mr-2`} />
-                      <span className="hidden sm:inline">
-                        {tab.label} ({tab.count})
-                      </span>
-                      <span className="sm:hidden text-[10px] mt-1">
-                        ({tab.count})
-                      </span>
+                    <div className="flex flex-col items-center justify-center">
+                      <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${isActive ? 'text-indigo-700' : 'text-indigo-300 group-hover:text-white'} mb-1 sm:mb-0 sm:mr-2`} />
+                      <div className="flex flex-col sm:flex-row items-center">
+                        <span className="hidden sm:inline">
+                          {tab.label}
+                        </span>
+                        <span className="text-[10px] sm:text-xs sm:ml-1">
+                          ({tab.count})
+                        </span>
+                      </div>
                     </div>
                     {isActive && (
                       <span className="absolute inset-x-0 bottom-0 h-0.5 bg-indigo-700" />
@@ -1122,29 +1124,29 @@ const TeacherPanel = () => {
       </div>
 
       {/* Main Content */}
-      <main className="relative -mt-32 pb-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="relative -mt-24 sm:-mt-32 pb-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           {/* Unread Messages Section */}
           {notifications.filter(n => !n.is_read).length > 0 && (
-            <div className="mb-6 rounded-2xl shadow-lg ring-1 ring-black ring-opacity-5 p-6 bg-gradient-to-r from-blue-50 to-indigo-100 border-l-4 border-indigo-500">
+            <div className="mb-4 sm:mb-6 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-black ring-opacity-5 p-4 sm:p-6 bg-gradient-to-r from-blue-50 to-indigo-100 border-l-4 border-indigo-500">
               <div className="flex items-start">
                 <div className="flex-shrink-0">
-                  <Bell className="h-6 w-6 text-indigo-600" />
+                  <Bell className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" />
                 </div>
-                <div className="ml-3 flex-1">
-                  <h3 className="text-lg font-medium text-indigo-800">
+                <div className="ml-2 sm:ml-3 flex-1">
+                  <h3 className="text-base sm:text-lg font-medium text-indigo-800">
                     📨 Okunmamış Mesajlarınız ({notifications.filter(n => !n.is_read).length})
                   </h3>
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-3 sm:mt-4 space-y-3">
                     {notifications.filter(n => !n.is_read).slice(0, 3).map((notification) => (
                       <div
                         key={notification.id}
-                        className="bg-white rounded-lg p-4 shadow-sm border border-indigo-200"
+                        className="bg-white rounded-lg p-3 sm:p-4 shadow-sm border border-indigo-200"
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
-                              <h4 className="font-semibold text-gray-900">{notification.title}</h4>
+                              <h4 className="font-semibold text-gray-900 text-sm sm:text-base">{notification.title}</h4>
                               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                 notification.priority === 'high' ? 'bg-red-100 text-red-700' :
                                 notification.priority === 'normal' ? 'bg-blue-100 text-blue-700' :
@@ -1154,14 +1156,14 @@ const TeacherPanel = () => {
                                  notification.priority === 'normal' ? 'Normal' : 'Düşük'}
                               </span>
                             </div>
-                            <p className="text-sm text-gray-700 mb-3">{notification.content}</p>
-                            <div className="flex items-center justify-between">
+                            <p className="text-xs sm:text-sm text-gray-700 mb-3">{notification.content}</p>
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                               <span className="text-xs text-gray-500">
                                 Gönderen: {notification.sent_by} | {new Date(notification.created_at).toLocaleString('tr-TR')}
                               </span>
                               <button
                                 onClick={() => markAsRead(notification.id)}
-                                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium text-left sm:text-right"
                               >
                                 Okundu olarak işaretle
                               </button>
@@ -1183,10 +1185,10 @@ const TeacherPanel = () => {
                         </button>
                       </div>
                     )}
-                    <div className="flex justify-end pt-3 border-t border-indigo-200">
+                    <div className="flex justify-center sm:justify-end pt-3 border-t border-indigo-200">
                       <button
                         onClick={markAllAsRead}
-                        className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
+                        className="px-4 py-2 bg-indigo-600 text-white text-xs sm:text-sm rounded-lg hover:bg-indigo-700 transition-colors"
                       >
                         Tümünü Okundu İşaretle
                       </button>

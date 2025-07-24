@@ -1161,7 +1161,7 @@ export default function PanelPage() {
   return (
     <div className="min-h-screen flex flex-col pb-16">
       {/* Header */}
-      <div className="relative bg-gradient-to-b from-indigo-600 to-indigo-800 pb-32">
+      <div className="relative bg-gradient-to-b from-indigo-600 to-indigo-800 pb-24 sm:pb-32">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0" style={{
             backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
@@ -1169,9 +1169,9 @@ export default function PanelPage() {
           }} />
         </div>
 
-        <div className="relative max-w-7xl mx-auto pt-6 px-4 sm:px-6 lg:px-8">
+        <div className="relative max-w-7xl mx-auto pt-4 sm:pt-6 px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
-            <div className="flex items-center">
+            <div className="flex items-center min-w-0 flex-1">
               <div className="flex-shrink-0 hidden sm:block">
                 <div className="relative">
                   <div className="absolute inset-0 bg-white rounded-2xl transform rotate-6 scale-105 opacity-20" />
@@ -1180,23 +1180,23 @@ export default function PanelPage() {
                   </div>
                 </div>
               </div>
-              <div className="sm:ml-6">
-                <h1 className="text-2xl font-bold text-white">
+              <div className="sm:ml-6 min-w-0 flex-1">
+                <h1 className="text-lg sm:text-2xl font-bold text-white truncate">
                   {isletme.ad}
                 </h1>
-                <p className="text-indigo-200 text-sm">İşletme Paneli</p>
+                <p className="text-indigo-200 text-xs sm:text-sm">İşletme Paneli</p>
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               <button
                 onClick={() => setNotificationModalOpen(true)}
                 className="relative flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
                 title="Mesajlar"
               >
-                <Bell className="h-5 w-5 text-white" />
+                <Bell className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center text-[10px] sm:text-xs">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
@@ -1207,7 +1207,7 @@ export default function PanelPage() {
                 className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
                 title="PIN Değiştir"
               >
-                <Settings className="h-5 w-5 text-white" />
+                <Settings className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
               </button>
               
               <button
@@ -1215,14 +1215,14 @@ export default function PanelPage() {
                 className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
                 title="Çıkış Yap"
               >
-                <LogOut className="h-5 w-5 text-white" />
+                <LogOut className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
               </button>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="mt-8">
-            <nav className="-mb-px flex space-x-2 sm:space-x-4" aria-label="Tabs">
+          <div className="mt-6 sm:mt-8">
+            <nav className="-mb-px flex space-x-1 sm:space-x-4" aria-label="Tabs">
               {[
                 { id: 'ogrenciler', icon: Users, label: 'Öğrenciler', count: ogrenciler.length },
                 { id: 'dekontlar', icon: Receipt, label: 'Dekontlar', count: dekontlar.length },
@@ -1235,20 +1235,22 @@ export default function PanelPage() {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as ActiveTab)}
                     className={`
-                      group relative min-w-0 flex-1 overflow-hidden py-3 px-3 sm:px-6 rounded-t-xl text-sm font-medium text-center hover:bg-white hover:bg-opacity-10 transition-all duration-200
+                      group relative min-w-0 flex-1 overflow-hidden py-2 sm:py-3 px-2 sm:px-6 rounded-t-xl text-xs sm:text-sm font-medium text-center hover:bg-white hover:bg-opacity-10 transition-all duration-200
                       ${isActive
                         ? 'bg-white text-indigo-700'
                         : 'text-indigo-100 hover:text-white'}
                     `}
                   >
-                    <div className="flex flex-col sm:flex-row items-center justify-center">
-                      <Icon className={`h-5 w-5 ${isActive ? 'text-indigo-700' : 'text-indigo-300 group-hover:text-white'} sm:mr-2`} />
-                      <span className="hidden sm:inline">
-                        {tab.label} ({tab.count})
-                      </span>
-                      <span className="sm:hidden text-[10px] mt-1">
-                        ({tab.count})
-                      </span>
+                    <div className="flex flex-col items-center justify-center">
+                      <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${isActive ? 'text-indigo-700' : 'text-indigo-300 group-hover:text-white'} mb-1 sm:mb-0 sm:mr-2`} />
+                      <div className="flex flex-col sm:flex-row items-center">
+                        <span className="hidden sm:inline">
+                          {tab.label}
+                        </span>
+                        <span className="text-[10px] sm:text-xs sm:ml-1">
+                          ({tab.count})
+                        </span>
+                      </div>
                     </div>
                     {isActive && (
                       <span className="absolute inset-x-0 bottom-0 h-0.5 bg-indigo-700" />
@@ -1262,11 +1264,11 @@ export default function PanelPage() {
       </div>
 
       {/* Main Content */}
-      <main className="relative -mt-32 pb-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="relative -mt-24 sm:-mt-32 pb-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           {/* Dekont Takip Uyarı Sistemi */}
           {eksikDekontOgrenciler.length > 0 && (
-            <div className={`mb-6 rounded-2xl shadow-lg ring-1 ring-black ring-opacity-5 p-6 ${
+            <div className={`mb-4 sm:mb-6 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-black ring-opacity-5 p-4 sm:p-6 ${
               isGecikme()
                 ? 'bg-gradient-to-r from-red-50 to-red-100 border-l-4 border-red-500'
                 : isKritikSure()
@@ -1276,15 +1278,15 @@ export default function PanelPage() {
               <div className="flex items-start">
                 <div className="flex-shrink-0">
                   {isGecikme() ? (
-                    <XCircle className="h-6 w-6 text-red-600" />
+                    <XCircle className="h-5 w-5 sm:h-6 sm:w-6 text-red-600" />
                   ) : isKritikSure() ? (
-                    <Clock className="h-6 w-6 text-yellow-600" />
+                    <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600" />
                   ) : (
-                    <Calendar className="h-6 w-6 text-blue-600" />
+                    <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
                   )}
                 </div>
-                <div className="ml-3 flex-1">
-                  <h3 className={`text-lg font-medium ${
+                <div className="ml-2 sm:ml-3 flex-1">
+                  <h3 className={`text-base sm:text-lg font-medium ${
                     isGecikme() ? 'text-red-800' : isKritikSure() ? 'text-yellow-800' : 'text-blue-800'
                   }`}>
                     {isGecikme()
@@ -1294,7 +1296,7 @@ export default function PanelPage() {
                       : '📅 Dekont Hatırlatması'
                     }
                   </h3>
-                  <div className={`mt-2 text-sm ${
+                  <div className={`mt-2 text-xs sm:text-sm ${
                     isGecikme() ? 'text-red-700' : isKritikSure() ? 'text-yellow-700' : 'text-blue-700'
                   }`}>
                     <p className="font-medium mb-2">
@@ -1310,12 +1312,12 @@ export default function PanelPage() {
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                       {eksikDekontOgrenciler.map((ogrenci) => (
-                        <div key={ogrenci.id} className={`p-3 rounded-lg ${
+                        <div key={ogrenci.id} className={`p-2 sm:p-3 rounded-lg ${
                           isGecikme() ? 'bg-red-100 border border-red-200' :
                           isKritikSure() ? 'bg-yellow-100 border border-yellow-200' :
                           'bg-blue-100 border border-blue-200'
                         }`}>
-                          <div className="font-medium text-gray-900">
+                          <div className="font-medium text-gray-900 text-sm">
                             {ogrenci.ad} {ogrenci.soyad}
                           </div>
                           <div className="text-xs text-gray-600">
@@ -1341,7 +1343,7 @@ export default function PanelPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-2xl shadow-xl ring-1 ring-black ring-opacity-5 p-6 divide-y divide-gray-200">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl ring-1 ring-black ring-opacity-5 p-4 sm:p-6 divide-y divide-gray-200">
             {activeTab === 'ogrenciler' && (
               <div className="space-y-6">
                 {ogrenciler.map((ogrenci, index) => (
@@ -1452,51 +1454,53 @@ export default function PanelPage() {
 
             {activeTab === 'dekontlar' && (
               <div className="space-y-4">
-                <div className="mb-4 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded text-yellow-900 text-sm">
+                <div className="mb-4 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded text-yellow-900 text-xs sm:text-sm">
                   <span className="font-semibold">Dekontu yanlış yüklediyseniz silebilirsiniz.</span> Uyarı: Onaylanmış dekontlarda silme işlemi yoktur.
                 </div>
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                  <h2 className="text-2xl font-semibold text-gray-900">Dekontlar</h2>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                  <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">Dekontlar</h2>
                   <button
                     onClick={() => setDekontModalOpen(true)}
-                    className="flex items-center px-4 py-2 text-sm text-white bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-colors shadow-sm"
+                    className="flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm text-white bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-colors shadow-sm w-full sm:w-auto justify-center"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                     Yeni Dekont Ekle
                   </button>
                 </div>
 
                 {/* Dekont Filtreleme */}
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                  <div className="relative w-full sm:w-64">
-                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <select
-                      value={selectedStudentFilter}
-                      onChange={(e) => setSelectedStudentFilter(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
-                    >
-                      <option value="all">Tüm Öğrenciler</option>
-                      {ogrenciler.map((ogrenci) => (
-                        <option key={ogrenci.id} value={`${ogrenci.ad} ${ogrenci.soyad}`}>
-                          {ogrenci.ad} {ogrenci.soyad} - {ogrenci.sinif}
-                        </option>
-                      ))}
-                    </select>
+                <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative w-full">
+                      <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
+                      <select
+                        value={selectedStudentFilter}
+                        onChange={(e) => setSelectedStudentFilter(e.target.value)}
+                        className="w-full pl-8 sm:pl-10 pr-4 py-2 text-xs sm:text-sm bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
+                      >
+                        <option value="all">Tüm Öğrenciler</option>
+                        {ogrenciler.map((ogrenci) => (
+                          <option key={ogrenci.id} value={`${ogrenci.ad} ${ogrenci.soyad}`}>
+                            {ogrenci.ad} {ogrenci.soyad} - {ogrenci.sinif}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="relative w-full sm:w-48">
+                      <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
+                      <select
+                        value={selectedStatusFilter}
+                        onChange={(e) => setSelectedStatusFilter(e.target.value)}
+                        className="w-full pl-8 sm:pl-10 pr-4 py-2 text-xs sm:text-sm bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
+                      >
+                        <option value="all">Tüm Durumlar</option>
+                        <option value="bekliyor">Bekliyor</option>
+                        <option value="onaylandi">Onaylandı</option>
+                        <option value="reddedildi">Reddedildi</option>
+                      </select>
+                    </div>
                   </div>
-                  <div className="relative w-full sm:w-48">
-                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <select
-                      value={selectedStatusFilter}
-                      onChange={(e) => setSelectedStatusFilter(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
-                    >
-                      <option value="all">Tüm Durumlar</option>
-                      <option value="bekliyor">Bekliyor</option>
-                      <option value="onaylandi">Onaylandı</option>
-                      <option value="reddedildi">Reddedildi</option>
-                    </select>
-                  </div>
-                  <div className="text-sm text-gray-500 flex items-center">
+                  <div className="text-xs sm:text-sm text-gray-500 text-center sm:text-left">
                     Toplam {filteredDekontlar.length} dekont bulundu
                   </div>
                 </div>
