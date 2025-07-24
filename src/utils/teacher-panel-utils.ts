@@ -119,7 +119,7 @@ export const handleFileDownload = async (dosyaUrl: string, fileName: string) => 
     
     const link = document.createElement('a');
     link.href = downloadUrl;
-    link.download = `${fileName}.pdf`;
+    link.download = fileName;
     link.target = '_blank';
     document.body.appendChild(link);
     link.click();
@@ -130,10 +130,17 @@ export const handleFileDownload = async (dosyaUrl: string, fileName: string) => 
   }
 };
 
-// Dosya görüntüleme handler'ı
+// Dosya görüntüleme handler'ı - Belgeler için özel endpoint
 export const handleFileView = async (dosyaUrl: string) => {
   try {
-    window.open(dosyaUrl, '_blank');
+    // Belge dosyaları için doğrudan URL'yi kullan
+    if (dosyaUrl.startsWith('http') || dosyaUrl.startsWith('/uploads/')) {
+      window.open(dosyaUrl, '_blank');
+    } else {
+      // Eğer tam URL değilse, belgeler klasörü ekle
+      const fullUrl = dosyaUrl.startsWith('/') ? dosyaUrl : `/uploads/belgeler/${dosyaUrl}`;
+      window.open(fullUrl, '_blank');
+    }
   } catch (error) {
     console.error('Dosya görüntüleme hatası:', error);
     alert('Dosya görüntülenemedi. Lütfen tekrar deneyin.');

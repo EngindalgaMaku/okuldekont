@@ -1224,8 +1224,15 @@ export default function PanelPage() {
   // Dosya indirme handler'ı
   const handleFileDownload = async (fileUrl: string, fileName: string) => {
     try {
+      // URL'den dosya adını çıkar
+      const urlParts = fileUrl.split('/');
+      const originalFileName = urlParts[urlParts.length - 1];
+      
+      // API endpoint'i kullanarak dosyayı indir
+      const downloadUrl = `/api/admin/dekontlar/download/${originalFileName}`;
+      
       const link = document.createElement('a');
-      link.href = fileUrl;
+      link.href = downloadUrl;
       link.download = fileName;
       link.target = '_blank';
       document.body.appendChild(link);
@@ -1237,10 +1244,17 @@ export default function PanelPage() {
     }
   };
 
-  // Dosya görüntüleme handler'ı
+  // Dosya görüntüleme handler'ı - Belgeler için özel endpoint
   const handleFileView = async (fileUrl: string) => {
     try {
-      window.open(fileUrl, '_blank');
+      // Belge dosyaları için doğrudan URL'yi kullan
+      if (fileUrl.startsWith('http') || fileUrl.startsWith('/uploads/')) {
+        window.open(fileUrl, '_blank');
+      } else {
+        // Eğer tam URL değilse, belgeler klasörü ekle
+        const fullUrl = fileUrl.startsWith('/') ? fileUrl : `/uploads/belgeler/${fileUrl}`;
+        window.open(fullUrl, '_blank');
+      }
     } catch (error) {
       console.error('Dosya görüntüleme hatası:', error);
       alert('Dosya açılamadı. Lütfen tekrar deneyiniz.');
@@ -1326,7 +1340,7 @@ export default function PanelPage() {
 
           {/* Tabs */}
           <div className="mt-6 sm:mt-8">
-            <nav className="-mb-px flex space-x-1 sm:space-x-4" aria-label="Tabs">
+            <nav className="-mb-px flex space-x-0.5 sm:space-x-4" aria-label="Tabs">
               {[
                 { id: 'ogrenciler', icon: Users, label: 'Öğrenciler', count: ogrenciler.length },
                 { id: 'dekontlar', icon: Receipt, label: 'Dekontlar', count: dekontlar.length },
@@ -1339,20 +1353,20 @@ export default function PanelPage() {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as ActiveTab)}
                     className={`
-                      group relative min-w-0 flex-1 overflow-hidden py-2 sm:py-3 px-2 sm:px-6 rounded-t-xl text-xs sm:text-sm font-medium text-center hover:bg-white hover:bg-opacity-10 transition-all duration-200
+                      group relative min-w-0 flex-1 overflow-hidden py-1.5 sm:py-3 px-1 sm:px-6 rounded-t-xl text-xs sm:text-sm font-medium text-center hover:bg-white hover:bg-opacity-10 transition-all duration-200
                       ${isActive
                         ? 'bg-white text-indigo-700'
                         : 'text-indigo-100 hover:text-white'}
                     `}
                   >
-                    <div className="flex flex-col items-center justify-center">
-                      <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${isActive ? 'text-indigo-700' : 'text-indigo-300 group-hover:text-white'} mb-1 sm:mb-0 sm:mr-2`} />
-                      <div className="flex flex-col sm:flex-row items-center">
-                        <span className="hidden sm:inline">
+                    <div className="flex flex-col items-center justify-center min-h-[3rem] sm:min-h-[3.5rem]">
+                      <Icon className={`h-3.5 w-3.5 sm:h-5 sm:w-5 ${isActive ? 'text-indigo-700' : 'text-indigo-300 group-hover:text-white'} mb-0.5 sm:mb-0 sm:mr-2 flex-shrink-0`} />
+                      <div className="flex flex-col sm:flex-row items-center gap-0.5 sm:gap-1">
+                        <span className="text-[10px] sm:text-sm font-medium truncate max-w-full">
                           {tab.label}
                         </span>
-                        <span className="text-[10px] sm:text-xs sm:ml-1">
-                          ({tab.count})
+                        <span className="text-[9px] sm:text-xs font-semibold leading-none">
+                          ({tab.count > 99 ? '99+' : tab.count})
                         </span>
                       </div>
                     </div>
