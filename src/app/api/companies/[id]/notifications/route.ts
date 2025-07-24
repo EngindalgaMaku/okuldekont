@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+// Next.js cache'ini devre dışı bırak
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,7 +22,14 @@ export async function GET(
       }
     })
 
-    return NextResponse.json(notifications)
+    const response = NextResponse.json(notifications);
+    
+    // Cache-control headers - mobil cache sorununu çözmek için
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    
+    return response;
   } catch (error) {
     console.error('Bildirimler getirme hatası:', error)
     return NextResponse.json({ error: 'Bildirimler getirilemedi' }, { status: 500 })

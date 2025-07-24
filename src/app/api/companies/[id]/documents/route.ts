@@ -3,6 +3,10 @@ import { prisma } from '@/lib/prisma'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 
+// Next.js cache'ini devre dışı bırak
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -176,7 +180,14 @@ export async function GET(
       };
     });
 
-    return NextResponse.json(formattedBelgeler);
+    const response = NextResponse.json(formattedBelgeler);
+    
+    // Cache-control headers - mobil cache sorununu çözmek için
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    
+    return response;
   } catch (error) {
     console.error('Belgeler getirme hatası:', error)
     return NextResponse.json({ error: 'Belgeler getirilemedi' }, { status: 500 })

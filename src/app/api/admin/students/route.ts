@@ -129,6 +129,11 @@ export async function GET(request: Request) {
         },
         stajlar: {
           include: {
+            teacher: {
+              include: {
+                alan: true
+              }
+            },
             company: {
               include: {
                 teacher: {
@@ -158,6 +163,16 @@ export async function GET(request: Request) {
       const activeInternship = student.stajlar.find((i: any) => i.status === 'ACTIVE')
       const latestInternship = student.stajlar[0] // Most recent due to ordering
       
+      // Determine coordinator teacher: prioritize internship coordinator over company teacher
+      let coordinatorTeacher = null
+      if (activeInternship?.teacher) {
+        coordinatorTeacher = activeInternship.teacher
+      } else if (activeInternship?.company?.teacher) {
+        coordinatorTeacher = activeInternship.company.teacher
+      } else if (student.company?.teacher) {
+        coordinatorTeacher = student.company.teacher
+      }
+      
       return {
         id: student.id,
         ad: student.name, // Match the component interface
@@ -171,23 +186,23 @@ export async function GET(request: Request) {
           id: activeInternship.company.id,
           name: activeInternship.company.name,
           contact: activeInternship.company.contact,
-          teacher: activeInternship.company.teacher ? {
-            id: activeInternship.company.teacher.id,
-            name: activeInternship.company.teacher.name,
-            surname: activeInternship.company.teacher.surname,
-            alanId: activeInternship.company.teacher.alanId,
-            alan: activeInternship.company.teacher.alan
+          teacher: coordinatorTeacher ? {
+            id: coordinatorTeacher.id,
+            name: coordinatorTeacher.name,
+            surname: coordinatorTeacher.surname,
+            alanId: coordinatorTeacher.alanId,
+            alan: coordinatorTeacher.alan
           } : null
         } : (student.company ? {
           id: student.company.id,
           name: student.company.name,
           contact: student.company.contact,
-          teacher: student.company.teacher ? {
-            id: student.company.teacher.id,
-            name: student.company.teacher.name,
-            surname: student.company.teacher.surname,
-            alanId: student.company.teacher.alanId,
-            alan: student.company.teacher.alan
+          teacher: coordinatorTeacher ? {
+            id: coordinatorTeacher.id,
+            name: coordinatorTeacher.name,
+            surname: coordinatorTeacher.surname,
+            alanId: coordinatorTeacher.alanId,
+            alan: coordinatorTeacher.alan
           } : null
         } : null),
         // Add internship status information

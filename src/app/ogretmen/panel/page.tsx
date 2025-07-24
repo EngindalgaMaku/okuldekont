@@ -103,9 +103,8 @@ const TeacherPanel = () => {
   // Önceki ay için dekont eksik olan öğrencileri tespit et
   const getEksikDekontOgrenciler = () => {
     const currentDate = new Date();
-    const previousMonth = currentDate.getMonth(); // 0-based, bu bize önceki ayı verir (getCurrentMonth() - 1)
-    const previousYear = previousMonth === 0 ? currentDate.getFullYear() - 1 : currentDate.getFullYear();
-    const targetMonth = previousMonth === 0 ? 12 : previousMonth;
+    const previousMonth = currentDate.getMonth() === 0 ? 12 : currentDate.getMonth();
+    const previousYear = currentDate.getMonth() === 0 ? currentDate.getFullYear() - 1 : currentDate.getFullYear();
     
     const tumOgrenciler: Array<{id: string, ad: string, soyad: string, sinif: string, no: string, isletme_ad: string, baslangic_tarihi: string, staj_id?: string}> = [];
     
@@ -119,9 +118,20 @@ const TeacherPanel = () => {
     });
     
     return tumOgrenciler.filter(ogrenci => {
+      // Öğrencinin başlangıç tarihini kontrol et
+      const startDate = new Date(ogrenci.baslangic_tarihi);
+      const startYear = startDate.getFullYear();
+      const startMonth = startDate.getMonth() + 1;
+      
+      // Eğer öğrenci önceki aydan sonra işe başlamışsa, dekont aranmaz
+      if (previousYear < startYear || (previousYear === startYear && previousMonth < startMonth)) {
+        return false;
+      }
+      
+      // Önceki ay için dekont kontrolü
       const ogrenciDekontlari = dekontlar.filter(d =>
         d.ogrenci_ad === `${ogrenci.ad} ${ogrenci.soyad}` &&
-        d.ay === targetMonth &&
+        d.ay === previousMonth &&
         d.yil === previousYear
       );
       return ogrenciDekontlari.length === 0;
@@ -1221,12 +1231,15 @@ const TeacherPanel = () => {
                     isGecikme() ? 'text-red-700' : isKritikSure() ? 'text-yellow-700' : 'text-blue-700'
                   }`}>
                     <p className="font-medium mb-2">
-                      {isGecikme()
-                        ? `${aylar[getCurrentMonth() - 2 < 0 ? 11 : getCurrentMonth() - 2]} ayı dekont yükleme süresi geçti! İşletmeler devlet katkı payı alamayabilir.`
-                        : isKritikSure()
-                        ? `${aylar[getCurrentMonth() - 2 < 0 ? 11 : getCurrentMonth() - 2]} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
-                        : `${aylar[getCurrentMonth() - 2 < 0 ? 11 : getCurrentMonth() - 2]} ayı için eksik dekontlar var.`
-                      }
+                      {(() => {
+                        const currentDate = new Date();
+                        const previousMonthIndex = currentDate.getMonth() === 0 ? 11 : currentDate.getMonth() - 1;
+                        return isGecikme()
+                          ? `${aylar[previousMonthIndex]} ayı dekont yükleme süresi geçti! İşletmeler devlet katkı payı alamayabilir.`
+                          : isKritikSure()
+                          ? `${aylar[previousMonthIndex]} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
+                          : `${aylar[previousMonthIndex]} ayı için eksik dekontlar var.`;
+                      })()}
                     </p>
                     <p className="mb-3">
                       <strong>Eksik dekont olan öğrenciler ({eksikDekontOgrenciler.length} kişi):</strong>

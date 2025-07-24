@@ -115,7 +115,21 @@ export async function POST(request: Request) {
     const ayNum = ay ? parseInt(ay) : new Date().getMonth() + 1;
     const yilNum = yil ? parseInt(yil) : new Date().getFullYear();
     
-    // Staj başlama tarihi kontrolü
+    // Tarih validasyonu 1: Mevcut ay ve gelecek aylar için dekont yüklenemez (öğrenciler önceki ayın maaşını alır)
+    const currentDate = new Date()
+    const currentYear = currentDate.getFullYear()
+    const currentMonth = currentDate.getMonth() + 1
+    
+    if (yilNum > currentYear || (yilNum === currentYear && ayNum >= currentMonth)) {
+      return NextResponse.json(
+        {
+          error: `Mevcut ay (${currentMonth}/${currentYear}) ve gelecek aylar için dekont yükleyemezsiniz. Öğrenciler sadece önceki ayın maaşını alır.`
+        },
+        { status: 400 }
+      )
+    }
+    
+    // Tarih validasyonu 2: Staj başlama tarihi kontrolü
     const stajBaslangic = new Date(staj.startDate);
     const dekontTarihi = new Date(yilNum, ayNum - 1, 1); // ayNum is 1-based, Date constructor expects 0-based
     

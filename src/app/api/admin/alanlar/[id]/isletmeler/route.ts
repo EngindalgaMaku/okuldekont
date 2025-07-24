@@ -61,7 +61,7 @@ export async function GET(
             }
           }
         },
-        // Aktif stajlar
+        // Aktif stajlar (koordinatör öğretmen bilgisi dahil)
         stajlar: {
           where: {
             student: {
@@ -71,6 +71,21 @@ export async function GET(
           },
           select: {
             id: true,
+            teacherId: true,
+            teacher: {
+              select: {
+                id: true,
+                name: true,
+                surname: true,
+                alanId: true,
+                alan: {
+                  select: {
+                    id: true,
+                    name: true
+                  }
+                }
+              }
+            },
             student: {
               select: {
                 id: true,
@@ -118,6 +133,16 @@ export async function GET(
       // Tüm öğrencileri birleştir
       const tumStajlar = [...stajOgrencileri, ...atanmisOgrenciler]
 
+      // Koordinatör öğretmeni belirle: Öncelik stajdaki koordinatöre, sonra işletmenin öğretmenine
+      let coordinatorTeacher = null
+      if (isletme.stajlar.length > 0) {
+        // İlk stajın koordinatör öğretmenini al
+        const firstInternshipTeacher = isletme.stajlar.find(staj => staj.teacher)?.teacher
+        coordinatorTeacher = firstInternshipTeacher || isletme.teacher
+      } else {
+        coordinatorTeacher = isletme.teacher
+      }
+
       return {
         id: isletme.id,
         ad: isletme.name,
@@ -125,8 +150,8 @@ export async function GET(
         telefon: isletme.phone,
         email: isletme.email,
         adres: isletme.address,
-        teacherId: isletme.teacherId,
-        teacher: isletme.teacher,
+        teacherId: coordinatorTeacher?.id || isletme.teacherId,
+        teacher: coordinatorTeacher,
         stajlar: tumStajlar
       }
     })

@@ -152,16 +152,28 @@ export default function PanelPage() {
   
   const aylar = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
   
-  // Bu ay için dekont eksik olan öğrencileri tespit et
+  // Önceki ay için dekont eksik olan öğrencileri tespit et
   const getEksikDekontOgrenciler = () => {
-    const currentMonth = getCurrentMonth();
-    const currentYear = getCurrentYear();
+    const currentDate = new Date();
+    const previousMonth = currentDate.getMonth() === 0 ? 12 : currentDate.getMonth();
+    const previousYear = currentDate.getMonth() === 0 ? currentDate.getFullYear() - 1 : currentDate.getFullYear();
     
     return ogrenciler.filter(ogrenci => {
+      // Öğrencinin başlangıç tarihini kontrol et
+      const startDate = new Date(ogrenci.baslangic_tarihi);
+      const startYear = startDate.getFullYear();
+      const startMonth = startDate.getMonth() + 1;
+      
+      // Eğer öğrenci önceki aydan sonra işe başlamışsa, dekont aranmaz
+      if (previousYear < startYear || (previousYear === startYear && previousMonth < startMonth)) {
+        return false;
+      }
+      
+      // Önceki ay için dekont kontrolü
       const ogrenciDekontlari = dekontlar.filter(d =>
         String(d.staj_id) === String(ogrenci.staj_id) &&
-        d.ay === currentMonth &&
-        String(d.yil) === String(currentYear)
+        d.ay === previousMonth &&
+        String(d.yil) === String(previousYear)
       );
       return ogrenciDekontlari.length === 0;
     });
@@ -289,13 +301,19 @@ export default function PanelPage() {
     dosya: null as File | null
   })
 
-  // Dekont form verileri
-  const [dekontFormData, setDekontFormData] = useState({
-    ay: new Date().getMonth() + 1,
-    yil: new Date().getFullYear(),
-    aciklama: '',
-    miktar: '',
-    dosya: null as File | null
+  // Dekont form verileri - önceki aya ayarlı
+  const [dekontFormData, setDekontFormData] = useState(() => {
+    const currentDate = new Date();
+    const previousMonth = currentDate.getMonth() === 0 ? 12 : currentDate.getMonth();
+    const yearForPreviousMonth = currentDate.getMonth() === 0 ? currentDate.getFullYear() - 1 : currentDate.getFullYear();
+    
+    return {
+      ay: previousMonth,
+      yil: yearForPreviousMonth,
+      aciklama: '',
+      miktar: '',
+      dosya: null as File | null
+    };
   })
 
   const fetchSchoolName = async () => {
@@ -325,8 +343,23 @@ export default function PanelPage() {
         return
       }
 
+      // Agresif mobil cache-busting stratejisi
+      const timestamp = Date.now()
+      const randomId = Math.random().toString(36).substring(2)
+      const cacheBuster = `?_cb=${timestamp}&_r=${randomId}&_mobile=${navigator.userAgent.includes('Mobile') ? '1' : '0'}&_v=${Math.floor(timestamp/1000)}`
+      
+      const noCacheHeaders = {
+        'Cache-Control': 'no-cache, no-store, must-revalidate, proxy-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'If-Modified-Since': 'Mon, 26 Jul 1997 05:00:00 GMT',
+        'If-None-Match': '*'
+      };
+
       // İşletme verilerini API'dan getir
-      const isletmeResponse = await fetch(`/api/companies/${sessionIsletmeId}`);
+      const isletmeResponse = await fetch(`/api/companies/${sessionIsletmeId}${cacheBuster}`, {
+        headers: noCacheHeaders
+      });
       if (!isletmeResponse.ok) {
         throw new Error('İşletme verisi getirilemedi');
       }
@@ -345,21 +378,27 @@ export default function PanelPage() {
       fetchNotifications(isletmeData.id);
 
       // İşletmenin öğrencilerini getir
-      const studentsResponse = await fetch(`/api/companies/${sessionIsletmeId}/students`);
+      const studentsResponse = await fetch(`/api/companies/${sessionIsletmeId}/students${cacheBuster}`, {
+        headers: noCacheHeaders
+      });
       if (studentsResponse.ok) {
         const studentsData = await studentsResponse.json();
         setOgrenciler(studentsData);
       }
 
       // İşletmenin dekontlarını getir
-      const dekontResponse = await fetch(`/api/companies/${sessionIsletmeId}/dekontlar`);
+      const dekontResponse = await fetch(`/api/companies/${sessionIsletmeId}/dekontlar${cacheBuster}`, {
+        headers: noCacheHeaders
+      });
       if (dekontResponse.ok) {
         const dekontData = await dekontResponse.json();
         setDekontlar(dekontData);
       }
 
       // İşletmenin belgelerini getir
-      const belgeResponse = await fetch(`/api/companies/${sessionIsletmeId}/documents`);
+      const belgeResponse = await fetch(`/api/companies/${sessionIsletmeId}/documents${cacheBuster}`, {
+        headers: noCacheHeaders
+      });
       if (belgeResponse.ok) {
         const belgeData = await belgeResponse.json();
         setBelgeler(belgeData);
@@ -379,7 +418,15 @@ export default function PanelPage() {
   // Bildirimleri getir
   const fetchNotifications = async (isletmeId: string) => {
     try {
-      const response = await fetch(`/api/companies/${isletmeId}/notifications`);
+      const cacheBuster = `?_t=${Date.now()}&r=${Math.random()}`;
+      const noCacheHeaders = {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      };
+      const response = await fetch(`/api/companies/${isletmeId}/notifications${cacheBuster}`, {
+        headers: noCacheHeaders
+      });
       if (response.ok) {
         const data = await response.json();
         setNotifications(data || []);
@@ -812,19 +859,32 @@ export default function PanelPage() {
 
       const result = await response.json();
       const newDekont = result.data || result;
-      setDekontlar(prev => [newDekont, ...prev]);
+      
+      // Modal'ı kapat
       setDekontModalOpen(false);
       setSelectedOgrenci(null);
-      setDekontFormData({
-        ay: new Date().getMonth() + 1,
-        yil: new Date().getFullYear(),
-        aciklama: '',
-        miktar: '',
-        dosya: null
+      setDekontFormData(() => {
+        const currentDate = new Date();
+        const previousMonth = currentDate.getMonth() === 0 ? 12 : currentDate.getMonth();
+        const yearForPreviousMonth = currentDate.getMonth() === 0 ? currentDate.getFullYear() - 1 : currentDate.getFullYear();
+        
+        return {
+          ay: previousMonth,
+          yil: yearForPreviousMonth,
+          aciklama: '',
+          miktar: '',
+          dosya: null
+        };
       });
+      
       setSuccessMessage('Dekont başarıyla yüklendi!');
       setSuccessModalOpen(true);
       setActiveTab('dekontlar');
+      
+      // Mobil cache sorunu için hard refresh
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500); // Kullanıcı başarı mesajını görsün diye kısa bir gecikme
     } catch (error: any) {
       setErrorModal({
         isOpen: true,
@@ -870,11 +930,15 @@ export default function PanelPage() {
 
               const result = await response.json();
               const newDekont = result.data || result;
-              setDekontlar(prev => [newDekont, ...prev]);
               
               setSuccessMessage('Ek dekont başarıyla yüklendi!');
               setSuccessModalOpen(true);
               setActiveTab('dekontlar');
+              
+              // Mobil cache sorunu için hard refresh
+              setTimeout(() => {
+                window.location.reload();
+              }, 1500);
             } catch (error: any) {
               setErrorModal({
                 isOpen: true,
@@ -960,17 +1024,15 @@ export default function PanelPage() {
       }
 
       // Başarılı silme işlemi
-      const updatedDekontlar = dekontlar.filter(d => d.id !== dekont.id);
-      setDekontlar(updatedDekontlar);
-      
-      // Filtrelenmiş listeyi de güncelle
-      const updatedFilteredDekontlar = filteredDekontlar.filter(d => d.id !== dekont.id);
-      setFilteredDekontlar(updatedFilteredDekontlar);
-      
       setDeleteConfirmOpen(false);
       setPendingDeleteDekont(null);
       setSuccessMessage('Dekont başarıyla silindi!');
       setSuccessModalOpen(true);
+      
+      // Mobil cache sorunu için hard refresh
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (error: any) {
       console.error('Dekont silme hatası:', error);
       setDeleteConfirmOpen(false);
@@ -1237,10 +1299,10 @@ export default function PanelPage() {
                   }`}>
                     <p className="font-medium mb-2">
                       {isGecikme()
-                        ? `${aylar[getCurrentMonth() - 1]} ayı dekont yükleme süresi geçti! Devlet katkı payı alamayabilirsiniz.`
+                        ? `${aylar[getCurrentMonth() === 1 ? 11 : getCurrentMonth() - 2]} ayı dekont yükleme süresi geçti! Devlet katkı payı alamayabilirsiniz.`
                         : isKritikSure()
-                        ? `${aylar[getCurrentMonth() - 1]} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
-                        : `${aylar[getCurrentMonth() - 1]} ayı için eksik dekontlar var.`
+                        ? `${aylar[getCurrentMonth() === 1 ? 11 : getCurrentMonth() - 2]} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
+                        : `${aylar[getCurrentMonth() === 1 ? 11 : getCurrentMonth() - 2]} ayı için eksik dekontlar var.`
                       }
                     </p>
                     <p className="mb-3">
@@ -1795,9 +1857,21 @@ export default function PanelPage() {
                   {aylar.map((ay, index) => {
                     const ayIndex = index + 1;
                     let isDisabled = false;
+                    let disabledReason = '';
+                    
+                    // Mevcut ay ve gelecek aylar seçilemez (öğrenciler önceki ayın maaşını alır)
+                    const currentDate = new Date();
+                    const currentYear = currentDate.getFullYear();
+                    const currentMonth = currentDate.getMonth() + 1;
+                    
+                    if (dekontFormData.yil > currentYear ||
+                        (dekontFormData.yil === currentYear && ayIndex >= currentMonth)) {
+                      isDisabled = true;
+                      disabledReason = 'Mevcut ay ve sonrası';
+                    }
                     
                     // Öğrenci seçiliyse, başlangıç tarihinden önce dekont yüklenemez
-                    if (selectedOgrenci) {
+                    if (selectedOgrenci && !isDisabled) {
                       const startDate = new Date(selectedOgrenci.baslangic_tarihi);
                       const startYear = startDate.getFullYear();
                       const startMonth = startDate.getMonth() + 1;
@@ -1805,10 +1879,12 @@ export default function PanelPage() {
                       // Seçilen yıl başlangıç yılından küçükse disable
                       if (dekontFormData.yil < startYear) {
                         isDisabled = true;
+                        disabledReason = 'İş başlangıcından önce';
                       }
                       // Aynı yıl ama ay başlangıç ayından küçükse disable
                       else if (dekontFormData.yil === startYear && ayIndex < startMonth) {
                         isDisabled = true;
+                        disabledReason = 'İş başlangıcından önce';
                       }
                     }
                     
@@ -1819,7 +1895,7 @@ export default function PanelPage() {
                         disabled={isDisabled}
                         style={isDisabled ? { color: '#ccc', backgroundColor: '#f5f5f5' } : {}}
                       >
-                        {ay} {isDisabled ? '(İş başlangıcından önce)' : ''}
+                        {ay} {isDisabled ? `(${disabledReason})` : ''}
                       </option>
                     );
                   })}
@@ -1835,14 +1911,23 @@ export default function PanelPage() {
                   <option value="">Yıl Seçiniz</option>
                   {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i).map(yil => {
                     let isDisabled = false;
+                    let disabledReason = '';
+                    
+                    // Mevcut yıl ve gelecek yıllar için sınırlama
+                    const currentYear = new Date().getFullYear();
+                    if (yil > currentYear) {
+                      isDisabled = true;
+                      disabledReason = 'Gelecek yıl';
+                    }
                     
                     // Öğrenci seçiliyse, başlangıç tarihinden önceki yıllar seçilemez
-                    if (selectedOgrenci) {
+                    if (selectedOgrenci && !isDisabled) {
                       const startDate = new Date(selectedOgrenci.baslangic_tarihi);
                       const startYear = startDate.getFullYear();
                       
                       if (yil < startYear) {
                         isDisabled = true;
+                        disabledReason = 'İş başlangıcından önce';
                       }
                     }
                     
@@ -1853,7 +1938,7 @@ export default function PanelPage() {
                         disabled={isDisabled}
                         style={isDisabled ? { color: '#ccc', backgroundColor: '#f5f5f5' } : {}}
                       >
-                        {yil} {isDisabled ? '(İş başlangıcından önce)' : ''}
+                        {yil} {isDisabled ? `(${disabledReason})` : ''}
                       </option>
                     );
                   })}
@@ -1918,12 +2003,18 @@ export default function PanelPage() {
               onClick={() => {
                 setDekontModalOpen(false)
                 setSelectedOgrenci(null)
-                setDekontFormData({ 
-                  ay: new Date().getMonth() + 1, 
-                  yil: new Date().getFullYear(), 
-                  aciklama: '', 
-                  miktar: '', 
-                  dosya: null 
+                setDekontFormData(() => {
+                  const currentDate = new Date();
+                  const previousMonth = currentDate.getMonth() === 0 ? 12 : currentDate.getMonth();
+                  const yearForPreviousMonth = currentDate.getMonth() === 0 ? currentDate.getFullYear() - 1 : currentDate.getFullYear();
+                  
+                  return {
+                    ay: previousMonth,
+                    yil: yearForPreviousMonth,
+                    aciklama: '',
+                    miktar: '',
+                    dosya: null
+                  };
                 })
               }}
               className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"

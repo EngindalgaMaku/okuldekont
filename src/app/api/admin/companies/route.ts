@@ -39,7 +39,7 @@ export async function GET(request: Request) {
       where: whereCondition
     })
 
-    // Get companies with pagination
+    // Get companies with pagination (include internship coordinators)
     const companies = await prisma.companyProfile.findMany({
       where: whereCondition,
       include: {
@@ -48,6 +48,21 @@ export async function GET(request: Request) {
         _count: {
           select: {
             students: true
+          }
+        },
+        stajlar: {
+          where: {
+            status: 'ACTIVE'
+          },
+          select: {
+            teacherId: true,
+            teacher: {
+              select: {
+                id: true,
+                name: true,
+                surname: true
+              }
+            }
           }
         }
       },
@@ -59,23 +74,49 @@ export async function GET(request: Request) {
     })
 
     // Transform data to match expected interface
-    const transformedCompanies = companies.map(company => ({
-      id: company.id,
-      name: company.name,
-      contact: company.contact,
-      phone: company.phone,
-      email: company.email,
-      address: company.address,
-      taxNumber: company.taxNumber,
-      pin: company.pin,
-      teacherId: company.teacherId,
-      _count: company._count,
-      teacher: company.teacher ? {
-        id: company.teacher.id,
-        name: company.teacher.name,
-        surname: company.teacher.surname
-      } : null
-    }))
+    const transformedCompanies = companies.map(company => {
+      // Determine the coordinator: prioritize company's assigned teacher, then most frequent internship coordinator
+      let coordinatorTeacher = company.teacher;
+      
+      if (!coordinatorTeacher && company.stajlar.length > 0) {
+        // Count occurrences of each coordinator
+        const coordinatorCounts = new Map();
+        company.stajlar.forEach(staj => {
+          if (staj.teacher) {
+            const teacherKey = staj.teacher.id;
+            coordinatorCounts.set(teacherKey, {
+              teacher: staj.teacher,
+              count: (coordinatorCounts.get(teacherKey)?.count || 0) + 1
+            });
+          }
+        });
+        
+        // Get the coordinator with most students
+        if (coordinatorCounts.size > 0) {
+          const mostActiveCoordinator = Array.from(coordinatorCounts.values())
+            .sort((a, b) => b.count - a.count)[0];
+          coordinatorTeacher = mostActiveCoordinator.teacher;
+        }
+      }
+
+      return {
+        id: company.id,
+        name: company.name,
+        contact: company.contact,
+        phone: company.phone,
+        email: company.email,
+        address: company.address,
+        taxNumber: company.taxNumber,
+        pin: company.pin,
+        teacherId: coordinatorTeacher?.id || company.teacherId,
+        _count: company._count,
+        teacher: coordinatorTeacher ? {
+          id: coordinatorTeacher.id,
+          name: coordinatorTeacher.name,
+          surname: coordinatorTeacher.surname
+        } : null
+      }
+    })
 
     const totalPages = Math.ceil(totalCount / perPage)
 

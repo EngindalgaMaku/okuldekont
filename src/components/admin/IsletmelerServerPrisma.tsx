@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Building2, Search, Filter, Plus, Eye, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import CompanyQuickPinButton from './CompanyQuickPinButton'
 
 interface Company {
   id: string
@@ -11,6 +12,7 @@ interface Company {
   contact?: string
   phone?: string
   address?: string
+  pin?: string
   _count?: {
     students: number
   }
@@ -301,13 +303,16 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Link
-                        href={`/admin/isletmeler/${company.id}`}
-                        className="inline-flex items-center px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
-                      >
-                        <Eye className="h-4 w-4 mr-1.5" />
-                        Detay
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        <CompanyQuickPinButton company={{ id: company.id, name: company.name }} />
+                        <Link
+                          href={`/admin/isletmeler/${company.id}`}
+                          className="inline-flex items-center p-1.5 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="Detayları Görüntüle"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -351,12 +356,16 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                       </p>
                     </div>
                   </div>
-                  <Link
-                    href={`/admin/isletmeler/${company.id}`}
-                    className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex-shrink-0"
-                  >
-                    <Eye className="h-3.5 w-3.5" />
-                  </Link>
+                  <div className="flex items-center gap-1">
+                    <CompanyQuickPinButton company={{ id: company.id, name: company.name }} />
+                    <Link
+                      href={`/admin/isletmeler/${company.id}`}
+                      className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex-shrink-0"
+                      title="Detayları Görüntüle"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">

@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Building2, Users, FileText, Search, Filter, Download, Upload, UserCheck, Calendar, GraduationCap, User, AlertTriangle, ChevronDown, X, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
-import OgretmenBazliYonetim, { OgretmenStajData } from '@/components/ui/OgretmenBazliYonetim'
 
 interface Staj {
   id: string
@@ -90,12 +89,10 @@ export default function StajYonetimiPage() {
   const [bostOgrencilerTotalPages, setBostOgrencilerTotalPages] = useState(0)
   const [isletmeler, setIsletmeler] = useState<Isletme[]>([])
   const [ogretmenler, setOgretmenler] = useState<Ogretmen[]>([])
-  const [ogretmenBazliData, setOgretmenBazliData] = useState<OgretmenStajData[]>([])
-  const [filteredOgretmenBazliData, setFilteredOgretmenBazliData] = useState<OgretmenStajData[]>([])
   const [alanlar, setAlanlar] = useState<Alan[]>([])
   const [loading, setLoading] = useState(true)
   const [dataLoading, setDataLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'aktif' | 'bost' | 'tamamlandi' | 'feshedildi' | 'suresi-gecmis' | 'ogretmen'>('aktif')
+  const [activeTab, setActiveTab] = useState<'aktif' | 'bost' | 'tamamlandi' | 'feshedildi' | 'suresi-gecmis'>('aktif')
   
   // Modal states
   const [newOgretmenModalOpen, setNewOgretmenModalOpen] = useState(false)
@@ -287,28 +284,6 @@ export default function StajYonetimiPage() {
       
       setAlanlar(transformedFields)
       
-      // Create teacher-based data structure safely
-      const ogretmenStajMap: Record<string, OgretmenStajData> = {}
-      const safeTeachersData = Array.isArray(teachersData) ? teachersData : []
-      
-      safeTeachersData.forEach((teacher: any) => {
-        if (teacher && teacher.id) {
-          ogretmenStajMap[teacher.id] = {
-            id: teacher.id,
-            ad: teacher.name || '',
-            soyad: teacher.surname || '',
-            stajlar: []
-          }
-        }
-      })
-
-      safeStajData.forEach((staj: any) => {
-        if (staj && staj.teacherId && ogretmenStajMap[staj.teacherId]) {
-          ogretmenStajMap[staj.teacherId].stajlar.push(staj)
-        }
-      })
-
-      setOgretmenBazliData(Object.values(ogretmenStajMap))
       
     } catch (error) {
       console.error('Veri yükleme hatası:', error)
@@ -318,7 +293,6 @@ export default function StajYonetimiPage() {
       setIsletmeler([])
       setOgretmenler([])
       setAlanlar([])
-      setOgretmenBazliData([])
       
       showToast({
         type: 'error',
@@ -471,25 +445,6 @@ export default function StajYonetimiPage() {
     setVisibleItems(new Set())
   }, [searchTerm, filterAlan, filterSinif, activeTab])
 
-  // Öğretmen bazlı veri için filtreleme
-  useEffect(() => {
-    let filtered = ogretmenBazliData
-
-    if (searchTerm) {
-      filtered = filtered.filter(ogretmen =>
-        `${ogretmen.ad} ${ogretmen.soyad}`.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    }
-
-    if (filterAlan) {
-      const alanOgretmenIds = ogretmenler
-        .filter(o => o.alanId === filterAlan)
-        .map(o => o.id)
-      filtered = filtered.filter(ogretmen => alanOgretmenIds.includes(ogretmen.id))
-    }
-
-    setFilteredOgretmenBazliData(filtered)
-  }, [ogretmenBazliData, searchTerm, filterAlan, ogretmenler])
 
   // Memoized pagination hesaplamaları - sadece stajlar için
   const paginationData = useMemo(() => {
@@ -542,8 +497,7 @@ export default function StajYonetimiPage() {
                 { id: 'suresi-gecmis', label: 'Süresi Geçmiş', count: suresiGecmisStajlar.length },
                 { id: 'bost', label: 'Boşta Olan Öğrenciler', count: bostOgrencilerTotal },
                 { id: 'tamamlandi', label: 'Tamamlanan', count: tamamlananStajlar.length },
-                { id: 'feshedildi', label: 'Feshedilen', count: feshedilenStajlar.length },
-                { id: 'ogretmen', label: 'Öğretmen Bazlı', count: ogretmenler.length }
+                { id: 'feshedildi', label: 'Feshedilen', count: feshedilenStajlar.length }
               ]
             })().map((tab) => (
               <button
@@ -572,7 +526,6 @@ export default function StajYonetimiPage() {
                   type="text"
                   placeholder={
                     activeTab === 'bost' ? 'Öğrenci ara...' :
-                    activeTab === 'ogretmen' ? 'Öğretmen ara...' :
                     'Öğrenci veya işletme ara...'
                   }
                   value={searchTerm}
@@ -583,8 +536,7 @@ export default function StajYonetimiPage() {
             </div>
             
             {/* Filtreler */}
-            {activeTab !== 'ogretmen' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Alan Filtresi */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -669,30 +621,6 @@ export default function StajYonetimiPage() {
                   </div>
                 )}
               </div>
-            )}
-
-            {/* Öğretmen sekmesi için alan filtresi */}
-            {activeTab === 'ogretmen' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Alan
-                  </label>
-                  <select
-                    value={filterAlan}
-                    onChange={(e) => setFilterAlan(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  >
-                    <option value="">Tüm Alanlar</option>
-                    {getUniqueById(alanlar).map((alan) => (
-                      <option key={alan.id} value={alan.id}>
-                        {alan.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
 
             {/* Aktif filtreleri temizle */}
             {(searchTerm || filterAlan || filterSinif || filterIsletme || filterOgretmen) && (
@@ -781,8 +709,6 @@ export default function StajYonetimiPage() {
                 <p className="text-gray-600 mt-4">Veriler yükleniyor...</p>
               </div>
             </div>
-          ) : activeTab === 'ogretmen' ? (
-            <OgretmenBazliYonetim data={filteredOgretmenBazliData} />
           ) : activeTab === 'bost' ? (
             // Boşta olan öğrenciler
             <div className="space-y-4">
@@ -997,6 +923,53 @@ export default function StajYonetimiPage() {
                     </div>
                   )
                 })
+              )}
+              
+              {/* Pagination for Stajlar */}
+              {(activeTab === 'aktif' || activeTab === 'tamamlandi' || activeTab === 'feshedildi' || activeTab === 'suresi-gecmis') && paginationData.totalPagesStajlar > 1 && (
+                <div className="flex items-center justify-between mt-6">
+                  <div className="text-sm text-gray-700">
+                    Toplam {paginationData.totalStajlar} staj, sayfa {currentPageStajlar} / {paginationData.totalPagesStajlar}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => setCurrentPageStajlar(Math.max(1, currentPageStajlar - 1))}
+                      disabled={currentPageStajlar === 1}
+                      className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    
+                    {/* Sayfa numaraları */}
+                    {Array.from({ length: Math.min(5, paginationData.totalPagesStajlar) }, (_, i) => {
+                      const startPage = Math.max(1, currentPageStajlar - 2)
+                      const pageNum = startPage + i
+                      if (pageNum > paginationData.totalPagesStajlar) return null
+                      
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPageStajlar(pageNum)}
+                          className={`px-3 py-2 text-sm font-medium rounded-md ${
+                            currentPageStajlar === pageNum
+                              ? 'text-indigo-600 bg-indigo-50 border border-indigo-500'
+                              : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      )
+                    })}
+                    
+                    <button
+                      onClick={() => setCurrentPageStajlar(Math.min(paginationData.totalPagesStajlar, currentPageStajlar + 1))}
+                      disabled={currentPageStajlar === paginationData.totalPagesStajlar}
+                      className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           )}

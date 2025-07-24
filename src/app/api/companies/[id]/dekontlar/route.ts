@@ -4,6 +4,10 @@ import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { generateDekontFileName, DekontNamingData } from '@/utils/dekontNaming'
 
+// Next.js cache'ini devre dışı bırak
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -57,7 +61,14 @@ export async function GET(
       }
     }))
 
-    return NextResponse.json(transformedDekontlar)
+    const response = NextResponse.json(transformedDekontlar);
+    
+    // Cache-control headers - mobil cache sorununu çözmek için
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    
+    return response;
   } catch (error) {
     console.error('Error fetching dekontlar:', error)
     return NextResponse.json({ error: 'Failed to fetch dekontlar' }, { status: 500 })
@@ -117,7 +128,21 @@ export async function POST(
       )
     }
 
-    // Tarih validasyonu - öğrenci başlangıç tarihinden önce dekont yüklenemez
+    // Tarih validasyonu 1: Mevcut ay ve gelecek aylar için dekont yüklenemez (öğrenciler önceki ayın maaşını alır)
+    const currentDate = new Date()
+    const currentYear = currentDate.getFullYear()
+    const currentMonth = currentDate.getMonth() + 1
+    
+    if (yil > currentYear || (yil === currentYear && ay >= currentMonth)) {
+      return NextResponse.json(
+        {
+          error: `Mevcut ay (${currentMonth}/${currentYear}) ve gelecek aylar için dekont yükleyemezsiniz. Öğrenciler sadece önceki ayın maaşını alır.`
+        },
+        { status: 400 }
+      )
+    }
+
+    // Tarih validasyonu 2: Öğrenci başlangıç tarihinden önce dekont yüklenemez
     const startDate = new Date(staj.startDate)
     const startYear = startDate.getFullYear()
     const startMonth = startDate.getMonth() + 1

@@ -35,28 +35,52 @@ export async function GET(
       orderBy: { name: 'asc' }
     })
 
-    // Her öğretmen için company sayısını ayrıca hesapla
+    // Her öğretmen için gerçek sayıları hesapla
     const ogretmenler = await Promise.all(
       ogretmenlerData.map(async (ogretmen) => {
-        const companyCount = await prisma.companyProfile.count({
+        // Bu öğretmenin koordinatörlüğünü yaptığı aktif stajları al
+        const activeInternships = await prisma.staj.findMany({
           where: {
             teacherId: ogretmen.id,
-            stajlar: {
-              some: {
-                student: {
-                  alanId: alanId
-                }
-              }
-            }
+            student: {
+              alanId: alanId
+            },
+            status: 'ACTIVE'
+          },
+          select: {
+            studentId: true,
+            companyId: true
           }
         })
+
+        // Bu öğretmenin işletmeye atandığı stajları da al
+        const companyAssignedInternships = await prisma.staj.findMany({
+          where: {
+            company: {
+              teacherId: ogretmen.id
+            },
+            student: {
+              alanId: alanId
+            },
+            status: 'ACTIVE'
+          },
+          select: {
+            studentId: true,
+            companyId: true
+          }
+        })
+
+        // Tüm stajları birleştir ve duplicate'ları çıkar
+        const allInternships = [...activeInternships, ...companyAssignedInternships]
+        const uniqueStudents = Array.from(new Set(allInternships.map(i => i.studentId)))
+        const uniqueCompanies = Array.from(new Set(allInternships.map(i => i.companyId)))
 
         return {
           ...ogretmen,
           ad: ogretmen.name,
           soyad: ogretmen.surname,
-          ogrenci_sayisi: ogretmen._count.stajlar,
-          isletme_sayisi: companyCount
+          ogrenci_sayisi: uniqueStudents.length,
+          isletme_sayisi: uniqueCompanies.length
         }
       })
     )
