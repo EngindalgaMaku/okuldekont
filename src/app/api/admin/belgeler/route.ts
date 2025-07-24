@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
     // Dosya uzantısını al
     const fileExtension = path.extname(dosya.name);
     const tarih = new Date().toISOString().split('T')[0]; // YYYY-MM-DD formatı
+    const timestamp = Date.now(); // Benzersizlik için timestamp ekle
 
     // İşletme bilgisini al
     const isletme = await prisma.companyProfile.findUnique({
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
       }
 
       yukleyenKisi = `${ogretmen.name} ${ogretmen.surname} (Öğretmen)`;
-      yeniDosyaAdi = `${sanitizeName(belgeTuru)}_${sanitizeName(isletme.name)}_${sanitizeName(ogretmen.name + '_' + ogretmen.surname)}_${tarih}${fileExtension}`;
+      yeniDosyaAdi = `${timestamp}_belge_${sanitizeName(belgeTuru)}_${sanitizeName(isletme.name)}_${sanitizeName(ogretmen.name + '_' + ogretmen.surname)}_${tarih}${fileExtension}`;
 
       // Öğretmen belgesi için yeni Belge tablosunu kullan
       yeniBelge = await (prisma as any).belge.create({
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
       }
 
       yukleyenKisi = `${isletme.contact} (İşletme)`;
-      yeniDosyaAdi = `${sanitizeName(belgeTuru)}_${sanitizeName(isletme.name)}_${sanitizeName(isletme.contact)}_${tarih}${fileExtension}`;
+      yeniDosyaAdi = `${timestamp}_belge_${sanitizeName(belgeTuru)}_${sanitizeName(isletme.name)}_${sanitizeName(isletme.contact)}_${tarih}${fileExtension}`;
 
       // İşletme belgesi için yeni Belge tablosunu kullan
       yeniBelge = await (prisma as any).belge.create({
