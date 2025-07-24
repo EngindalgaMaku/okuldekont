@@ -7,7 +7,7 @@ import { readFile } from 'fs/promises'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { filename: string } }
+  { params }: { params: Promise<{ filename: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -17,7 +17,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { filename } = params
+    const { filename } = await params
     
     // Güvenlik kontrolü - sadece uploads/dekontlar klasöründeki dosyalar
     if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {

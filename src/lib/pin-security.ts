@@ -138,7 +138,7 @@ export async function updateSecurityStatus(
   return {
     isLocked,
     remainingAttempts: Math.max(0, PIN_SECURITY_CONFIG.MAX_ATTEMPTS - recentFailedAttempts),
-    lockStartTime: profile.lockStartTime,
+    lockStartTime: profile.lockStartTime ?? undefined,
     lockEndTime,
     canAttempt: !isLocked
   }
@@ -181,7 +181,7 @@ export async function checkSecurityStatus(
   return {
     isLocked,
     remainingAttempts: Math.max(0, PIN_SECURITY_CONFIG.MAX_ATTEMPTS - recentFailedAttempts),
-    lockStartTime: profile.lockStartTime,
+    lockStartTime: profile.lockStartTime ?? undefined,
     lockEndTime,
     canAttempt: !isLocked
   }
