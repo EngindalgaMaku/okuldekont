@@ -448,8 +448,8 @@ export default function DekontlarPage() {
         )}
       </div>
 
-      {/* Dekont Table */}
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+      {/* Desktop Table View (hidden on mobile) */}
+      <div className="hidden md:block bg-white rounded-lg shadow-sm border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -594,6 +594,202 @@ export default function DekontlarPage() {
             <Calendar className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">Dekont bulunamadı</h3>
             <p className="mt-1 text-sm text-gray-500">
+              {dekontlar.length === 0 ? 'Henüz hiç dekont yüklenmemiş.' : 'Arama kriterlerinize uygun dekont bulunamadı.'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Mobile Card View (visible on mobile only) */}
+      <div className="md:hidden space-y-4">
+        {/* Mobile Bulk Actions */}
+        {selectedIds.length > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-blue-900">
+                {selectedIds.length} dekont seçildi
+              </span>
+              <div className="flex gap-2">
+                <select
+                  value={bulkAction}
+                  onChange={(e) => setBulkAction(e.target.value)}
+                  className="text-sm px-3 py-1 border border-blue-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">İşlem Seçin</option>
+                  <option value="APPROVED">Toplu Onayla</option>
+                  <option value="DELETE">Toplu Sil</option>
+                </select>
+                <button
+                  onClick={handleBulkAction}
+                  disabled={!bulkAction || isProcessing}
+                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isProcessing ? <Loader className="h-4 w-4 animate-spin" /> : 'Uygula'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile Select All */}
+        {currentDekontlar.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm border p-3">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                checked={currentDekontlar.length > 0 && selectedIds.length === currentDekontlar.length}
+                onChange={handleSelectAll}
+              />
+              <span className="ml-2 text-sm text-gray-700">Tümünü seç</span>
+            </label>
+          </div>
+        )}
+
+        {/* Mobile Cards */}
+        {currentDekontlar.map((dekont) => (
+          <div
+            key={dekont.id}
+            className={`bg-white rounded-lg shadow-sm border ${
+              selectedIds.includes(dekont.id) ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
+            }`}
+          >
+            {/* Card Header with Checkbox */}
+            <div className="p-4 border-b border-gray-100">
+              <div className="flex items-start justify-between">
+                <label className="flex items-start cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={selectedIds.includes(dekont.id)}
+                    onChange={() => handleSelectOne(dekont.id)}
+                  />
+                  <div className="ml-3">
+                    <div className="font-medium text-gray-900 text-base">
+                      {dekont.ogrenci_ad}
+                    </div>
+                    {dekont.ogrenci_sinif && dekont.ogrenci_no && (
+                      <div className="text-sm text-gray-600">
+                        Sınıf: {dekont.ogrenci_sinif} - No: {dekont.ogrenci_no}
+                      </div>
+                    )}
+                    <div className="text-sm text-gray-700 font-medium mt-1">
+                      {dekont.isletme_ad}
+                    </div>
+                  </div>
+                </label>
+                {/* Status Badge - Prominent on Mobile */}
+                <div className="flex flex-col items-end">
+                  <span className={`inline-flex px-3 py-2 text-sm font-bold rounded-lg border-2 ${STATUS_COLORS[dekont.onay_durumu]}`}>
+                    {STATUS_LABELS[dekont.onay_durumu]}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Card Content */}
+            <div className="p-4 space-y-3">
+              {/* Period and Amount */}
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="text-sm text-gray-600">Dönem</div>
+                  <div className="font-medium text-gray-900">
+                    {MONTHS[dekont.ay - 1]} {dekont.yil}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm text-gray-600">Miktar</div>
+                  <div className="font-bold text-lg text-gray-900">
+                    {formatCurrency(dekont.miktar)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Coordinator and Uploader */}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="text-gray-600">Koordinatör</div>
+                  <div className="text-blue-600 font-medium">{dekont.koordinator_ogretmen}</div>
+                </div>
+                <div>
+                  <div className="text-gray-600">Yükleyen</div>
+                  <div className="text-gray-900">{dekont.yukleyen_kisi}</div>
+                </div>
+              </div>
+
+              {/* Upload Date */}
+              <div className="text-sm">
+                <span className="text-gray-600">Yükleme Tarihi: </span>
+                <span className="text-gray-900">{formatDate(dekont.created_at)}</span>
+              </div>
+
+              {/* Rejection Reason */}
+              {dekont.onay_durumu === 'reddedildi' && dekont.red_nedeni && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <div className="text-sm font-medium text-red-800 mb-1">Reddetme Gerekçesi:</div>
+                  <div className="text-sm text-red-700">{dekont.red_nedeni}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Card Actions */}
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 rounded-b-lg">
+              <div className="flex items-center justify-between gap-3">
+                {/* Download Button - Prominent */}
+                {dekont.dosya_url && dekont.dosya_url.trim() !== '' ? (
+                  <button
+                    onClick={() => downloadFile(dekont.dosya_url!, `dekont-${dekont.ogrenci_ad.replace(/\s+/g, '_')}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.pdf`)}
+                    className="flex-1 flex items-center justify-center px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Dosyayı İndir
+                  </button>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center px-4 py-2.5 bg-gray-100 text-gray-500 text-sm rounded-lg">
+                    <X className="h-4 w-4 mr-2" />
+                    Dosya Bulunamadı
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-2">
+                  {dekont.onay_durumu === 'bekliyor' && (
+                    <>
+                      <button
+                        onClick={() => handleApprove(dekont)}
+                        className="p-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        title="Onayla"
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleReject(dekont)}
+                        className="p-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                        title="Reddet"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => handleDelete(dekont)}
+                    className="p-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                    title="Sil"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {/* Mobile Empty State */}
+        {currentDekontlar.length === 0 && (
+          <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
+            <Calendar className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Dekont bulunamadı</h3>
+            <p className="text-gray-500">
               {dekontlar.length === 0 ? 'Henüz hiç dekont yüklenmemiş.' : 'Arama kriterlerinize uygun dekont bulunamadı.'}
             </p>
           </div>
