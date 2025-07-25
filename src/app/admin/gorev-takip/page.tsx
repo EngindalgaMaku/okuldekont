@@ -1,17 +1,19 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader, Check, Clock, Search, Filter, User, Calendar, Trash2, PlusCircle, BookOpen } from 'lucide-react'
+import { Loader, Check, Clock, Search, Filter, User, Calendar, Trash2, PlusCircle, BookOpen, Download, QrCode } from 'lucide-react'
 import { format, parseISO, startOfWeek, addDays } from 'date-fns'
 import { tr } from 'date-fns/locale'
 import { toast } from 'react-hot-toast'
 import GorevBelgesiModal from '@/components/ui/GorevBelgesiModal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import BarcodeModal from '@/components/ui/BarcodeModal'
 
 interface GorevBelgesi {
     id: string;
     hafta: string;
     durum: string;
+    barcode: string;
     created_at: string;
     ogretmenler: {
         ad: string;
@@ -39,6 +41,10 @@ export default function GorevTakipPage() {
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<string[]>([]);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [barcodeModalOpen, setBarcodeModalOpen] = useState(false);
+    const [selectedBarcode, setSelectedBarcode] = useState<string>('');
+    const [bulkAction, setBulkAction] = useState<string>('');
+    const [isProcessing, setIsProcessing] = useState(false);
     const ITEMS_PER_PAGE = 10;
 
     useEffect(() => {
@@ -81,6 +87,7 @@ export default function GorevTakipPage() {
                    id: item.id,
                    hafta: item.hafta,
                    durum: item.durum,
+                   barcode: item.barcode,
                    created_at: item.created_at,
                    ogretmenler: {
                        ad: item.ogretmen_ad,
@@ -166,19 +173,55 @@ export default function GorevTakipPage() {
     }
 
     const handleSelectOne = (id: string) => {
-       setSelectedIds(prev =>
-           prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-       );
+        setSelectedIds(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
     }
 
-    const formatHafta = (hafta: string) => {
-        if (!hafta || !hafta.includes('-W')) return "Geçersiz Hafta";
+    const handleBulkAction = async () => {
+        if (selectedIds.length === 0 || !bulkAction) return;
+
+        if (bulkAction === 'delete') {
+            handleDelete(selectedIds);
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            for (const id of selectedIds) {
+                await handleStatusUpdate(id, bulkAction);
+            }
+            toast.success(`${selectedIds.length} belge durumu güncellendi.`);
+            setSelectedIds([]);
+            setBulkAction('');
+        } catch (error) {
+            toast.error("Toplu işlem sırasında bir hata oluştu.");
+        } finally {
+            setIsProcessing(false);
+        }
+    }
+
+    const formatDetay = (hafta: string) => {
+        if (!hafta || !hafta.includes('-W')) return "Haftalık Belge";
         const [year, weekNumber] = hafta.split('-W');
         const weekStart = startOfWeek(parseISO(`${year}-01-01`), { weekStartsOn: 1 });
         const targetDate = addDays(weekStart, (parseInt(weekNumber) - 1) * 7);
-        const endDate = addDays(targetDate, 4); // Assuming a 5-day work week
-        return `${format(targetDate, 'dd MMMM', { locale: tr })} - ${format(endDate, 'dd MMMM yyyy', { locale: tr })} Haftası`;
+        const endDate = addDays(targetDate, 4); // 5 günlük iş haftası
+        return `Haftalık Belge(${format(targetDate, 'dd')}-${format(endDate, 'dd MMMM', { locale: tr })})`;
     }
+
+    const handleDownload = (belgeId: string) => {
+        try {
+            // Print sayfasını yeni sekmede aç
+            const printUrl = `/gorev-belgesi/yazdir/${belgeId}`;
+            window.open(printUrl, '_blank');
+            
+            toast.success('Belge yazdırma sayfası açıldı');
+        } catch (error) {
+            console.error('Belge açma hatası:', error);
+            toast.error('Belge açılamadı');
+        }
+    };
 
     const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
@@ -197,6 +240,11 @@ export default function GorevTakipPage() {
            description={`${itemToDelete.length} adet belgeyi kalıcı olarak silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`}
            confirmText="Evet, Sil"
            isLoading={isDeleting}
+        />
+        <BarcodeModal
+           isOpen={barcodeModalOpen}
+           onClose={() => setBarcodeModalOpen(false)}
+           barcode={selectedBarcode}
         />
         <div className="p-8">
            <div className="flex items-center justify-between mb-6">
@@ -252,20 +300,38 @@ export default function GorevTakipPage() {
                         className="pl-10 pr-4 py-2 block w-full border border-gray-300 rounded-lg"
                     >
                         <option value="all">Tüm Durumlar</option>
+                        <option value="Basıldı">Basıldı</option>
                         <option value="Verildi">Verildi</option>
                         <option value="Teslim Alındı">Teslim Alındı</option>
                         <option value="İptal Edildi">İptal Edildi</option>
                     </select>
                 </div>
-                <div>
+                <div className="flex gap-2">
                    {selectedIds.length > 0 && (
-                       <button
-                           onClick={() => handleDelete(selectedIds)}
-                           className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700"
-                       >
-                           <Trash2 className="h-5 w-5 mr-2" />
-                           ({selectedIds.length}) Belgeyi Sil
-                       </button>
+                       <>
+                           <select
+                               value={bulkAction}
+                               onChange={(e) => setBulkAction(e.target.value)}
+                               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                           >
+                               <option value="">İşlem Seçin</option>
+                               <option value="Verildi">Verildi Olarak İşaretle</option>
+                               <option value="Teslim Alındı">Teslim Alındı Olarak İşaretle</option>
+                               <option value="delete">Sil</option>
+                           </select>
+                           <button
+                               onClick={handleBulkAction}
+                               disabled={!bulkAction || isProcessing}
+                               className="flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                           >
+                               {isProcessing ? (
+                                   <Loader className="h-4 w-4 mr-2 animate-spin" />
+                               ) : (
+                                   <Check className="h-4 w-4 mr-2" />
+                               )}
+                               ({selectedIds.length}) Belgeye Uygula
+                           </button>
+                       </>
                    )}
                 </div>
             </div>
@@ -284,9 +350,9 @@ export default function GorevTakipPage() {
                                    disabled={belgeler.length === 0}
                                />
                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Belge ID</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Öğretmen</th>
-                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hafta</th>
+                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Detay</th>
+                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Barkod</th>
                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Oluşturulma</th>
                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Durum</th>
                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">İşlemler</th>
@@ -303,16 +369,26 @@ export default function GorevTakipPage() {
                                        onChange={() => handleSelectOne(belge.id)}
                                    />
                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap font-mono text-sm text-gray-700">
-                                   {belge.id.substring(0, 8)}
-                                </td>
                                <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="flex items-center">
                                         <User className="h-4 w-4 mr-2 text-gray-500" />
                                         {belge.ogretmenler?.ad} {belge.ogretmenler?.soyad}
                                     </div>
                                 </td>
-                               <td className="px-6 py-4 whitespace-nowrap">{formatHafta(belge.hafta)}</td>
+                               <td className="px-6 py-4 whitespace-nowrap">{formatDetay(belge.hafta)}</td>
+                               <td className="px-6 py-4 whitespace-nowrap">
+                                   <button
+                                       onClick={() => {
+                                           setSelectedBarcode(belge.barcode || '');
+                                           setBarcodeModalOpen(true);
+                                       }}
+                                       className="text-blue-600 hover:text-blue-900 flex items-center text-xs font-mono"
+                                       title="Barkodu Göster"
+                                   >
+                                       <QrCode className="h-3 w-3 mr-1" />
+                                       {belge.barcode || 'N/A'}
+                                   </button>
+                               </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     {format(new Date(belge.created_at), 'dd.MM.yyyy HH:mm')}
                                 </td>
@@ -320,30 +396,20 @@ export default function GorevTakipPage() {
                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
                                         belge.durum === 'Teslim Alındı' ? 'bg-green-100 text-green-800' :
                                         belge.durum === 'Verildi' ? 'bg-yellow-100 text-yellow-800' :
+                                        belge.durum === 'Basıldı' ? 'bg-blue-100 text-blue-800' :
                                         'bg-gray-100 text-gray-800'
                                     }`}>
                                         {belge.durum}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                   <div className="flex items-center justify-end space-x-2">
-                                    {belge.durum === 'Verildi' && (
-                                        <button
-                                            onClick={() => handleStatusUpdate(belge.id, 'Teslim Alındı')}
-                                            className="text-indigo-600 hover:text-indigo-900"
-                                            title="Teslim Alındı Yap"
-                                        >
-                                            <Check className="h-4 w-4" />
-                                        </button>
-                                    )}
                                     <button
-                                       onClick={() => handleDelete([belge.id])}
-                                       className="text-red-600 hover:text-red-900"
-                                       title="Sil"
+                                       onClick={() => handleDownload(belge.id)}
+                                       className="text-blue-600 hover:text-blue-900"
+                                       title="Belgeyi İndir"
                                     >
-                                       <Trash2 className="h-4 w-4" />
+                                       <Download className="h-4 w-4" />
                                     </button>
-                                   </div>
                                 </td>
                             </tr>
                         ))}

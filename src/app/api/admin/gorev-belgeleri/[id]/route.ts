@@ -1,53 +1,78 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/lib/auth'
 
 export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  request: NextRequest,
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params
-    const { durum } = await request.json()
+    const session = await getServerSession(authOptions)
 
-    if (!durum) {
-      return NextResponse.json(
-        { error: 'Durum belirtilmedi' },
-        { status: 400 }
-      )
+    if (!session || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 401 })
     }
 
-    await prisma.gorevBelgesi.update({
+    const { id } = params
+    const body = await request.json()
+    const { durum } = body
+
+    if (!durum) {
+      return NextResponse.json({ error: 'Durum alanı gerekli' }, { status: 400 })
+    }
+
+    // Geçerli durum değerlerini kontrol et
+    const validStatuses = ['Verildi', 'Teslim Alındı', 'İptal Edildi']
+    if (!validStatuses.includes(durum)) {
+      return NextResponse.json({ error: 'Geçersiz durum değeri' }, { status: 400 })
+    }
+
+    // Görev belgesini güncelle
+    const updatedBelge = await prisma.gorevBelgesi.update({
       where: { id },
-      data: { durum }
+      data: { 
+        durum,
+        updatedAt: new Date()
+      }
     })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      data: updatedBelge
+    })
+
   } catch (error) {
-    console.error('Görev belgesi güncellenirken hata:', error)
-    return NextResponse.json(
-      { error: 'Görev belgesi güncellenemedi' },
-      { status: 500 }
-    )
+    console.error('Görev belgesi güncelleme hatası:', error)
+    return NextResponse.json({ error: 'Sunucu hatası' }, { status: 500 })
   }
 }
 
 export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  request: NextRequest,
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params
+    const session = await getServerSession(authOptions)
 
+    if (!session || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 401 })
+    }
+
+    const { id } = params
+
+    // Görev belgesini sil
     await prisma.gorevBelgesi.delete({
       where: { id }
     })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      message: 'Görev belgesi başarıyla silindi'
+    })
+
   } catch (error) {
-    console.error('Görev belgesi silinirken hata:', error)
-    return NextResponse.json(
-      { error: 'Görev belgesi silinemedi' },
-      { status: 500 }
-    )
+    console.error('Görev belgesi silme hatası:', error)
+    return NextResponse.json({ error: 'Sunucu hatası' }, { status: 500 })
   }
 }

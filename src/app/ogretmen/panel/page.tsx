@@ -82,6 +82,7 @@ const TeacherPanel = () => {
   // PIN change modal state
   const [pinChangeModalOpen, setPinChangeModalOpen] = useState(false);
   const [teacherPin, setTeacherPin] = useState('');
+  const [isManualPinChange, setIsManualPinChange] = useState(false);
   
   // Collapsible işletme öğrenci listesi için state
   const [expandedIsletmeler, setExpandedIsletmeler] = useState<{[key: string]: boolean}>({});
@@ -299,6 +300,7 @@ const TeacherPanel = () => {
 
         // PIN kontrolü
         if (ogretmenData.pin === '2025') {
+          setIsManualPinChange(false); // Otomatik açılma
           setPinChangeModalOpen(true);
         }
       } else {
@@ -1061,7 +1063,10 @@ const TeacherPanel = () => {
               
               {/* PIN Değiştirme Butonu */}
               <button
-                onClick={() => setPinChangeModalOpen(true)}
+                onClick={() => {
+                  setIsManualPinChange(true); // Manuel PIN değişikliği
+                  setPinChangeModalOpen(true);
+                }}
                 className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
                 title="PIN Değiştir"
               >
@@ -1440,6 +1445,9 @@ const TeacherPanel = () => {
                                       <div className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-md font-medium">
                                         {ogrenci.sinif}-{ogrenci.no}
                                       </div>
+                                      <div className="px-2 py-1 bg-green-50 text-green-700 rounded-md font-medium">
+                                        {ogrenci.alan || 'Alan bilgisi yok'}
+                                      </div>
                                       <div className="flex items-center gap-1 text-gray-500">
                                         <Calendar className="h-3 w-3" />
                                         <span>Başlangıç: {new Date(ogrenci.baslangic_tarihi).toLocaleDateString('tr-TR')}</span>
@@ -1480,9 +1488,9 @@ const TeacherPanel = () => {
                                             ? 'bg-yellow-100 text-yellow-600'
                                             : dekontStatus === 'rejected'
                                             ? 'bg-red-100 text-red-600'
-                                            : 'bg-gray-100 text-gray-600'
+                                            : 'bg-red-100 text-red-600'
                                         }`}>
-                                          {dekontStatus === 'approved' ? '✓' : dekontStatus === 'pending' ? '?' : dekontStatus === 'rejected' ? '✗' : '○'}
+                                          {dekontStatus === 'approved' ? '✓' : dekontStatus === 'pending' ? '?' : dekontStatus === 'rejected' ? '✗' : '–'}
                                         </div>
                                       </div>
                                     );
@@ -2298,8 +2306,10 @@ const TeacherPanel = () => {
        isOpen={pinChangeModalOpen}
        onClose={() => setPinChangeModalOpen(false)}
        onSuccess={handlePinChangeSuccess}
-       teacherId={teacher?.id || ''}
-       teacherName={teacher ? `${teacher.name} ${teacher.surname}` : ''}
+       userId={teacher?.id || ''}
+       userName={teacher ? `${teacher.name} ${teacher.surname}` : ''}
+       isRequired={!isManualPinChange}
+       userType="teacher"
      />
 
      {/* Notification Modal */}

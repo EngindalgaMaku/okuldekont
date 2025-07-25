@@ -30,14 +30,15 @@ export async function GET(
       if (internship.company) {
         companiesMap.set(internship.company.id, {
           id: internship.company.id,
-          ad: internship.company.name
+          name: internship.company.name // "ad" yerine "name" kullan
         })
       }
     })
 
     const companies = Array.from(companiesMap.values())
 
-    return NextResponse.json({ companies })
+    // Direkt array döndür, object wrapper'ı kaldır
+    return NextResponse.json(companies)
   } catch (error) {
     console.error('Öğretmene ait işletmeleri çekme hatası:', error)
     return NextResponse.json(

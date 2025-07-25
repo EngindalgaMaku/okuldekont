@@ -17,6 +17,7 @@ interface Teacher {
 interface Company {
   id: string
   name: string
+  teacherId?: string
 }
 
 interface GorevBelgesiModalProps {
@@ -26,7 +27,8 @@ interface GorevBelgesiModalProps {
 
 export default function GorevBelgesiModal({ isOpen, onClose }: GorevBelgesiModalProps) {
   const [teachers, setTeachers] = useState<Teacher[]>([])
-  const [companies, setCompanies] = useState<Company[]>([])
+  const [allCompanies, setAllCompanies] = useState<Company[]>([])
+  const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
   
@@ -41,6 +43,40 @@ export default function GorevBelgesiModal({ isOpen, onClose }: GorevBelgesiModal
       fetchData()
     }
   }, [isOpen])
+
+  // Öğretmen seçildiğinde o öğretmene ait işletmeleri API'den çek
+  useEffect(() => {
+    const fetchTeacherCompanies = async () => {
+      if (formData.teacherId) {
+        try {
+          const response = await fetch(`/api/admin/teachers/${formData.teacherId}/companies`)
+          if (response.ok) {
+            const teacherCompaniesData = await response.json()
+            setFilteredCompanies(teacherCompaniesData || [])
+          } else {
+            // Fallback: filter from all companies
+            const teacherCompanies = allCompanies.filter(company =>
+              company.teacherId === formData.teacherId
+            )
+            setFilteredCompanies(teacherCompanies)
+          }
+        } catch (error) {
+          console.error('Öğretmen işletmeleri alınırken hata:', error)
+          // Fallback: filter from all companies
+          const teacherCompanies = allCompanies.filter(company =>
+            company.teacherId === formData.teacherId
+          )
+          setFilteredCompanies(teacherCompanies)
+        }
+        // Öğretmen değiştiğinde seçili işletmeleri temizle
+        setFormData(prev => ({ ...prev, isletmeIdler: [] }))
+      } else {
+        setFilteredCompanies([])
+      }
+    }
+    
+    fetchTeacherCompanies()
+  }, [formData.teacherId, allCompanies])
 
   const fetchData = async () => {
     setLoading(true)
@@ -57,7 +93,8 @@ export default function GorevBelgesiModal({ isOpen, onClose }: GorevBelgesiModal
       
       if (companiesResponse.ok) {
         const companiesData = await companiesResponse.json()
-        setCompanies(companiesData || [])
+        // API pagination ile wrapped response döndürüyor
+        setAllCompanies(companiesData.data || [])
       }
     } catch (error) {
       console.error('Veri yüklenirken hata:', error)
@@ -179,9 +216,9 @@ export default function GorevBelgesiModal({ isOpen, onClose }: GorevBelgesiModal
             İşletmeler ({formData.isletmeIdler.length} seçili)
           </label>
           <div className="border border-gray-300 rounded-lg p-3 max-h-40 overflow-y-auto">
-            {companies.length > 0 ? (
+            {filteredCompanies.length > 0 ? (
               <div className="space-y-2">
-                {companies.map((company) => (
+                {filteredCompanies.map((company) => (
                   <label key={company.id} className="flex items-center">
                     <input
                       type="checkbox"
@@ -194,7 +231,9 @@ export default function GorevBelgesiModal({ isOpen, onClose }: GorevBelgesiModal
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-500">Henüz işletme bulunmuyor</p>
+              <p className="text-sm text-gray-500">
+                {formData.teacherId ? 'Bu öğretmene ait işletme bulunmuyor' : 'Önce öğretmen seçiniz'}
+              </p>
             )}
           </div>
         </div>

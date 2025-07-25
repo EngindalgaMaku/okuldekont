@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Building2, Users, FileText, LogOut, User, Upload, Plus, Download, Eye, Search, Filter, Receipt, Loader, GraduationCap, Calendar, CheckCircle, Clock, XCircle, Trash2, Bell, Settings, ChevronDown, ChevronUp } from 'lucide-react'
 import { useEgitimYili } from '@/lib/context/EgitimYiliContext'
 import Modal from '@/components/ui/Modal'
+import PinChangeModal from '@/components/ui/PinChangeModal'
 
 interface Isletme {
   id: string
@@ -130,9 +131,7 @@ export default function PanelPage() {
   
   // PIN change modal state
   const [pinChangeModalOpen, setPinChangeModalOpen] = useState(false);
-  const [newPin, setNewPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
-  const [pinChangeLoading, setPinChangeLoading] = useState(false);
+  const [isManualPinChange, setIsManualPinChange] = useState(false);
   
   // Ek dekont uyarı modal state
   const [ekDekontModalOpen, setEkDekontModalOpen] = useState(false);
@@ -196,6 +195,8 @@ export default function PanelPage() {
     const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
     
     const months: { month: number, year: number, label: string }[] = [];
+    
+    // Öğrencinin başladığı aydan başla (1 gün bile çalışsa dekont gerekir)
     const current = new Date(start.getFullYear(), start.getMonth(), 1);
     
     while (current <= previousMonth) {
@@ -210,10 +211,10 @@ export default function PanelPage() {
     return months.slice(-6); // Son 6 ayı göster (alan tasarrufu için)
   };
 
-  // Belirli ay için dekont durumunu kontrol et
-  const getDekontStatus = (ogrenciAd: string, month: number, year: number): 'approved' | 'pending' | 'rejected' | 'none' => {
+  // Belirli ay için dekont durumunu kontrol et - staj_id kullanarak
+  const getDekontStatus = (stajId: string, month: number, year: number): 'approved' | 'pending' | 'rejected' | 'none' => {
     const dekont = dekontlar.find(d =>
-      `${d.stajlar?.ogrenciler?.ad} ${d.stajlar?.ogrenciler?.soyad}` === ogrenciAd &&
+      String(d.staj_id) === String(stajId) &&
       d.ay === month &&
       String(d.yil) === String(year)
     );
@@ -224,26 +225,26 @@ export default function PanelPage() {
     return 'pending';
   };
 
-  // Helper functions for dekont statistics
-  const getPendingDekontCount = (ogrenciAd: string): number => {
+  // Helper functions for dekont statistics - staj_id kullanarak
+  const getPendingDekontCount = (stajId: string): number => {
     return dekontlar.filter(d =>
-      `${d.stajlar?.ogrenciler?.ad} ${d.stajlar?.ogrenciler?.soyad}` === ogrenciAd &&
+      String(d.staj_id) === String(stajId) &&
       d.onay_durumu === 'bekliyor'
     ).length;
   };
 
-  const getRejectedDekontCount = (ogrenciAd: string): number => {
+  const getRejectedDekontCount = (stajId: string): number => {
     return dekontlar.filter(d =>
-      `${d.stajlar?.ogrenciler?.ad} ${d.stajlar?.ogrenciler?.soyad}` === ogrenciAd &&
+      String(d.staj_id) === String(stajId) &&
       d.onay_durumu === 'reddedildi'
     ).length;
   };
 
-  const getLastMonthDekontStatus = (ogrenciAd: string): string => {
+  const getLastMonthDekontStatus = (stajId: string): string => {
     const lastMonth = getCurrentMonth() === 1 ? 12 : getCurrentMonth() - 1;
     const lastMonthYear = getCurrentMonth() === 1 ? getCurrentYear() - 1 : getCurrentYear();
     
-    const lastMonthStatus = getDekontStatus(ogrenciAd, lastMonth, lastMonthYear);
+    const lastMonthStatus = getDekontStatus(stajId, lastMonth, lastMonthYear);
     
     switch (lastMonthStatus) {
       case 'approved': return '✅';
@@ -371,6 +372,7 @@ export default function PanelPage() {
       // Check if PIN needs to be changed (default PIN is 1234)
       if (isletmeData.pin === '1234') {
         setTimeout(() => {
+          setIsManualPinChange(false); // Otomatik açılma
           setPinChangeModalOpen(true)
         }, 1000)
       }
@@ -529,87 +531,6 @@ export default function PanelPage() {
     }
   };
 
-  // PIN değiştirme fonksiyonu
-  const handlePinChange = async () => {
-    if (!newPin || !confirmPin) {
-      setErrorModal({
-        isOpen: true,
-        title: 'Eksik Bilgi',
-        message: 'Lütfen tüm alanları doldurun'
-      });
-      return;
-    }
-
-    if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
-      setErrorModal({
-        isOpen: true,
-        title: 'Geçersiz PIN',
-        message: 'PIN 4 haneli bir sayı olmalıdır'
-      });
-      return;
-    }
-
-    if (newPin !== confirmPin) {
-      setErrorModal({
-        isOpen: true,
-        title: 'PIN Uyumsuzluğu',
-        message: 'PIN\'ler eşleşmiyor'
-      });
-      return;
-    }
-
-    if (newPin === '1234') {
-      setErrorModal({
-        isOpen: true,
-        title: 'Güvensiz PIN',
-        message: 'Varsayılan PIN\'i kullanamaz. Farklı bir PIN seçin'
-      });
-      return;
-    }
-
-    if (!isletme) {
-      setErrorModal({
-        isOpen: true,
-        title: 'Hata',
-        message: 'İşletme bilgisi bulunamadı'
-      });
-      return;
-    }
-
-    try {
-      setPinChangeLoading(true);
-      const response = await fetch(`/api/companies/${isletme.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          pin: newPin
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('PIN güncellenemedi');
-      }
-
-      // PIN başarıyla güncellendi, state'i güncelle
-      setIsletme({ ...isletme, pin: newPin });
-      setPinChangeModalOpen(false);
-      setNewPin('');
-      setConfirmPin('');
-      setSuccessMessage('PIN başarıyla değiştirildi!');
-      setSuccessModalOpen(true);
-    } catch (error) {
-      console.error('PIN değiştirme hatası:', error);
-      setErrorModal({
-        isOpen: true,
-        title: 'PIN Değiştirme Hatası',
-        message: 'PIN değiştirilirken bir hata oluştu'
-      });
-    } finally {
-      setPinChangeLoading(false);
-    }
-  };
 
   useEffect(() => {
     fetchData()
@@ -1261,6 +1182,29 @@ export default function PanelPage() {
     }
   };
 
+  // Belge indirme handler'ı
+  const handleBelgeDownload = async (fileUrl: string, fileName: string) => {
+    try {
+      // URL'den dosya adını çıkar
+      const urlParts = fileUrl.split('/');
+      const originalFileName = urlParts[urlParts.length - 1];
+      
+      // API endpoint'i kullanarak dosyayı indir
+      const downloadUrl = `/api/admin/belgeler/download/${encodeURIComponent(originalFileName)}`;
+      
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = fileName;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Belge indirme hatası:', error);
+      alert('Belge indirilemedi. Lütfen tekrar deneyiniz.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
@@ -1321,7 +1265,10 @@ export default function PanelPage() {
               </button>
               
               <button
-                onClick={() => setPinChangeModalOpen(true)}
+                onClick={() => {
+                  setIsManualPinChange(true); // Manuel PIN değişikliği
+                  setPinChangeModalOpen(true);
+                }}
                 className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
                 title="PIN Değiştir"
               >
@@ -1511,88 +1458,91 @@ export default function PanelPage() {
 
           <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl ring-1 ring-black ring-opacity-5 p-4 sm:p-6 divide-y divide-gray-200">
             {activeTab === 'ogrenciler' && (
-              <div className="space-y-6">
-                {ogrenciler.map((ogrenci, index) => (
-                  <div
-                    key={ogrenci.id}
-                    className={`pt-6 first:pt-0 p-4 rounded-xl transition-all duration-300 hover:shadow-lg hover:scale-[1.02] ${
-                      index % 2 === 0
-                        ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 hover:from-blue-100 hover:to-indigo-100'
-                        : 'bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 hover:from-purple-100 hover:to-pink-100'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
+              <div className="space-y-6 p-6">
+                {ogrenciler.map((ogrenci, index) => {
+                   const ogrenciFullName = `${ogrenci.ad} ${ogrenci.soyad}`;
+                   const pendingCount = getPendingDekontCount(ogrenci.staj_id);
+                   const rejectedCount = getRejectedDekontCount(ogrenci.staj_id);
+                   const lastMonthStatus = getLastMonthDekontStatus(ogrenci.staj_id);
+                  
+                  return (
+                    <div
+                      key={ogrenci.id}
+                      className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] p-6 border border-blue-100 hover:border-blue-200"
+                    >
                       <div className="flex items-center">
-                        <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
-                          index % 2 === 0
-                            ? 'bg-gradient-to-br from-blue-100 to-indigo-100 text-blue-600'
-                            : 'bg-gradient-to-br from-purple-100 to-pink-100 text-purple-600'
-                        }`}>
-                          <User className="h-6 w-6" />
+                        <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center border-2 border-indigo-100 hidden sm:block">
+                          <User className="h-6 w-6 text-indigo-600" />
                         </div>
-                        <div className="ml-4">
-                          <h3 className="text-lg font-medium text-gray-900">
-                            {ogrenci.ad} {ogrenci.soyad}
-                          </h3>
+                        <div className="sm:ml-4 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-lg font-bold text-gray-900">
+                              {ogrenci.ad} {ogrenci.soyad}
+                            </h3>
+                            {(pendingCount > 0 || rejectedCount > 0) && (
+                              <div className="flex items-center gap-1 text-xs">
+                                {pendingCount > 0 && (
+                                  <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full font-medium">
+                                    ({pendingCount} bekliyor)
+                                  </span>
+                                )}
+                                {rejectedCount > 0 && (
+                                  <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full font-medium">
+                                    ({rejectedCount} reddedilen)
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                           <div className="flex items-center space-x-3 mt-2 text-sm">
-                            <div className={`px-3 py-1.5 rounded-lg font-medium min-w-[80px] text-center ${
-                              index % 2 === 0
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-purple-100 text-purple-700'
-                            }`}>
+                            <div className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg font-medium">
                               {ogrenci.sinif}-{ogrenci.no}
                             </div>
+                            <div className="flex items-center gap-1 text-gray-500">
+                              <Calendar className="h-3 w-3" />
+                              <span>Başlangıç: {new Date(ogrenci.baslangic_tarihi).toLocaleDateString('tr-TR')}</span>
+                            </div>
+                          </div>
+                          {/* Son Ay Durumu */}
+                          <div className="mt-2 text-xs">
+                            <span className="font-medium text-gray-700">{lastMonthStatus}</span>
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleDekontYuklemeClick(ogrenci)}
-                        className={`flex items-center px-3 py-1.5 text-sm rounded-lg transition-all duration-200 shadow-sm hover:shadow-md ${
-                          index % 2 === 0
-                            ? 'text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200'
-                            : 'text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200'
-                        }`}
-                      >
-                        <Upload className="h-4 w-4 mr-1.5" />
-                        Dekont Yükle
-                      </button>
-                    </div>
-                    <div className="mt-4 flex flex-col gap-2">
-                      <div className="flex items-center text-sm text-gray-500">
-                        <GraduationCap className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className={`px-2 py-1 rounded-lg font-medium ${
-                          index % 2 === 0
-                            ? 'bg-teal-50 text-teal-700'
-                            : 'bg-emerald-50 text-emerald-700'
-                        }`}>
-                          {ogrenci.alanlar?.ad || "Alan bilgisi yok"}
-                        </span>
+                    
+                      <div className="mt-4 flex flex-col gap-3">
+                        <div className="flex items-center text-sm text-gray-500">
+                          <GraduationCap className="h-4 w-4 text-gray-400 mr-2" />
+                          <span className="px-2 py-1 bg-teal-50 text-teal-700 rounded-lg font-medium">
+                            {ogrenci.alanlar?.ad || "Alan bilgisi yok"}
+                          </span>
+                        </div>
+                        <div className="flex items-center text-sm text-gray-500">
+                          <User className="h-4 w-4 text-gray-400 mr-2" />
+                          <span className="font-medium text-gray-700">Koordinatör:</span>{' '}
+                          <span className="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-medium ml-1">
+                            {ogrenci.ogretmen_ad} {ogrenci.ogretmen_soyad}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center text-sm text-gray-500">
-                        <Calendar className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="font-medium text-gray-700">Sözleşme Tarihi:</span>
-                        <span className="ml-2 text-gray-900">
-                          {new Date(ogrenci.baslangic_tarihi).toLocaleDateString('tr-TR')}
-                        </span>
-                      </div>
-                      <div className="flex items-center text-sm text-gray-500">
-                        <User className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="font-medium text-gray-700">Koordinatör:</span>{' '}
-                        <span className={`px-2 py-1 rounded-lg font-medium ml-1 ${
-                          index % 2 === 0
-                            ? 'bg-teal-50 text-teal-700'
-                            : 'bg-emerald-50 text-emerald-700'
-                        }`}>
-                          {ogrenci.ogretmen_ad} {ogrenci.ogretmen_soyad}
-                        </span>
+                      
+                      <div className="flex justify-end mt-4">
+                        <button
+                          onClick={() => handleDekontYuklemeClick(ogrenci)}
+                          className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                          title="Dekont Yükle"
+                        >
+                          <Upload className="h-4 w-4 mr-1.5" />
+                          Dekont Yükle
+                        </button>
                       </div>
                       
                       {/* Dekont Durumu Tablosu */}
-                      <div className="mt-3 pt-3 border-t border-gray-200">
+                      <div className="mt-4 pt-3 border-t border-blue-200">
                         <div className="text-xs font-medium text-gray-600 mb-2">Dekont Durumu:</div>
                         <div className="flex flex-wrap gap-1">
                           {getMonthsFromStartToPrevious(ogrenci.baslangic_tarihi).map((monthData) => {
-                            const dekontStatus = getDekontStatus(`${ogrenci.ad} ${ogrenci.soyad}`, monthData.month, monthData.year);
+                            const dekontStatus = getDekontStatus(ogrenci.staj_id, monthData.month, monthData.year);
                             return (
                               <div key={`${monthData.year}-${monthData.month}`} className="flex flex-col items-center">
                                 <div className="text-xs font-medium text-gray-600 mb-1">
@@ -1603,9 +1553,11 @@ export default function PanelPage() {
                                     ? 'bg-green-100 text-green-600'
                                     : dekontStatus === 'pending'
                                     ? 'bg-yellow-100 text-yellow-600'
+                                    : dekontStatus === 'rejected'
+                                    ? 'bg-red-100 text-red-600'
                                     : 'bg-red-100 text-red-600'
                                 }`}>
-                                  {dekontStatus === 'approved' ? '✓' : dekontStatus === 'pending' ? '?' : '✗'}
+                                  {dekontStatus === 'approved' ? '✓' : dekontStatus === 'pending' ? '?' : dekontStatus === 'rejected' ? '✗' : '–'}
                                 </div>
                               </div>
                             );
@@ -1613,18 +1565,18 @@ export default function PanelPage() {
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
             {activeTab === 'dekontlar' && (
-              <div className="space-y-4">
+              <div className="space-y-4 p-6">
                 <div className="mb-4 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded text-yellow-900 text-xs sm:text-sm">
                   <span className="font-semibold">Dekontu yanlış yüklediyseniz silebilirsiniz.</span> Uyarı: Onaylanmış dekontlarda silme işlemi yoktur.
                 </div>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">Dekontlar</h2>
+                  <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">Dekontlar ({filteredDekontlar.length})</h2>
                   <button
                     onClick={() => setDekontModalOpen(true)}
                     className="flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm text-white bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-colors shadow-sm w-full sm:w-auto justify-center"
@@ -1689,36 +1641,26 @@ export default function PanelPage() {
                       const isExpanded = expandedGroups[studentName] ?? false; // Default to collapsed
                       
                       return (
-                        <div key={studentName} className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+                        <div key={studentName} className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
                           {/* Student Header - Clickable */}
-                          <div
-                            className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 cursor-pointer hover:bg-blue-100/50 rounded-lg p-2 -m-2 transition-colors"
+                          <button
                             onClick={() => toggleGroupExpansion(studentName)}
+                            className="w-full text-left p-4 hover:bg-gray-100 transition-colors flex items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 bg-gradient-to-br from-blue-100 to-indigo-100 text-blue-600 rounded-lg flex items-center justify-center hidden sm:block">
-                                <User className="h-5 w-5" />
+                              <div className="h-10 w-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center hidden sm:block">
+                                <User className="h-5 w-5 text-white" />
                               </div>
                               <div className="flex-1">
-                                <div className="flex items-center justify-between sm:justify-start">
-                                  <h3 className="text-lg font-semibold text-gray-900">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h3 className="text-lg font-bold text-white">
                                     {studentName}
-                                    {studentDekontlar[0]?.stajlar?.ogrenciler?.sinif && studentDekontlar[0]?.stajlar?.ogrenciler?.no && (
-                                      <span className="ml-2 text-sm font-medium text-blue-600">
-                                        {studentDekontlar[0].stajlar.ogrenciler.sinif}-{studentDekontlar[0].stajlar.ogrenciler.no}
-                                      </span>
-                                    )}
                                   </h3>
-                                  <div className="flex items-center gap-2 sm:hidden">
-                                    <div className="text-xs text-gray-500">
-                                      {studentDekontlar.length} dekont
-                                    </div>
-                                    {isExpanded ? (
-                                      <ChevronUp className="h-4 w-4 text-gray-400" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4 text-gray-400" />
-                                    )}
-                                  </div>
+                                  {studentDekontlar[0]?.stajlar?.ogrenciler?.sinif && studentDekontlar[0]?.stajlar?.ogrenciler?.no && (
+                                    <span className="text-sm font-medium text-blue-100">
+                                      {studentDekontlar[0].stajlar.ogrenciler.sinif}-{studentDekontlar[0].stajlar.ogrenciler.no}
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2 mt-1">
                                   {pendingCount > 0 && (
@@ -1733,135 +1675,118 @@ export default function PanelPage() {
                                       {rejectedCount} reddedildi
                                     </span>
                                   )}
-                                  <span className="text-xs text-gray-600">
-                                    Geçen ay: {lastMonthStatus}
+                                  <span className="text-xs text-blue-100">
+                                    {studentDekontlar.length} dekont - {lastMonthStatus}
                                   </span>
                                 </div>
                               </div>
                             </div>
-                            <div className="hidden sm:flex items-center gap-3">
-                              <div className="text-sm text-gray-500">
-                                {studentDekontlar.length} dekont
-                              </div>
+                            <div className="flex items-center gap-2">
                               {isExpanded ? (
-                                <ChevronUp className="h-5 w-5 text-gray-400" />
+                                <ChevronUp className="h-5 w-5 text-white" />
                               ) : (
-                                <ChevronDown className="h-5 w-5 text-gray-400" />
+                                <ChevronDown className="h-5 w-5 text-white" />
                               )}
                             </div>
-                          </div>
+                          </button>
                           
                           {/* Student's Dekontlar - Collapsible */}
                           {isExpanded && (
-                            <div className="space-y-3 transition-all duration-300">
-                              {studentDekontlar.map((dekont, index) => (
-                              <div
-                                key={dekont.id}
-                                className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow border border-gray-100"
-                              >
-                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                  <div className="space-y-2">
-                                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                                      <div className="flex items-center">
-                                        <span className={`px-4 py-2 rounded-lg text-sm font-bold shadow-sm border ${getOnayDurumuRenk(dekont.onay_durumu)}`}>
-                                          {dekont.onay_durumu === 'bekliyor' && <Clock className="h-4 w-4 mr-2 inline" />}
-                                          {dekont.onay_durumu === 'onaylandi' && <CheckCircle className="h-4 w-4 mr-2 inline" />}
-                                          {dekont.onay_durumu === 'reddedildi' && <XCircle className="h-4 w-4 mr-2 inline" />}
-                                          {getOnayDurumuText(dekont.onay_durumu)}
-                                        </span>
+                            <div className="bg-gray-50">
+                              <div className="p-4 space-y-3">
+                                {studentDekontlar.map((dekont, dekontIndex) => (
+                                  <div
+                                    key={`dekont-${dekont.id}-${dekont.ay}-${dekont.yil}-${dekontIndex}`}
+                                    className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow border border-gray-100"
+                                  >
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                      <div className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getOnayDurumuRenk(dekont.onay_durumu)}`}>
+                                            {getOnayDurumuText(dekont.onay_durumu)}
+                                          </span>
+                                          <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-bold border border-indigo-200">
+                                            {(() => {
+                                              // Aynı öğrenci, ay, yıl için dekont sayısını hesapla
+                                              const ayniDekontlar = dekontlar.filter(d =>
+                                                String(d.staj_id) === String(dekont.staj_id) &&
+                                                d.ay === dekont.ay &&
+                                                String(d.yil) === String(dekont.yil)
+                                              ).sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
+                                              
+                                              const dekontIndex = ayniDekontlar.findIndex(d => d.id === dekont.id);
+                                              const ekIndex = dekontIndex > 0 ? ` - ek${dekontIndex}` : '';
+                                              
+                                              return `${aylar[dekont.ay - 1]} ${dekont.yil}${ekIndex}`;
+                                            })()}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs">
+                                            <span className="font-bold">Gönderen:</span> {dekont.yukleyen_kisi || 'Bilinmiyor'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                                        {dekont.dosya_url && (
+                                          <button
+                                            onClick={() => {
+                                              const filename = dekont.dosya_url!.split('/').pop() || 'dekont.pdf';
+                                              handleFileDownload(dekont.dosya_url!, filename);
+                                            }}
+                                            className="p-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                                            title="Dekontu İndir"
+                                          >
+                                            <Download className="h-5 w-5" />
+                                          </button>
+                                        )}
+                                        {(dekont.onay_durumu === 'bekliyor' || dekont.onay_durumu === 'reddedildi') &&
+                                         dekont.yukleyen_kisi && !dekont.yukleyen_kisi.includes('(Öğretmen)') && (
+                                          <button
+                                            title="Dekontu Sil"
+                                            className="p-2 text-red-600 hover:text-white bg-red-50 hover:bg-red-600 rounded-lg transition-colors"
+                                            onClick={() => {
+                                              setPendingDeleteDekont(dekont);
+                                              setDeleteConfirmOpen(true);
+                                            }}
+                                          >
+                                            <Trash2 className="h-5 w-5" />
+                                          </button>
+                                        )}
                                       </div>
                                     </div>
-                                    <div className="flex flex-wrap gap-2 text-sm text-gray-500">
-                                      {dekont.stajlar?.ogrenciler?.sinif && (
-                                        <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded">
-                                          {dekont.stajlar.ogrenciler.sinif}
-                                        </span>
-                                      )}
-                                      {dekont.stajlar?.ogrenciler?.alanlar?.ad && (
-                                        <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-                                          {dekont.stajlar.ogrenciler.alanlar.ad}
-                                        </span>
-                                      )}
-                                      <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-bold border border-indigo-200">
-                                        {(() => {
-                                          // Aynı öğrenci, ay, yıl için dekont sayısını hesapla
-                                          const ayniDekontlar = dekontlar.filter(d =>
-                                            String(d.staj_id) === String(dekont.staj_id) &&
-                                            d.ay === dekont.ay &&
-                                            String(d.yil) === String(dekont.yil)
-                                          ).sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
-                                          
-                                          const dekontIndex = ayniDekontlar.findIndex(d => d.id === dekont.id);
-                                          const ekIndex = dekontIndex > 0 ? ` - ek${dekontIndex}` : '';
-                                          
-                                          return `${aylar[dekont.ay - 1]} ${dekont.yil}${ekIndex}`;
-                                        })()}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-2 mt-2">
-                                      <span className="text-xs">
-                                        <span className="font-bold">Gönderen:</span> {dekont.yukleyen_kisi || 'Bilinmiyor'}
-                                      </span>
-                                    </div>
+                                    {(dekont.miktar && dekont.miktar > 0) || dekont.created_at ? (
+                                      <div className="flex justify-between items-end mt-2">
+                                        {dekont.miktar && dekont.miktar > 0 && (
+                                          <span className="text-xs font-bold text-green-600">
+                                            Miktar: {dekont.miktar} TL
+                                          </span>
+                                        )}
+                                        {dekont.created_at && (
+                                          <span className="text-xs text-gray-400">
+                                            {new Date(dekont.created_at).toLocaleString('tr-TR', {
+                                              day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                                            })}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : null}
+                                    
+                                    {/* Reddetme Gerekçesi */}
                                     {dekont.onay_durumu === 'reddedildi' && dekont.red_nedeni && (
                                       <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                                        <div className="flex items-start">
-                                          <XCircle className="h-4 w-4 text-red-600 mr-2 mt-0.5 flex-shrink-0" />
+                                        <div className="flex items-start gap-2">
+                                          <XCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
                                           <div>
-                                            <div className="text-sm font-medium text-red-800 mb-1">Reddetme Gerekçesi:</div>
-                                            <div className="text-sm text-red-700">{dekont.red_nedeni}</div>
+                                            <p className="text-xs font-medium text-red-800 mb-1">Reddetme Gerekçesi:</p>
+                                            <p className="text-xs text-red-700">{dekont.red_nedeni}</p>
                                           </div>
                                         </div>
                                       </div>
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-2 self-end sm:self-auto">
-                                    {dekont.dosya_url && (
-                                      <button
-                                        onClick={() => {
-                                          // Dosya URL'sinden filename'i çıkar
-                                          const filename = dekont.dosya_url!.split('/').pop() || 'dekont.pdf';
-                                          handleFileDownload(dekont.dosya_url!, filename);
-                                        }}
-                                        className="p-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                                        title="Dekontu İndir"
-                                      >
-                                        <Download className="h-5 w-5" />
-                                      </button>
-                                    )}
-                                    {(dekont.onay_durumu === 'bekliyor' || dekont.onay_durumu === 'reddedildi') &&
-                                     dekont.yukleyen_kisi && !dekont.yukleyen_kisi.includes('(Öğretmen)') && (
-                                      <button
-                                        title="Dekontu Sil"
-                                        className="p-2 text-red-600 hover:text-white bg-red-50 hover:bg-red-600 rounded-lg transition-colors"
-                                        onClick={() => {
-                                          setPendingDeleteDekont(dekont);
-                                          setDeleteConfirmOpen(true);
-                                        }}
-                                      >
-                                        <Trash2 className="h-5 w-5" />
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                                {(dekont.miktar && dekont.miktar > 0) || dekont.created_at ? (
-                                  <div className="flex justify-between items-end mt-2">
-                                    {dekont.miktar && dekont.miktar > 0 && (
-                                      <span className="text-xs font-bold text-green-600">
-                                        Ödenen: {dekont.miktar.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })}
-                                      </span>
-                                    )}
-                                    {dekont.created_at && (
-                                      <span className="text-xs text-gray-400">
-                                        {new Date(dekont.created_at).toLocaleString('tr-TR', {
-                                          day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                                        })}
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : null}
+                                ))}
                               </div>
-                            ))}
                             </div>
                           )}
                         </div>
@@ -1873,7 +1798,7 @@ export default function PanelPage() {
             )}
 
             {activeTab === 'belgeler' && (
-              <div>
+              <div className="p-6">
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
                   <h2 className="text-lg font-medium text-gray-900">
                     İşletme Belgeleri ({filteredBelgeler.length})
@@ -1915,73 +1840,80 @@ export default function PanelPage() {
                 </div>
 
                 {filteredBelgeler.length > 0 ? (
-                  <div className="space-y-6">
+                  <div className="space-y-4">
                     {filteredBelgeler.map((belge) => (
-                      <div key={belge.id} className="pt-6 first:pt-0">
-                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
-                          <div className="flex items-center">
-                            <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center hidden sm:block">
-                              <FileText className="h-6 w-6 text-indigo-600" />
-                            </div>
-                            <div className="sm:ml-4 flex-1">
-                              <h3 className="text-lg font-medium text-gray-900">
-                                {belge.ad}
-                              </h3>
-                              <div className="flex flex-wrap items-center gap-2 mt-2 text-sm">
-                                <div className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg font-medium">
-                                  {formatBelgeTur(belge.tur)}
-                                </div>
-                                {belge.yukleyen_kisi && (
-                                  <div className="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg font-medium">
-                                    {belge.yukleyen_kisi}
-                                  </div>
-                                )}
-                                {(() => {
-                                  const onayDurumu = getBelgeOnayDurumu(belge.onay_durumu);
-                                  const Icon = onayDurumu.icon;
-                                  return (
-                                    <div className={`flex items-center px-3 py-1.5 rounded-lg font-medium ${onayDurumu.bg} ${onayDurumu.color}`}>
-                                      <Icon className="h-4 w-4 mr-1.5" />
-                                      {onayDurumu.text}
-                                    </div>
-                                  );
-                                })()}
-                              </div>
-                            </div>
+                      <div key={belge.id} className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-100 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] p-6">
+                        <div className="flex items-start">
+                          <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center border-2 border-indigo-100 flex-shrink-0 hidden sm:block">
+                            <FileText className="h-6 w-6 text-indigo-600" />
                           </div>
-                          <div className="flex items-center gap-2 mt-3 sm:mt-0 self-end sm:self-auto">
-                            {belge.dosya_url && (
-                              <button
-                                onClick={() => handleFileView(belge.dosya_url!)}
-                                className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                              >
-                                <Download className="h-4 w-4 mr-1.5" />
-                                İndir
-                              </button>
-                            )}
-                            <button
-                              onClick={() => {
-                                setSelectedBelge(belge)
-                                setBelgeDeleteModalOpen(true)
-                              }}
-                              className="flex items-center px-3 py-1.5 text-sm text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                            >
-                              <Trash2 className="h-4 w-4 mr-1.5" />
-                              Sil
-                            </button>
+                          <div className="sm:ml-4 flex-1 min-w-0">
+                            <h3 className="text-lg font-bold text-gray-900 truncate" title={belge.ad}>
+                              {belge.ad}
+                            </h3>
+                            <div className="flex flex-wrap gap-2 mt-2 text-sm">
+                              <div className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg font-medium border border-purple-200">
+                                {formatBelgeTur(belge.tur)}
+                              </div>
+                              {belge.yukleyen_kisi && (
+                                <div className="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg font-medium border border-green-200">
+                                  👤 {belge.yukleyen_kisi}
+                                </div>
+                              )}
+                              {(() => {
+                                const onayDurumu = getBelgeOnayDurumu(belge.onay_durumu);
+                                const Icon = onayDurumu.icon;
+                                return (
+                                  <div className={`flex items-center px-3 py-1.5 rounded-lg font-medium border ${onayDurumu.bg} ${onayDurumu.color}`}>
+                                    <Icon className="h-4 w-4 mr-1.5" />
+                                    {onayDurumu.text}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                            <p className="text-sm text-gray-500 mt-3 flex items-center">
+                              <Calendar className="h-4 w-4 mr-1.5" />
+                              Yüklenme Tarihi: {new Date(belge.yukleme_tarihi).toLocaleDateString('tr-TR')}
+                            </p>
                           </div>
                         </div>
-                        <div className="mt-4">
-                          <p className="text-sm text-gray-500">
-                            Yüklenme Tarihi: {new Date(belge.yukleme_tarihi).toLocaleDateString('tr-TR')}
-                          </p>
+                        
+                        <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-3 border-t border-purple-200">
+                          {belge.dosya_url && (
+                            <button
+                              onClick={() => {
+                                // Belge adını kullan ve dosya uzantısını koru
+                                const originalFileName = belge.dosya_url!.split('/').pop() || 'belge.pdf';
+                                const fileExtension = originalFileName.split('.').pop() || 'pdf';
+                                const cleanBelgeName = belge.ad || 'belge';
+                                const downloadFileName = `${cleanBelgeName}.${fileExtension}`;
+                                handleBelgeDownload(belge.dosya_url!, downloadFileName);
+                              }}
+                              className="flex items-center justify-center px-4 py-2 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-200 hover:border-indigo-300"
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Belgeyi İndir
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              setSelectedBelge(belge)
+                              setBelgeDeleteModalOpen(true)
+                            }}
+                            className="flex items-center justify-center px-4 py-2 text-sm text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors border border-red-200 hover:border-red-300"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Belgeyi Sil
+                          </button>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <FileText className="mx-auto h-12 w-12 text-gray-400" />
+                    <div className="mx-auto w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
+                      <FileText className="h-10 w-10 text-gray-400" />
+                    </div>
                     <h3 className="mt-4 text-lg font-medium text-gray-900">Henüz Belge Yok</h3>
                     <p className="mt-2 text-sm text-gray-500">Bu işletmeye ait hiç belge bulunmamaktadır.</p>
                   </div>
@@ -2592,71 +2524,20 @@ export default function PanelPage() {
       </Modal>
 
       {/* PIN Değiştirme Modal */}
-      <Modal isOpen={pinChangeModalOpen} onClose={() => setPinChangeModalOpen(false)} title="PIN Değiştir">
-        <div className="space-y-4">
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-blue-800">
-              <strong>Güvenlik:</strong> PIN'inizi değiştirerek hesabınızın güvenliğini artırabilirsiniz.
-            </p>
-          </div>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Yeni PIN (4 haneli)
-              </label>
-              <input
-                type="password"
-                maxLength={4}
-                pattern="[0-9]{4}"
-                value={newPin}
-                onChange={(e) => setNewPin(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="0000"
-                disabled={pinChangeLoading}
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Yeni PIN (Tekrar)
-              </label>
-              <input
-                type="password"
-                maxLength={4}
-                pattern="[0-9]{4}"
-                value={confirmPin}
-                onChange={(e) => setConfirmPin(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="0000"
-                disabled={pinChangeLoading}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-3">
-            <button
-              onClick={() => {
-                setPinChangeModalOpen(false);
-                setNewPin('');
-                setConfirmPin('');
-              }}
-              disabled={pinChangeLoading}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-            >
-              Şimdi Değil
-            </button>
-            <button
-              onClick={handlePinChange}
-              disabled={pinChangeLoading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center"
-            >
-              {pinChangeLoading && <Loader className="h-4 w-4 animate-spin mr-2" />}
-              PIN'i Değiştir
-            </button>
-          </div>
-        </div>
-      </Modal>
+      <PinChangeModal
+        isOpen={pinChangeModalOpen}
+        onClose={() => setPinChangeModalOpen(false)}
+        onSuccess={() => {
+          setPinChangeModalOpen(false);
+          setSuccessMessage('PIN başarıyla değiştirildi!');
+          setSuccessModalOpen(true);
+          fetchData();
+        }}
+        userId={isletme?.id || ''}
+        userName={isletme?.yetkili_kisi || ''}
+        isRequired={!isManualPinChange}
+        userType="company"
+      />
 
       {/* Ek Dekont Uyarı Modal */}
       <Modal isOpen={ekDekontModalOpen} onClose={() => setEkDekontModalOpen(false)} title="Ek Dekont Uyarısı">

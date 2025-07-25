@@ -37,7 +37,13 @@ export async function GET() {
         company: {
           select: {
             name: true,
-            contact: true
+            contact: true,
+            teacher: {
+              select: {
+                name: true,
+                surname: true
+              }
+            }
           }
         },
         teacher: {
@@ -63,7 +69,11 @@ export async function GET() {
     const formattedData = rawData.map(dekont => ({
       id: dekont.id,
       isletme_ad: dekont.company?.name || dekont.staj?.company?.name || 'Bilinmiyor',
+      koordinator_ogretmen: dekont.company?.teacher ? `${dekont.company.teacher.name} ${dekont.company.teacher.surname}` :
+                           (dekont.staj?.teacher ? `${dekont.staj.teacher.name} ${dekont.staj.teacher.surname}` : 'Bilinmiyor'),
       ogrenci_ad: dekont.staj?.student ? `${dekont.staj.student.name} ${dekont.staj.student.surname}` : 'Bilinmiyor',
+      ogrenci_sinif: dekont.staj?.student?.className || '',
+      ogrenci_no: dekont.staj?.student?.number || '',
       miktar: dekont.amount ? Number(dekont.amount) : null,
       odeme_tarihi: dekont.paymentDate.toISOString(),
       onay_durumu: statusMapping[dekont.status] || dekont.status,

@@ -268,6 +268,7 @@ model GorevBelgesi {
   hafta         String
   isletmeIdler  String   // JSON array stored as string
   durum         String   @default("Verildi")
+  barcode       String?  @unique // Barcode for tracking
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   

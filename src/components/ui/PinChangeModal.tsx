@@ -7,11 +7,13 @@ interface Props {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
-  teacherId: string
-  teacherName: string
+  userId: string
+  userName: string
+  isRequired?: boolean
+  userType?: 'teacher' | 'company' // Kullanıcı tipini belirlemek için
 }
 
-export default function PinChangeModal({ isOpen, onClose, onSuccess, teacherId, teacherName }: Props) {
+export default function PinChangeModal({ isOpen, onClose, onSuccess, userId, userName, isRequired = false, userType = 'teacher' }: Props) {
   const [newPin, setNewPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
   const [showPin, setShowPin] = useState(false)
@@ -44,7 +46,11 @@ export default function PinChangeModal({ isOpen, onClose, onSuccess, teacherId, 
       setLoading(true)
       
       // Update PIN using API
-      const response = await fetch(`/api/admin/teachers/${teacherId}/pin`, {
+      const apiUrl = userType === 'teacher'
+        ? `/api/admin/teachers/${userId}/pin`
+        : `/api/companies/${userId}`
+      
+      const response = await fetch(apiUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -87,15 +93,17 @@ export default function PinChangeModal({ isOpen, onClose, onSuccess, teacherId, 
                 </div>
                 <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
                   <h3 className="text-lg leading-6 font-medium text-gray-900">
-                    PIN Değiştirme Zorunlu
+                    {isRequired ? 'PIN Değiştirme Zorunlu' : 'PIN Değiştir'}
                   </h3>
                   <div className="mt-2">
                     <p className="text-sm text-gray-500">
-                      Merhaba <strong>{teacherName}</strong>,
+                      Merhaba <strong>{userName}</strong>,
                     </p>
                     <p className="text-sm text-gray-500 mt-2">
-                      Güvenlik nedeniyle varsayılan PIN kodunuzu değiştirmeniz gerekmektedir. 
-                      Lütfen yeni bir 4 haneli PIN kodu belirleyin.
+                      {isRequired
+                        ? 'Güvenlik nedeniyle varsayılan PIN kodunuzu değiştirmeniz gerekmektedir. Lütfen yeni bir 4 haneli PIN kodu belirleyin.'
+                        : 'PIN kodunuzu değiştirmek için yeni bir 4 haneli PIN kodu belirleyin.'
+                      }
                     </p>
                   </div>
                   
@@ -178,15 +186,17 @@ export default function PinChangeModal({ isOpen, onClose, onSuccess, teacherId, 
                 )}
                 {loading ? 'Değiştiriliyor...' : 'PIN Değiştir'}
               </button>
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={loading}
-                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:mr-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <X className="h-4 w-4 mr-2" />
-                İptal
-              </button>
+              {!isRequired && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={loading}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:mr-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  İptal
+                </button>
+              )}
             </div>
           </form>
         </div>

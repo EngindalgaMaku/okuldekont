@@ -85,7 +85,7 @@ export async function GET(
         soyad: internship.student.surname,
         no: internship.student.number,
         sinif: internship.student.className,
-        alan: internship.student.alan.name,
+        alan: internship.student.alan?.name || 'Alan bilgisi eksik',
         baslangic_tarihi: internship.startDate,
         staj_id: internship.id
       });

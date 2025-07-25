@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Eye, Download, Check, X, Filter, Search, Calendar, Trash2 } from 'lucide-react'
+import { Eye, Download, Check, X, Filter, Search, Calendar, Trash2, Loader } from 'lucide-react'
 
 interface Dekont {
   id: string
   isletme_ad: string
+  koordinator_ogretmen: string
   ogrenci_ad: string
+  ogrenci_sinif: string
+  ogrenci_no: string
   miktar: number | null
   odeme_tarihi: string
   onay_durumu: 'bekliyor' | 'onaylandi' | 'reddedildi'
@@ -70,6 +73,10 @@ export default function DekontlarPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedDekont, setSelectedDekont] = useState<Dekont | null>(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [bulkAction, setBulkAction] = useState<string>('')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
 
   useEffect(() => {
     fetchDekontlar()
@@ -102,7 +109,7 @@ export default function DekontlarPage() {
       filtered = filtered.filter(d => d.onay_durumu === selectedStatus)
     }
 
-    // Ay filtresi  
+    // Ay filtresi
     if (selectedMonth !== 'all') {
       filtered = filtered.filter(d => d.ay === parseInt(selectedMonth))
     }
@@ -115,7 +122,7 @@ export default function DekontlarPage() {
     // Arama filtresi
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
-      filtered = filtered.filter(d => 
+      filtered = filtered.filter(d =>
         d.isletme_ad.toLowerCase().includes(term) ||
         d.ogrenci_ad.toLowerCase().includes(term) ||
         d.yukleyen_kisi.toLowerCase().includes(term)
@@ -124,6 +131,61 @@ export default function DekontlarPage() {
 
     setFilteredDekontlar(filtered)
     setCurrentPage(1) // Reset to first page when filters change
+    setSelectedIds([]) // Clear selections when filters change
+  }
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedIds(currentDekontlar.map(d => d.id))
+    } else {
+      setSelectedIds([])
+    }
+  }
+
+  const handleSelectOne = (id: string) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    )
+  }
+
+  const handleBulkAction = async () => {
+    if (selectedIds.length === 0 || !bulkAction) return
+
+    if (bulkAction === 'DELETE') {
+      setShowBulkDeleteModal(true)
+      return
+    }
+
+    setIsProcessing(true)
+    try {
+      for (const id of selectedIds) {
+        await updateDekontStatus(id, bulkAction as 'APPROVED' | 'REJECTED')
+      }
+      setSelectedIds([])
+      setBulkAction('')
+    } catch (error) {
+      console.error('Toplu işlem hatası:', error)
+      alert('Toplu işlem sırasında bir hata oluştu')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    setIsProcessing(true)
+    try {
+      for (const id of selectedIds) {
+        await deleteDekont(id)
+      }
+      setSelectedIds([])
+      setBulkAction('')
+      setShowBulkDeleteModal(false)
+    } catch (error) {
+      console.error('Toplu silme hatası:', error)
+      alert('Toplu silme sırasında bir hata oluştu')
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const updateDekontStatus = async (dekontId: string, status: 'APPROVED' | 'REJECTED', reason?: string) => {
@@ -343,7 +405,7 @@ export default function DekontlarPage() {
           <button
             onClick={() => {
               setSelectedStatus('all')
-              setSelectedMonth('all') 
+              setSelectedMonth('all')
               setSelectedYear('all')
               setSearchTerm('')
             }}
@@ -352,6 +414,38 @@ export default function DekontlarPage() {
             Filtreleri Temizle
           </button>
         </div>
+        
+        {/* Toplu İşlemler */}
+        {selectedIds.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-700 font-medium">
+                {selectedIds.length} dekont seçildi:
+              </span>
+              <select
+                value={bulkAction}
+                onChange={(e) => setBulkAction(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">İşlem Seçin</option>
+                <option value="APPROVED">Toplu Onayla</option>
+                <option value="DELETE">Toplu Sil</option>
+              </select>
+              <button
+                onClick={handleBulkAction}
+                disabled={!bulkAction || isProcessing}
+                className="flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isProcessing ? (
+                  <Loader className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4 mr-2" />
+                )}
+                Uygula
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Dekont Table */}
@@ -360,6 +454,15 @@ export default function DekontlarPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th scope="col" className="relative px-7 sm:w-12 sm:px-6">
+                  <input
+                    type="checkbox"
+                    className="absolute left-4 top-1/2 -mt-2 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={currentDekontlar.length > 0 && selectedIds.length === currentDekontlar.length}
+                    onChange={handleSelectAll}
+                    disabled={currentDekontlar.length === 0}
+                  />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Öğrenci / İşletme
                 </th>
@@ -385,14 +488,25 @@ export default function DekontlarPage() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {currentDekontlar.map((dekont) => (
-                <tr key={dekont.id} className="hover:bg-gray-50">
+                <tr key={dekont.id} className={selectedIds.includes(dekont.id) ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'}>
+                  <td className="relative px-7 sm:w-12 sm:px-6">
+                    <input
+                      type="checkbox"
+                      className="absolute left-4 top-1/2 -mt-2 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      checked={selectedIds.includes(dekont.id)}
+                      onChange={() => handleSelectOne(dekont.id)}
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
-                        {dekont.ogrenci_ad}
+                        {dekont.ogrenci_ad} {dekont.ogrenci_sinif && dekont.ogrenci_no && `(${dekont.ogrenci_sinif}-${dekont.ogrenci_no})`}
                       </div>
                       <div className="text-sm text-gray-500">
                         {dekont.isletme_ad}
+                      </div>
+                      <div className="text-xs text-blue-600">
+                        Koordinatör: {dekont.koordinator_ogretmen}
                       </div>
                     </div>
                   </td>
@@ -695,6 +809,79 @@ export default function DekontlarPage() {
                 <button
                   onClick={closeModals}
                   className="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  İptal
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Modal */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center">
+                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                  <Trash2 className="h-6 w-6 text-red-600" />
+                </div>
+              </div>
+              <div className="mt-3 text-center">
+                <h3 className="text-lg font-medium text-gray-900">Toplu Dekont Silme</h3>
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600 mb-4">
+                    <strong>{selectedIds.length} adet dekont</strong> kalıcı olarak silinecek. Bu işlem geri alınamaz.
+                  </p>
+                  
+                  {/* Uyarı Notu */}
+                  <div className="mt-4 bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                    <div className="flex items-start">
+                      <div className="text-yellow-800">
+                        <strong>⚠️ ÖNEMLİ UYARI:</strong>
+                        <p className="text-sm mt-2 text-left">
+                          Veri kaybı olmaması için yalnızca <strong>hatalı oluşturulan dekontları</strong> siliniz.
+                          Normal dekontlar için silme yerine reddetme işlemini kullanın.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 bg-red-50 rounded-lg p-3 border border-red-200">
+                    <div className="text-sm text-red-700">
+                      <div className="flex items-center mb-2">
+                        <strong>🚨 DİKKAT:</strong>
+                      </div>
+                      <ul className="text-xs space-y-1 text-left">
+                        <li>• Bu işlem geri alınamaz</li>
+                        <li>• Tüm dekont verileri kalıcı olarak silinecek</li>
+                        <li>• Dosyalar da sistemden kaldırılacak</li>
+                        <li>• Yalnızca hatalı kayıtlar için kullanın</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5 sm:flex sm:flex-row-reverse gap-3">
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={isProcessing}
+                  className="w-full sm:w-auto inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader className="h-4 w-4 mr-2 animate-spin" />
+                      Siliniyor...
+                    </>
+                  ) : (
+                    'Evet, Hepsini Sil'
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowBulkDeleteModal(false)}
+                  disabled={isProcessing}
+                  className="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                 >
                   İptal
                 </button>
