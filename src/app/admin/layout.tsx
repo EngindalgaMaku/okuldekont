@@ -209,8 +209,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
-            <GraduationCap className="h-8 w-8 text-white animate-pulse" />
+          <div className="mx-auto w-56 h-24 bg-white rounded-2xl flex items-center justify-center mb-4 p-4 shadow-lg border">
+            <img
+              src="/images/logo2.png"
+              alt="K-Panel Logo"
+              className="h-16 w-42 object-contain animate-pulse"
+            />
           </div>
           <div className="space-y-2">
             <div className="h-6 bg-gray-200 rounded animate-pulse w-48 mx-auto"></div>
@@ -292,14 +296,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 
                 {/* Sidebar component for mobile */}
                 <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
-                  <div className="flex items-center gap-3 px-4 py-6 border-b border-gray-200">
-                    <div className="p-2 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-xl shadow-sm">
-                      <GraduationCap className="w-8 h-8 text-indigo-600" />
-                    </div>
-                    <div>
-                      <h1 className="text-xl font-bold text-gray-900">K-Panel</h1>
-                      <p className="text-sm text-gray-500">Koordinatörlük Yönetimi</p>
-                    </div>
+                  <div className="flex items-center justify-center px-4 py-6 border-b border-gray-200">
+                    <img
+                      src="/images/logo2.png"
+                      alt="K-Panel Logo"
+                      className="h-16 w-42 object-contain"
+                    />
                   </div>
                   <nav className="flex flex-1 flex-col">
                     <ul role="list" className="flex flex-1 flex-col gap-y-7">
@@ -446,18 +448,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       >
         <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white">
           <div className={classNames(
-            desktopSidebarOpen ? 'justify-start px-6' : 'justify-center px-2',
-            'flex h-16 items-center gap-3 border-b border-gray-200 transition-all duration-300'
+            'flex items-center justify-center border-b border-gray-200 transition-all duration-300',
+            desktopSidebarOpen ? 'h-24 py-4' : 'h-16 py-2'
           )}>
-            <div className="p-2 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-xl shadow-sm">
-              <GraduationCap className="w-8 h-8 text-indigo-600" />
-            </div>
-            {desktopSidebarOpen && (
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">K-Panel</h1>
-                <p className="text-sm text-gray-500">Koordinatörlük Yönetimi</p>
-              </div>
-            )}
+            <img
+              src={desktopSidebarOpen ? "/images/logo2.png" : "/images/logo_kucuk.png"}
+              alt="K-Panel Logo"
+              className={classNames(
+                desktopSidebarOpen ? 'h-20 w-52' : 'h-12 w-12',
+                'object-contain transition-all duration-300'
+              )}
+            />
           </div>
           <nav className="flex flex-1 flex-col">
             <ul role="list" className="flex flex-1 flex-col gap-y-7">

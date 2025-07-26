@@ -143,7 +143,9 @@ export default function OgrenciUcretDokumPage() {
       if (response.ok) {
         const data = await response.json()
         if (data?.value) {
-          setSchoolName(data.value)
+          // Türkçe karakterleri düzelt
+          const correctedName = data.value.replace(/ÖZDILEK/gi, 'ÖZDİLEK').replace(/TICARET/gi, 'TİCARET')
+          setSchoolName(correctedName)
         }
       }
     } catch (error) {
@@ -554,7 +556,7 @@ export default function OgrenciUcretDokumPage() {
             {schoolName.toUpperCase()}
           </h1>
           <h2 className="text-base font-bold text-gray-900 mb-2">
-            KOORDİNATÖR ÖĞRETMENLERİN ÖĞRENCİ ÜCRET ÇİZELGESİ
+            KOORDİNATÖR ÖĞRETMENLERİN DEKONT TESLİM ÇİZELGESİ
           </h2>
           <h3 className="text-base font-bold text-gray-900">
             {selectedMonthName} {currentYear}
