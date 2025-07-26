@@ -218,11 +218,6 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
                     onChange={(e) => handleSelectTeacher(ogretmen.id, e.target.checked)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-1"
                   />
-                  <div className="flex-shrink-0">
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                      <User className="w-6 h-6 text-blue-600" />
-                    </div>
-                  </div>
                   <div className="flex-1 min-w-0">
                      <div className="flex items-start justify-between">
                        <div className="flex-1 min-w-0 pr-2">
@@ -335,11 +330,6 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0">
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <User className="w-5 h-5 text-blue-600" />
-                        </div>
-                      </div>
                       <div>
                         <div className="text-sm font-medium text-gray-900">
                           <Link

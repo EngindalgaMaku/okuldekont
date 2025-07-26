@@ -32,14 +32,16 @@ export async function POST(request: NextRequest) {
     if (type === 'teacher') {
       const result = await prisma.teacherProfile.updateMany({
         data: {
-          pin: pin
+          pin: pin,
+          mustChangePin: true  // Toplu reset sonrası PIN değiştirmeyi zorla
         }
       })
       count = result.count
     } else if (type === 'company') {
       const result = await prisma.companyProfile.updateMany({
         data: {
-          pin: pin
+          pin: pin,
+          mustChangePin: true  // Toplu reset sonrası PIN değiştirmeyi zorla
         }
       })
       count = result.count
@@ -50,10 +52,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       count,
-      message: `${count} ${type === 'teacher' ? 'teacher' : 'company'} PINs have been reset` 
+      message: `${count} ${type === 'teacher' ? 'öğretmen' : 'işletme'} PIN'i sıfırlandı ve ilk girişte PIN değiştirmeleri gerekecek`
     })
   } catch (error) {
     console.error('PIN reset error:', error)

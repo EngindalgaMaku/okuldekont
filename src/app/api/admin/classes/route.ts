@@ -48,6 +48,8 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { name, alanId, dal, haftalik_program } = body
 
+    console.log('Creating class with data:', { name, alanId, dal, haftalik_program })
+
     if (!name || !alanId) {
       return NextResponse.json(
         { success: false, error: 'Name and alanId are required' },
@@ -55,96 +57,44 @@ export async function POST(request: Request) {
       )
     }
 
+    // Haftalık program verisi düzenleme
+    let processedProgram = null
+    if (haftalik_program && typeof haftalik_program === 'object') {
+      processedProgram = haftalik_program
+    } else if (haftalik_program && typeof haftalik_program === 'string') {
+      try {
+        processedProgram = JSON.parse(haftalik_program)
+      } catch (e) {
+        console.error('Invalid JSON for haftalik_program:', haftalik_program)
+        processedProgram = null
+      }
+    }
+
     const newClass = await prisma.class.create({
       data: {
         name,
         alanId,
         dal: dal || null,
-        haftalik_program: haftalik_program ? haftalik_program : Prisma.JsonNull
+        haftalik_program: processedProgram || Prisma.JsonNull
       }
     })
+
+    console.log('Class created successfully:', newClass)
 
     return NextResponse.json({
       success: true,
       data: {
         id: newClass.id,
         ad: newClass.name,
-        alan_id: newClass.alanId
+        alan_id: newClass.alanId,
+        dal: newClass.dal,
+        haftalik_program: newClass.haftalik_program
       }
     })
   } catch (error) {
     console.error('Create Class Error:', error)
     return NextResponse.json(
       { success: false, error: 'Class could not be created' },
-      { status: 500 }
-    )
-  }
-}
-
-export async function PUT(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
-    const body = await request.json()
-    const { name, dal, haftalik_program } = body
-
-    if (!id || !name) {
-      return NextResponse.json(
-        { success: false, error: 'ID and name are required' },
-        { status: 400 }
-      )
-    }
-
-    const updatedClass = await prisma.class.update({
-      where: { id },
-      data: {
-        name,
-        dal: dal || null,
-        haftalik_program: haftalik_program ? haftalik_program : Prisma.JsonNull
-      }
-    })
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        id: updatedClass.id,
-        ad: updatedClass.name,
-        alan_id: updatedClass.alanId
-      }
-    })
-  } catch (error) {
-    console.error('Update Class Error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Class could not be updated' },
-      { status: 500 }
-    )
-  }
-}
-
-export async function DELETE(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'ID is required' },
-        { status: 400 }
-      )
-    }
-
-    await prisma.class.delete({
-      where: { id }
-    })
-
-    return NextResponse.json({
-      success: true,
-      message: 'Class deleted successfully'
-    })
-  } catch (error) {
-    console.error('Delete Class Error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Class could not be deleted' },
       { status: 500 }
     )
   }

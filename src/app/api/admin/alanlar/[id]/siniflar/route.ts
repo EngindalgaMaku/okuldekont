@@ -16,6 +16,7 @@ export async function GET(
         id: true,
         name: true,
         dal: true,
+        haftalik_program: true,
         _count: {
           select: {
             students: true
@@ -29,7 +30,8 @@ export async function GET(
     const siniflar = siniflarData.map((sinif) => ({
       ...sinif,
       ad: sinif.name,
-      ogrenci_sayisi: sinif._count.students
+      ogrenci_sayisi: sinif._count.students,
+      haftalik_program: sinif.haftalik_program
     }))
 
     return NextResponse.json(siniflar)

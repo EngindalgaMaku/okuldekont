@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Settings, Database, Users, Mail, Shield, Save, RefreshCw, HardDrive, Download, Trash2, Key, RotateCcw } from 'lucide-react'
+import { Settings, Database, Users, Mail, Shield, Save, RefreshCw, HardDrive, Download, Trash2, Key, RotateCcw, DollarSign, Edit, X, Eraser, AlertTriangle, FileX } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { AdminManagement } from '@/components/ui/AdminManagement'
 
@@ -11,7 +11,7 @@ export default function AyarlarPage() {
   const { adminRole } = useAuth()
   const [loading, setLoading] = useState(false)
   const [saveLoading, setSaveLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'genel' | 'admin' | 'backup' | 'pin'>('genel')
+  const [activeTab, setActiveTab] = useState<'genel' | 'admin' | 'backup' | 'pin' | 'cleaning'>('genel')
   
   // PIN Reset state
   const [pinResetLoading, setPinResetLoading] = useState(false)
@@ -38,6 +38,13 @@ export default function AyarlarPage() {
     systemMaintenance: false,
     showPerformanceMonitoring: false
   })
+
+  // Daily Rate Settings
+  const [dailyRate, setDailyRate] = useState<number>(221.0466)
+  const [isEditingDailyRate, setIsEditingDailyRate] = useState(false)
+  const [newDailyRate, setNewDailyRate] = useState<string>('')
+  const [dailyRateLoading, setDailyRateLoading] = useState(false)
+  const [dailyRateMessage, setDailyRateMessage] = useState('')
   
   // Education Years
   const [educationYears, setEducationYears] = useState<any[]>([])
@@ -53,6 +60,20 @@ export default function AyarlarPage() {
   const [settingsLoading, setSettingsLoading] = useState(true)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [successCountdown, setSuccessCountdown] = useState(5)
+
+  // Data cleaning states
+  const [testDataCounts, setTestDataCounts] = useState({
+    ogrenciler: 0,
+    ogretmenler: 0,
+    isletmeler: 0,
+    dekontlar: 0,
+    belgeler: 0,
+    stajlar: 0
+  })
+  const [cleaningLoading, setCleaningLoading] = useState(false)
+  const [showCleaningModal, setShowCleaningModal] = useState(false)
+  const [cleaningType, setCleaningType] = useState<'demo' | 'students' | 'companies' | 'teachers' | 'files'>('demo')
+  const [cleaningConfirmation, setCleaningConfirmation] = useState('')
 
   // Backup state
   const [backupList, setBackupList] = useState<any[]>([])
@@ -70,6 +91,8 @@ export default function AyarlarPage() {
   const [backupCreationLoading, setBackupCreationLoading] = useState(false)
   const [downloadingBackup, setDownloadingBackup] = useState(false)
   const [downloadingBackupId, setDownloadingBackupId] = useState('')
+  const [showBackupDeleteSuccess, setShowBackupDeleteSuccess] = useState(false)
+  const [backupDeleteCountdown, setBackupDeleteCountdown] = useState(3)
   
   // New MariaDB backup options
   const [backupType, setBackupType] = useState<'full' | 'selective'>('full')
@@ -87,13 +110,16 @@ export default function AyarlarPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
 
-
   useEffect(() => {
     fetchStats()
     fetchSettings()
     fetchEducationYears()
+    fetchDailyRate()
     if (activeTab === 'backup') {
       fetchBackupData()
+    }
+    if (activeTab === 'cleaning') {
+      fetchTestDataCounts()
     }
   }, [activeTab])
 
@@ -120,6 +146,30 @@ export default function AyarlarPage() {
       }
     }
   }, [showSuccessModal, successCountdown])
+
+  // Backup delete success modal countdown effect
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null
+    
+    if (showBackupDeleteSuccess && backupDeleteCountdown > 0) {
+      timer = setTimeout(() => {
+        setBackupDeleteCountdown(prev => {
+          const newCount = prev - 1
+          if (newCount === 0) {
+            setShowBackupDeleteSuccess(false)
+            return 3 // Reset for next time
+          }
+          return newCount
+        })
+      }, 1000)
+    }
+    
+    return () => {
+      if (timer) {
+        clearTimeout(timer)
+      }
+    }
+  }, [showBackupDeleteSuccess, backupDeleteCountdown])
 
   const fetchStats = async () => {
     setLoading(true)
@@ -183,6 +233,65 @@ export default function AyarlarPage() {
     }
   }
 
+  const fetchDailyRate = async () => {
+    try {
+      const response = await fetch('/api/admin/system-settings/daily-rate')
+      if (!response.ok) throw new Error('Failed to fetch daily rate')
+      const data = await response.json()
+      
+      setDailyRate(data.daily_rate || 221.0466)
+    } catch (error) {
+      console.error('Günlük ücret oranı çekilirken hata:', error)
+      setDailyRate(221.0466) // Default değer
+    }
+  }
+
+  const handleEditDailyRate = () => {
+    setNewDailyRate(dailyRate.toString())
+    setIsEditingDailyRate(true)
+    setDailyRateMessage('')
+  }
+
+  const handleCancelEditDailyRate = () => {
+    setIsEditingDailyRate(false)
+    setNewDailyRate('')
+    setDailyRateMessage('')
+  }
+
+  const handleSaveDailyRate = async () => {
+    const rate = parseFloat(newDailyRate)
+    
+    if (isNaN(rate) || rate <= 0) {
+      setDailyRateMessage('Geçerli bir pozitif sayı giriniz')
+      return
+    }
+
+    setDailyRateLoading(true)
+    try {
+      const response = await fetch('/api/admin/system-settings/daily-rate', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ daily_rate: rate })
+      })
+
+      if (!response.ok) throw new Error('Failed to update daily rate')
+      
+      const data = await response.json()
+      setDailyRate(data.daily_rate)
+      setIsEditingDailyRate(false)
+      setNewDailyRate('')
+      setDailyRateMessage('Günlük ücret oranı başarıyla güncellendi')
+      
+      setTimeout(() => setDailyRateMessage(''), 3000)
+    } catch (error) {
+      console.error('Günlük ücret oranı güncellenirken hata:', error)
+      setDailyRateMessage('Güncellenirken bir hata oluştu')
+    }
+    setDailyRateLoading(false)
+  }
+
   const handleSaveSettings = async () => {
     setSaveLoading(true)
     try {
@@ -215,7 +324,6 @@ export default function AyarlarPage() {
     }
     setSaveLoading(false)
   }
-
 
   const fetchBackupData = async () => {
     setBackupLoading(true);
@@ -257,10 +365,11 @@ export default function AyarlarPage() {
       });
       const result = await response.json();
       if (response.ok && result.success) {
-        alert('Yedek başarıyla silindi.');
         setShowDeleteModal(false);
         setDeleteBackupData({ id: '', name: '' });
         fetchBackupData();
+        setShowBackupDeleteSuccess(true);
+        setBackupDeleteCountdown(3);
       } else {
         throw new Error(result.message || 'Yedek silme başarısız oldu.');
       }
@@ -580,6 +689,87 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
     setEducationYearLoading(false)
   }
 
+  // Data cleaning functions
+  const fetchTestDataCounts = async () => {
+    setCleaningLoading(true)
+    try {
+      const response = await fetch('/api/admin/data-cleaning')
+      if (!response.ok) throw new Error('Test verisi sayıları getirilemedi')
+      
+      const data = await response.json()
+      setTestDataCounts(data.testDataCounts || {})
+    } catch (error: any) {
+      console.error('Test verisi sayıları çekilirken hata:', error)
+      alert('Test verisi sayıları alınırken hata oluştu')
+    }
+    setCleaningLoading(false)
+  }
+
+  const handleDataCleaning = async (type: 'demo' | 'students' | 'companies' | 'teachers' | 'files') => {
+    setCleaningType(type)
+    setCleaningConfirmation('')
+    setShowCleaningModal(true)
+  }
+
+  const confirmDataCleaning = async () => {
+    if (cleaningConfirmation !== 'TEMIZLE') {
+      alert('Lütfen "TEMIZLE" yazın')
+      return
+    }
+
+    setCleaningLoading(true)
+    try {
+      const response = await fetch(`/api/admin/data-cleaning?type=${cleaningType}&confirm=CONFIRM_DATA_CLEANING_2025`, {
+        method: 'DELETE'
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Veri temizleme başarısız')
+      }
+      
+      const result = await response.json()
+      setShowCleaningModal(false)
+      
+      let message = `${getCleaningTypeName(cleaningType)} başarıyla temizlendi!\n\n`
+      Object.entries(result.deletedCounts).forEach(([key, count]) => {
+        message += `${getDataTypeName(key)}: ${count} adet\n`
+      })
+      
+      alert(message)
+      fetchTestDataCounts() // Refresh counts
+    } catch (error: any) {
+      console.error('Veri temizleme hatası:', error)
+      alert(`Veri temizlenirken hata: ${error.message}`)
+    }
+    setCleaningLoading(false)
+  }
+
+  const getCleaningTypeName = (type: string) => {
+    switch (type) {
+      case 'demo': return 'Demo veriler'
+      case 'students': return 'Test öğrenci verileri'
+      case 'companies': return 'Test işletme verileri'
+      case 'teachers': return 'Test öğretmen verileri'
+      case 'files': return 'Test dosyalar'
+      default: return 'Veriler'
+    }
+  }
+
+  const getDataTypeName = (type: string) => {
+    switch (type) {
+      case 'ogrenciler': return 'Öğrenciler'
+      case 'ogretmenler': return 'Öğretmenler'
+      case 'isletmeler': return 'İşletmeler'
+      case 'dekontlar': return 'Dekontlar'
+      case 'belgeler': return 'Belgeler'
+      case 'stajlar': return 'Stajlar'
+      case 'kullanicilar': return 'Kullanıcılar'
+      case 'gorevBelgeleri': return 'Görev Belgeleri'
+      default: return type
+    }
+  }
+
   if (settingsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -625,6 +815,9 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
               <button onClick={() => setActiveTab('pin')} className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm ${activeTab === 'pin' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} text-left sm:text-center`}>
                 <Key className="h-4 w-4 inline mr-2" /> PIN Yönetimi
               </button>
+              <button onClick={() => setActiveTab('cleaning')} className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm ${activeTab === 'cleaning' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} text-left sm:text-center`}>
+                <Eraser className="h-4 w-4 inline mr-2" /> Veri Temizleme
+              </button>
             </nav>
           </div>
         </div>
@@ -660,79 +853,83 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                       <input type="text" value={settings.coordinator_deputy_head_name} onChange={(e) => setSettings({ ...settings, coordinator_deputy_head_name: e.target.value })} className="block w-full px-3 py-2 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base" placeholder="Örn: Ali Veli" />
                       <p className="text-xs text-gray-500 mt-1">Bu isim, görev belgelerindeki "Koordinatör Müdür Yardımcısı" imza alanında görünecektir.</p>
                     </div>
-                    <div className="mt-4 sm:mt-6">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 space-y-2 sm:space-y-0">
-                        <h3 className="text-sm font-medium text-gray-900">Aktif Eğitim Dönemi</h3>
-                        <button
-                          onClick={() => setShowEducationYearModal(true)}
-                          className="px-3 py-1 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 w-full sm:w-auto text-center"
-                        >
-                          Yeni Dönem Ekle
-                        </button>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">Günlük Ücret Ayarları</h3>
+                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center">
+                          <DollarSign className="h-5 w-5 text-green-600 mr-2" />
+                          <span className="text-sm font-medium text-green-900">Öğrenci Günlük Ücret Oranı</span>
+                        </div>
+                        {!isEditingDailyRate && (
+                          <button
+                            onClick={handleEditDailyRate}
+                            className="flex items-center px-2 py-1 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700"
+                          >
+                            <Edit className="h-3 w-3 mr-1" />
+                            Düzenle
+                          </button>
+                        )}
                       </div>
-                      
-                      {activeEducationYear ? (
-                        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="font-medium text-green-900">{activeEducationYear.year}</div>
-                              {activeEducationYear.startDate && activeEducationYear.endDate && (
-                                <div className="text-sm text-green-700 mt-1">
-                                  {new Date(activeEducationYear.startDate).toLocaleDateString('tr-TR')} - {new Date(activeEducationYear.endDate).toLocaleDateString('tr-TR')}
-                                </div>
+                      {isEditingDailyRate ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="number"
+                              value={newDailyRate}
+                              onChange={(e) => setNewDailyRate(e.target.value)}
+                              step="0.0001"
+                              min="0"
+                              className="flex-1 px-3 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                              placeholder="Günlük ücret oranı"
+                              disabled={dailyRateLoading}
+                            />
+                            <span className="text-sm text-green-700 font-medium">₺</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={handleSaveDailyRate}
+                              disabled={dailyRateLoading}
+                              className="flex items-center px-3 py-2 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                            >
+                              {dailyRateLoading ? (
+                                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <Save className="h-3 w-3 mr-1" />
                               )}
-                            </div>
-                            <div className="flex items-center">
-                              <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                              <span className="text-xs text-green-700 font-medium">Aktif</span>
-                            </div>
+                              {dailyRateLoading ? 'Kaydediliyor...' : 'Kaydet'}
+                            </button>
+                            <button
+                              onClick={handleCancelEditDailyRate}
+                              disabled={dailyRateLoading}
+                              className="flex items-center px-3 py-2 text-xs bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50"
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              İptal
+                            </button>
                           </div>
                         </div>
                       ) : (
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                          <div className="flex items-center">
-                            <div className="w-2 h-2 bg-amber-500 rounded-full mr-2"></div>
-                            <span className="text-sm text-amber-800">Aktif eğitim dönemi seçilmemiş</span>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-2xl font-bold text-green-700">
+                              {dailyRate.toFixed(4)} ₺
+                            </div>
+                            <div className="text-xs text-green-600">
+                              Günlük ücret hesaplamalarında kullanılır
+                            </div>
                           </div>
                         </div>
                       )}
                       
-                      {educationYears.length > 0 && (
-                        <div className="mt-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Tüm Dönemler</label>
-                          <div className="space-y-2 max-h-32 overflow-y-auto">
-                            {educationYears.map((year) => (
-                              <div key={year.id} className={`flex items-center justify-between p-3 rounded-lg border-2 ${year.active ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
-                                <div className="flex-1">
-                                  <div className="font-medium text-gray-900">{year.year}</div>
-                                  {year.startDate && year.endDate && (
-                                    <div className="text-xs text-gray-600">
-                                      {new Date(year.startDate).toLocaleDateString('tr-TR')} - {new Date(year.endDate).toLocaleDateString('tr-TR')}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  {!year.active && (
-                                    <button
-                                      onClick={() => handleSetActiveEducationYear(year.id)}
-                                      disabled={educationYearLoading}
-                                      className="px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
-                                    >
-                                      Aktif Yap
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={() => handleDeleteEducationYear(year.id)}
-                                    disabled={educationYearLoading || year.active}
-                                    className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
-                                    title={year.active ? "Aktif dönem silinemez" : "Dönemi sil"}
-                                  >
-                                    Sil
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                      {dailyRateMessage && (
+                        <div className={`mt-3 p-2 rounded-lg text-xs ${
+                          dailyRateMessage.includes('hata') || dailyRateMessage.includes('Geçerli')
+                            ? 'bg-red-100 text-red-700 border border-red-200'
+                            : 'bg-green-100 text-green-700 border border-green-200'
+                        }`}>
+                          {dailyRateMessage}
                         </div>
                       )}
                     </div>
@@ -796,192 +993,190 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                         <Database className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                         Tam Veri Yedeği
                       </h3>
-                      <p className="text-xs sm:text-sm text-blue-700 mt-1">
-                        Tüm tabloları JSON ve SQL formatında yedekler. SQL dosyası MariaDB'ye geri yüklenebilir.
-                      </p>
+                      <p className="text-sm text-blue-700 mt-2">Tüm veritabanını ve dosyaları yedekle (JSON + SQL + Fiziksel Dosyalar)</p>
                     </div>
                     <button
                       onClick={handleFullBackup}
                       disabled={backupCreationLoading}
-                      className="inline-flex items-center px-4 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-600 border border-transparent rounded-xl hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 shadow-lg w-full sm:w-auto justify-center"
+                      className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
                     >
                       {backupCreationLoading ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          Oluşturuluyor...
-                        </>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                       ) : (
-                        <>
-                          <Database className="h-4 w-4 mr-2" />
-                          Tam Yedek Al
-                        </>
+                        <HardDrive className="h-4 w-4 mr-2" />
                       )}
+                      {backupCreationLoading ? 'Oluşturuluyor...' : 'Tam Yedek Oluştur'}
                     </button>
                   </div>
                 </div>
 
-                {/* Seçmeli Yedek */}
+                {/* Seçili Tablo Yedeği */}
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 sm:p-6 border border-green-200">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
                     <div className="flex-1">
                       <h3 className="text-base sm:text-lg font-medium text-green-900 flex items-center">
-                        <Database className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                        Seçmeli Veri Yedeği
+                        <Users className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                        Seçili Tablo Yedeği
                       </h3>
-                      <p className="text-xs sm:text-sm text-green-700 mt-1">
-                        İstediğiniz tabloları seçerek JSON ve SQL formatında yedekleyin.
-                      </p>
+                      <p className="text-sm text-green-700 mt-2">Sadece seçilen tabloları yedekle</p>
                     </div>
                     <button
                       onClick={() => setShowTableSelector(true)}
                       disabled={backupCreationLoading}
-                      className="inline-flex items-center px-4 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium text-white bg-gradient-to-r from-green-600 to-emerald-600 border border-transparent rounded-xl hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 shadow-lg w-full sm:w-auto justify-center"
+                      className="flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
                     >
-                      <Database className="h-4 w-4 mr-2" />
-                      Tablo Seç
+                      <Settings className="h-4 w-4 mr-2" />
+                      Tablo Seç ve Yedekle
                     </button>
                   </div>
                 </div>
               </div>
-              {backupStats.last_backup_date && (
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                  <div className="flex items-center"><Database className="h-5 w-5 text-gray-600 mr-2" /><span className="text-sm text-gray-700">Son yedek: {new Date(backupStats.last_backup_date).toLocaleString('tr-TR')}</span></div>
-                </div>
-              )}
-            </div>
-            <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-4 sm:p-6">
-              <div className="flex items-center mb-4 sm:mb-6"><Database className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600 mr-2 sm:mr-3" /><h2 className="text-lg sm:text-xl font-semibold text-gray-900">Yedek Listesi</h2></div>
-              {backupLoading ? (
-                <div className="text-center py-6 sm:py-8"><RefreshCw className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-indigo-600 mx-auto mb-3 sm:mb-4" /><p className="text-sm sm:text-base text-gray-600">Yedek listesi yükleniyor...</p></div>
-              ) : backupList.length === 0 ? (
-                <div className="text-center py-6 sm:py-8"><HardDrive className="h-8 w-8 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-3 sm:mb-4" /><p className="text-sm sm:text-base text-gray-600">Henüz yedek bulunmuyor</p><p className="text-xs sm:text-sm text-gray-500 mt-1">İlk yedeğinizi oluşturmak için yukarıdaki butonu kullanın</p></div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Yedek Dosyası</th>
-                        <th className="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarih</th>
-                        <th className="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tip</th>
-                        <th className="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">JSON</th>
-                        <th className="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SQL</th>
-                        <th className="px-2 sm:px-3 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dosyalar</th>
-                        <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">İşlemler</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {currentBackups.map((backup: any) => (
-                        <tr key={backup.id} className="hover:bg-gray-50">
-                          <td className="px-2 sm:px-4 py-3 sm:py-4">
-                            <div className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-xs">{backup.backup_name}</div>
-                          </td>
-                          <td className="px-2 sm:px-3 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">
-                            <div className="whitespace-nowrap">{new Date(backup.backup_date).toLocaleString('tr-TR')}</div>
-                          </td>
-                          <td className="px-2 sm:px-3 py-3 sm:py-4">
-                            <span className={`inline-flex px-1 sm:px-2 py-1 text-xs font-semibold rounded-full ${
-                              backup.backup_type === 'MariaDB'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {backup.backup_type || 'Legacy'}
-                            </span>
-                          </td>
-                          <td className="px-2 sm:px-3 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">{backup.size_mb} MB</td>
-                          <td className="px-2 sm:px-3 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">
-                            {backup.has_sql ? (
-                              <span className="text-green-600 font-medium">{backup.sql_size_mb} MB</span>
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
-                          </td>
-                          <td className="px-2 sm:px-3 py-3 sm:py-4 text-xs sm:text-sm text-gray-900">
-                            {backup.has_files ? (
-                              <span className="text-blue-600 font-medium">{backup.files_size_mb} MB</span>
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
-                          </td>
-                          <td className="px-2 sm:px-4 py-3 sm:py-4">
-                            <div className="flex flex-wrap gap-1 sm:gap-2">
+
+              {/* Yedek Listesi */}
+              {backupList.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Mevcut Yedekler</h3>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dosya</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarih</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Boyut</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Durum</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">İşlemler</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {currentBackups.map((backup) => (
+                          <tr key={backup.id}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{backup.id}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {new Date(backup.backup_date).toLocaleString('tr-TR')}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{backup.size_mb} MB</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                backup.backup_status === 'completed'
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
+                                {backup.backup_status === 'completed' ? 'Tamamlandı' : 'Başarısız'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                               <button
                                 onClick={() => handleDownloadBackup(backup)}
                                 disabled={downloadingBackup && downloadingBackupId === backup.id}
-                                className="text-blue-600 hover:text-blue-900 disabled:opacity-50 p-1 hover:bg-blue-50 rounded"
-                                title="JSON İndir"
+                                className="text-indigo-600 hover:text-indigo-900 disabled:opacity-50"
                               >
-                                {downloadingBackup && downloadingBackupId === backup.id ?
-                                  <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" /> :
-                                  <Download className="h-3 w-3 sm:h-4 sm:w-4" />
-                                }
+                                <Download className="h-4 w-4" />
                               </button>
-                              {backup.has_sql && (
-                                <button
-                                  onClick={() => handleDownloadBackup({...backup, id: backup.sql_file})}
-                                  disabled={downloadingBackup}
-                                  className="text-green-600 hover:text-green-900 disabled:opacity-50 p-1 hover:bg-green-50 rounded"
-                                  title="SQL İndir"
-                                >
-                                  <Database className="h-3 w-3 sm:h-4 sm:w-4" />
-                                </button>
-                              )}
                               {backup.has_files && (
                                 <button
-                                  onClick={() => handleDownloadBackup({...backup, id: backup.files_zip_file})}
-                                  disabled={downloadingBackup}
-                                  className="text-blue-600 hover:text-blue-900 disabled:opacity-50 p-1 hover:bg-blue-50 rounded"
-                                  title="Fiziksel Dosyalar İndir (Dekontlar + Belgeler)"
-                                >
-                                  <HardDrive className="h-3 w-3 sm:h-4 sm:w-4" />
-                                </button>
-                              )}
-                              {backup.backup_type === 'MariaDB' && (
-                                <button
                                   onClick={() => handleDownloadZip(backup)}
-                                  disabled={downloadingBackup}
-                                  className="text-purple-600 hover:text-purple-900 disabled:opacity-50 p-1 hover:bg-purple-50 rounded"
-                                  title="ZIP İndir (JSON + SQL + Rapor)"
+                                  disabled={downloadingBackup && downloadingBackupId === backup.id}
+                                  className="text-blue-600 hover:text-blue-900 disabled:opacity-50"
+                                  title="ZIP İndir"
                                 >
-                                  <HardDrive className="h-3 w-3 sm:h-4 sm:w-4" />
+                                  <FileX className="h-4 w-4" />
                                 </button>
                               )}
                               <button
-                                onClick={() => handleDeleteBackup(backup.id, backup.backup_name)}
-                                className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded"
-                                title="Sil"
+                                onClick={() => handleDeleteBackup(backup.id, backup.id)}
+                                className="text-red-600 hover:text-red-900"
                               >
-                                <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                                <Trash2 className="h-4 w-4" />
                               </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              {backupList.length > itemsPerPage && (
-                <div className="bg-white px-3 sm:px-4 py-3 border-t border-gray-200 sm:px-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-1 justify-between sm:hidden">
-                      <button onClick={goToPreviousPage} disabled={currentPage === 1} className="relative inline-flex items-center px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">Önceki</button>
-                      <button onClick={goToNextPage} disabled={currentPage === totalPages} className="relative ml-2 inline-flex items-center px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">Sonraki</button>
-                    </div>
-                    <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                      <div><p className="text-sm text-gray-700"><span className="font-medium">{startIndex + 1}</span> - <span className="font-medium">{Math.min(endIndex, backupList.length)}</span> arası, <span className="font-medium">{backupList.length}</span> toplam yedek</p></div>
-                      <div>
-                        <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                          <button onClick={goToPreviousPage} disabled={currentPage === 1} className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"><span className="sr-only">Önceki</span><svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" /></svg></button>
-                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                            <button key={page} onClick={() => goToPage(page)} className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${page === currentPage ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}`}>{page}</button>
-                          ))}
-                          <button onClick={goToNextPage} disabled={currentPage === totalPages} className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"><span className="sr-only">Sonraki</span><svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" /></svg></button>
-                        </nav>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between mt-4">
+                      <div className="text-sm text-gray-700">
+                        Toplam {backupList.length} yedek, sayfa {currentPage} / {totalPages}
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={goToPreviousPage}
+                          disabled={currentPage === 1}
+                          className="px-3 py-1 text-sm bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 disabled:opacity-50"
+                        >
+                          Önceki
+                        </button>
+                        <button
+                          onClick={goToNextPage}
+                          disabled={currentPage === totalPages}
+                          className="px-3 py-1 text-sm bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 disabled:opacity-50"
+                        >
+                          Sonraki
+                        </button>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Table Selector Modal */}
+        {showTableSelector && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-96 overflow-y-auto">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Yedeklenecek Tabloları Seçin</h3>
+              
+              <div className="space-y-2 mb-4">
+                <div className="flex space-x-2">
+                  <button
+                    onClick={selectAllTables}
+                    className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                  >
+                    Tümünü Seç
+                  </button>
+                  <button
+                    onClick={clearTableSelection}
+                    className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
+                  >
+                    Temizle
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
+                  {availableTables.map((table) => (
+                    <label key={table} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedTables.includes(table)}
+                        onChange={() => toggleTableSelection(table)}
+                        className="mr-2"
+                      />
+                      <span className="text-sm text-gray-700">{table}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowTableSelector(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleSelectiveBackup}
+                  disabled={selectedTables.length === 0 || backupCreationLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 disabled:opacity-50"
+                >
+                  {backupCreationLoading ? 'Oluşturuluyor...' : `Yedek Oluştur (${selectedTables.length} tablo)`}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -989,140 +1184,84 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
         {activeTab === 'pin' && (
           <div className="space-y-6 sm:space-y-8">
             <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-4 sm:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 space-y-3 sm:space-y-0">
-                <div className="flex items-center">
-                  <Key className="h-5 w-5 sm:h-6 sm:w-6 text-red-600 mr-2 sm:mr-3" />
-                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">PIN Yönetimi</h2>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />
-                  <span className="text-xs sm:text-sm font-medium text-red-600">Güvenlik</span>
-                </div>
+              <div className="flex items-center mb-4 sm:mb-6">
+                <Key className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600 mr-2 sm:mr-3" />
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">PIN Yönetimi</h2>
               </div>
-
-              <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">
-                Öğretmen ve işletme PIN kodlarını toplu olarak resetleyin. Bu işlem sonrasında tüm kullanıcılar ilk girişlerinde yeni PIN belirlemek zorunda kalacaklar.
-              </p>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-                {/* Teacher PIN Reset */}
-                <div className="bg-blue-50 rounded-2xl p-4 sm:p-6 border border-blue-200">
-                  <div className="flex items-center gap-3 mb-4 sm:mb-6">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                      <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-base sm:text-lg font-semibold text-blue-900">Öğretmen PIN Reset</h3>
-                      <p className="text-xs sm:text-sm text-blue-700">Tüm öğretmenlerin PIN kodlarını resetle</p>
-                    </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+                {/* Öğretmen PIN Sıfırlama */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 sm:p-6 border border-blue-200">
+                  <div className="flex items-center mb-4">
+                    <Users className="h-5 w-5 text-blue-600 mr-2" />
+                    <h3 className="text-base sm:text-lg font-medium text-blue-900">Öğretmen PIN Sıfırlama</h3>
                   </div>
+                  <p className="text-sm text-blue-700 mb-4">Tüm öğretmenlerin PIN'lerini aynı değere sıfırlayın.</p>
                   
-                  <div className="space-y-4 sm:space-y-6">
+                  <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-blue-700 mb-2 sm:mb-3">
-                        Yeni PIN Değeri (4 haneli)
-                      </label>
+                      <label className="block text-sm font-medium text-blue-700 mb-2">Yeni PIN (4 hane)</label>
                       <input
                         type="text"
                         value={teacherPinValue}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '').slice(0, 4)
-                          setTeacherPinValue(value)
-                        }}
-                        className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-base sm:text-lg text-center font-mono tracking-widest"
-                        placeholder="2025"
+                        onChange={(e) => setTeacherPinValue(e.target.value.slice(0, 4))}
                         maxLength={4}
-                        disabled={pinResetLoading}
+                        className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-center text-lg font-mono"
+                        placeholder="0000"
                       />
                     </div>
                     
                     <button
                       onClick={handleTeacherResetClick}
-                      disabled={pinResetLoading || !teacherPinValue || teacherPinValue.length !== 4}
-                      className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-blue-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base"
+                      disabled={pinResetLoading}
+                      className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 disabled:opacity-50"
                     >
-                      {pinResetLoading ? (
-                        <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                      ) : (
-                        <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
-                      )}
-                      {pinResetLoading ? 'Resetleniyor...' : 'Öğretmen PINleri Resetle'}
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Öğretmen PIN'lerini Sıfırla
                     </button>
-                  </div>
-                  
-                  <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-blue-100 rounded-xl">
-                    <p className="text-xs text-blue-800">
-                      <strong>⚠️ Uyarı:</strong> Bu işlem tüm öğretmenlerin PIN kodlarını değiştirir. İlk girişlerinde yeni PIN belirlemeye zorlanacaklar.
-                    </p>
                   </div>
                 </div>
 
-                {/* Business PIN Reset */}
-                <div className="bg-green-50 rounded-2xl p-4 sm:p-6 border border-green-200">
-                  <div className="flex items-center gap-3 mb-4 sm:mb-6">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                      <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-base sm:text-lg font-semibold text-green-900">İşletme PIN Reset</h3>
-                      <p className="text-xs sm:text-sm text-green-700">Tüm işletmelerin PIN kodlarını resetle</p>
-                    </div>
+                {/* İşletme PIN Sıfırlama */}
+                <div className="bg-gradient-to-r from-orange-50 to-yellow-50 rounded-xl p-4 sm:p-6 border border-orange-200">
+                  <div className="flex items-center mb-4">
+                    <Database className="h-5 w-5 text-orange-600 mr-2" />
+                    <h3 className="text-base sm:text-lg font-medium text-orange-900">İşletme PIN Sıfırlama</h3>
                   </div>
+                  <p className="text-sm text-orange-700 mb-4">Tüm işletmelerin PIN'lerini aynı değere sıfırlayın.</p>
                   
-                  <div className="space-y-4 sm:space-y-6">
+                  <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-green-700 mb-2 sm:mb-3">
-                        Yeni PIN Değeri (4 haneli)
-                      </label>
+                      <label className="block text-sm font-medium text-orange-700 mb-2">Yeni PIN (4 hane)</label>
                       <input
                         type="text"
                         value={businessPinValue}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '').slice(0, 4)
-                          setBusinessPinValue(value)
-                        }}
-                        className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white text-base sm:text-lg text-center font-mono tracking-widest"
-                        placeholder="1234"
+                        onChange={(e) => setBusinessPinValue(e.target.value.slice(0, 4))}
                         maxLength={4}
-                        disabled={pinResetLoading}
+                        className="w-full px-3 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-center text-lg font-mono"
+                        placeholder="0000"
                       />
                     </div>
                     
                     <button
                       onClick={handleBusinessResetClick}
-                      disabled={pinResetLoading || !businessPinValue || businessPinValue.length !== 4}
-                      className="w-full flex items-center justify-center gap-2 sm:gap-3 bg-green-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base"
+                      disabled={pinResetLoading}
+                      className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-lg hover:bg-orange-700 disabled:opacity-50"
                     >
-                      {pinResetLoading ? (
-                        <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                      ) : (
-                        <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
-                      )}
-                      {pinResetLoading ? 'Resetleniyor...' : 'İşletme PINleri Resetle'}
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      İşletme PIN'lerini Sıfırla
                     </button>
-                  </div>
-                  
-                  <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-green-100 rounded-xl">
-                    <p className="text-xs text-green-800">
-                      <strong>⚠️ Uyarı:</strong> Bu işlem tüm işletmelerin PIN kodlarını değiştirir. İlk girişlerinde yeni PIN belirlemeye zorlanacaklar.
-                    </p>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-8 p-6 bg-red-50 border-2 border-red-200 rounded-2xl">
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 text-red-600 text-2xl">
-                    🚨
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-red-900 text-lg mb-2">Kritik Güvenlik Uyarısı!</h4>
-                    <ul className="text-sm text-red-800 space-y-2">
-                      <li>• PIN resetleme işlemi <strong>geri alınamaz</strong></li>
-                      <li>• Tüm kullanıcılar bir sonraki girişlerinde <strong>zorunlu olarak PIN değiştirmek</strong> zorunda kalacaklar</li>
-                      <li>• Bu işlemi yapmadan önce kullanıcıları <strong>bilgilendirmeniz önerilir</strong></li>
-                      <li>• Sistem geçici olarak erişilemez hale gelebilir</li>
-                    </ul>
+              {/* Uyarı Mesajı */}
+              <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                <div className="flex items-center">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 mr-2 flex-shrink-0" />
+                  <div className="text-sm text-yellow-800">
+                    <p className="font-medium mb-1">DİKKAT:</p>
+                    <p>PIN sıfırlama işlemi geri alınamaz. Kullanıcılar ilk girişlerinde PIN değiştirmeleri istenecektir.</p>
                   </div>
                 </div>
               </div>
@@ -1130,399 +1269,396 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
           </div>
         )}
 
-      </div>
-
-      {/* Teacher PIN Reset Modal */}
-      {showTeacherResetModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
-            <div className="flex items-center mb-4">
-              <Key className="h-6 w-6 text-blue-600 mr-3" />
-              <h3 className="text-xl font-semibold text-gray-900">Öğretmen PIN Reset Onayı</h3>
-            </div>
-            <div className="mb-6">
-              <p className="text-gray-700 mb-4">
-                <strong>Tüm öğretmenlerin PIN kodlarını "{teacherPinValue}" olarak resetlemek</strong> istediğinizden emin misiniz?
-              </p>
-              <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                <div className="flex items-start">
-                  <Users className="h-5 w-5 text-blue-600 mr-2 mt-0.5" />
-                  <div className="text-sm">
-                    <div className="font-medium text-blue-800 mb-2">📋 Bu işlem sonucunda:</div>
-                    <ul className="text-blue-700 space-y-1">
-                      <li>• Sistemdeki <strong>tüm öğretmenlerin</strong> PIN kodu resetlenecek</li>
-                      <li>• Her öğretmen <strong>ilk girişinde yeni PIN oluşturmaya zorlanacak</strong></li>
-                      <li>• Eski PIN kodları <strong>geçersiz hale gelecek</strong></li>
-                      <li>• Bu işlem <strong>geri alınamaz</strong></li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowTeacherResetModal(false)}
-                disabled={pinResetLoading}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-xl hover:bg-gray-200 disabled:opacity-50"
-              >
-                İptal
-              </button>
-              <button
-                onClick={confirmTeacherReset}
-                disabled={pinResetLoading}
-                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-xl hover:bg-blue-700 disabled:opacity-50"
-              >
-                {pinResetLoading ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Resetleniyor...
-                  </>
-                ) : (
-                  <>
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    Evet, Resetle
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Business PIN Reset Modal */}
-      {showBusinessResetModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
-            <div className="flex items-center mb-4">
-              <Key className="h-6 w-6 text-green-600 mr-3" />
-              <h3 className="text-xl font-semibold text-gray-900">İşletme PIN Reset Onayı</h3>
-            </div>
-            <div className="mb-6">
-              <p className="text-gray-700 mb-4">
-                <strong>Tüm işletmelerin PIN kodlarını "{businessPinValue}" olarak resetlemek</strong> istediğinizden emin misiniz?
-              </p>
-              <div className="bg-green-50 rounded-xl p-4 border border-green-200">
-                <div className="flex items-start">
-                  <Shield className="h-5 w-5 text-green-600 mr-2 mt-0.5" />
-                  <div className="text-sm">
-                    <div className="font-medium text-green-800 mb-2">🏢 Bu işlem sonucunda:</div>
-                    <ul className="text-green-700 space-y-1">
-                      <li>• Sistemdeki <strong>tüm işletmelerin</strong> PIN kodu resetlenecek</li>
-                      <li>• Her işletme <strong>ilk girişinde yeni PIN oluşturmaya zorlanacak</strong></li>
-                      <li>• Eski PIN kodları <strong>geçersiz hale gelecek</strong></li>
-                      <li>• Bu işlem <strong>geri alınamaz</strong></li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowBusinessResetModal(false)}
-                disabled={pinResetLoading}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-xl hover:bg-gray-200 disabled:opacity-50"
-              >
-                İptal
-              </button>
-              <button
-                onClick={confirmBusinessReset}
-                disabled={pinResetLoading}
-                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-xl hover:bg-green-700 disabled:opacity-50"
-              >
-                {pinResetLoading ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Resetleniyor...
-                  </>
-                ) : (
-                  <>
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    Evet, Resetle
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
-            <div className="flex items-center mb-4"><Trash2 className="h-6 w-6 text-red-600 mr-3" /><h3 className="text-xl font-semibold text-gray-900">Yedek Silme Onayı</h3></div>
-            <div className="mb-6">
-              <p className="text-gray-700 mb-4"><strong>"{deleteBackupData.name}"</strong> adlı yedeği silmek istediğinizden emin misiniz?</p>
-              <div className="bg-red-50 rounded-xl p-4 border border-red-200">
-                <div className="flex items-start">
-                  <Trash2 className="h-5 w-5 text-red-600 mr-2 mt-0.5" />
-                  <div className="text-sm">
-                    <div className="font-medium text-red-800 mb-1">⚠️ Dikkat:</div>
-                    <ul className="text-red-700 space-y-1">
-                      <li>• Bu işlem geri alınamaz</li>
-                      <li>• Fiziksel yedek dosyası sunucudan silinecektir</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button onClick={() => { setShowDeleteModal(false); setDeleteBackupData({ id: '', name: '' }); }} disabled={deletingBackup} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-xl hover:bg-gray-200 disabled:opacity-50">İptal</button>
-              <button onClick={confirmDeleteBackup} disabled={deletingBackup} className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-xl hover:bg-red-700 disabled:opacity-50">
-                {deletingBackup ? (<><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Siliniyor...</>) : (<><Trash2 className="h-4 w-4 mr-2" />Evet, Sil</>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showSuccessModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
-            <div className="text-center">
-              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4"><Save className="h-8 w-8 text-green-600" /></div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Başarılı!</h3>
-              <p className="text-gray-600 mb-4">Sistem ayarları başarıyla kaydedildi.</p>
-              <div className="flex items-center justify-center mb-6">
-                <div className="bg-gray-100 rounded-full px-4 py-2 flex items-center">
-                  <div className="w-4 h-4 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                  <span className="text-sm text-gray-600">
-                    {successCountdown} saniye sonra otomatik kapanacak
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowSuccessModal(false)}
-                className="w-full px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors font-medium"
-              >
-                Şimdi Kapat
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tablo Seçici Modal */}
-      {showTableSelector && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 transform transition-all max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center">
-                <Database className="h-6 w-6 text-green-600 mr-3" />
-                <h3 className="text-xl font-semibold text-gray-900">Yedeklenecek Tabloları Seçin</h3>
-              </div>
-              <button
-                onClick={() => setShowTableSelector(false)}
-                className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-gray-600">
-                  Yedeklemek istediğiniz tabloları seçin. Seçilen tablolar hem JSON hem de SQL formatında yedeklenecek.
-                </p>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={selectAllTables}
-                    className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200"
-                  >
-                    Tümünü Seç
-                  </button>
-                  <button
-                    onClick={clearTableSelection}
-                    className="px-3 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-                  >
-                    Temizle
-                  </button>
-                </div>
+        {activeTab === 'cleaning' && (
+          <div className="space-y-6 sm:space-y-8">
+            <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-4 sm:p-6">
+              <div className="flex items-center mb-4 sm:mb-6">
+                <Eraser className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600 mr-2 sm:mr-3" />
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Veri Temizleme</h2>
               </div>
               
-              <div className="bg-green-50 rounded-xl p-4 border border-green-200 mb-4">
-                <div className="flex items-center">
-                  <Database className="h-5 w-5 text-green-600 mr-2" />
-                  <span className="text-sm font-medium text-green-800">
-                    Seçilen: {selectedTables.length} / {availableTables.length} tablo
-                  </span>
+              {/* Test Data Counts */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-6 mb-6 sm:mb-8">
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-3 sm:p-4 border border-blue-200">
+                  <div className="text-lg sm:text-2xl font-bold text-blue-600">{testDataCounts.ogrenciler || 0}</div>
+                  <div className="text-xs sm:text-sm text-blue-700 mt-1">Test Öğrenciler</div>
+                </div>
+                <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-3 sm:p-4 border border-green-200">
+                  <div className="text-lg sm:text-2xl font-bold text-green-600">{testDataCounts.ogretmenler || 0}</div>
+                  <div className="text-xs sm:text-sm text-green-700 mt-1">Test Öğretmenler</div>
+                </div>
+                <div className="bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl p-3 sm:p-4 border border-orange-200">
+                  <div className="text-lg sm:text-2xl font-bold text-orange-600">{testDataCounts.isletmeler || 0}</div>
+                  <div className="text-xs sm:text-sm text-orange-700 mt-1">Test İşletmeler</div>
+                </div>
+                <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-3 sm:p-4 border border-purple-200">
+                  <div className="text-lg sm:text-2xl font-bold text-purple-600">{testDataCounts.dekontlar || 0}</div>
+                  <div className="text-xs sm:text-sm text-purple-700 mt-1">Test Dekontlar</div>
+                </div>
+                <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-xl p-3 sm:p-4 border border-yellow-200">
+                  <div className="text-lg sm:text-2xl font-bold text-yellow-600">{testDataCounts.belgeler || 0}</div>
+                  <div className="text-xs sm:text-sm text-yellow-700 mt-1">Test Belgeler</div>
+                </div>
+                <div className="bg-gradient-to-r from-red-50 to-red-100 rounded-xl p-3 sm:p-4 border border-red-200">
+                  <div className="text-lg sm:text-2xl font-bold text-red-600">{testDataCounts.stajlar || 0}</div>
+                  <div className="text-xs sm:text-sm text-red-700 mt-1">Test Stajlar</div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
-                {availableTables.map((tableName) => (
-                  <label
-                    key={tableName}
-                    className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                      selectedTables.includes(tableName)
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
+              {/* Data Cleaning Options */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                {/* Demo Data Cleaning */}
+                <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4 sm:p-6 border border-red-200">
+                  <div className="flex items-center mb-4">
+                    <AlertTriangle className="h-5 w-5 text-red-600 mr-2" />
+                    <h3 className="text-base sm:text-lg font-medium text-red-900">Demo Veriler</h3>
+                  </div>
+                  <p className="text-sm text-red-700 mb-4">Tüm demo/test verilerini temizle (öğrenci, öğretmen, işletme, dekont, belge)</p>
+                  
+                  <button
+                    onClick={() => handleDataCleaning('demo')}
+                    disabled={cleaningLoading}
+                    className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 disabled:opacity-50"
                   >
-                    <input
-                      type="checkbox"
-                      checked={selectedTables.includes(tableName)}
-                      onChange={() => toggleTableSelection(tableName)}
-                      className="rounded border-gray-300 text-green-600 focus:ring-green-500 mr-3"
-                    />
-                    <div>
-                      <div className="font-medium text-gray-900">{tableName}</div>
-                      <div className="text-xs text-gray-500">
-                        {tableName === 'users' && 'Kullanıcı hesapları'}
-                        {tableName === 'teachers' && 'Öğretmen bilgileri'}
-                        {tableName === 'companies' && 'İşletme bilgileri'}
-                        {tableName === 'students' && 'Öğrenci bilgileri'}
-                        {tableName === 'internships' && 'Staj kayıtları'}
-                        {tableName === 'dekonts' && 'Dekont kayıtları'}
-                        {tableName === 'system_settings' && 'Sistem ayarları'}
-                        {tableName === 'notifications' && 'Bildirimler'}
-                        {tableName === 'belgeler' && 'Belgeler'}
-                        {tableName === 'gorev_belgeleri' && 'Görev belgeleri'}
-                        {tableName === 'fields' && 'Alan bilgileri'}
-                        {tableName === 'classes' && 'Sınıf bilgileri'}
-                        {tableName === 'education_years' && 'Eğitim yılları'}
-                        {tableName === 'admin_profiles' && 'Admin profilleri'}
-                      </div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
+                    <Eraser className="h-4 w-4 mr-2" />
+                    Demo Verileri Temizle
+                  </button>
+                </div>
 
-            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-              <button
-                onClick={() => {
-                  setShowTableSelector(false);
-                  setSelectedTables([]);
-                }}
-                disabled={backupCreationLoading}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-xl hover:bg-gray-200 disabled:opacity-50"
-              >
-                İptal
-              </button>
-              <button
-                onClick={handleSelectiveBackup}
-                disabled={backupCreationLoading || selectedTables.length === 0}
-                className="inline-flex items-center px-6 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-xl hover:bg-green-700 disabled:opacity-50"
-              >
-                {backupCreationLoading ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Yedekleniyor...
-                  </>
-                ) : (
-                  <>
+                {/* Student Data Cleaning */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 sm:p-6 border border-blue-200">
+                  <div className="flex items-center mb-4">
+                    <Users className="h-5 w-5 text-blue-600 mr-2" />
+                    <h3 className="text-base sm:text-lg font-medium text-blue-900">Test Öğrenciler</h3>
+                  </div>
+                  <p className="text-sm text-blue-700 mb-4">Sadece test öğrenci verilerini ve ilgili dekontları temizle</p>
+                  
+                  <button
+                    onClick={() => handleDataCleaning('students')}
+                    disabled={cleaningLoading}
+                    className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    Test Öğrencileri Temizle
+                  </button>
+                </div>
+
+                {/* Company Data Cleaning */}
+                <div className="bg-gradient-to-r from-orange-50 to-yellow-50 rounded-xl p-4 sm:p-6 border border-orange-200">
+                  <div className="flex items-center mb-4">
+                    <Database className="h-5 w-5 text-orange-600 mr-2" />
+                    <h3 className="text-base sm:text-lg font-medium text-orange-900">Test İşletmeler</h3>
+                  </div>
+                  <p className="text-sm text-orange-700 mb-4">Sadece test işletme verilerini ve ilgili dekontları temizle</p>
+                  
+                  <button
+                    onClick={() => handleDataCleaning('companies')}
+                    disabled={cleaningLoading}
+                    className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-lg hover:bg-orange-700 disabled:opacity-50"
+                  >
                     <Database className="h-4 w-4 mr-2" />
-                    Seçili Tabloları Yedekle ({selectedTables.length})
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Eğitim Yılı Ekleme Modal'ı */}
-      {showEducationYearModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform transition-all">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold text-gray-900">Yeni Eğitim Dönemi</h3>
-              <button
-                onClick={() => setShowEducationYearModal(false)}
-                className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Dönem Adı *
-                </label>
-                <input
-                  type="text"
-                  value={newEducationYear.year}
-                  onChange={(e) => setNewEducationYear({ ...newEducationYear, year: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Örn: 2024-2025"
-                  disabled={educationYearLoading}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Başlangıç Tarihi
-                </label>
-                <input
-                  type="date"
-                  value={newEducationYear.startDate}
-                  onChange={(e) => setNewEducationYear({ ...newEducationYear, startDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  disabled={educationYearLoading}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Bitiş Tarihi
-                </label>
-                <input
-                  type="date"
-                  value={newEducationYear.endDate}
-                  onChange={(e) => setNewEducationYear({ ...newEducationYear, endDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  disabled={educationYearLoading}
-                />
-              </div>
-              
-              <div className="flex items-center">
-                <input
-                  id="setActive"
-                  type="checkbox"
-                  checked={newEducationYear.active}
-                  onChange={(e) => setNewEducationYear({ ...newEducationYear, active: e.target.checked })}
-                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                  disabled={educationYearLoading}
-                />
-                <label htmlFor="setActive" className="ml-2 text-sm text-gray-700">
-                  Bu dönemi aktif dönem olarak ayarla
-                </label>
-              </div>
-              
-              {newEducationYear.active && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                  <p className="text-sm text-amber-800">
-                    ⚠️ Bu dönem aktif olarak ayarlanırsa, mevcut aktif dönem pasif hale getirilecektir.
-                  </p>
+                    Test İşletmeleri Temizle
+                  </button>
                 </div>
-              )}
-            </div>
-            
-            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
-              <button
-                onClick={() => setShowEducationYearModal(false)}
-                disabled={educationYearLoading}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-xl hover:bg-gray-200 disabled:opacity-50"
-              >
-                İptal
-              </button>
-              <button
-                onClick={handleCreateEducationYear}
-                disabled={educationYearLoading || !newEducationYear.year.trim()}
-                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-xl hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {educationYearLoading ? 'Oluşturuluyor...' : 'Dönem Oluştur'}
-              </button>
+
+                {/* Teacher Data Cleaning */}
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 sm:p-6 border border-green-200">
+                  <div className="flex items-center mb-4">
+                    <Users className="h-5 w-5 text-green-600 mr-2" />
+                    <h3 className="text-base sm:text-lg font-medium text-green-900">Test Öğretmenler</h3>
+                  </div>
+                  <p className="text-sm text-green-700 mb-4">Sadece test öğretmen verilerini temizle</p>
+                  
+                  <button
+                    onClick={() => handleDataCleaning('teachers')}
+                    disabled={cleaningLoading}
+                    className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  >
+                    <Users className="h-4 w-4 mr-2" />
+                    Test Öğretmenleri Temizle
+                  </button>
+                </div>
+
+                {/* File Cleaning */}
+                <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl p-4 sm:p-6 border border-purple-200">
+                  <div className="flex items-center mb-4">
+                    <FileX className="h-5 w-5 text-purple-600 mr-2" />
+                    <h3 className="text-base sm:text-lg font-medium text-purple-900">Test Dosyalar</h3>
+                  </div>
+                  <p className="text-sm text-purple-700 mb-4">Fiziksel test dosyalarını temizle (dekont ve belge dosyaları)</p>
+                  
+                  <button
+                    onClick={() => handleDataCleaning('files')}
+                    disabled={cleaningLoading}
+                    className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-transparent rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    <FileX className="h-4 w-4 mr-2" />
+                    Test Dosyaları Temizle
+                  </button>
+                </div>
+              </div>
+
+              {/* Warning Message */}
+              <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                <div className="flex items-center">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 mr-2 flex-shrink-0" />
+                  <div className="text-sm text-yellow-800">
+                    <p className="font-medium mb-1">DİKKAT:</p>
+                    <p>Veri temizleme işlemleri geri alınamaz. İşlemden önce veri yedekleme yapmanız önerilir.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
+        {/* Education Year Modal */}
+        {showEducationYearModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Yeni Eğitim Yılı Ekle</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Eğitim Yılı</label>
+                  <input
+                    type="text"
+                    value={newEducationYear.year}
+                    onChange={(e) => setNewEducationYear({ ...newEducationYear, year: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Örn: 2024-2025"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Başlangıç Tarihi</label>
+                  <input
+                    type="date"
+                    value={newEducationYear.startDate}
+                    onChange={(e) => setNewEducationYear({ ...newEducationYear, startDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Bitiş Tarihi</label>
+                  <input
+                    type="date"
+                    value={newEducationYear.endDate}
+                    onChange={(e) => setNewEducationYear({ ...newEducationYear, endDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="active"
+                    checked={newEducationYear.active}
+                    onChange={(e) => setNewEducationYear({ ...newEducationYear, active: e.target.checked })}
+                    className="mr-2"
+                  />
+                  <label htmlFor="active" className="text-sm text-gray-700">Aktif dönem olarak ayarla</label>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => setShowEducationYearModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleCreateEducationYear}
+                  disabled={educationYearLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {educationYearLoading ? 'Oluşturuluyor...' : 'Oluştur'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Success Modal */}
+        {showSuccessModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full text-center">
+              <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Ayarlar Başarıyla Kaydedildi!</h3>
+              <p className="text-sm text-gray-600 mb-4">Değişiklikler sisteme uygulandı.</p>
+              <p className="text-xs text-gray-500">Bu pencere {successCountdown} saniye sonra kapanacak</p>
+            </div>
+          </div>
+        )}
+
+        {/* Teacher PIN Reset Modal */}
+        {showTeacherResetModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Öğretmen PIN Sıfırlama Onayı</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Tüm öğretmenlerin PIN'i "{teacherPinValue}" olarak sıfırlanacak. Bu işlem geri alınamaz.
+              </p>
+              <p className="text-sm text-gray-600 mb-6">
+                Öğretmenler ilk girişlerinde PIN değiştirmeleri istenecektir.
+              </p>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowTeacherResetModal(false)}
+                  disabled={pinResetLoading}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={confirmTeacherReset}
+                  disabled={pinResetLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  {pinResetLoading ? 'Sıfırlanıyor...' : 'Onayla ve Sıfırla'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Business PIN Reset Modal */}
+        {showBusinessResetModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">İşletme PIN Sıfırlama Onayı</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Tüm işletmelerin PIN'i "{businessPinValue}" olarak sıfırlanacak. Bu işlem geri alınamaz.
+              </p>
+              <p className="text-sm text-gray-600 mb-6">
+                İşletmeler ilk girişlerinde PIN değiştirmeleri istenecektir.
+              </p>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowBusinessResetModal(false)}
+                  disabled={pinResetLoading}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={confirmBusinessReset}
+                  disabled={pinResetLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  {pinResetLoading ? 'Sıfırlanıyor...' : 'Onayla ve Sıfırla'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Data Cleaning Confirmation Modal */}
+        {showCleaningModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+              <div className="flex items-center mb-4">
+                <AlertTriangle className="h-6 w-6 text-red-600 mr-3" />
+                <h3 className="text-lg font-medium text-gray-900">Veri Temizleme Onayı</h3>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-sm text-gray-600 mb-4">
+                  <strong>{getCleaningTypeName(cleaningType)}</strong> temizlenecek. Bu işlem geri alınamaz!
+                </p>
+                
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-red-800 font-medium">⚠️ DİKKAT:</p>
+                  <p className="text-sm text-red-700">Bu işlem tüm ilgili verileri kalıcı olarak silecektir.</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Onaylamak için "TEMIZLE" yazın:
+                  </label>
+                  <input
+                    type="text"
+                    value={cleaningConfirmation}
+                    onChange={(e) => setCleaningConfirmation(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    placeholder="TEMIZLE"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowCleaningModal(false)}
+                  disabled={cleaningLoading}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={confirmDataCleaning}
+                  disabled={cleaningLoading || cleaningConfirmation !== 'TEMIZLE'}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  {cleaningLoading ? 'Temizleniyor...' : 'Onayla ve Temizle'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Backup Delete Modal */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Yedek Silme Onayı</h3>
+              <p className="text-sm text-gray-600 mb-6">
+                "{deleteBackupData.name}" yedeğini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+              </p>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={deletingBackup}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={confirmDeleteBackup}
+                  disabled={deletingBackup}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deletingBackup ? 'Siliniyor...' : 'Sil'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Backup Delete Success Modal */}
+        {showBackupDeleteSuccess && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full text-center">
+              <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Yedek Başarıyla Silindi!</h3>
+              <p className="text-sm text-gray-600 mb-4">Yedek dosyası sistemden kaldırıldı.</p>
+              <p className="text-xs text-gray-500">Bu pencere {backupDeleteCountdown} saniye sonra kapanacak</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

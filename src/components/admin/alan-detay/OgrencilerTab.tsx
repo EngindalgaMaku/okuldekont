@@ -420,33 +420,35 @@ export default function OgrencilerTab({
         <h2 className="text-xl font-semibold text-gray-900">
           Öğrenciler ({totalOgrenciler})
         </h2>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <button
             onClick={() => {
               setOgrenciFormData(initialFormState)
               setOgrenciModalOpen(true)
             }}
-            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-sm"
+            className="inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-sm"
           >
             <Plus className="h-4 w-4 mr-2" />
-            Yeni Öğrenci Ekle
+            <span className="hidden sm:inline">Yeni Öğrenci Ekle</span>
+            <span className="sm:hidden">Yeni Öğrenci</span>
           </button>
           <button
             onClick={() => {
               setTopluOgrenciler([{ ad: '', soyad: '', no: '', sinif: '' }])
               setTopluOgrenciModalOpen(true)
             }}
-            className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-colors shadow-sm"
+            className="inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-colors shadow-sm"
           >
             <Users className="h-4 w-4 mr-2" />
-            Toplu Öğrenci Ekle
+            <span className="hidden sm:inline">Toplu Öğrenci Ekle</span>
+            <span className="sm:hidden">Toplu Ekle</span>
           </button>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
@@ -456,34 +458,36 @@ export default function OgrencilerTab({
             className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           />
         </div>
-        <div className="relative w-full sm:w-48">
-          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <select
-            value={selectedSinif}
-            onChange={(e) => setSelectedSinif(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
-          >
-            <option value="all">Tüm Sınıflar</option>
-            {siniflar.map((sinif) => (
-              <option key={sinif.id} value={sinif.ad}>
-                {sinif.ad}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="relative w-full sm:w-48">
-          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
-          >
-            <option value="all">Tüm Durumlar</option>
-            <option value="active">Aktif Stajda</option>
-            <option value="unassigned">Atanmamış</option>
-            <option value="terminated">Fesih Edilmiş</option>
-            <option value="completed">Tamamlanmış</option>
-          </select>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="relative">
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <select
+              value={selectedSinif}
+              onChange={(e) => setSelectedSinif(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
+            >
+              <option value="all">Tüm Sınıflar</option>
+              {siniflar.map((sinif) => (
+                <option key={sinif.id} value={sinif.ad}>
+                  {sinif.ad}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="relative">
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
+            >
+              <option value="all">Tüm Durumlar</option>
+              <option value="active">Aktif Stajda</option>
+              <option value="unassigned">Atanmamış</option>
+              <option value="terminated">Fesih Edilmiş</option>
+              <option value="completed">Tamamlanmış</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -494,186 +498,295 @@ export default function OgrencilerTab({
           <p className="mt-2 text-gray-500">Yükleniyor...</p>
         </div>
       ) : ogrenciler.length > 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Öğrenci
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    İşletme
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Koordinatör Öğretmen
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    İşlemler
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {ogrenciler.map((ogrenci) => (
-                  <tr key={ogrenci.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                          <User className="h-6 w-6 text-indigo-600" />
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            {ogrenci.ad} {ogrenci.soyad}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {ogrenci.sinif} - No: {ogrenci.no || 'Belirtilmemiş'}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {ogrenci.company ? (
-                        <div className="text-sm">
-                          <div className="text-gray-900 font-medium">{ogrenci.company.name}</div>
-                          <div className="text-gray-500">{ogrenci.company.contact}</div>
-                        </div>
-                      ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          Atanmamış
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {ogrenci.company?.teacher ? (
-                        <div className="text-sm">
-                          <div className="text-gray-900 font-medium">
-                            {ogrenci.company.teacher.name} {ogrenci.company.teacher.surname}
-                          </div>
-                          <div className="text-gray-500 text-xs">
-                            {ogrenci.company.teacher.alan?.name || 'Alan Belirtilmemiş'}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          Atanmamış
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end space-x-2">
-                        <button
-                          onClick={() => handleOgrenciGecmis(ogrenci)}
-                          className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors"
-                          title="Staj Geçmişini Görüntüle"
-                        >
-                          <History className="h-4 w-4" />
-                        </button>
-                        {ogrenci.company ? (
-                          <button
-                            onClick={() => handleOgrenciFesih(ogrenci)}
-                            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Stajı Fesih Et"
-                          >
-                            <UserMinus className="h-4 w-4" />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleOgrenciAta(ogrenci)}
-                            className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-colors"
-                            title="İşletmeye Ata"
-                          >
-                            <UserPlus className="h-4 w-4" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleOgrenciDuzenle(ogrenci)}
-                          className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors"
-                          title="Öğrenciyi Düzenle"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleOgrenciSil(ogrenci)}
-                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Öğrenciyi Sil"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
+        <>
+          {/* Desktop Table View */}
+          <div className="hidden lg:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Öğrenci
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      İşletme
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Koordinatör Öğretmen
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      İşlemler
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {ogrenciler.map((ogrenci) => (
+                    <tr key={ogrenci.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                            <User className="h-6 w-6 text-indigo-600" />
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900">
+                              {ogrenci.ad} {ogrenci.soyad}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {ogrenci.sinif} - No: {ogrenci.no || 'Belirtilmemiş'}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {ogrenci.company ? (
+                          <div className="text-sm">
+                            <div className="text-gray-900 font-medium">{ogrenci.company.name}</div>
+                            <div className="text-gray-500">{ogrenci.company.contact}</div>
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            Atanmamış
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {ogrenci.company?.teacher ? (
+                          <div className="text-sm">
+                            <div className="text-gray-900 font-medium">
+                              {ogrenci.company.teacher.name} {ogrenci.company.teacher.surname}
+                            </div>
+                            <div className="text-gray-500 text-xs">
+                              {ogrenci.company.teacher.alan?.name || 'Alan Belirtilmemiş'}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            Atanmamış
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end space-x-2">
+                          <button
+                            onClick={() => handleOgrenciGecmis(ogrenci)}
+                            className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors"
+                            title="Staj Geçmişini Görüntüle"
+                          >
+                            <History className="h-4 w-4" />
+                          </button>
+                          {ogrenci.company ? (
+                            <button
+                              onClick={() => handleOgrenciFesih(ogrenci)}
+                              className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Stajı Fesih Et"
+                            >
+                              <UserMinus className="h-4 w-4" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleOgrenciAta(ogrenci)}
+                              className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-colors"
+                              title="İşletmeye Ata"
+                            >
+                              <UserPlus className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleOgrenciDuzenle(ogrenci)}
+                            className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Öğrenciyi Düzenle"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleOgrenciSil(ogrenci)}
+                            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Öğrenciyi Sil"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="lg:hidden space-y-4">
+            {ogrenciler.map((ogrenci) => (
+              <div key={ogrenci.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                {/* Student Header */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                      <User className="h-6 w-6 text-indigo-600" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">
+                        {ogrenci.ad} {ogrenci.soyad}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {ogrenci.sinif} - No: {ogrenci.no || 'Belirtilmemiş'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <button
+                      onClick={() => handleOgrenciGecmis(ogrenci)}
+                      className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors"
+                      title="Staj Geçmişi"
+                    >
+                      <History className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleOgrenciDuzenle(ogrenci)}
+                      className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors"
+                      title="Düzenle"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Company Info */}
+                <div className="mb-3">
+                  <div className="text-xs font-medium text-gray-500 mb-1">İşletme</div>
+                  {ogrenci.company ? (
+                    <div className="text-sm">
+                      <div className="text-gray-900 font-medium">{ogrenci.company.name}</div>
+                      <div className="text-gray-500 text-xs">{ogrenci.company.contact}</div>
+                    </div>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      Atanmamış
+                    </span>
+                  )}
+                </div>
+
+                {/* Teacher Info */}
+                <div className="mb-4">
+                  <div className="text-xs font-medium text-gray-500 mb-1">Koordinatör Öğretmen</div>
+                  {ogrenci.company?.teacher ? (
+                    <div className="text-sm">
+                      <div className="text-gray-900 font-medium">
+                        {ogrenci.company.teacher.name} {ogrenci.company.teacher.surname}
+                      </div>
+                      <div className="text-gray-500 text-xs">
+                        {ogrenci.company.teacher.alan?.name || 'Alan Belirtilmemiş'}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      Atanmamış
+                    </span>
+                  )}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100">
+                  {ogrenci.company ? (
+                    <button
+                      onClick={() => handleOgrenciFesih(ogrenci)}
+                      className="flex-1 inline-flex items-center justify-center px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                    >
+                      <UserMinus className="h-4 w-4 mr-1" />
+                      Stajı Fesih Et
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleOgrenciAta(ogrenci)}
+                      className="flex-1 inline-flex items-center justify-center px-3 py-2 text-sm text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                    >
+                      <UserPlus className="h-4 w-4 mr-1" />
+                      İşletmeye Ata
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleOgrenciSil(ogrenci)}
+                    className="px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
-              <div className="flex items-center justify-between">
-                <div className="flex-1 flex justify-between sm:hidden">
-                  <button
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage <= 1}
-                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Önceki
-                  </button>
-                  <button
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage >= totalPages}
-                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Sonraki
-                  </button>
-                </div>
-                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm text-gray-700">
-                      <span className="font-medium">{((currentPage - 1) * 10) + 1}</span>
-                      {' - '}
-                      <span className="font-medium">{Math.min(currentPage * 10, totalOgrenciler)}</span>
-                      {' / '}
-                      <span className="font-medium">{totalOgrenciler}</span>
-                      {' sonuç'}
-                    </p>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-6">
+              <div className="px-4 py-3 sm:px-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 flex justify-between sm:hidden">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage <= 1}
+                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Önceki
+                    </button>
+                    <span className="text-sm text-gray-700 flex items-center">
+                      {currentPage} / {totalPages}
+                    </span>
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage >= totalPages}
+                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Sonraki
+                    </button>
                   </div>
-                  <div>
-                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                      <button
-                        onClick={() => handlePageChange(currentPage - 1)}
-                        disabled={currentPage <= 1}
-                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <ChevronLeft className="h-5 w-5" />
-                      </button>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm text-gray-700">
+                        <span className="font-medium">{((currentPage - 1) * 10) + 1}</span>
+                        {' - '}
+                        <span className="font-medium">{Math.min(currentPage * 10, totalOgrenciler)}</span>
+                        {' / '}
+                        <span className="font-medium">{totalOgrenciler}</span>
+                        {' sonuç'}
+                      </p>
+                    </div>
+                    <div>
+                      <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
                         <button
-                          key={page}
-                          onClick={() => handlePageChange(page)}
-                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                            currentPage === page
-                              ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600'
-                              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                          }`}
+                          onClick={() => handlePageChange(currentPage - 1)}
+                          disabled={currentPage <= 1}
+                          className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {page}
+                          <ChevronLeft className="h-5 w-5" />
                         </button>
-                      ))}
-                      <button
-                        onClick={() => handlePageChange(currentPage + 1)}
-                        disabled={currentPage >= totalPages}
-                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <ChevronRight className="h-5 w-5" />
-                      </button>
-                    </nav>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                          <button
+                            key={page}
+                            onClick={() => handlePageChange(page)}
+                            className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                              currentPage === page
+                                ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600'
+                                : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        ))}
+                        <button
+                          onClick={() => handlePageChange(currentPage + 1)}
+                          disabled={currentPage >= totalPages}
+                          className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ChevronRight className="h-5 w-5" />
+                        </button>
+                      </nav>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           )}
-        </div>
+        </>
       ) : (
         <div className="text-center py-12">
           <User className="mx-auto h-12 w-12 text-gray-400" />

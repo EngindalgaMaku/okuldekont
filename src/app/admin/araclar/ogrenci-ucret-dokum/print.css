@@ -1,0 +1,127 @@
+@media print {
+  @page {
+    size: A4;
+    margin: 1cm;
+  }
+
+  /* En radikal yaklaşım: Sadece print content'i göster */
+  
+  /* Önce her şeyi gizle */
+  body * {
+    visibility: hidden !important;
+  }
+  
+  /* Sadece print content'i ve çocuklarını göster */
+  #print-content,
+  #print-content * {
+    visibility: visible !important;
+  }
+  
+  /* Print content'i sayfanın başına yerleştir */
+  #print-content {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
+  }
+  
+  /* Print hidden class - önemli */
+  .print\:hidden {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Reset document structure */
+  html,
+  body {
+    font-family: Arial, sans-serif !important;
+    line-height: 1.2 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  .print\:page-break-before {
+    page-break-before: always;
+  }
+
+  .print\:page-break-after {
+    page-break-after: always;
+  }
+
+  .print\:page-break-avoid {
+    page-break-inside: avoid;
+  }
+
+  /* Table specific print styles */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  th, td {
+    border: 1px solid black !important;
+    padding: 4px !important;
+    font-size: 10px !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  th {
+    background-color: white !important;
+    font-weight: bold !important;
+  }
+
+  /* Header styles */
+  .print-header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .print-header h1,
+  .print-header h2,
+  .print-header h3 {
+    margin: 5px 0;
+    color: black !important;
+  }
+
+  /* Footer signature area */
+  .print-footer {
+    margin-top: 30px;
+    page-break-inside: avoid;
+  }
+
+  .signature-area {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 60px;
+  }
+
+  .signature-box {
+    width: 45%;
+    text-align: center;
+    border-top: 1px solid black;
+    padding-top: 5px;
+  }
+
+  /* Ensure proper text wrapping */
+  .text-wrap {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* Force all text to be black */
+  * {
+    color: black !important;
+    background: white !important;
+    box-shadow: none !important;
+  }
+}

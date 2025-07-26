@@ -144,6 +144,9 @@ export default function PanelPage() {
 
   // Collapsible student groups state
   const [expandedGroups, setExpandedGroups] = useState<{ [key: string]: boolean }>({});
+  
+  // Gecikme uyarı öğrenci listesi collapse state
+  const [isGecikmeListExpanded, setIsGecikmeListExpanded] = useState(false);
 
   // Dekont takip sistemi için yardımcı fonksiyonlar
   const getCurrentMonth = () => new Date().getMonth() + 1;
@@ -1420,36 +1423,49 @@ export default function PanelPage() {
                         : `${aylar[getCurrentMonth() === 1 ? 11 : getCurrentMonth() - 2]} ayı için eksik dekontlar var.`
                       }
                     </p>
-                    <p className="mb-3">
-                      <strong>Eksik dekont olan öğrenciler ({eksikDekontOgrenciler.length} kişi):</strong>
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {eksikDekontOgrenciler.map((ogrenci) => (
-                        <div key={ogrenci.id} className={`p-2 sm:p-3 rounded-lg ${
-                          isGecikme() ? 'bg-red-100 border border-red-200' :
-                          isKritikSure() ? 'bg-yellow-100 border border-yellow-200' :
-                          'bg-blue-100 border border-blue-200'
-                        }`}>
-                          <div className="font-medium text-gray-900 text-sm">
-                            {ogrenci.ad} {ogrenci.soyad}
-                          </div>
-                          <div className="text-xs text-gray-600">
-                            {ogrenci.sinif} - No: {ogrenci.no}
-                          </div>
-                          <button
-                            onClick={() => handleDekontYuklemeClick(ogrenci)}
-                            className={`mt-2 w-full flex items-center justify-center px-2 py-1 text-xs font-medium rounded transition-colors ${
-                              isGecikme() ? 'bg-red-600 text-white hover:bg-red-700' :
-                              isKritikSure() ? 'bg-yellow-600 text-white hover:bg-yellow-700' :
-                              'bg-blue-600 text-white hover:bg-blue-700'
-                            }`}
-                          >
-                            <Upload className="h-3 w-3 mr-1" />
-                            Hemen Yükle
-                          </button>
-                        </div>
-                      ))}
+                    <div className="mb-3">
+                      <button
+                        onClick={() => setIsGecikmeListExpanded(!isGecikmeListExpanded)}
+                        className="flex items-center gap-2 text-left w-full p-2 rounded-lg hover:bg-black hover:bg-opacity-10 transition-colors"
+                      >
+                        <strong>Eksik dekont olan öğrenciler ({eksikDekontOgrenciler.length} kişi):</strong>
+                        {isGecikmeListExpanded ? (
+                          <ChevronUp className="h-4 w-4 flex-shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                        )}
+                      </button>
                     </div>
+                    
+                    {isGecikmeListExpanded && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {eksikDekontOgrenciler.map((ogrenci) => (
+                          <div key={ogrenci.id} className={`p-2 sm:p-3 rounded-lg ${
+                            isGecikme() ? 'bg-red-100 border border-red-200' :
+                            isKritikSure() ? 'bg-yellow-100 border border-yellow-200' :
+                            'bg-blue-100 border border-blue-200'
+                          }`}>
+                            <div className="font-medium text-gray-900 text-sm">
+                              {ogrenci.ad} {ogrenci.soyad}
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              {ogrenci.sinif} - No: {ogrenci.no}
+                            </div>
+                            <button
+                              onClick={() => handleDekontYuklemeClick(ogrenci)}
+                              className={`mt-2 w-full flex items-center justify-center px-2 py-1 text-xs font-medium rounded transition-colors ${
+                                isGecikme() ? 'bg-red-600 text-white hover:bg-red-700' :
+                                isKritikSure() ? 'bg-yellow-600 text-white hover:bg-yellow-700' :
+                                'bg-blue-600 text-white hover:bg-blue-700'
+                              }`}
+                            >
+                              <Upload className="h-3 w-3 mr-1" />
+                              Hemen Yükle
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

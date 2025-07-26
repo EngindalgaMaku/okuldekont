@@ -88,7 +88,7 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2 sm:gap-3">
-            <Users className="h-6 w-6 sm:h-8 sm:w-8 text-blue-500" />
+            <Users className="hidden sm:block h-6 w-6 sm:h-8 sm:w-8 text-blue-500" />
             Öğretmen Yönetimi
           </h1>
           <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2 w-fit">

@@ -218,70 +218,78 @@ export default function AlanDetayClient({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         <AlanDetayHeader alan={alan} />
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           {/* Tab Navigation */}
           <div className="border-b border-gray-200">
-            <nav className="flex -mb-px">
+            <nav className="flex -mb-px overflow-x-auto">
               <button
                 onClick={() => handleTabChange('ogretmenler')}
-                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'ogretmenler' 
-                    ? 'border-indigo-500 text-indigo-600' 
+                className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === 'ogretmenler'
+                    ? 'border-indigo-500 text-indigo-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <Users className="h-5 w-5" />
-                Öğretmenler ({dynamicCounts.ogretmenler})
-                {loadingTabs.ogretmenler && <Loader className="animate-spin h-4 w-4" />}
+                <Users className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="hidden sm:inline">Öğretmenler</span>
+                <span className="sm:hidden">Öğrt.</span>
+                <span>({dynamicCounts.ogretmenler})</span>
+                {loadingTabs.ogretmenler && <Loader className="animate-spin h-3 w-3 sm:h-4 sm:w-4" />}
               </button>
 
               <button
                 onClick={() => handleTabChange('siniflar')}
-                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'siniflar' 
-                    ? 'border-indigo-500 text-indigo-600' 
+                className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === 'siniflar'
+                    ? 'border-indigo-500 text-indigo-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <GraduationCap className="h-5 w-5" />
-                Sınıflar ({dynamicCounts.siniflar})
-                {loadingTabs.siniflar && <Loader className="animate-spin h-4 w-4" />}
+                <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="hidden sm:inline">Sınıflar</span>
+                <span className="sm:hidden">Sınıf</span>
+                <span>({dynamicCounts.siniflar})</span>
+                {loadingTabs.siniflar && <Loader className="animate-spin h-3 w-3 sm:h-4 sm:w-4" />}
               </button>
 
               <button
                 onClick={() => handleTabChange('ogrenciler')}
-                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'ogrenciler' 
-                    ? 'border-indigo-500 text-indigo-600' 
+                className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === 'ogrenciler'
+                    ? 'border-indigo-500 text-indigo-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <User className="h-5 w-5" />
-                Öğrenciler ({dynamicCounts.ogrenciler})
-                {loadingTabs.ogrenciler && <Loader className="animate-spin h-4 w-4" />}
+                <User className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="hidden sm:inline">Öğrenciler</span>
+                <span className="sm:hidden">Öğrn.</span>
+                <span>({dynamicCounts.ogrenciler})</span>
+                {loadingTabs.ogrenciler && <Loader className="animate-spin h-3 w-3 sm:h-4 sm:w-4" />}
               </button>
 
               <button
                 onClick={() => handleTabChange('isletmeler')}
-                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'isletmeler' 
-                    ? 'border-indigo-500 text-indigo-600' 
+                className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === 'isletmeler'
+                    ? 'border-indigo-500 text-indigo-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <Building2 className="h-5 w-5" />
-                İşletmeler ({dynamicCounts.isletmeler})
-                {loadingTabs.isletmeler && <Loader className="animate-spin h-4 w-4" />}
+                <Building2 className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="hidden sm:inline">İşletmeler</span>
+                <span className="sm:hidden">İşltm.</span>
+                <span>({dynamicCounts.isletmeler})</span>
+                {loadingTabs.isletmeler && <Loader className="animate-spin h-3 w-3 sm:h-4 sm:w-4" />}
               </button>
             </nav>
           </div>
 
           {/* Tab Content */}
-          <div className="p-6">
+          <div className="p-3 sm:p-4 lg:p-6">
             {renderTabContent()}
           </div>
         </div>

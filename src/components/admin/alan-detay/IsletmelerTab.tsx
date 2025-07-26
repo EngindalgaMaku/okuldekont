@@ -239,10 +239,11 @@ export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountCh
             setIsletmeFormData(initialFormState)
             setIsletmeModalOpen(true)
           }}
-          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-sm"
+          className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-sm"
         >
           <Plus className="h-4 w-4 mr-2" />
-          Yeni İşletme Ekle
+          <span className="hidden sm:inline">Yeni İşletme Ekle</span>
+          <span className="sm:hidden">Yeni İşletme</span>
         </button>
       </div>
 
@@ -349,7 +350,7 @@ export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountCh
                 {/* Expandable Content */}
                 {isExpanded && (
                   <div className="border-t border-gray-100 p-4 bg-gray-50">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Contact Information */}
                       <div className="space-y-3">
                         <h4 className="text-sm font-medium text-gray-900">İletişim Bilgileri</h4>
@@ -357,19 +358,29 @@ export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountCh
                           {isletme.telefon && (
                             <div className="flex items-center text-sm text-gray-600">
                               <Phone className="h-4 w-4 mr-3 text-gray-400 flex-shrink-0" />
-                              <span className="truncate">{isletme.telefon}</span>
+                              <a
+                                href={`tel:${isletme.telefon}`}
+                                className="truncate hover:text-indigo-600 transition-colors"
+                              >
+                                {isletme.telefon}
+                              </a>
                             </div>
                           )}
                           {isletme.email && (
                             <div className="flex items-center text-sm text-gray-600">
                               <Mail className="h-4 w-4 mr-3 text-gray-400 flex-shrink-0" />
-                              <span className="truncate">{isletme.email}</span>
+                              <a
+                                href={`mailto:${isletme.email}`}
+                                className="truncate hover:text-indigo-600 transition-colors"
+                              >
+                                {isletme.email}
+                              </a>
                             </div>
                           )}
                           {isletme.adres && (
                             <div className="flex items-start text-sm text-gray-600">
                               <MapPin className="h-4 w-4 mr-3 text-gray-400 flex-shrink-0 mt-0.5" />
-                              <span className="flex-1">{isletme.adres}</span>
+                              <span className="flex-1 break-words">{isletme.adres}</span>
                             </div>
                           )}
                           {!isletme.telefon && !isletme.email && !isletme.adres && (
@@ -384,16 +395,16 @@ export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountCh
                           Stajyer Öğrenciler ({isletme.stajlar?.length || 0})
                         </h4>
                         {isletme.stajlar && isletme.stajlar.length > 0 ? (
-                          <div className="space-y-2 max-h-32 overflow-y-auto">
+                          <div className="space-y-2 max-h-40 overflow-y-auto">
                             {isletme.stajlar.map((staj) => (
                               <div
                                 key={staj.id}
-                                className="flex items-center justify-between text-sm bg-white rounded-lg p-2 border border-gray-100"
+                                className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-sm bg-white rounded-lg p-3 border border-gray-100 gap-2"
                               >
                                 <span className="font-medium text-gray-900">
                                   {staj.student.name} {staj.student.surname}
                                 </span>
-                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded self-start sm:self-auto">
                                   {staj.student.className}{staj.student.number ? ` - No: ${staj.student.number}` : ''}
                                 </span>
                               </div>

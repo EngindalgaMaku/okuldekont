@@ -88,27 +88,27 @@ export default function AlanDetayHeader({ alan }: Props) {
 
   return (
     <>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 sm:mb-6">
         {/* Geri Dön Linki */}
-        <div className="mb-4">
-          <Link 
-            href="/admin/alanlar" 
-            className="inline-flex items-center text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+        <div className="mb-3 sm:mb-4">
+          <Link
+            href="/admin/alanlar"
+            className="inline-flex items-center text-indigo-600 hover:text-indigo-800 text-xs sm:text-sm font-medium"
           >
-            <ArrowLeft className="h-4 w-4 mr-1" />
+            <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
             Tüm Alanlar
           </Link>
         </div>
 
         <div className="flex items-start justify-between">
-          <div className="flex items-start space-x-4 flex-1">
+          <div className="flex items-start space-x-2 sm:space-x-3 lg:space-x-4 flex-1">
             {/* Alan İkonu */}
-            <div className={`flex-shrink-0 w-16 h-16 rounded-xl flex items-center justify-center ${
-              alan.aktif 
-                ? 'bg-gradient-to-br from-indigo-100 to-purple-100' 
+            <div className={`flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-lg sm:rounded-xl flex items-center justify-center ${
+              alan.aktif
+                ? 'bg-gradient-to-br from-indigo-100 to-purple-100'
                 : 'bg-gray-100'
             }`}>
-              <GraduationCap className={`h-8 w-8 ${
+              <GraduationCap className={`h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 ${
                 alan.aktif ? 'text-indigo-600' : 'text-gray-400'
               }`} />
             </div>
@@ -116,29 +116,29 @@ export default function AlanDetayHeader({ alan }: Props) {
             {/* Alan Bilgileri */}
             <div className="flex-1 min-w-0">
               {isEditing ? (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                       Alan Adı
                     </label>
                     <input
                       type="text"
                       value={editData.ad}
                       onChange={(e) => setEditData({...editData, ad: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full px-2 py-1.5 sm:px-3 sm:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                       placeholder="Alan adını girin"
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
                       Açıklama (Opsiyonel)
                     </label>
                     <textarea
                       value={editData.aciklama}
                       onChange={(e) => setEditData({...editData, aciklama: e.target.value})}
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      rows={2}
+                      className="w-full px-2 py-1.5 sm:px-3 sm:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                       placeholder="Alan açıklamasını girin"
                     />
                   </div>
@@ -149,39 +149,39 @@ export default function AlanDetayHeader({ alan }: Props) {
                       id="aktif"
                       checked={editData.aktif}
                       onChange={(e) => setEditData({...editData, aktif: e.target.checked})}
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      className="h-3 w-3 sm:h-4 sm:w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                     />
-                    <label htmlFor="aktif" className="ml-2 block text-sm text-gray-700">
+                    <label htmlFor="aktif" className="ml-2 block text-xs sm:text-sm text-gray-700">
                       Alan aktif
                     </label>
                   </div>
 
-                  <div className="flex space-x-3">
+                  <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
                     <button
                       onClick={handleSave}
                       disabled={isLoading}
-                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                      className="inline-flex items-center justify-center px-3 py-2 border border-transparent text-xs sm:text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                     >
-                      <Check className="h-4 w-4 mr-1" />
+                      <Check className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                       {isLoading ? 'Kaydediliyor...' : 'Kaydet'}
                     </button>
                     <button
                       onClick={handleCancel}
                       disabled={isLoading}
-                      className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 text-xs sm:text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                     >
-                      <X className="h-4 w-4 mr-1" />
+                      <X className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                       İptal
                     </button>
                   </div>
                 </div>
               ) : (
                 <div>
-                  <div className="flex items-center space-x-3 mb-2">
-                    <h1 className="text-2xl font-bold text-gray-900">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 mb-2">
+                    <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-1 sm:mb-0">
                       {alan.ad}
                     </h1>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    <span className={`inline-flex items-center px-2 py-0.5 sm:px-2.5 rounded-full text-xs font-medium self-start ${
                       alan.aktif
                         ? 'bg-green-100 text-green-800'
                         : 'bg-red-100 text-red-800'
@@ -191,7 +191,7 @@ export default function AlanDetayHeader({ alan }: Props) {
                   </div>
                   
                   {alan.aciklama && (
-                    <p className="text-gray-600 mb-4 leading-relaxed">
+                    <p className="text-gray-600 mb-2 sm:mb-4 leading-relaxed text-sm sm:text-base">
                       {alan.aciklama}
                     </p>
                   )}
@@ -204,10 +204,10 @@ export default function AlanDetayHeader({ alan }: Props) {
           {!isEditing && (
             <button
               onClick={() => setIsEditing(true)}
-              className="inline-flex items-center p-2 border border-transparent rounded-lg text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="inline-flex items-center p-1.5 sm:p-2 border border-transparent rounded-lg text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ml-2"
               title="Alanı Düzenle"
             >
-              <Edit className="h-5 w-5" />
+              <Edit className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
           )}
         </div>

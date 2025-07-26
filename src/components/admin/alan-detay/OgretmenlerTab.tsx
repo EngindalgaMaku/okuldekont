@@ -102,18 +102,18 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
   if (ogretmenler.length === 0) {
     return (
       <>
-        <div className="text-center py-12">
-          <User className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">Henüz öğretmen yok</h3>
-          <p className="mt-1 text-sm text-gray-500">Bu alana henüz öğretmen atanmamış.</p>
+        <div className="text-center py-8 sm:py-12">
+          <div className="text-gray-400 text-4xl sm:text-5xl mb-3 sm:mb-4">👨‍🏫</div>
+          <h3 className="mt-2 text-sm sm:text-base font-medium text-gray-900">Henüz öğretmen yok</h3>
+          <p className="mt-1 text-xs sm:text-sm text-gray-500">Bu alana henüz öğretmen atanmamış.</p>
           <button
             onClick={() => {
               setFormData({ name: '', surname: '', phone: '', email: '', pin: '1234' })
               setIsAddModalOpen(true)
             }}
-            className="mt-4 inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className="mt-4 inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
           >
-            <Plus className="h-5 w-5 mr-2" /> Öğretmen Ekle
+            <Plus className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" /> Öğretmen Ekle
           </button>
         </div>
 
@@ -263,34 +263,84 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         <div className="flex justify-end">
           <button
             onClick={() => {
               setFormData({ name: '', surname: '', phone: '', email: '', pin: '1234' })
               setIsAddModalOpen(true)
             }}
-            className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
           >
-            <Plus className="h-5 w-5 mr-2" /> Öğretmen Ekle
+            <Plus className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" /> Öğretmen Ekle
           </button>
         </div>
         
-        <div className="overflow-x-auto">
+        {/* Mobile Card View */}
+        <div className="block sm:hidden space-y-3">
+          {ogretmenler.map((ogretmen) => (
+            <div key={ogretmen.id} className="bg-white border border-gray-200 rounded-lg p-4">
+              <div className="flex items-start justify-between">
+                <div className="flex items-start space-x-3">
+                  <div className="text-2xl">👨‍🏫</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 mb-1">
+                      {ogretmen.ad} {ogretmen.soyad}
+                    </div>
+                    <div className="space-y-1">
+                      {ogretmen.email && (
+                        <div className="flex items-center text-xs text-gray-600">
+                          <Mail className="h-3 w-3 mr-1 text-gray-400" />
+                          <span className="truncate">{ogretmen.email}</span>
+                        </div>
+                      )}
+                      {ogretmen.telefon && (
+                        <div className="flex items-center text-xs text-gray-600">
+                          <Phone className="h-3 w-3 mr-1 text-gray-400" />
+                          {ogretmen.telefon}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <Link
+                  href={`/admin/ogretmenler/${ogretmen.id}`}
+                  className="inline-flex items-center justify-center w-8 h-8 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded-full transition-colors"
+                  title="Detaylar"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+              </div>
+              <div className="flex justify-between mt-3 pt-3 border-t border-gray-100">
+                <div className="flex items-center text-xs">
+                  <span className="text-gray-500 mr-1">Öğrenci:</span>
+                  <span className="font-semibold text-gray-800">{ogretmen.ogrenci_sayisi}</span>
+                </div>
+                <div className="flex items-center text-xs">
+                  <span className="text-gray-500 mr-1">İşletme:</span>
+                  <span className="font-semibold text-gray-800">{ogretmen.isletme_sayisi}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden sm:block overflow-x-auto">
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Öğretmen
                   </th>
-                  <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Öğrenci Sayısı
                   </th>
-                  <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     İşletme Sayısı
                   </th>
-                  <th scope="col" className="relative px-6 py-3">
+                  <th scope="col" className="relative px-3 py-2 sm:px-6 sm:py-3">
                     <span className="sr-only">Detaylar</span>
                   </th>
                 </tr>
@@ -298,23 +348,21 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
               <tbody className="bg-white divide-y divide-gray-200">
                 {ogretmenler.map((ogretmen) => (
                   <tr key={ogretmen.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4">
                       <div className="flex items-start">
-                        <div className="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                          <User className="h-6 w-6 text-indigo-600" />
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900 mb-1">{ogretmen.ad} {ogretmen.soyad}</div>
+                        <div className="text-xl sm:text-2xl mr-2 sm:mr-3">👨‍🏫</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs sm:text-sm font-medium text-gray-900 mb-1">{ogretmen.ad} {ogretmen.soyad}</div>
                           <div className="space-y-1">
                             {ogretmen.email && (
-                              <div className="flex items-center text-sm text-gray-600">
-                                <Mail className="h-3 w-3 mr-2 text-gray-400" />
-                                {ogretmen.email}
+                              <div className="flex items-center text-xs text-gray-600">
+                                <Mail className="h-3 w-3 mr-1 text-gray-400" />
+                                <span className="truncate">{ogretmen.email}</span>
                               </div>
                             )}
                             {ogretmen.telefon && (
-                              <div className="flex items-center text-sm text-gray-600">
-                                <Phone className="h-3 w-3 mr-2 text-gray-400" />
+                              <div className="flex items-center text-xs text-gray-600">
+                                <Phone className="h-3 w-3 mr-1 text-gray-400" />
                                 {ogretmen.telefon}
                               </div>
                             )}
@@ -322,25 +370,19 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="flex items-center justify-center">
-                        <Users className="h-5 w-5 text-gray-400 mr-2" />
-                        <span className="text-sm font-semibold text-gray-800">{ogretmen.ogrenci_sayisi}</span>
-                      </div>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-center">
+                      <span className="text-xs sm:text-sm font-semibold text-gray-800">{ogretmen.ogrenci_sayisi}</span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="flex items-center justify-center">
-                        <Building2 className="h-5 w-5 text-gray-400 mr-2" />
-                        <span className="text-sm font-semibold text-gray-800">{ogretmen.isletme_sayisi}</span>
-                      </div>
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-center">
+                      <span className="text-xs sm:text-sm font-semibold text-gray-800">{ogretmen.isletme_sayisi}</span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                    <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-center">
                       <Link
                         href={`/admin/ogretmenler/${ogretmen.id}`}
-                        className="inline-flex items-center justify-center w-8 h-8 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded-full transition-colors"
+                        className="inline-flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded-full transition-colors"
                         title="Detaylar"
                       >
-                        <ChevronRight className="h-5 w-5" />
+                        <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
                       </Link>
                     </td>
                   </tr>

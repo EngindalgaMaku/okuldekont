@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     if (type === 'ogretmen') {
       const teacher = await prisma.teacherProfile.findUnique({
         where: { id: entityId },
-        select: { id: true, name: true, surname: true, pin: true }
+        select: { id: true, name: true, surname: true, pin: true, mustChangePin: true }
       })
 
       if (!teacher) {
@@ -59,7 +59,8 @@ export async function POST(request: Request) {
         entityData = {
           id: teacher.id,
           name: teacher.name,
-          surname: teacher.surname
+          surname: teacher.surname,
+          mustChangePin: teacher.mustChangePin
         }
       }
     }
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
     if (type === 'isletme') {
       const company = await prisma.companyProfile.findUnique({
         where: { id: entityId },
-        select: { id: true, name: true, pin: true }
+        select: { id: true, name: true, pin: true, mustChangePin: true }
       })
 
       if (!company) {
@@ -82,7 +83,8 @@ export async function POST(request: Request) {
         pinValid = true
         entityData = {
           id: company.id,
-          name: company.name
+          name: company.name,
+          mustChangePin: company.mustChangePin
         }
       }
     }

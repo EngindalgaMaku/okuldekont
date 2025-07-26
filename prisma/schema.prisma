@@ -55,6 +55,7 @@ model TeacherProfile {
   lockStartTime DateTime?
   failedAttempts Int @default(0)
   lastFailedAttempt DateTime?
+  mustChangePin Boolean @default(false)
 
   user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   alan Alan? @relation(fields: [alanId], references: [id])
@@ -94,6 +95,7 @@ model CompanyProfile {
   lockStartTime           DateTime?
   failedAttempts          Int       @default(0)
   lastFailedAttempt       DateTime?
+  mustChangePin           Boolean   @default(false)
 
   user    User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
   teacher TeacherProfile? @relation(fields: [teacherId], references: [id])
@@ -130,9 +132,10 @@ model Alan {
   active      Boolean @default(true)
   
   // Relations
-  teachers TeacherProfile[]
-  students Student[]
-  classes  Class[]
+  teachers   TeacherProfile[]
+  students   Student[]
+  classes    Class[]
+  wageRates  WageRate[]
   
   @@map("fields")
 }
@@ -172,8 +175,9 @@ model Student {
   class   Class?          @relation(fields: [classId], references: [id])
   
   // Relations
-  stajlar   Staj[]
-  dekontlar Dekont[]
+  stajlar     Staj[]
+  dekontlar   Dekont[]
+  attendance  Attendance[]
   
   @@map("students")
 }
@@ -362,6 +366,50 @@ model PinAttempt {
   @@index([entityType, entityId])
   @@index([attemptedAt])
   @@map("pin_attempts")
+}
+
+// Attendance & Holiday Management
+model Attendance {
+  id          String   @id @default(cuid())
+  studentId   String
+  month       Int
+  year        Int
+  absentDays  Int      @default(0)
+  totalDays   Int      // Total working days in that month
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  student     Student  @relation(fields: [studentId], references: [id])
+  
+  @@unique([studentId, month, year])
+  @@map("attendance")
+}
+
+model PublicHoliday {
+  id          String   @id @default(cuid())
+  name        String
+  date        DateTime
+  month       Int
+  year        Int
+  createdAt   DateTime @default(now())
+  
+  @@unique([date])
+  @@map("public_holidays")
+}
+
+// Daily wage rates
+model WageRate {
+  id          String   @id @default(cuid())
+  alanId      String?  // If null, applies to all fields
+  dailyRate   Decimal  @db.Decimal(10, 2)
+  validFrom   DateTime
+  validTo     DateTime?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  
+  alan        Alan?    @relation(fields: [alanId], references: [id])
+  
+  @@map("wage_rates")
 }
 
 // System Settings

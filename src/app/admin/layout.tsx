@@ -28,7 +28,8 @@ import {
  Sparkles,
  User,
  ChevronDown,
- MessageCircle
+ MessageCircle,
+ Wrench
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -52,10 +53,10 @@ const menuItems = [
     description: 'Ödeme ve dekont yönetimi'
   },
   {
-    title: 'Görev Takibi',
-    icon: Check,
-    href: '/admin/gorev-takip',
-    description: 'Görev belgelerinin takibi'
+    title: 'Araçlar',
+    icon: Wrench,
+    href: '/admin/araclar',
+    description: 'Çıktı ve raporlama araçları'
   }
 ]
 
@@ -519,32 +520,32 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6 justify-end">
             <div className="flex items-center gap-x-4 lg:gap-x-6">
               {/* Quick Portal Links */}
-              <div className="flex items-center gap-x-2">
+              <div className="flex items-center gap-x-1 md:gap-x-2">
                 <Link
                   href="/admin/isletmeler"
-                  className="flex items-center gap-x-1 px-3 py-1.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors"
+                  className="flex items-center gap-x-1 px-2 md:px-3 py-1.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors"
                   title="İşletme Yönetimi - Tüm işletmeleri listele, filtrele ve yönet"
                 >
                   <Building2 className="h-4 w-4" />
-                  <span className="hidden sm:block">İşletmeler</span>
+                  <span className="hidden md:block">İşletmeler</span>
                 </Link>
                 
                 <Link
                   href="/admin/ogretmenler"
-                  className="flex items-center gap-x-1 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                  className="flex items-center gap-x-1 px-2 md:px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
                   title="Öğretmen Yönetimi - Tüm öğretmenleri listele, filtrele ve yönet"
                 >
                   <UserCheck className="h-4 w-4" />
-                  <span className="hidden sm:block">Öğretmenler</span>
+                  <span className="hidden md:block">Öğretmenler</span>
                 </Link>
                 
                 <Link
                   href="/admin/stajlar"
-                  className="flex items-center gap-x-1 px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                  className="flex items-center gap-x-1 px-2 md:px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
                   title="Staj Yönetimi - Öğrenci staj süreçleri ve koordinatörlük yönetimi"
                 >
                   <GraduationCap className="h-4 w-4" />
-                  <span className="hidden sm:block">Stajlar</span>
+                  <span className="hidden md:block">Stajlar</span>
                 </Link>
               </div>
 

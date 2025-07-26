@@ -479,7 +479,7 @@ export default function StajYonetimiPage() {
       {/* Tabs */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8 px-6">
+          <nav className="-mb-px flex overflow-x-auto space-x-2 md:space-x-8 px-3 md:px-6">
             {(() => {
               const today = new Date().toISOString().split('T')[0]
               const safeStajlar = Array.isArray(stajlar) ? stajlar : []
@@ -493,23 +493,24 @@ export default function StajYonetimiPage() {
               const feshedilenStajlar = safeStajlar.filter(s => s.status === 'TERMINATED')
               
               return [
-                { id: 'aktif', label: 'Aktif Stajlar', count: aktifStajlar.length },
-                { id: 'suresi-gecmis', label: 'Süresi Geçmiş', count: suresiGecmisStajlar.length },
-                { id: 'bost', label: 'Boşta Olan Öğrenciler', count: bostOgrencilerTotal },
-                { id: 'tamamlandi', label: 'Tamamlanan', count: tamamlananStajlar.length },
-                { id: 'feshedildi', label: 'Feshedilen', count: feshedilenStajlar.length }
+                { id: 'aktif', label: 'Aktif', shortLabel: 'Aktif', count: aktifStajlar.length },
+                { id: 'suresi-gecmis', label: 'Süresi Geçmiş', shortLabel: 'S.Geçmiş', count: suresiGecmisStajlar.length },
+                { id: 'bost', label: 'Boşta Olan Öğrenciler', shortLabel: 'Boşta', count: bostOgrencilerTotal },
+                { id: 'tamamlandi', label: 'Tamamlanan', shortLabel: 'Tamam', count: tamamlananStajlar.length },
+                { id: 'feshedildi', label: 'Feshedilen', shortLabel: 'Fesih', count: feshedilenStajlar.length }
               ]
             })().map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                className={`py-4 px-2 md:px-1 border-b-2 font-medium text-xs md:text-sm whitespace-nowrap flex-shrink-0 ${
                   activeTab === tab.id
                     ? 'border-indigo-500 text-indigo-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                {tab.label} ({tab.count})
+                <span className="block md:hidden">{tab.shortLabel} ({tab.count})</span>
+                <span className="hidden md:block">{tab.label} ({tab.count})</span>
               </button>
             ))}
           </nav>
@@ -536,16 +537,17 @@ export default function StajYonetimiPage() {
             </div>
             
             {/* Filtreler */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* Alan Filtresi */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Alan
                   </label>
                   <select
                     value={filterAlan}
                     onChange={(e) => setFilterAlan(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
                     <option value="">Tüm Alanlar</option>
                     {getUniqueById(alanlar).map((alan) => (
@@ -558,13 +560,13 @@ export default function StajYonetimiPage() {
 
                 {/* Sınıf Filtresi */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Sınıf
                   </label>
                   <select
                     value={filterSinif}
                     onChange={(e) => setFilterSinif(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
                     <option value="">Tüm Sınıflar</option>
                     {Array.from(new Set(
@@ -578,17 +580,20 @@ export default function StajYonetimiPage() {
                     ))}
                   </select>
                 </div>
+              </div>
 
-                {/* İşletme Filtresi - Sadece stajlar için */}
-                {activeTab !== 'bost' && (
+              {/* İşletme ve Öğretmen Filtreleri - Sadece stajlar için */}
+              {activeTab !== 'bost' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* İşletme Filtresi */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       İşletme
                     </label>
                     <select
                       value={filterIsletme}
                       onChange={(e) => setFilterIsletme(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     >
                       <option value="">Tüm İşletmeler</option>
                       {getUniqueById(isletmeler).map((isletme) => (
@@ -598,18 +603,16 @@ export default function StajYonetimiPage() {
                       ))}
                     </select>
                   </div>
-                )}
 
-                {/* Öğretmen Filtresi - Sadece stajlar için */}
-                {activeTab !== 'bost' && (
+                  {/* Öğretmen Filtresi */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Koordinatör
                     </label>
                     <select
                       value={filterOgretmen}
                       onChange={(e) => setFilterOgretmen(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     >
                       <option value="">Tüm Koordinatörler</option>
                       {getUniqueById(ogretmenler).map((ogretmen) => (
@@ -619,8 +622,9 @@ export default function StajYonetimiPage() {
                       ))}
                     </select>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+            </div>
 
             {/* Aktif filtreleri temizle */}
             {(searchTerm || filterAlan || filterSinif || filterIsletme || filterOgretmen) && (
@@ -723,24 +727,19 @@ export default function StajYonetimiPage() {
                   {bostOgrenciler.map((ogrenci) => (
                     <div
                       key={ogrenci.id}
-                      className="bg-yellow-50 border border-yellow-200 rounded-lg p-4"
+                      className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 md:p-4"
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                            <User className="h-6 w-6 text-yellow-600" />
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-medium text-gray-900">
-                              {ogrenci.name} {ogrenci.surname}
-                            </h3>
-                            <div className="flex items-center space-x-4 text-sm text-gray-600">
-                              <span className="flex items-center">
-                                <GraduationCap className="h-4 w-4 mr-1" />
-                                {ogrenci.className} - No: {ogrenci.number}
-                              </span>
-                              <span>{ogrenci.alan?.name || 'Alan belirtilmemiş'}</span>
+                      <div className="flex items-start">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base md:text-lg font-medium text-gray-900">
+                            {ogrenci.name} {ogrenci.surname}
+                          </h3>
+                          <div className="text-xs md:text-sm text-gray-600 space-y-1">
+                            <div className="flex items-center">
+                              <GraduationCap className="h-3 w-3 md:h-4 md:w-4 mr-1 flex-shrink-0" />
+                              <span>{ogrenci.className} - No: {ogrenci.number}</span>
                             </div>
+                            <div className="ml-4">{ogrenci.alan?.name || 'Alan belirtilmemiş'}</div>
                           </div>
                         </div>
                       </div>
@@ -749,22 +748,22 @@ export default function StajYonetimiPage() {
                   
                   {/* Pagination for Boşta Öğrenciler */}
                   {bostOgrencilerTotalPages > 1 && (
-                    <div className="flex items-center justify-between mt-6">
-                      <div className="text-sm text-gray-700">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between mt-6 space-y-3 md:space-y-0">
+                      <div className="text-xs md:text-sm text-gray-700 text-center md:text-left">
                         Toplam {bostOgrencilerTotal} öğrenci, sayfa {currentPageBost} / {bostOgrencilerTotalPages}
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center justify-center space-x-1 md:space-x-2">
                         <button
                           onClick={() => setCurrentPageBost(Math.max(1, currentPageBost - 1))}
                           disabled={currentPageBost === 1}
-                          className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-2 md:px-3 py-1 md:py-2 text-xs md:text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <ChevronLeft className="h-4 w-4" />
+                          <ChevronLeft className="h-3 w-3 md:h-4 md:w-4" />
                         </button>
                         
-                        {/* Sayfa numaraları */}
-                        {Array.from({ length: Math.min(5, bostOgrencilerTotalPages) }, (_, i) => {
-                          const startPage = Math.max(1, currentPageBost - 2)
+                        {/* Sayfa numaraları - mobile'da daha az göster */}
+                        {Array.from({ length: Math.min(3, bostOgrencilerTotalPages) }, (_, i) => {
+                          const startPage = Math.max(1, currentPageBost - 1)
                           const pageNum = startPage + i
                           if (pageNum > bostOgrencilerTotalPages) return null
                           
@@ -772,7 +771,7 @@ export default function StajYonetimiPage() {
                             <button
                               key={pageNum}
                               onClick={() => setCurrentPageBost(pageNum)}
-                              className={`px-3 py-2 text-sm font-medium rounded-md ${
+                              className={`px-2 md:px-3 py-1 md:py-2 text-xs md:text-sm font-medium rounded-md ${
                                 currentPageBost === pageNum
                                   ? 'text-indigo-600 bg-indigo-50 border border-indigo-500'
                                   : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
@@ -786,9 +785,9 @@ export default function StajYonetimiPage() {
                         <button
                           onClick={() => setCurrentPageBost(Math.min(bostOgrencilerTotalPages, currentPageBost + 1))}
                           disabled={currentPageBost === bostOgrencilerTotalPages}
-                          className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-2 md:px-3 py-1 md:py-2 text-xs md:text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <ChevronRight className="h-4 w-4" />
+                          <ChevronRight className="h-3 w-3 md:h-4 md:w-4" />
                         </button>
                       </div>
                     </div>
@@ -821,7 +820,7 @@ export default function StajYonetimiPage() {
                     <div
                       key={staj.id}
                       ref={(el) => setItemRef(el, staj.id)}
-                      className={`border rounded-lg p-6 ${
+                      className={`border rounded-lg p-3 md:p-6 ${
                         isExpired ? 'bg-orange-50 border-orange-200' :
                         staj.status === 'ACTIVE' ? 'bg-green-50 border-green-200' :
                         staj.status === 'TERMINATED' ? 'bg-red-50 border-red-200' :
@@ -829,20 +828,11 @@ export default function StajYonetimiPage() {
                       }`}
                     >
                       {isVisible ? (
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start space-x-4">
-                            <div className={`h-12 w-12 rounded-lg flex items-center justify-center ${
-                              staj.status === 'ACTIVE' ? 'bg-green-100' :
-                              staj.status === 'CANCELLED' ? 'bg-red-100' : 'bg-gray-100'
-                            }`}>
-                              <Users className={`h-6 w-6 ${
-                                staj.status === 'ACTIVE' ? 'text-green-600' :
-                                staj.status === 'CANCELLED' ? 'text-red-600' : 'text-gray-600'
-                              }`} />
-                            </div>
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-3">
-                                <h3 className="text-lg font-medium text-gray-900">
+                        <div className="flex flex-col space-y-3">
+                          <div className="w-full">
+                            <div className="space-y-2">
+                              <div className="space-y-2">
+                                <h3 className="text-base md:text-lg font-medium text-gray-900 break-words">
                                   {staj.student?.name || 'Bilinmiyor'} {staj.student?.surname || ''}
                                 </h3>
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -857,65 +847,67 @@ export default function StajYonetimiPage() {
                                    'Tamamlandı'}
                                 </span>
                               </div>
-                              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                                <span className="flex items-center">
-                                  <GraduationCap className="h-4 w-4 mr-1" />
-                                  {staj.student?.className || 'Bilinmiyor'} - No: {staj.student?.number || 'Bilinmiyor'}
-                                </span>
-                                <span>{staj.student?.alan?.name || 'Alan belirtilmemiş'}</span>
-                              </div>
-                              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                                <span className="flex items-center">
-                                  <Building2 className="h-4 w-4 mr-1" />
-                                  {staj.company?.name || 'İşletme bilgisi yok'}
-                                </span>
-                              </div>
-                              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                                <span className="flex items-center">
-                                  <UserCheck className="h-4 w-4 mr-1" />
-                                  <span className="font-medium">Koordinatör:</span>
-                                  {staj.teacher ? (
-                                    <span>
-                                      {`${staj.teacher.name} ${staj.teacher.surname}`}
-                                      {staj.status === 'TERMINATED' && (
-                                        <span className="text-xs text-gray-500 ml-1">(Fesih zamanında)</span>
-                                      )}
-                                    </span>
-                                  ) : (
-                                    <span className="text-orange-600 font-medium">Koordinatör Öğretmen atanmadı</span>
-                                  )}
-                                </span>
-                              </div>
-                              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                                <span className="flex items-center">
-                                  <Calendar className="h-4 w-4 mr-1" />
-                                  {staj.startDate ? new Date(staj.startDate).toLocaleDateString('tr-TR') : 'Tarih yok'} - {
-                                    staj.status === 'TERMINATED' && staj.terminationDate 
-                                      ? new Date(staj.terminationDate).toLocaleDateString('tr-TR') + ' (Fesih)'
-                                      : staj.endDate 
-                                        ? new Date(staj.endDate).toLocaleDateString('tr-TR') 
-                                        : 'Devam ediyor'
-                                  }
-                                </span>
+                              
+                              <div className="space-y-2">
+                                <div className="text-xs md:text-sm text-gray-600">
+                                  <div className="flex items-center gap-1 mb-1">
+                                    <GraduationCap className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
+                                    <span className="break-words">{staj.student?.className || 'Bilinmiyor'} - No: {staj.student?.number || 'Bilinmiyor'}</span>
+                                  </div>
+                                  <div className="pl-4 break-words">{staj.student?.alan?.name || 'Alan belirtilmemiş'}</div>
+                                </div>
+                                
+                                <div className="flex items-start gap-1 text-xs md:text-sm text-gray-600">
+                                  <Building2 className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0 mt-0.5" />
+                                  <span className="break-words">{staj.company?.name || 'İşletme bilgisi yok'}</span>
+                                </div>
+                                
+                                <div className="flex items-start gap-1 text-xs md:text-sm text-gray-600">
+                                  <UserCheck className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0 mt-0.5" />
+                                  <div className="min-w-0">
+                                    <span className="font-medium">Koordinatör: </span>
+                                    {staj.teacher ? (
+                                      <span className="break-words">
+                                        {`${staj.teacher.name} ${staj.teacher.surname}`}
+                                        {staj.status === 'TERMINATED' && (
+                                          <span className="text-xs text-gray-500 ml-1">(Fesih zamanında)</span>
+                                        )}
+                                      </span>
+                                    ) : (
+                                      <span className="text-orange-600 font-medium">Koordinatör Öğretmen atanmadı</span>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-start gap-1 text-xs md:text-sm text-gray-600">
+                                  <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0 mt-0.5" />
+                                  <span className="break-words leading-relaxed">
+                                    {staj.startDate ? new Date(staj.startDate).toLocaleDateString('tr-TR') : 'Tarih yok'} - {
+                                      staj.status === 'TERMINATED' && staj.terminationDate
+                                        ? new Date(staj.terminationDate).toLocaleDateString('tr-TR') + ' (Fesih)'
+                                        : staj.endDate
+                                          ? new Date(staj.endDate).toLocaleDateString('tr-TR')
+                                          : 'Devam ediyor'
+                                    }
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </div>
                           
                           {/* Action Buttons */}
-                          <div className="flex items-center space-x-2">
-                            {/* Expired internships - Show complete button */}
-                            {isExpired && (
+                          {isExpired && (
+                            <div className="w-full">
                               <button
                                 onClick={() => handleTamamlandiOlarakKaydet(staj.id)}
-                                className="flex items-center space-x-1 bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 transition-colors text-sm"
+                                className="w-full md:w-auto flex items-center justify-center space-x-1 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors text-xs md:text-sm"
                               >
-                                <CheckCircle className="h-4 w-4" />
-                                <span>Tamamlandı Olarak Kaydet</span>
+                                <CheckCircle className="h-3 w-3 md:h-4 md:w-4" />
+                                <span className="md:hidden">Tamamlandı Olarak Kaydet</span>
+                                <span className="hidden md:inline">Tamamlandı Olarak Kaydet</span>
                               </button>
-                            )}
-                            
-
-                          </div>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="h-24 bg-gray-100 animate-pulse rounded-lg" />
@@ -927,22 +919,22 @@ export default function StajYonetimiPage() {
               
               {/* Pagination for Stajlar */}
               {(activeTab === 'aktif' || activeTab === 'tamamlandi' || activeTab === 'feshedildi' || activeTab === 'suresi-gecmis') && paginationData.totalPagesStajlar > 1 && (
-                <div className="flex items-center justify-between mt-6">
-                  <div className="text-sm text-gray-700">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between mt-6 space-y-3 md:space-y-0">
+                  <div className="text-xs md:text-sm text-gray-700 text-center md:text-left">
                     Toplam {paginationData.totalStajlar} staj, sayfa {currentPageStajlar} / {paginationData.totalPagesStajlar}
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center justify-center space-x-1 md:space-x-2">
                     <button
                       onClick={() => setCurrentPageStajlar(Math.max(1, currentPageStajlar - 1))}
                       disabled={currentPageStajlar === 1}
-                      className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-2 md:px-3 py-1 md:py-2 text-xs md:text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <ChevronLeft className="h-4 w-4" />
+                      <ChevronLeft className="h-3 w-3 md:h-4 md:w-4" />
                     </button>
                     
-                    {/* Sayfa numaraları */}
-                    {Array.from({ length: Math.min(5, paginationData.totalPagesStajlar) }, (_, i) => {
-                      const startPage = Math.max(1, currentPageStajlar - 2)
+                    {/* Sayfa numaraları - mobile'da daha az göster */}
+                    {Array.from({ length: Math.min(3, paginationData.totalPagesStajlar) }, (_, i) => {
+                      const startPage = Math.max(1, currentPageStajlar - 1)
                       const pageNum = startPage + i
                       if (pageNum > paginationData.totalPagesStajlar) return null
                       
@@ -950,7 +942,7 @@ export default function StajYonetimiPage() {
                         <button
                           key={pageNum}
                           onClick={() => setCurrentPageStajlar(pageNum)}
-                          className={`px-3 py-2 text-sm font-medium rounded-md ${
+                          className={`px-2 md:px-3 py-1 md:py-2 text-xs md:text-sm font-medium rounded-md ${
                             currentPageStajlar === pageNum
                               ? 'text-indigo-600 bg-indigo-50 border border-indigo-500'
                               : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
@@ -964,9 +956,9 @@ export default function StajYonetimiPage() {
                     <button
                       onClick={() => setCurrentPageStajlar(Math.min(paginationData.totalPagesStajlar, currentPageStajlar + 1))}
                       disabled={currentPageStajlar === paginationData.totalPagesStajlar}
-                      className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-2 md:px-3 py-1 md:py-2 text-xs md:text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <ChevronRight className="h-4 w-4" />
+                      <ChevronRight className="h-3 w-3 md:h-4 md:w-4" />
                     </button>
                   </div>
                 </div>

@@ -79,6 +79,27 @@ export default function SiniflarTab({ initialSiniflar, alanId }: Props) {
   const initialFormState = { ad: '', dal: '', haftalik_program: { pazartesi: 'bos', sali: 'bos', carsamba: 'bos', persembe: 'bos', cuma: 'bos' } as HaftalikProgram };
   const [sinifFormData, setSinifFormData] = useState(initialFormState);
   const [editSinifFormData, setEditSinifFormData] = useState(initialFormState);
+  const [countdown, setCountdown] = useState(0);
+
+  // Countdown useEffect
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => {
+        const newCountdown = countdown - 1;
+        setCountdown(newCountdown);
+        
+        // Countdown bitti, modal'ı kapat
+        if (newCountdown === 0) {
+          setTimeout(() => {
+            setEditSinifModal(false);
+            setSelectedSinif(null);
+            window.location.reload();
+          }, 100);
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
 
   const handleSinifEkle = async () => {
     if (!sinifFormData.ad.trim()) { return toast.error('Sınıf adı gereklidir!'); }
@@ -113,13 +134,10 @@ export default function SiniflarTab({ initialSiniflar, alanId }: Props) {
   };
 
   const handleSinifDuzenle = (sinif: Sinif) => {
-    console.log('handleSinifDuzenle called with:', sinif);
-    
     // Check for alternative id fields or use ad as fallback
     const identifier = sinif.id || (sinif as any).uuid || (sinif as any).sinif_id || sinif.ad;
     
     if (!sinif || !identifier) {
-      console.log('Validation failed - sinif or identifier is missing');
       toast.error('Sınıf bilgisi eksik. Lütfen sayfayı yenileyin.');
       return;
     }
@@ -131,11 +149,13 @@ export default function SiniflarTab({ initialSiniflar, alanId }: Props) {
       _useAdAsId: !sinif.id // Flag to know we're using ad as id
     };
     
+    // Reset countdown when opening modal
+    setCountdown(0);
     setSelectedSinif(sinifWithId);
-    setEditSinifFormData({ 
-      ad: sinif.ad || '', 
-      dal: sinif.dal || '', 
-      haftalik_program: sinif.haftalik_program || initialFormState.haftalik_program 
+    setEditSinifFormData({
+      ad: sinif.ad || '',
+      dal: sinif.dal || '',
+      haftalik_program: sinif.haftalik_program || initialFormState.haftalik_program
     });
     setEditSinifModal(true);
   };
@@ -153,7 +173,7 @@ export default function SiniflarTab({ initialSiniflar, alanId }: Props) {
     
     setSubmitLoading(true);
     try {
-      const response = await fetch(`/api/admin/classes?id=${selectedSinif.id}`, {
+      const response = await fetch(`/api/admin/classes/${selectedSinif.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -170,9 +190,9 @@ export default function SiniflarTab({ initialSiniflar, alanId }: Props) {
       }
       
       toast.success('Sınıf başarıyla güncellendi.');
-      setEditSinifModal(false);
-      setSelectedSinif(null);
-      router.refresh();
+      
+      // 3 saniye geri sayım başlat
+      setCountdown(3);
     } catch (error: any) {
       toast.error(`Sınıf güncellenirken hata: ${error.message}`);
     } finally {
@@ -188,7 +208,7 @@ export default function SiniflarTab({ initialSiniflar, alanId }: Props) {
     
     setSubmitLoading(true);
     try {
-      const response = await fetch(`/api/admin/classes?id=${selectedSinif.id}`, {
+      const response = await fetch(`/api/admin/classes/${selectedSinif.id}`, {
         method: 'DELETE'
       });
       
@@ -245,8 +265,11 @@ export default function SiniflarTab({ initialSiniflar, alanId }: Props) {
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Dal (İsteğe Bağlı)</label><input type="text" value={editSinifFormData.dal || ''} onChange={(e) => setEditSinifFormData({ ...editSinifFormData, dal: e.target.value })} className="w-full px-3 py-2 border rounded-md"/></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Haftalık Program</label><HaftalikProgramBileseni program={editSinifFormData.haftalik_program} onChange={(p) => setEditSinifFormData({...editSinifFormData, haftalik_program: p})} /></div>
             <div className="flex justify-between pt-4 border-t">
-              <button onClick={() => { setEditSinifModal(false); setDeleteSinifModal(true); }} className="inline-flex items-center px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 className="h-4 w-4 mr-2" />Sil</button>
-              <div className="flex space-x-3"><button onClick={() => setEditSinifModal(false)} className="px-4 py-2 rounded-md border">İptal</button><button onClick={handleSinifGuncelle} disabled={submitLoading} className="px-4 py-2 text-white bg-indigo-600 rounded-md disabled:opacity-50">{submitLoading ? 'Güncelleniyor...' : 'Güncelle'}</button></div>
+              <button onClick={() => { setEditSinifModal(false); setDeleteSinifModal(true); }} disabled={countdown > 0} className="inline-flex items-center px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"><Trash2 className="h-4 w-4 mr-2" />Sil</button>
+              <div className="flex space-x-3">
+                <button onClick={() => setEditSinifModal(false)} disabled={submitLoading || countdown > 0} className="px-4 py-2 rounded-md border disabled:opacity-50">İptal</button>
+                <button onClick={handleSinifGuncelle} disabled={submitLoading || countdown > 0} className="px-4 py-2 text-white bg-indigo-600 rounded-md disabled:opacity-50">{submitLoading ? 'Güncelleniyor...' : 'Güncelle'}</button>
+              </div>
             </div>
           </div>
         </Modal>
