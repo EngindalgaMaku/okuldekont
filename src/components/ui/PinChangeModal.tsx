@@ -37,8 +37,11 @@ export default function PinChangeModal({ isOpen, onClose, onSuccess, userId, use
       return
     }
     
-    if (newPin === '2025') {
-      setError('Varsayılan PIN olan 2025 kullanılamaz. Lütfen farklı bir PIN seçin.')
+    // PIN validation (genel güvenlik kontrolleri)
+    if (newPin === '0000' || newPin === '1111' || newPin === '2222' || newPin === '3333' ||
+        newPin === '4444' || newPin === '5555' || newPin === '6666' || newPin === '7777' ||
+        newPin === '8888' || newPin === '9999' || newPin === '1234') {
+      setError('Güvenlik nedeniyle çok basit PIN kodları kullanılamaz. Lütfen farklı bir PIN seçin.')
       return
     }
     

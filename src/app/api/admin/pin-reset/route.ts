@@ -23,15 +23,21 @@ export async function POST(request: NextRequest) {
     let count = 0;
 
     if (type === 'teacher') {
-      // Tüm öğretmenlerin PIN'lerini sıfırla
+      // Tüm öğretmenlerin PIN'lerini sıfırla ve PIN değiştirmeye mecbur et
       updateResult = await prisma.teacherProfile.updateMany({
-        data: { pin }
+        data: {
+          pin,
+          mustChangePin: true
+        }
       })
       count = updateResult.count
     } else if (type === 'company') {
-      // Tüm işletmelerin PIN'lerini sıfırla
+      // Tüm işletmelerin PIN'lerini sıfırla ve PIN değiştirmeye mecbur et
       updateResult = await prisma.companyProfile.updateMany({
-        data: { pin }
+        data: {
+          pin,
+          mustChangePin: true
+        }
       })
       count = updateResult.count
     } else {

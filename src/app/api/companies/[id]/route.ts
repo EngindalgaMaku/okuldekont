@@ -36,6 +36,7 @@ export async function GET(
       email: company.email,
       yetkili_kisi: company.contact,
       pin: company.pin,
+      mustChangePin: company.mustChangePin,
       taxNumber: company.taxNumber,
       teacherId: company.teacherId,
       teacher: company.teacher ? {
@@ -78,6 +79,7 @@ export async function PUT(
         contact: data.contact,
         pin: data.pin,
         taxNumber: data.taxNumber,
+        mustChangePin: data.pin ? false : undefined, // PIN değiştiriliyorsa zorunlu değişiklik kaldırılsın
         // Add other fields as needed
       },
     })

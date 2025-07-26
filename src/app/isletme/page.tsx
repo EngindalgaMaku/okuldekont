@@ -373,16 +373,12 @@ export default function PanelPage() {
       const isletmeData = await isletmeResponse.json();
       setIsletme(isletmeData);
       
-      // Check if PIN needs to be changed (default PIN is 1234)
+      // PIN değiştirme kontrolü - mustChangePin alanını kontrol et
       console.log('İşletme PIN kontrolü:', {
-        pin: isletmeData.pin,
-        pinType: typeof isletmeData.pin,
-        equals1234: isletmeData.pin === '1234',
-        equalsNull: isletmeData.pin === null,
-        equalsUndefined: isletmeData.pin === undefined
+        mustChangePin: isletmeData.mustChangePin
       });
       
-      if (isletmeData.pin === '1234' || isletmeData.pin === null || isletmeData.pin === undefined) {
+      if (isletmeData.mustChangePin) {
         console.log('PIN değiştirme modal\'ı açılıyor...');
         setTimeout(() => {
           setIsManualPinChange(false); // Otomatik açılma

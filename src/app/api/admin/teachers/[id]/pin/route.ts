@@ -20,7 +20,10 @@ export async function PUT(
     // Öğretmen PIN güncelleme
     const updatedTeacher = await prisma.teacherProfile.update({
       where: { id },
-      data: { pin }
+      data: {
+        pin,
+        mustChangePin: false // PIN değiştirildi, zorunlu değişiklik kaldırıldı
+      }
     })
 
     // PIN güvenlik sistemini resetle (bloke kaldır ve denemeleri temizle)
@@ -54,7 +57,10 @@ export async function POST(
     // Öğretmen PIN güncelleme
     const updatedTeacher = await prisma.teacherProfile.update({
       where: { id },
-      data: { pin }
+      data: {
+        pin,
+        mustChangePin: false // PIN değiştirildi, zorunlu değişiklik kaldırıldı
+      }
     })
 
     // PIN güvenlik sistemini resetle (bloke kaldır ve denemeleri temizle)

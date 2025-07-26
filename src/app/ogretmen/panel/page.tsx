@@ -302,16 +302,12 @@ const TeacherPanel = () => {
           setUnreadCount(unreadNotifications.length);
         }
 
-        // PIN kontrolü
+        // PIN değiştirme kontrolü - mustChangePin alanını kontrol et
         console.log('Öğretmen PIN kontrolü:', {
-          pin: ogretmenData.pin,
-          pinType: typeof ogretmenData.pin,
-          equals2025: ogretmenData.pin === '2025',
-          equalsNull: ogretmenData.pin === null,
-          equalsUndefined: ogretmenData.pin === undefined
+          mustChangePin: ogretmenData.mustChangePin
         });
         
-        if (ogretmenData.pin === '2025' || ogretmenData.pin === null || ogretmenData.pin === undefined) {
+        if (ogretmenData.mustChangePin) {
           console.log('Öğretmen PIN değiştirme modal\'ı açılıyor...');
           setIsManualPinChange(false); // Otomatik açılma
           setPinChangeModalOpen(true);
@@ -353,8 +349,10 @@ const TeacherPanel = () => {
       fetchOgretmenData(ogretmenData.id);
       fetchNotifications(ogretmenData.id);
       
-      // Check if PIN needs to be changed after data is loaded
-      if (ogretmenData.pin === '2025') {
+      // PIN değiştirme kontrolü - mustChangePin alanını kontrol et
+      if (ogretmenData.mustChangePin) {
+        console.log('Öğretmen PIN değiştirme modal\'ı açılıyor (fetchOgretmenById)...');
+        setIsManualPinChange(false); // Otomatik açılma
         setPinChangeModalOpen(true);
       }
     } catch (error) {
