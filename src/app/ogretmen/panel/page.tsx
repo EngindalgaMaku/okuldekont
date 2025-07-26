@@ -83,6 +83,7 @@ const TeacherPanel = () => {
   const [pinChangeModalOpen, setPinChangeModalOpen] = useState(false);
   const [teacherPin, setTeacherPin] = useState('');
   const [isManualPinChange, setIsManualPinChange] = useState(false);
+  const [successCountdown, setSuccessCountdown] = useState(0);
   
   // Collapsible işletme öğrenci listesi için state
   const [expandedIsletmeler, setExpandedIsletmeler] = useState<{[key: string]: boolean}>({});
@@ -302,7 +303,16 @@ const TeacherPanel = () => {
         }
 
         // PIN kontrolü
-        if (ogretmenData.pin === '2025') {
+        console.log('Öğretmen PIN kontrolü:', {
+          pin: ogretmenData.pin,
+          pinType: typeof ogretmenData.pin,
+          equals2025: ogretmenData.pin === '2025',
+          equalsNull: ogretmenData.pin === null,
+          equalsUndefined: ogretmenData.pin === undefined
+        });
+        
+        if (ogretmenData.pin === '2025' || ogretmenData.pin === null || ogretmenData.pin === undefined) {
+          console.log('Öğretmen PIN değiştirme modal\'ı açılıyor...');
           setIsManualPinChange(false); // Otomatik açılma
           setPinChangeModalOpen(true);
         }
@@ -592,6 +602,19 @@ const TeacherPanel = () => {
       fetchOgretmenData(teacher.id);
       fetchNotifications(teacher.id);
     }
+    
+    // 3 saniyelik geri sayım başlat
+    setSuccessCountdown(3);
+    const countdownInterval = setInterval(() => {
+      setSuccessCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval);
+          setSuccessModal({ isOpen: false, title: '', message: '' });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
   // İşletme öğrenci listesi toggle fonksiyonu - accordion behavior
@@ -2044,6 +2067,13 @@ const TeacherPanel = () => {
            <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
            <span>{successModal.message}</span>
          </div>
+         {successCountdown > 0 && (
+           <div className="text-center p-3 bg-blue-50 rounded-lg">
+             <p className="text-sm text-blue-700">
+               Modal {successCountdown} saniye sonra otomatik kapanacak...
+             </p>
+           </div>
+         )}
          <div className="flex justify-end pt-4">
            <button
              onClick={() => setSuccessModal({ isOpen: false, title: '', message: '' })}

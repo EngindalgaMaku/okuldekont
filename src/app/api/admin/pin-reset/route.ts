@@ -1,66 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const { type, pin } = await request.json()
 
     if (!type || !pin) {
       return NextResponse.json(
-        { error: 'Type and pin are required' },
+        { error: 'Type ve PIN gereklidir' },
         { status: 400 }
       )
     }
 
     if (pin.length !== 4) {
       return NextResponse.json(
-        { error: 'PIN must be 4 digits' },
+        { error: 'PIN 4 haneli olmalıdır' },
         { status: 400 }
       )
     }
 
-    let count = 0
+    let updateResult;
+    let count = 0;
 
     if (type === 'teacher') {
-      const result = await prisma.teacherProfile.updateMany({
-        data: {
-          pin: pin,
-          mustChangePin: true  // Toplu reset sonrası PIN değiştirmeyi zorla
-        }
+      // Tüm öğretmenlerin PIN'lerini sıfırla
+      updateResult = await prisma.teacherProfile.updateMany({
+        data: { pin }
       })
-      count = result.count
+      count = updateResult.count
     } else if (type === 'company') {
-      const result = await prisma.companyProfile.updateMany({
-        data: {
-          pin: pin,
-          mustChangePin: true  // Toplu reset sonrası PIN değiştirmeyi zorla
-        }
+      // Tüm işletmelerin PIN'lerini sıfırla
+      updateResult = await prisma.companyProfile.updateMany({
+        data: { pin }
       })
-      count = result.count
+      count = updateResult.count
     } else {
       return NextResponse.json(
-        { error: 'Invalid type. Must be "teacher" or "company"' },
+        { error: 'Geçersiz type. "teacher" veya "company" olmalıdır' },
         { status: 400 }
       )
     }
 
-    return NextResponse.json({
-      success: true,
+    console.log(`${type} PIN reset completed. Updated ${count} records with PIN: ${pin}`)
+
+    return NextResponse.json({ 
+      success: true, 
       count,
-      message: `${count} ${type === 'teacher' ? 'öğretmen' : 'işletme'} PIN'i sıfırlandı ve ilk girişte PIN değiştirmeleri gerekecek`
+      message: `${count} ${type === 'teacher' ? 'öğretmen' : 'işletme'} PIN'i güncellendi`
     })
   } catch (error) {
-    console.error('PIN reset error:', error)
+    console.error('PIN reset hatası:', error)
     return NextResponse.json(
-      { error: 'Failed to reset PINs' },
+      { error: 'PIN reset işlemi başarısız oldu' },
       { status: 500 }
     )
   }

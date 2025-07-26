@@ -132,6 +132,7 @@ export default function PanelPage() {
   // PIN change modal state
   const [pinChangeModalOpen, setPinChangeModalOpen] = useState(false);
   const [isManualPinChange, setIsManualPinChange] = useState(false);
+  const [successCountdown, setSuccessCountdown] = useState(0);
   
   // Ek dekont uyarı modal state
   const [ekDekontModalOpen, setEkDekontModalOpen] = useState(false);
@@ -373,7 +374,16 @@ export default function PanelPage() {
       setIsletme(isletmeData);
       
       // Check if PIN needs to be changed (default PIN is 1234)
-      if (isletmeData.pin === '1234') {
+      console.log('İşletme PIN kontrolü:', {
+        pin: isletmeData.pin,
+        pinType: typeof isletmeData.pin,
+        equals1234: isletmeData.pin === '1234',
+        equalsNull: isletmeData.pin === null,
+        equalsUndefined: isletmeData.pin === undefined
+      });
+      
+      if (isletmeData.pin === '1234' || isletmeData.pin === null || isletmeData.pin === undefined) {
+        console.log('PIN değiştirme modal\'ı açılıyor...');
         setTimeout(() => {
           setIsManualPinChange(false); // Otomatik açılma
           setPinChangeModalOpen(true)
@@ -2316,6 +2326,13 @@ export default function PanelPage() {
               {successMessage}
             </p>
           </div>
+          {successCountdown > 0 && (
+            <div className="text-center p-3 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-700">
+                Modal {successCountdown} saniye sonra otomatik kapanacak...
+              </p>
+            </div>
+          )}
           <div className="flex justify-end">
             <button
               onClick={() => setSuccessModalOpen(false)}
@@ -2548,6 +2565,19 @@ export default function PanelPage() {
           setSuccessMessage('PIN başarıyla değiştirildi!');
           setSuccessModalOpen(true);
           fetchData();
+          
+          // 3 saniyelik geri sayım başlat
+          setSuccessCountdown(3);
+          const countdownInterval = setInterval(() => {
+            setSuccessCountdown(prev => {
+              if (prev <= 1) {
+                clearInterval(countdownInterval);
+                setSuccessModalOpen(false);
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
         }}
         userId={isletme?.id || ''}
         userName={isletme?.yetkili_kisi || ''}
