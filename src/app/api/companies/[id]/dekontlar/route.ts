@@ -28,7 +28,27 @@ export async function GET(
             }
           }
         },
-        staj: true
+        staj: {
+          include: {
+            teacher: {
+              select: {
+                name: true,
+                surname: true
+              }
+            }
+          }
+        },
+        teacher: {
+          select: {
+            name: true,
+            surname: true
+          }
+        },
+        company: {
+          select: {
+            contact: true
+          }
+        }
       },
       orderBy: {
         createdAt: 'desc'
@@ -47,7 +67,9 @@ export async function GET(
       onay_durumu: dekont.status === 'APPROVED' ? 'onaylandi' :
                    dekont.status === 'REJECTED' ? 'reddedildi' : 'bekliyor',
       red_nedeni: dekont.rejectReason,
-      yukleyen_kisi: 'İşletme',
+      yukleyen_kisi: dekont.company?.contact
+        ? `${dekont.company.contact} (İşletme)`
+        : 'İşletme',
       odeme_tarihi: dekont.paymentDate.toISOString(),
       created_at: dekont.createdAt || new Date().toISOString(),
       // Nested relations for compatibility
@@ -116,7 +138,14 @@ export async function POST(
         },
         company: {
           select: {
-            name: true
+            name: true,
+            contact: true
+          }
+        },
+        teacher: {
+          select: {
+            name: true,
+            surname: true
           }
         }
       }
@@ -255,26 +284,26 @@ export async function POST(
       )
     }
 
-    // Create the dekont with conditional teacherId
-    const dekontData: any = {
-      stajId: stajId,
-      studentId: staj.studentId,
-      companyId: companyId,
-      month: ay,
-      year: yil,
-      amount: miktar,
-      fileUrl: fileUrl,
-      status: 'PENDING',
-      paymentDate: new Date()
-    };
-    
-    // Only include teacherId if it exists
-    if (staj.teacherId) {
-      dekontData.teacherId = staj.teacherId;
-    }
-    
+    // Create the dekont - company upload (teacherId = null for proper attribution)
     const newDekont = await prisma.dekont.create({
-      data: dekontData
+      data: {
+        staj: {
+          connect: { id: stajId }
+        },
+        student: {
+          connect: { id: staj.studentId }
+        },
+        company: {
+          connect: { id: companyId }
+        },
+        // Don't connect teacher for company uploads (teacherId will be null)
+        month: ay,
+        year: yil,
+        amount: miktar,
+        fileUrl: fileUrl,
+        status: 'PENDING',
+        paymentDate: new Date()
+      }
     })
 
     // Student info is already available from staj relation
@@ -293,7 +322,9 @@ export async function POST(
       ay: newDekont.month,
       yil: newDekont.year,
       staj_id: newDekont.stajId,
-      yukleyen_kisi: 'İşletme',
+      yukleyen_kisi: staj.company?.contact
+        ? `${staj.company.contact} (İşletme)`
+        : 'İşletme',
       created_at: newDekont.createdAt,
       stajlar: {
         ogrenciler: {

@@ -17,10 +17,10 @@ export async function GET(request: Request) {
     
     if (search) {
       whereCondition.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { contact: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } }
+        { name: { contains: search } },
+        { contact: { contains: search } },
+        { phone: { contains: search } },
+        { email: { contains: search } }
       ]
     }
 

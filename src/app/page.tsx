@@ -60,6 +60,14 @@ export default function LoginPage() {
   // Use EgitimYiliContext for school name
   const { okulAdi } = useEgitimYili()
 
+  // Load last login type from localStorage on component mount
+  useEffect(() => {
+    const lastLoginType = localStorage.getItem('lastLoginType') as 'isletme' | 'ogretmen' | null
+    if (lastLoginType && (lastLoginType === 'isletme' || lastLoginType === 'ogretmen')) {
+      setLoginType(lastLoginType)
+    }
+  }, [])
+
   // Debounced search term - 300ms bekle
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
@@ -131,9 +139,10 @@ export default function LoginPage() {
     }
   }, [debouncedSearchTerm, searchInDatabase])
 
-  // Login type değiştiğinde temizle
+  // Login type değiştiğinde temizle (localStorage kaydını kaldırdık, sadece başarılı girişte kaydedecek)
   useEffect(() => {
     resetSelection()
+    console.log('🔄 Tab değişikliği - sadece seçim temizleniyor')
   }, [loginType])
 
   const handleSelectAndProceed = async () => {
@@ -218,10 +227,16 @@ export default function LoginPage() {
       const result = await response.json()
 
       if (result.success) {
+        // Store last successful login type for next time
+        const currentLoginType = isIsletme ? 'isletme' : 'ogretmen'
+        console.log('💾 Başarılı giriş - localStorage\'a kaydediliyor:', currentLoginType)
+        localStorage.setItem('lastLoginType', currentLoginType)
+        console.log('✅ localStorage kaydedildi. Kontrol:', localStorage.getItem('lastLoginType'))
+        
         // Store login data in localStorage
         const loginData = {
           ...selectedEntity,
-          loginType: isIsletme ? 'isletme' : 'ogretmen'
+          loginType: currentLoginType
         }
         
         localStorage.setItem(isIsletme ? 'isletme' : 'ogretmen', JSON.stringify(loginData))

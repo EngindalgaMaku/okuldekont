@@ -243,7 +243,7 @@ model Dekont {
   id           String       @id @default(cuid())
   stajId       String
   companyId    String
-  teacherId    String
+  teacherId    String?
   studentId    String
   amount       Decimal?     @db.Decimal(10, 2)
   paymentDate  DateTime
@@ -258,10 +258,10 @@ model Dekont {
   fileUrl      String?
   createdAt    DateTime     @default(now())
   
-  staj      Staj           @relation(fields: [stajId], references: [id])
-  company   CompanyProfile @relation(fields: [companyId], references: [id])
-  teacher   TeacherProfile @relation(fields: [teacherId], references: [id])
-  student   Student        @relation(fields: [studentId], references: [id])
+  staj      Staj            @relation(fields: [stajId], references: [id])
+  company   CompanyProfile  @relation(fields: [companyId], references: [id])
+  teacher   TeacherProfile? @relation(fields: [teacherId], references: [id])
+  student   Student         @relation(fields: [studentId], references: [id])
   
   @@map("dekonts")
 }

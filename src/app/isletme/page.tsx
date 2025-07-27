@@ -68,6 +68,7 @@ interface Belge {
   onay_durumu?: 'PENDING' | 'APPROVED' | 'REJECTED'
   onaylanma_tarihi?: string
   red_nedeni?: string
+  yuklenen_taraf?: string
 }
 
 interface Notification {
@@ -1917,16 +1918,19 @@ export default function PanelPage() {
                               Belgeyi İndir
                             </button>
                           )}
-                          <button
-                            onClick={() => {
-                              setSelectedBelge(belge)
-                              setBelgeDeleteModalOpen(true)
-                            }}
-                            className="flex items-center justify-center px-4 py-2 text-sm text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors border border-red-200 hover:border-red-300"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Belgeyi Sil
-                          </button>
+                          {/* Silme butonu sadece işletme yüklemelerinde gösterilir */}
+                          {belge.yuklenen_taraf !== 'ogretmen' && (
+                            <button
+                              onClick={() => {
+                                setSelectedBelge(belge)
+                                setBelgeDeleteModalOpen(true)
+                              }}
+                              className="flex items-center justify-center px-4 py-2 text-sm text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors border border-red-200 hover:border-red-300"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Belgeyi Sil
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}

@@ -110,7 +110,7 @@ export async function POST(
           ad: belgeTuru,
           belgeTuru: belgeTuru,
           dosyaUrl: dosyaUrl,
-          dosyaAdi: dosya.name,
+          dosyaAdi: yeniDosyaAdi, // Yeni dosya adını kaydet, orijinal değil
           yuklenenTaraf: "isletme",
           isletmeId: id
         }
@@ -120,7 +120,7 @@ export async function POST(
       // Response formatı
       const response = {
         id: yeniBelge.id,
-        ad: dosya.name.split('.')[0], // Dosya adından uzantıyı çıkar
+        ad: yeniDosyaAdi.split('.')[0], // Yeni dosya adından uzantıyı çıkar
         tur: belgeTuru,
         isletme_id: parseInt(id),
         dosya_url: dosyaUrl,
@@ -146,11 +146,11 @@ export async function GET(
   try {
     const { id } = await params
     
-    // İşletme belgelerini yeni Belge tablosundan getir
+    // İşletme belgelerini yeni Belge tablosundan getir - hem işletme hem öğretmen yüklemeleri
     const belgeler = await (prisma as any).belge.findMany({
       where: {
-        isletmeId: id,
-        yuklenenTaraf: 'isletme'
+        isletmeId: id
+        // yuklenenTaraf kısıtlamasını kaldır - hem 'isletme' hem 'ogretmen' yüklemelerini dahil et
       },
       orderBy: {
         createdAt: 'desc'
@@ -168,17 +168,32 @@ export async function GET(
     }
 
     // Belgeler formatını uygun hale getir
-    const formattedBelgeler = belgeler.map((belge: any) => {
+    const formattedBelgeler = await Promise.all(belgeler.map(async (belge: any) => {
+      let yukleyenKisi = `${isletme.contact} (İşletme)`;
+      
+      // Eğer öğretmen yüklemişse, öğretmen bilgisini al
+      if (belge.yuklenenTaraf === 'ogretmen' && belge.ogretmenId) {
+        const ogretmen = await prisma.teacherProfile.findUnique({
+          where: { id: belge.ogretmenId },
+          select: { name: true, surname: true }
+        });
+        
+        if (ogretmen) {
+          yukleyenKisi = `${ogretmen.name} ${ogretmen.surname} (Öğretmen)`;
+        }
+      }
+      
       return {
         id: belge.id,
         ad: belge.ad, // Belge adı
         tur: belge.belgeTuru, // Belge türü
         dosya_url: belge.dosyaUrl, // Dosya yolu
         yukleme_tarihi: belge.createdAt.toISOString(),
-        yukleyen_kisi: `${isletme.contact} (İşletme)`,
+        yukleyen_kisi: yukleyenKisi,
+        yuklenen_taraf: belge.yuklenenTaraf, // Silme kontrolü için
         isletme_id: parseInt(id)
       };
-    });
+    }));
 
     const response = NextResponse.json(formattedBelgeler);
     
@@ -211,13 +226,19 @@ export async function DELETE(
     const belge = await (prisma as any).belge.findFirst({
       where: {
         id: belgeId,
-        isletmeId: id,
-        yuklenenTaraf: 'isletme'
+        isletmeId: id
       }
     })
 
     if (!belge) {
       return NextResponse.json({ error: 'Belge bulunamadı' }, { status: 404 })
+    }
+
+    // Öğretmen tarafından yüklenen belgeleri işletme silemez
+    if (belge.yuklenenTaraf === 'ogretmen') {
+      return NextResponse.json({
+        error: 'Öğretmen tarafından yüklenen belgeler işletme tarafından silinemez'
+      }, { status: 403 })
     }
 
     // Belgeyi sil

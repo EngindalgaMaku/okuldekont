@@ -11,7 +11,9 @@ import {
   Wrench,
   Printer,
   Users,
-  ClipboardList
+  ClipboardList,
+  FileBarChart,
+  FileCheck
 } from 'lucide-react'
 
 interface Tool {
@@ -36,6 +38,15 @@ const tools: Tool[] = [
     bgColor: 'bg-blue-50 hover:bg-blue-100'
   },
   {
+    id: 'raporlar',
+    title: 'Raporlar',
+    description: 'Staj fesih, atama ve diğer önemli işlem raporları oluşturun',
+    icon: FileBarChart,
+    href: '/admin/araclar/raporlar',
+    color: 'text-emerald-600',
+    bgColor: 'bg-emerald-50 hover:bg-emerald-100'
+  },
+  {
     id: 'gorev-takibi',
     title: 'Görev Takibi',
     description: 'Öğretmen görev belgelerini görüntüleyin ve takip edin',
@@ -43,16 +54,6 @@ const tools: Tool[] = [
     href: '/admin/gorev-takip',
     color: 'text-indigo-600',
     bgColor: 'bg-indigo-50 hover:bg-indigo-100'
-  },
-  {
-    id: 'gorev-belgesi-rapor',
-    title: 'Görev Belgesi Raporu',
-    description: 'Öğretmen görev belgesi durumları raporu',
-    icon: FileText,
-    href: '/admin/araclar/gorev-belgesi-rapor',
-    color: 'text-green-600',
-    bgColor: 'bg-green-50 hover:bg-green-100',
-    disabled: true
   },
   {
     id: 'istatistik-rapor',
@@ -72,6 +73,15 @@ const tools: Tool[] = [
     href: '/admin/araclar/toplu-belge-indirme',
     color: 'text-orange-600',
     bgColor: 'bg-orange-50 hover:bg-orange-100'
+  },
+  {
+    id: 'belge-islemleri',
+    title: 'Belge İşlemleri',
+    description: 'Öğretmen ve işletme panellerinden yüklenen belgelerin onay/red işlemleri',
+    icon: FileCheck,
+    href: '/admin/araclar/belge-islemleri',
+    color: 'text-teal-600',
+    bgColor: 'bg-teal-50 hover:bg-teal-100'
   }
 ]
 
@@ -93,7 +103,6 @@ export default function AraclarPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Araçlar</h1>
-            <p className="text-gray-600">Çıktı alma ve raporlama araçları</p>
           </div>
         </div>
 
@@ -158,21 +167,6 @@ export default function AraclarPage() {
         </div>
       )}
 
-      {/* Info Box */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex items-start gap-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <Printer className="w-5 h-5 text-blue-600" />
-          </div>
-          <div>
-            <h4 className="font-medium text-blue-900 mb-1">Çıktı Alma İpuçları</h4>
-            <p className="text-blue-800 text-sm">
-              Tüm çıktılar PDF formatında hazırlanır ve yazdırma dostu bir tasarıma sahiptir. 
-              En iyi sonuç için A4 kağıt boyutunu kullanın.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

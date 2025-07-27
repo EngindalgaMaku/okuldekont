@@ -170,7 +170,7 @@ export async function DELETE(
     // Get real system user ID
     const currentUserId = await getSystemUserId()
 
-    // Start transaction to ensure data consistency
+    // Start transaction to ensure data consistency with extended timeout
     const result = await prisma.$transaction(async (prisma) => {
       // 1. Get student with company information
       const student = await prisma.student.findUnique({
@@ -209,50 +209,49 @@ export async function DELETE(
         // Use provided termination date or current date
         const finalTerminationDate = terminationDate ? new Date(terminationDate) : new Date();
         
-        for (const internship of activeInternships) {
-          const terminatedInternship = await prisma.staj.update({
-            where: { id: internship.id },
-            data: {
+        // Batch update all internships
+        const internshipIds = activeInternships.map(i => i.id)
+        await prisma.staj.updateMany({
+          where: { id: { in: internshipIds } },
+          data: {
+            status: 'TERMINATED',
+            terminationDate: finalTerminationDate,
+            terminationReason: reason.trim(),
+            terminationNotes: notes?.trim() || null,
+            terminatedBy: currentUserId
+          }
+        })
+
+        // Create history records in batch
+        const historyRecords = activeInternships.map(internship => {
+          const terminationDateFormatted = finalTerminationDate.toLocaleDateString('tr-TR');
+          const teacherName = internship.teacher ? `${internship.teacher.name} ${internship.teacher.surname}` : 'Atanmamış';
+          
+          return {
+            internshipId: internship.id,
+            action: 'TERMINATED' as const,
+            previousData: {
+              status: internship.status,
+              terminationDate: internship.terminationDate,
+              terminationReason: internship.terminationReason
+            },
+            newData: {
               status: 'TERMINATED',
               terminationDate: finalTerminationDate,
               terminationReason: reason.trim(),
-              terminationNotes: notes?.trim() || null,
-              terminatedBy: currentUserId
-            }
-          })
+              terminationNotes: notes?.trim() || null
+            },
+            performedBy: currentUserId,
+            reason: `${internship.company.name} işletmesinde staj fesih edildi`,
+            notes: `Fesih Tarihi: ${terminationDateFormatted} | Koordinatör: ${teacherName} | Neden: ${reason.trim()}`
+          }
+        })
 
-          // Get teacher info for detailed history
-          const teacherInfo = internship.teacherId ? await prisma.teacherProfile.findUnique({
-            where: { id: internship.teacherId }
-          }) : null;
+        await prisma.internshipHistory.createMany({
+          data: historyRecords
+        })
 
-          // Create internship history record
-          const terminationDateFormatted = terminatedInternship.terminationDate?.toLocaleDateString('tr-TR');
-          const teacherName = teacherInfo ? `${teacherInfo.name} ${teacherInfo.surname}` : 'Atanmamış';
-          
-          await prisma.internshipHistory.create({
-            data: {
-              internshipId: internship.id,
-              action: 'TERMINATED',
-              previousData: {
-                status: internship.status,
-                terminationDate: internship.terminationDate,
-                terminationReason: internship.terminationReason
-              },
-              newData: {
-                status: 'TERMINATED',
-                terminationDate: terminatedInternship.terminationDate,
-                terminationReason: terminatedInternship.terminationReason,
-                terminationNotes: terminatedInternship.terminationNotes
-              },
-              performedBy: currentUserId,
-              reason: `${internship.company.name} işletmesinde staj fesih edildi`,
-              notes: `Fesih Tarihi: ${terminationDateFormatted} | Koordinatör: ${teacherName} | Neden: ${reason.trim()}`
-            }
-          })
-
-          terminatedInternshipsCount++
-        }
+        terminatedInternshipsCount = activeInternships.length
       }
 
       // 4. Remove company assignment from student (regardless of internship records)
@@ -289,6 +288,8 @@ export async function DELETE(
         terminatedCount: terminatedInternshipsCount,
         companyName: student.company.name
       }
+    }, {
+      timeout: 15000 // 15 saniye timeout
     })
 
     return NextResponse.json({

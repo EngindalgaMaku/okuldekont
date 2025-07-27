@@ -13,7 +13,7 @@ export async function GET(
     const itemsPerPage = 10
     const skip = (page - 1) * itemsPerPage
 
-    // Öğrencileri sayfalı olarak getir (koordinatör öğretmen bilgisi dahil)
+    // Öğrencileri sayfalı olarak getir (aktif stajlar dahil)
     const [ogrencilerData, totalCount] = await Promise.all([
       prisma.student.findMany({
         where: { alanId: alanId },
@@ -51,7 +51,29 @@ export async function GET(
             },
             select: {
               id: true,
+              companyId: true,
               teacherId: true,
+              company: {
+                select: {
+                  id: true,
+                  name: true,
+                  contact: true,
+                  teacher: {
+                    select: {
+                      id: true,
+                      name: true,
+                      surname: true,
+                      alanId: true,
+                      alan: {
+                        select: {
+                          id: true,
+                          name: true
+                        }
+                      }
+                    }
+                  }
+                }
+              },
               teacher: {
                 select: {
                   id: true,
@@ -81,9 +103,12 @@ export async function GET(
 
     // Öğrenci verilerini dönüştür
     const transformedOgrenciler = ogrencilerData.map((ogrenci) => {
-      // Aktif staj için koordinatör öğretmeni al (öncelik staj koordinatörüne)
+      // Aktif staj varsa öncelik ver, yoksa student.company'yi kullan
       const activeInternship = ogrenci.stajlar?.[0]
-      const coordinatorTeacher = activeInternship?.teacher || ogrenci.company?.teacher
+      const currentCompany = activeInternship?.company || ogrenci.company
+      
+      // Koordinatör öğretmeni al (öncelik staj koordinatörüne)
+      const coordinatorTeacher = activeInternship?.teacher || currentCompany?.teacher
       
       return {
         id: ogrenci.id,
@@ -92,10 +117,10 @@ export async function GET(
         no: ogrenci.number || '',
         sinif: ogrenci.className,
         alanId: ogrenci.alanId,
-        company: ogrenci.company ? {
-          id: ogrenci.company.id,
-          name: ogrenci.company.name,
-          contact: ogrenci.company.contact,
+        company: currentCompany ? {
+          id: currentCompany.id,
+          name: currentCompany.name,
+          contact: currentCompany.contact,
           teacher: coordinatorTeacher ? {
             id: coordinatorTeacher.id,
             name: coordinatorTeacher.name,

@@ -284,9 +284,12 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
                 <div className="flex items-start space-x-3">
                   <div className="text-2xl">👨‍🏫</div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-900 mb-1">
+                    <Link
+                      href={`/admin/ogretmenler/${ogretmen.id}`}
+                      className="text-sm font-medium text-gray-900 hover:text-indigo-600 transition-colors cursor-pointer mb-1 block"
+                    >
                       {ogretmen.ad} {ogretmen.soyad}
-                    </div>
+                    </Link>
                     <div className="space-y-1">
                       {ogretmen.email && (
                         <div className="flex items-center text-xs text-gray-600">
@@ -352,7 +355,12 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
                       <div className="flex items-start">
                         <div className="text-xl sm:text-2xl mr-2 sm:mr-3">👨‍🏫</div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs sm:text-sm font-medium text-gray-900 mb-1">{ogretmen.ad} {ogretmen.soyad}</div>
+                          <Link
+                            href={`/admin/ogretmenler/${ogretmen.id}`}
+                            className="text-xs sm:text-sm font-medium text-gray-900 hover:text-indigo-600 transition-colors cursor-pointer mb-1 block"
+                          >
+                            {ogretmen.ad} {ogretmen.soyad}
+                          </Link>
                           <div className="space-y-1">
                             {ogretmen.email && (
                               <div className="flex items-center text-xs text-gray-600">

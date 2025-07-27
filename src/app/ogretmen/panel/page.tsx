@@ -886,13 +886,12 @@ const TeacherPanel = () => {
     setBelgeUploadModalOpen(true);
   };
 
-  const handleBelgeSubmit = async (formData: { isletmeId: string; dosyaAdi: string; dosya: File; belgeTuru: string; }) => {
+  const handleBelgeSubmit = async (formData: { isletmeId: string; dosya_adi: string; dosya: File; belge_turu: string; }) => {
     setIsSubmitting(true);
     try {
       const submitData = new FormData();
       submitData.append('isletme_id', formData.isletmeId);
-      submitData.append('dosya_adi', formData.dosyaAdi);
-      submitData.append('belge_turu', formData.belgeTuru);
+      submitData.append('belge_turu', formData.belge_turu);
       submitData.append('dosya', formData.dosya);
       
       if (teacher) {
@@ -2246,9 +2245,9 @@ const TeacherPanel = () => {
 
                handleBelgeSubmit({
                  isletmeId: selectedIsletme.id,
-                 dosyaAdi: selectedFile.name,
+                 dosya_adi: selectedFile.name,
                  dosya: selectedFile,
-                 belgeTuru: belgeTuruSelect.value
+                 belge_turu: belgeTuruSelect.value
                });
              }}
              disabled={isSubmitting}

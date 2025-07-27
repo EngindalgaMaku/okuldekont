@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { User, Plus, Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight, UserPlus, UserMinus, History, Users, Minus } from 'lucide-react'
+import { User, Plus, Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight, UserPlus, UserMinus, History, Users, Minus, ChevronDown } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import StudentAssignmentModal from '@/components/admin/StudentAssignmentModal'
@@ -83,6 +83,10 @@ export default function OgrencilerTab({
   const [selectedSinif, setSelectedSinif] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   
+  // Dropdown state
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  
   // Deletion confirmation state
   const [confirmationText, setConfirmationText] = useState('')
   
@@ -100,6 +104,20 @@ export default function OgrencilerTab({
   
   // Bulk form data
   const [topluOgrenciler, setTopluOgrenciler] = useState([{ ad: '', soyad: '', no: '', sinif: '' }])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   // Fetch filtered students
   const fetchOgrenciler = async (page: number = 1, search: string = '', sinifFilter: string = 'all', statusFilter: string = 'all') => {
@@ -420,29 +438,51 @@ export default function OgrencilerTab({
         <h2 className="text-xl font-semibold text-gray-900">
           Öğrenciler ({totalOgrenciler})
         </h2>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+        <div className="relative w-full sm:w-auto" ref={dropdownRef}>
           <button
-            onClick={() => {
-              setOgrenciFormData(initialFormState)
-              setOgrenciModalOpen(true)
-            }}
-            className="inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-sm"
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            className="inline-flex items-center justify-center w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-sm"
           >
             <Plus className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Yeni Öğrenci Ekle</span>
-            <span className="sm:hidden">Yeni Öğrenci</span>
+            <span className="hidden sm:inline">Öğrenci Ekle</span>
+            <span className="sm:hidden">Ekle</span>
+            <ChevronDown className={`h-4 w-4 ml-2 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
           </button>
-          <button
-            onClick={() => {
-              setTopluOgrenciler([{ ad: '', soyad: '', no: '', sinif: '' }])
-              setTopluOgrenciModalOpen(true)
-            }}
-            className="inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:from-green-700 hover:to-emerald-700 transition-colors shadow-sm"
-          >
-            <Users className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Toplu Öğrenci Ekle</span>
-            <span className="sm:hidden">Toplu Ekle</span>
-          </button>
+          
+          {dropdownOpen && (
+            <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 z-50">
+              <div className="py-2">
+                <button
+                  onClick={() => {
+                    setOgrenciFormData(initialFormState)
+                    setOgrenciModalOpen(true)
+                    setDropdownOpen(false)
+                  }}
+                  className="w-full flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                >
+                  <Plus className="h-4 w-4 mr-3 text-indigo-500" />
+                  <div className="text-left">
+                    <div className="font-medium">Yeni Öğrenci Ekle</div>
+                    <div className="text-xs text-gray-500">Tek öğrenci kayıt formu</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setTopluOgrenciler([{ ad: '', soyad: '', no: '', sinif: '' }])
+                    setTopluOgrenciModalOpen(true)
+                    setDropdownOpen(false)
+                  }}
+                  className="w-full flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors"
+                >
+                  <Users className="h-4 w-4 mr-3 text-green-500" />
+                  <div className="text-left">
+                    <div className="font-medium">Toplu Öğrenci Ekle</div>
+                    <div className="text-xs text-gray-500">Birden fazla öğrenci ekle</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

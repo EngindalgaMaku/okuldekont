@@ -3,6 +3,42 @@ import { prisma } from '@/lib/prisma';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 
+export async function GET(request: NextRequest) {
+  try {
+    const belgeler = await prisma.belge.findMany({
+      include: {
+        teacher: {
+          select: {
+            name: true,
+            surname: true
+          }
+        },
+        company: {
+          select: {
+            name: true,
+            contact: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    return NextResponse.json({
+      success: true,
+      belgeler: belgeler
+    });
+
+  } catch (error) {
+    console.error('Belgeler listeleme hatası:', error);
+    return NextResponse.json(
+      { error: 'Belgeler yüklenirken hata oluştu' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -11,7 +47,7 @@ export async function POST(request: NextRequest) {
     const dosya = formData.get('dosya') as File;
     const ogretmenId = formData.get('ogretmen_id') as string;
 
-    // Türkçe karakterleri İngilizce karakterlere çeviren ve boşlukları alt çizgi ile değiştiren fonksiyon
+    // Türkçe karakterleri İngilizce karakterlere çeviren fonksiyon - işletme paneli ile tutarlı
     const sanitizeName = (name: string) => {
       const turkishToEnglish: { [key: string]: string } = {
         'ğ': 'g', 'Ğ': 'G',
@@ -28,11 +64,10 @@ export async function POST(request: NextRequest) {
         .replace(/[^\w\-_.]/g, '')
         .toLowerCase();
     };
-
+    
     // Dosya uzantısını al
     const fileExtension = path.extname(dosya.name);
     const tarih = new Date().toISOString().split('T')[0]; // YYYY-MM-DD formatı
-    const timestamp = Date.now(); // Benzersizlik için timestamp ekle
 
     // İşletme bilgisini al
     const isletme = await prisma.companyProfile.findUnique({
@@ -64,7 +99,8 @@ export async function POST(request: NextRequest) {
       }
 
       yukleyenKisi = `${ogretmen.name} ${ogretmen.surname} (Öğretmen)`;
-      yeniDosyaAdi = `${timestamp}_belge_${sanitizeName(belgeTuru)}_${sanitizeName(isletme.name)}_${sanitizeName(ogretmen.name + '_' + ogretmen.surname)}_${tarih}${fileExtension}`;
+      // İşletme paneli ile tutarlı dosya isimlendirme
+      yeniDosyaAdi = `${sanitizeName(belgeTuru)}_${sanitizeName(isletme.name)}_${sanitizeName(`${ogretmen.name}_${ogretmen.surname}`)}_${tarih}${fileExtension}`;
 
       // Öğretmen belgesi için yeni Belge tablosunu kullan
       yeniBelge = await (prisma as any).belge.create({
@@ -72,7 +108,7 @@ export async function POST(request: NextRequest) {
           ad: belgeTuru,
           belgeTuru: belgeTuru,
           dosyaUrl: `/uploads/belgeler/${yeniDosyaAdi}`,
-          dosyaAdi: dosya.name,
+          dosyaAdi: yeniDosyaAdi, // Yeni dosya adını kaydet, orijinal değil
           yuklenenTaraf: "ogretmen",
           ogretmenId: ogretmenId,
           isletmeId: isletmeId
@@ -85,7 +121,8 @@ export async function POST(request: NextRequest) {
       }
 
       yukleyenKisi = `${isletme.contact} (İşletme)`;
-      yeniDosyaAdi = `${timestamp}_belge_${sanitizeName(belgeTuru)}_${sanitizeName(isletme.name)}_${sanitizeName(isletme.contact)}_${tarih}${fileExtension}`;
+      // İşletme paneli ile tutarlı dosya isimlendirme
+      yeniDosyaAdi = `${sanitizeName(belgeTuru)}_${sanitizeName(isletme.name)}_${sanitizeName(isletme.contact)}_${tarih}${fileExtension}`;
 
       // İşletme belgesi için yeni Belge tablosunu kullan
       yeniBelge = await (prisma as any).belge.create({
@@ -93,7 +130,7 @@ export async function POST(request: NextRequest) {
           ad: belgeTuru,
           belgeTuru: belgeTuru,
           dosyaUrl: `/uploads/belgeler/${yeniDosyaAdi}`,
-          dosyaAdi: dosya.name,
+          dosyaAdi: yeniDosyaAdi, // Yeni dosya adını kaydet, orijinal değil
           yuklenenTaraf: "isletme",
           isletmeId: isletmeId
         }
@@ -122,7 +159,7 @@ export async function POST(request: NextRequest) {
     const response = {
       id: yeniBelge.id,
       isletme_ad: isletme.name,
-      dosya_adi: dosya.name,
+      dosya_adi: yeniDosyaAdi, // Yeni dosya adını response'ta da kullan
       dosya_url: dosyaUrl,
       belge_turu: belgeTuru,
       yukleme_tarihi: new Date().toISOString(),

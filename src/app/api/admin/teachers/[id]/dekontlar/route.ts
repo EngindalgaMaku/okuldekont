@@ -12,10 +12,12 @@ export async function GET(
       return NextResponse.json({ error: 'ID gerekli' }, { status: 400 });
     }
 
-    // Öğretmenin sorumlu olduğu dekontları getir
+    // Öğretmenin sorumlu olduğu stajların tüm dekontlarını getir (işletme yüklü dahil)
     const dekontlar = await prisma.dekont.findMany({
       where: {
-        teacherId: id
+        staj: {
+          teacherId: id
+        }
       },
       include: {
         staj: {
@@ -28,7 +30,8 @@ export async function GET(
             },
             company: {
               select: {
-                name: true
+                name: true,
+                contact: true
               }
             }
           }
@@ -65,7 +68,12 @@ export async function GET(
       dosya_url: d.fileUrl,
       aciklama: d.rejectReason,
       red_nedeni: d.rejectReason,
-      yukleyen_kisi: d.teacher ? `${d.teacher.name} ${d.teacher.surname} (Öğretmen)` : 'Bilinmiyor',
+      // Gerçek yükleyiciyi belirle
+      yukleyen_kisi: d.teacherId
+        ? (d.teacher ? `${d.teacher.name} ${d.teacher.surname} (Öğretmen)` : 'Öğretmen')
+        : (d.staj?.company?.contact
+          ? `${d.staj.company.contact} (İşletme)`
+          : 'İşletme Yetkilisi (İşletme)'),
       created_at: d.createdAt
     }));
 

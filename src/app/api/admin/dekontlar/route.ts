@@ -82,7 +82,13 @@ export async function GET() {
       dosya_url: dekont.fileUrl,
       aciklama: dekont.rejectReason,
       red_nedeni: dekont.rejectReason,
-      yukleyen_kisi: dekont.teacher ? `${dekont.teacher.name} ${dekont.teacher.surname} (Öğretmen)` : 'Bilinmiyor',
+      yukleyen_kisi: dekont.teacher
+        ? `${dekont.teacher.name} ${dekont.teacher.surname} (Öğretmen)`
+        : (dekont.company?.contact
+          ? `${dekont.company.contact} (İşletme)`
+          : (dekont.staj?.company?.contact
+            ? `${dekont.staj.company.contact} (İşletme)`
+            : 'İşletme')),
       created_at: dekont.createdAt.toISOString()
     }))
 
