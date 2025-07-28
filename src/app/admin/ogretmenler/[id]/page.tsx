@@ -40,9 +40,9 @@ export default async function OgretmenDetaySayfasi({ params, searchParams }: { p
 
     return (
       <div className="p-8 bg-gray-50 min-h-screen">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-8xl mx-auto px-2 sm:px-8">
           <div className="flex items-center justify-between mb-8">
-            <div>
+            <div className="w-full">
               <Link href="/admin/ogretmenler" className="flex items-center text-sm text-gray-600 hover:text-gray-900 mb-2">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Öğretmenler

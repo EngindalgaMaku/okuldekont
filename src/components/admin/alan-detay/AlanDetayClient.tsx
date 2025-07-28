@@ -137,8 +137,8 @@ export default function AlanDetayClient({
   // Tab değiştiğinde veriyi yükle
   useEffect(() => {
     loadTabData(activeTab)
-    // Öğrenciler tabı açıldığında sınıfları da yükle
-    if (activeTab === 'ogrenciler' && !loadedTabsRef.current.has('siniflar')) {
+    // Öğrenciler veya işletmeler tabı açıldığında sınıfları da yükle
+    if ((activeTab === 'ogrenciler' || activeTab === 'isletmeler') && !loadedTabsRef.current.has('siniflar')) {
       loadTabData('siniflar')
     }
   }, [activeTab, loadTabData])
@@ -146,8 +146,8 @@ export default function AlanDetayClient({
   // Initial tab'ı sadece bir kez yükle
   useEffect(() => {
     loadTabData(initialActiveTab)
-    // İlk tab öğrenciler ise sınıfları da yükle
-    if (initialActiveTab === 'ogrenciler' && !loadedTabsRef.current.has('siniflar')) {
+    // İlk tab öğrenciler veya işletmeler ise sınıfları da yükle
+    if ((initialActiveTab === 'ogrenciler' || initialActiveTab === 'isletmeler') && !loadedTabsRef.current.has('siniflar')) {
       loadTabData('siniflar')
     }
   }, [loadTabData, initialActiveTab])
@@ -216,6 +216,7 @@ export default function AlanDetayClient({
           <IsletmelerTab
             alanId={alanId}
             initialIsletmeListesi={data as any[]}
+            siniflar={tabData.siniflar || []}
             onCountChange={handleIsletmelerCountChange}
           />
         ) : null

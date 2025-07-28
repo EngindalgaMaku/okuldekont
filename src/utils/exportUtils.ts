@@ -2,6 +2,13 @@ import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
+// Type declarations for jspdf-autotable
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: (options: any) => void
+  }
+}
+
 // Excel Export Functions
 export const exportToExcel = (data: any[], filename: string, sheetName: string = 'Data') => {
   try {

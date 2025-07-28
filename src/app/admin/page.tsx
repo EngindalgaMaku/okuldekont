@@ -145,8 +145,10 @@ export default function AdminDashboard() {
     
     if (!session || session.user.role !== 'ADMIN') {
       redirect('/admin/login')
+      return
     }
 
+    // Only fetch data after confirming user is authenticated
     fetchDashboardData()
     fetchSchoolName()
     fetchRecentActivities()

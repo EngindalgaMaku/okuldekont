@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Calendar, Building2, Users, AlertTriangle, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Calendar, Building2, Users, AlertTriangle, CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 
@@ -34,12 +34,21 @@ interface TimelineEvent {
   details?: any;
 }
 
+interface CompanyDetail {
+  name: string;
+  startDate: string | null;
+  endDate: string | null;
+  status: string;
+  duration: number | null;
+}
+
 interface HistoryStats {
   totalInternships: number;
   activeInternships: number;
   completedInternships: number;
   terminatedInternships: number;
   companies: string[];
+  companyDetails: CompanyDetail[];
   currentCompany: string | null;
 }
 
@@ -49,6 +58,7 @@ export default function StudentHistoryView({ isOpen, onClose, student }: Student
   const [stats, setStats] = useState<HistoryStats | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [timelineExpanded, setTimelineExpanded] = useState(false);
 
   useEffect(() => {
     if (isOpen && student) {
@@ -120,14 +130,39 @@ export default function StudentHistoryView({ isOpen, onClose, student }: Student
     return actionTexts[action] || action;
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('tr-TR', {
+  const formatDate = (dateString: string, includeTime: boolean = true) => {
+    const options: Intl.DateTimeFormatOptions = {
       year: 'numeric',
       month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+      day: 'numeric'
+    };
+    
+    if (includeTime) {
+      options.hour = '2-digit';
+      options.minute = '2-digit';
+    }
+    
+    return new Date(dateString).toLocaleDateString('tr-TR', options);
+  };
+
+  const calculateDuration = (startDate: string, endDate: string) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 30) {
+      return `${diffDays} gün`;
+    } else if (diffDays < 365) {
+      const months = Math.floor(diffDays / 30);
+      const remainingDays = diffDays % 30;
+      return remainingDays > 0 ? `${months} ay ${remainingDays} gün` : `${months} ay`;
+    } else {
+      const years = Math.floor(diffDays / 365);
+      const remainingDays = diffDays % 365;
+      const months = Math.floor(remainingDays / 30);
+      return months > 0 ? `${years} yıl ${months} ay` : `${years} yıl`;
+    }
   };
 
   const handleEventClick = (event: TimelineEvent) => {
@@ -156,7 +191,7 @@ export default function StudentHistoryView({ isOpen, onClose, student }: Student
               </div>
               <div>
                 <p><span className="font-medium">No:</span> {student.number || 'Belirtilmemiş'}</p>
-                <p><span className="font-medium">Durum:</span> {stats?.currentCompany ? `${stats.currentCompany}'de` : 'Atanmamış'}</p>
+                <p><span className="font-medium">Durum:</span> {stats?.currentCompany ? `${stats.currentCompany}'de` : '-'}</p>
               </div>
             </div>
           </div>
@@ -184,33 +219,79 @@ export default function StudentHistoryView({ isOpen, onClose, student }: Student
           )}
 
           {/* Companies */}
-          {stats && stats.companies.length > 0 && (
+          {stats && stats.companyDetails && stats.companyDetails.length > 0 && (
             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
+              <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
                 <Building2 className="h-4 w-4 mr-1" />
-                Çalışılan Şirketler ({stats.companies.length})
+                Çalışılan Şirketler ({stats.companyDetails.length})
               </h3>
-              <div className="flex flex-wrap gap-2">
-                {stats.companies.map((company, index) => (
-                  <span
+              <div className="space-y-3">
+                {stats.companyDetails.map((company, index) => (
+                  <div
                     key={index}
-                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-800"
+                    className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm"
                   >
-                    {company}
-                  </span>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium text-gray-900">{company.name}</h4>
+                        <div className="mt-2 space-y-1">
+                          {company.startDate && (
+                            <p className="text-xs text-green-600 flex items-center">
+                              <CalendarDays className="h-3 w-3 mr-1" />
+                              Başlangıç: {formatDate(company.startDate, false)}
+                            </p>
+                          )}
+                          {company.endDate && (
+                            <p className="text-xs text-blue-600 flex items-center">
+                              <CalendarDays className="h-3 w-3 mr-1" />
+                              Bitiş: {formatDate(company.endDate, false)}
+                            </p>
+                          )}
+                          {company.startDate && company.endDate && (
+                            <p className="text-xs text-gray-600 flex items-center">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Süre: {calculateDuration(company.startDate, company.endDate)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        company.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                        company.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                        company.status === 'TERMINATED' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {company.status === 'ACTIVE' ? 'Aktif' :
+                         company.status === 'COMPLETED' ? 'Tamamlandı' :
+                         company.status === 'TERMINATED' ? 'Fesih' : company.status}
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Timeline */}
+          {/* Timeline Accordion */}
           <div>
-            <h3 className="text-sm font-medium text-gray-900 mb-4 flex items-center">
-              <Clock className="h-4 w-4 mr-1" />
-              Zaman Çizelgesi ({timeline.length} kayıt)
-            </h3>
+            <button
+              onClick={() => setTimelineExpanded(!timelineExpanded)}
+              className="w-full flex items-center justify-between p-3 text-left bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <h3 className="text-sm font-medium text-gray-900 flex items-center">
+                <Clock className="h-4 w-4 mr-2" />
+                Zaman Çizelgesi ({timeline.length} kayıt)
+              </h3>
+              {timelineExpanded ? (
+                <ChevronUp className="h-4 w-4 text-gray-500" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-gray-500" />
+              )}
+            </button>
             
-            {loading ? (
+            {timelineExpanded && (
+              <div className="mt-4">
+                {loading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                 <p className="mt-2 text-gray-500">Geçmiş yükleniyor...</p>
@@ -256,19 +337,35 @@ export default function StudentHistoryView({ isOpen, onClose, student }: Student
                                     </p>
                                   )}
                                   
-                                  {/* Staj Başlangıç Tarihi */}
-                                  {event.action === 'CREATED' && event.details?.startDate && (
-                                    <p className="text-xs mt-1 text-blue-600">
-                                      <Calendar className="h-3 w-3 inline mr-1" />
-                                      Başlangıç: {formatDate(event.details.startDate)}
-                                    </p>
+                                  {/* Staj Tarihleri */}
+                                  {event.action === 'CREATED' && (event.details?.startDate || event.details?.endDate) && (
+                                    <div className="mt-2 space-y-1">
+                                      {event.details?.startDate && (
+                                        <p className="text-xs text-green-600 flex items-center">
+                                          <CalendarDays className="h-3 w-3 mr-1" />
+                                          Başlangıç: {formatDate(event.details.startDate, false)}
+                                        </p>
+                                      )}
+                                      {event.details?.endDate && (
+                                        <p className="text-xs text-blue-600 flex items-center">
+                                          <CalendarDays className="h-3 w-3 mr-1" />
+                                          Bitiş: {formatDate(event.details.endDate, false)}
+                                        </p>
+                                      )}
+                                      {event.details?.startDate && event.details?.endDate && (
+                                        <p className="text-xs text-gray-600 flex items-center">
+                                          <Clock className="h-3 w-3 mr-1" />
+                                          Süre: {calculateDuration(event.details.startDate, event.details.endDate)}
+                                        </p>
+                                      )}
+                                    </div>
                                   )}
                                   
                                   {/* Fesih Tarihi */}
                                   {event.action === 'TERMINATED' && event.details?.terminationDate && (
-                                    <p className="text-xs mt-1 text-red-600">
-                                      <Calendar className="h-3 w-3 inline mr-1" />
-                                      Fesih: {formatDate(event.details.terminationDate)}
+                                    <p className="text-xs mt-1 text-red-600 flex items-center">
+                                      <Calendar className="h-3 w-3 mr-1" />
+                                      Fesih: {formatDate(event.details.terminationDate, false)}
                                     </p>
                                   )}
                                   
@@ -299,6 +396,8 @@ export default function StudentHistoryView({ isOpen, onClose, student }: Student
               <div className="text-center py-8 text-gray-500">
                 <Clock className="h-12 w-12 mx-auto text-gray-300 mb-4" />
                 <p>Henüz kayıt bulunamadı</p>
+              </div>
+            )}
               </div>
             )}
           </div>

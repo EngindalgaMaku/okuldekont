@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { Building2, Users, FileText, Search, Filter, Download, Upload, UserCheck, Calendar, GraduationCap, User, AlertTriangle, ChevronDown, X, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react'
+import { Building2, Users, FileText, Search, Filter, Download, Upload, UserCheck, Calendar, GraduationCap, User, AlertTriangle, ChevronDown, X, ChevronLeft, ChevronRight, CheckCircle, Wrench, Settings } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
+import { useInternshipAssignmentRules } from '@/hooks/useInternshipAssignmentRules'
 
 interface Staj {
   id: string
@@ -70,6 +71,16 @@ interface Alan {
   name: string
 }
 
+interface TutarsizlikRaporu {
+  id: string
+  type: 'COKLU_KOORDINATOR' | 'EKSIK_KOORDINATOR' | 'HATALI_ATAMA' | 'SURESI_GECMIS_AKTIF' | 'USTA_OGRETICI_EKSIK'
+  description: string
+  severity: 'HIGH' | 'MEDIUM' | 'LOW'
+  affectedItems: any[]
+  canAutoFix: boolean
+  solution?: string
+}
+
 // Utility function to ensure unique data
 const getUniqueById = <T extends { id: string }>(items: T[]): T[] => {
   const seen = new Set<string>()
@@ -96,7 +107,9 @@ export default function StajYonetimiPage() {
   
   // Modal states
   const [newOgretmenModalOpen, setNewOgretmenModalOpen] = useState(false)
-
+  const [fesihModalOpen, setFesihModalOpen] = useState(false)
+  const [koordinatorModalOpen, setKoordinatorModalOpen] = useState(false)
+  const [tutarsizlikModalOpen, setTutarsizlikModalOpen] = useState(false)
 
   const [selectedStaj, setSelectedStaj] = useState<Staj | null>(null)
   const [selectedOgrenci, setSelectedOgrenci] = useState<Ogrenci | null>(null)
@@ -120,6 +133,23 @@ export default function StajYonetimiPage() {
     alanId: '',
     pin: '1234'
   })
+
+  // Fesih form data
+  const [fesihFormData, setFesihFormData] = useState({
+    reason: '',
+    notes: '',
+    terminationDate: new Date().toISOString().split('T')[0]
+  })
+
+  // Koordinator degistir form data
+  const [yeniKoordinator, setYeniKoordinator] = useState('')
+  
+  // Tutarsızlık kontrolü
+  const [tutarsizlikRaporlari, setTutarsizlikRaporlari] = useState<TutarsizlikRaporu[]>([])
+  const [tutarsizlikLoading, setTutarsizlikLoading] = useState(false)
+  const [selectedTutarsizlik, setSelectedTutarsizlik] = useState<TutarsizlikRaporu | null>(null)
+  const [tutarsizlikCurrentPage, setTutarsizlikCurrentPage] = useState(1)
+  const tutarsizlikItemsPerPage = 10
   
   // Search and filter
   const [searchTerm, setSearchTerm] = useState('')
@@ -139,6 +169,7 @@ export default function StajYonetimiPage() {
   const observerRef = useRef<IntersectionObserver | null>(null)
   
   const { showToast } = useToast()
+  const assignmentRules = useInternshipAssignmentRules()
 
   useEffect(() => {
     // İlk render'da loading false yap ki sayfa yapısı gelsin
@@ -304,6 +335,86 @@ export default function StajYonetimiPage() {
     }
   }
 
+  const handleTutarsizlikKontrol = async () => {
+    setTutarsizlikLoading(true)
+    try {
+      const response = await fetch('/api/admin/internships/consistency-check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Tutarsızlık kontrolü yapılırken hata oluştu')
+      }
+
+      const data = await response.json()
+      setTutarsizlikRaporlari(data.issues || [])
+      setTutarsizlikModalOpen(true)
+
+      showToast({
+        type: 'success',
+        title: 'Tutarlılık Kontrolü Tamamlandı',
+        message: `${data.issues?.length || 0} adet tutarsızlık tespit edildi.`
+      })
+    } catch (error: any) {
+      showToast({
+        type: 'error',
+        title: 'Hata',
+        message: `Tutarsızlık kontrolü hatası: ${error.message}`
+      })
+    } finally {
+      setTutarsizlikLoading(false)
+    }
+  }
+
+  const handleTutarsizlikDuzelt = async (tutarsizlik: TutarsizlikRaporu) => {
+    if (!tutarsizlik.canAutoFix) {
+      showToast({
+        type: 'warning',
+        title: 'Manuel Düzeltme Gerekli',
+        message: 'Bu tutarsızlık otomatik düzeltilemez. Lütfen manuel olarak düzeltiniz.'
+      })
+      return
+    }
+
+    try {
+      const response = await fetch('/api/admin/internships/fix-issue', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          issueId: tutarsizlik.id,
+          issueType: tutarsizlik.type
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Tutarsızlık düzeltilirken hata oluştu')
+      }
+
+      showToast({
+        type: 'success',
+        title: 'Düzeltme Başarılı',
+        message: 'Tutarsızlık başarıyla düzeltildi.'
+      })
+
+      // Tutarsızlık raporlarını güncelle
+      setTutarsizlikRaporlari(prev => prev.filter(t => t.id !== tutarsizlik.id))
+      
+      // Ana veriyi yenile
+      fetchData()
+    } catch (error: any) {
+      showToast({
+        type: 'error',
+        title: 'Hata',
+        message: `Düzeltme hatası: ${error.message}`
+      })
+    }
+  }
+
   const handleNewOgretmen = async () => {
     if (!newOgretmenFormData.ad.trim() || !newOgretmenFormData.soyad.trim() || !newOgretmenFormData.email.trim() || !newOgretmenFormData.alanId) {
       showToast({
@@ -378,6 +489,18 @@ export default function StajYonetimiPage() {
 
   const handleTamamlandiOlarakKaydet = async (stajId: string) => {
     try {
+      const response = await fetch(`/api/admin/internships/${stajId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'COMPLETED'
+        })
+      })
+
+      if (!response.ok) throw new Error('Staj tamamlama işlemi başarısız')
+
       showToast({
         type: 'success',
         title: 'Başarılı',
@@ -393,6 +516,151 @@ export default function StajYonetimiPage() {
         title: 'Hata',
         message: 'Staj tamamlanırken bir hata oluştu'
       })
+    }
+  }
+
+  const handleFesihEt = (staj: Staj) => {
+    setSelectedStaj(staj)
+    setFesihModalOpen(true)
+    setFesihFormData({
+      reason: '',
+      notes: '',
+      terminationDate: new Date().toISOString().split('T')[0]
+    })
+  }
+
+  const handleFesihOnayla = async () => {
+    if (!selectedStaj || !fesihFormData.reason.trim()) return
+
+    try {
+      setSubmitLoading(true)
+      
+      const response = await fetch(`/api/admin/internships/${selectedStaj.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'TERMINATED',
+          terminationDate: fesihFormData.terminationDate,
+          terminationReason: fesihFormData.reason,
+          terminationNotes: fesihFormData.notes
+        })
+      })
+
+      if (!response.ok) throw new Error('Staj fesih işlemi başarısız')
+
+      showToast({
+        type: 'success',
+        title: 'Başarılı',
+        message: 'Staj başarıyla feshedildi'
+      })
+
+      setFesihModalOpen(false)
+      setSelectedStaj(null)
+      fetchData()
+    } catch (error) {
+      console.error('Staj fesih hatası:', error)
+      showToast({
+        type: 'error',
+        title: 'Hata',
+        message: 'Staj fesih edilirken bir hata oluştu'
+      })
+    } finally {
+      setSubmitLoading(false)
+    }
+  }
+
+  const handleKoordinatorDegistir = async (staj: Staj) => {
+    setSelectedStaj(staj)
+    setKoordinatorModalOpen(true)
+
+    // Mevcut durumu kontrol et
+    if (staj.studentId && staj.companyId) {
+      await assignmentRules.checkAssignmentRules(
+        staj.studentId,
+        staj.companyId,
+        staj.teacherId || undefined
+      )
+      
+      // Önerilen koordinatör varsa onu seç, yoksa mevcut koordinatörü seç
+      if (assignmentRules.lastResult?.existingCoordinator) {
+        setYeniKoordinator(assignmentRules.lastResult.existingCoordinator.id)
+      } else {
+        setYeniKoordinator(staj.teacherId || '')
+      }
+    } else {
+      setYeniKoordinator(staj.teacherId || '')
+    }
+  }
+
+  const koordinatorDegistir = async () => {
+    if (!selectedStaj || !yeniKoordinator) {
+      showToast({
+        type: 'error',
+        title: 'Eksik Bilgi',
+        message: 'Koordinatör seçimi yapılmadı'
+      })
+      return
+    }
+
+    try {
+      setSubmitLoading(true)
+
+      // Önce kuralları kontrol et
+      if (selectedStaj.studentId && selectedStaj.companyId) {
+        await assignmentRules.checkAssignmentRules(
+          selectedStaj.studentId,
+          selectedStaj.companyId,
+          yeniKoordinator
+        )
+
+        // Hata varsa kullanıcıya sor
+        const hasErrors = assignmentRules.lastResult?.rules.some(rule => rule.severity === 'ERROR')
+        if (hasErrors) {
+          const confirmProceed = window.confirm(
+            'Kural ihlalleri tespit edildi. Yine de devam etmek istiyor musunuz?\n\n' +
+            assignmentRules.lastResult?.rules
+              .filter(rule => rule.severity === 'ERROR')
+              .map(rule => `• ${rule.message}`)
+              .join('\n')
+          )
+          if (!confirmProceed) {
+            setSubmitLoading(false)
+            return
+          }
+        }
+      }
+
+      const response = await fetch(`/api/admin/internships/${selectedStaj.id}/coordinator`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teacherId: yeniKoordinator })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Koordinatör güncellenemedi')
+      }
+
+      showToast({
+        type: 'success',
+        title: 'Başarılı',
+        message: 'Koordinatör başarıyla güncellendi'
+      })
+      setKoordinatorModalOpen(false)
+      setSelectedStaj(null)
+      setYeniKoordinator('')
+      await fetchData()
+    } catch (error: any) {
+      console.error('Koordinatör güncelleme hatası:', error)
+      showToast({
+        type: 'error',
+        title: 'Hata',
+        message: error.message || 'Koordinatör güncellenirken hata oluştu'
+      })
+    } finally {
+      setSubmitLoading(false)
     }
   }
 
@@ -470,9 +738,25 @@ export default function StajYonetimiPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-8 text-white">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Staj Yönetimi</h1>
-          <p className="text-indigo-100">Öğrenci staj süreçlerini koordine edin</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Staj Yönetimi</h1>
+            <p className="text-indigo-100">Öğrenci staj süreçlerini koordine edin</p>
+          </div>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleTutarsizlikKontrol}
+              disabled={tutarsizlikLoading}
+              title={tutarsizlikLoading ? 'Kontrol Ediliyor...' : 'Tutarlılık Kontrolü'}
+              className="flex items-center justify-center bg-white/20 hover:bg-white/30 text-white p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {tutarsizlikLoading ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              ) : (
+                <Settings className="h-5 w-5" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -828,24 +1112,19 @@ export default function StajYonetimiPage() {
                       }`}
                     >
                       {isVisible ? (
-                        <div className="flex flex-col space-y-3">
-                          <div className="w-full">
+                        <div className="flex flex-col md:flex-row gap-4">
+                          {/* Sol taraf - Bilgiler */}
+                          <div className="flex-1 min-w-0">
                             <div className="space-y-2">
                               <div className="space-y-2">
                                 <h3 className="text-base md:text-lg font-medium text-gray-900 break-words">
                                   {staj.student?.name || 'Bilinmiyor'} {staj.student?.surname || ''}
                                 </h3>
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                  isExpired ? 'bg-orange-100 text-orange-800' :
-                                  staj.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
-                                  staj.status === 'TERMINATED' ? 'bg-red-100 text-red-800' :
-                                  'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {isExpired ? 'Süresi Geçmiş' :
-                                   staj.status === 'ACTIVE' ? 'Aktif' :
-                                   staj.status === 'TERMINATED' ? 'Feshedildi' :
-                                   'Tamamlandı'}
-                                </span>
+                                {isExpired && (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                    Süresi Geçmiş
+                                  </span>
+                                )}
                               </div>
                               
                               <div className="space-y-2">
@@ -895,19 +1174,50 @@ export default function StajYonetimiPage() {
                             </div>
                           </div>
                           
-                          {/* Action Buttons */}
-                          {isExpired && (
-                            <div className="w-full">
+                          {/* Sağ taraf - Action Buttons */}
+                          <div className="flex flex-col gap-2 md:min-w-[200px]">
+                            {(staj.status === 'ACTIVE' || isExpired) && (
+                              <>
+                                {/* Tamamla Button */}
+                                <button
+                                  onClick={() => handleTamamlandiOlarakKaydet(staj.id)}
+                                  className="flex items-center justify-center space-x-1 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors text-xs md:text-sm w-full"
+                                >
+                                  <CheckCircle className="h-3 w-3 md:h-4 md:w-4" />
+                                  <span>Tamamla</span>
+                                </button>
+                                
+                                {/* Fesih Et Button */}
+                                <button
+                                  onClick={() => handleFesihEt(staj)}
+                                  className="flex items-center justify-center space-x-1 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition-colors text-xs md:text-sm w-full"
+                                >
+                                  <X className="h-3 w-3 md:h-4 md:w-4" />
+                                  <span>Fesih Et</span>
+                                </button>
+                                
+                                {/* Koordinatör Değiştir Button */}
+                                <button
+                                  onClick={() => handleKoordinatorDegistir(staj)}
+                                  className="flex items-center justify-center space-x-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors text-xs md:text-sm w-full"
+                                >
+                                  <UserCheck className="h-3 w-3 md:h-4 md:w-4" />
+                                  <span>Koordinatör Değiştir</span>
+                                </button>
+                              </>
+                            )}
+                            
+                            {/* Sadece koordinatör değiştirme - completed/terminated stajlar için */}
+                            {(staj.status === 'COMPLETED' || staj.status === 'TERMINATED') && (
                               <button
-                                onClick={() => handleTamamlandiOlarakKaydet(staj.id)}
-                                className="w-full md:w-auto flex items-center justify-center space-x-1 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors text-xs md:text-sm"
+                                onClick={() => handleKoordinatorDegistir(staj)}
+                                className="flex items-center justify-center space-x-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors text-xs md:text-sm w-full"
                               >
-                                <CheckCircle className="h-3 w-3 md:h-4 md:w-4" />
-                                <span className="md:hidden">Tamamlandı Olarak Kaydet</span>
-                                <span className="hidden md:inline">Tamamlandı Olarak Kaydet</span>
+                                <UserCheck className="h-3 w-3 md:h-4 md:w-4" />
+                                <span>Koordinatör Değiştir</span>
                               </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <div className="h-24 bg-gray-100 animate-pulse rounded-lg" />
@@ -970,7 +1280,237 @@ export default function StajYonetimiPage() {
 
       {/* Modals */}
 
+      {/* Fesih Modal */}
+      <Modal
+        isOpen={fesihModalOpen}
+        onClose={() => {
+          setFesihModalOpen(false)
+          setSelectedStaj(null)
+          setFesihFormData({
+            reason: '',
+            notes: '',
+            terminationDate: new Date().toISOString().split('T')[0]
+          })
+        }}
+        title="Stajı Fesih Et"
+      >
+        <div className="space-y-4">
+          {selectedStaj && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <h4 className="font-medium text-gray-900">Feshedilecek Staj:</h4>
+              <p className="text-sm text-gray-600 mt-1">
+                <strong>{selectedStaj.student?.name} {selectedStaj.student?.surname}</strong> - {selectedStaj.company?.name}
+              </p>
+            </div>
+          )}
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fesih Tarihi <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              value={fesihFormData.terminationDate}
+              onChange={(e) => setFesihFormData({ ...fesihFormData, terminationDate: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+              max={new Date().toISOString().split('T')[0]}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Fesih Nedeni <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={fesihFormData.reason}
+              onChange={(e) => setFesihFormData({ ...fesihFormData, reason: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+            >
+              <option value="">Neden Seçin</option>
+              <option value="Öğrenci İsteği">Öğrenci İsteği</option>
+              <option value="İşletme İsteği">İşletme İsteği</option>
+              <option value="Disiplin Problemi">Disiplin Problemi</option>
+              <option value="Devamsızlık">Devamsızlık</option>
+              <option value="İş Güvenliği">İş Güvenliği</option>
+              <option value="Sağlık Problemi">Sağlık Problemi</option>
+              <option value="Diğer">Diğer</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Açıklama/Notlar
+            </label>
+            <textarea
+              value={fesihFormData.notes}
+              onChange={(e) => setFesihFormData({ ...fesihFormData, notes: e.target.value })}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+              placeholder="Fesih ile ilgili ek bilgiler..."
+            />
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              onClick={() => {
+                setFesihModalOpen(false)
+                setSelectedStaj(null)
+                setFesihFormData({
+                  reason: '',
+                  notes: '',
+                  terminationDate: new Date().toISOString().split('T')[0]
+                })
+              }}
+              disabled={submitLoading}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleFesihOnayla}
+              disabled={submitLoading || !fesihFormData.reason.trim()}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitLoading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Fesih Ediliyor...</span>
+                </div>
+              ) : (
+                'Stajı Fesih Et'
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Koordinatör Değiştir Modal */}
+      <Modal
+        isOpen={koordinatorModalOpen}
+        onClose={() => {
+          setKoordinatorModalOpen(false)
+          setSelectedStaj(null)
+          setYeniKoordinator('')
+        }}
+        title="Koordinatör Öğretmen Değiştir"
+      >
+        <div className="space-y-4">
+          {selectedStaj && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900">Staj Bilgileri:</h4>
+                <p className="text-sm text-gray-600 mt-1">
+                  <strong>{selectedStaj.student?.name} {selectedStaj.student?.surname}</strong> - {selectedStaj.company?.name}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Mevcut Koordinatör: {selectedStaj.teacher ? `${selectedStaj.teacher.name} ${selectedStaj.teacher.surname}` : 'Atanmamış'}
+                </p>
+              </div>
+
+              {/* Kural Bilgileri */}
+              {assignmentRules.lastResult && assignmentRules.lastResult.rules.length > 0 && (
+                <div className="space-y-2">
+                  <h5 className="text-sm font-medium text-gray-900">Koordinatör Ataması Kuralları:</h5>
+                  {assignmentRules.lastResult.rules.map((rule, index) => (
+                    <div
+                      key={index}
+                      className={`p-3 rounded-lg border text-sm ${
+                        rule.severity === 'ERROR' ? 'bg-red-50 border-red-200 text-red-800' :
+                        rule.severity === 'WARNING' ? 'bg-yellow-50 border-yellow-200 text-yellow-800' :
+                        'bg-green-50 border-green-200 text-green-800'
+                      }`}
+                    >
+                      <div className="font-medium mb-1">
+                        {rule.severity === 'ERROR' ? '🚫 HATA' :
+                         rule.severity === 'WARNING' ? '⚠️ UYARI' : '✅ BİLGİ'}
+                      </div>
+                      <div>{rule.message}</div>
+                      {rule.suggestedAction && (
+                        <div className="mt-2 text-xs opacity-90">
+                          <strong>Önerilen:</strong> {rule.suggestedAction}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Önerilen Koordinatör */}
+              {assignmentRules.lastResult?.existingCoordinator && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-sm font-medium text-indigo-900">
+                      💡 Önerilen Koordinatör
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setYeniKoordinator(assignmentRules.lastResult?.existingCoordinator?.id || '')}
+                      className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded transition-colors"
+                    >
+                      Seç
+                    </button>
+                  </div>
+                  <div className="text-sm text-indigo-800">
+                    {assignmentRules.lastResult.existingCoordinator.name} {assignmentRules.lastResult.existingCoordinator.surname}
+                  </div>
+                  <div className="text-xs text-indigo-600 mt-1">
+                    Bu işletmede zaten bu koordinatör görev yapıyor
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Yeni Koordinatör Öğretmen <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={yeniKoordinator}
+              onChange={(e) => setYeniKoordinator(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Koordinatör Seçin</option>
+              {ogretmenler.map((ogretmen) => (
+                <option key={ogretmen.id} value={ogretmen.id}>
+                  {ogretmen.name} {ogretmen.surname} - {ogretmen.alan?.name || 'Alan bilgisi yok'}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Sadece öğrencinin alanındaki öğretmenler gösterilmektedir.
+            </p>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              onClick={() => {
+                setKoordinatorModalOpen(false)
+                setSelectedStaj(null)
+                setYeniKoordinator('')
+              }}
+              disabled={submitLoading}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              İptal
+            </button>
+            <button
+              onClick={koordinatorDegistir}
+              disabled={submitLoading || !yeniKoordinator}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitLoading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Güncelleniyor...</span>
+                </div>
+              ) : (
+                'Koordinatörü Güncelle'
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* New Teacher Modal */}
       {newOgretmenModalOpen && (
@@ -1079,6 +1619,296 @@ export default function StajYonetimiPage() {
               <div className="text-xs text-gray-500 mt-1">
                 Admin görünümü için metin olarak gösteriliyor
               </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Tutarsızlık Kontrolü Modal */}
+      <Modal
+        isOpen={tutarsizlikModalOpen}
+        onClose={() => {
+          setTutarsizlikModalOpen(false)
+          setTutarsizlikRaporlari([])
+        }}
+        title="Veri Tutarlılığı Kontrolü"
+      >
+        <div className="space-y-6">
+          {tutarsizlikRaporlari.length === 0 ? (
+            <div className="text-center py-8">
+              <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
+              <h3 className="mt-4 text-lg font-medium text-gray-900">Tebrikler!</h3>
+              <p className="mt-2 text-sm text-gray-600">
+                Hiçbir tutarsızlık tespit edilmedi. Tüm veriler tutarlı durumda.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-start">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 mr-3" />
+                  <div>
+                    <h4 className="text-sm font-medium text-yellow-800">
+                      {tutarsizlikRaporlari.length} adet tutarsızlık tespit edildi
+                    </h4>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      Lütfen aşağıdaki sorunları inceleyin ve gerekli düzeltmeleri yapın.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {tutarsizlikRaporlari.map((tutarsizlik, index) => (
+                  <div
+                    key={tutarsizlik.id}
+                    className={`border rounded-lg p-4 ${
+                      tutarsizlik.severity === 'HIGH' ? 'border-red-200 bg-red-50' :
+                      tutarsizlik.severity === 'MEDIUM' ? 'border-yellow-200 bg-yellow-50' :
+                      'border-blue-200 bg-blue-50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            tutarsizlik.severity === 'HIGH' ? 'bg-red-100 text-red-800' :
+                            tutarsizlik.severity === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>
+                            {tutarsizlik.severity === 'HIGH' ? 'Yüksek' :
+                             tutarsizlik.severity === 'MEDIUM' ? 'Orta' : 'Düşük'} Öncelik
+                          </span>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            tutarsizlik.canAutoFix ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {tutarsizlik.canAutoFix ? 'Otomatik Düzeltilebilir' : 'Manuel Düzeltme'}
+                          </span>
+                        </div>
+                        
+                        <h4 className="font-medium text-gray-900 mb-1">
+                          {tutarsizlik.type === 'COKLU_KOORDINATOR' ? 'Çoklu Koordinatör Ataması' :
+                           tutarsizlik.type === 'EKSIK_KOORDINATOR' ? 'Eksik Koordinatör Ataması' :
+                           tutarsizlik.type === 'HATALI_ATAMA' ? '🚨 Öğrenci-Koordinatör Alan Uyumsuzluğu' :
+                           tutarsizlik.type === 'SURESI_GECMIS_AKTIF' ? 'Süresi Geçmiş Aktif Staj' :
+                           tutarsizlik.type === 'USTA_OGRETICI_EKSIK' ? '🚫 Usta Öğreticisi Eksik' :
+                           'Bilinmeyen Tutarsızlık'}
+                        </h4>
+                        
+                        <p className="text-sm text-gray-600 mb-3">
+                          {tutarsizlik.description}
+                        </p>
+
+                        {tutarsizlik.solution && (
+                          <div className="bg-white/50 border border-gray-200 rounded p-3 mb-3">
+                            <div className="text-xs font-medium text-gray-700 mb-1">Önerilen Çözüm:</div>
+                            <div className="text-xs text-gray-600">{tutarsizlik.solution}</div>
+                          </div>
+                        )}
+
+                        {tutarsizlik.affectedItems && tutarsizlik.affectedItems.length > 0 && (
+                          <div className="text-xs text-gray-500">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="font-medium">Etkilenen Öğeler ({tutarsizlik.affectedItems.length} adet):</div>
+                              {tutarsizlik.affectedItems.length > 5 && (
+                                <button
+                                  onClick={() => setSelectedTutarsizlik(tutarsizlik)}
+                                  className="text-indigo-600 hover:text-indigo-800 text-xs underline"
+                                >
+                                  Tümünü Görüntüle
+                                </button>
+                              )}
+                            </div>
+                            <ul className="list-disc list-inside space-y-1">
+                              {tutarsizlik.affectedItems.slice(0, 5).map((item, idx) => (
+                                <li key={idx} className="break-words">
+                                  {typeof item === 'string' ? item : JSON.stringify(item)}
+                                </li>
+                              ))}
+                              {tutarsizlik.affectedItems.length > 5 && (
+                                <li className="text-gray-400 font-medium">
+                                  ve {tutarsizlik.affectedItems.length - 5} adet daha...
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="ml-4 flex flex-col space-y-2">
+                        {tutarsizlik.canAutoFix && (
+                          <button
+                            onClick={() => handleTutarsizlikDuzelt(tutarsizlik)}
+                            className="bg-green-600 text-white px-3 py-1.5 rounded text-xs hover:bg-green-700 transition-colors"
+                          >
+                            Düzelt
+                          </button>
+                        )}
+                        {tutarsizlik.affectedItems && tutarsizlik.affectedItems.length > 5 && (
+                          <button
+                            onClick={() => setSelectedTutarsizlik(tutarsizlik)}
+                            className="bg-indigo-600 text-white px-3 py-1.5 rounded text-xs hover:bg-indigo-700 transition-colors"
+                          >
+                            Detay
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              onClick={() => {
+                setTutarsizlikModalOpen(false)
+                setTutarsizlikRaporlari([])
+              }}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Kapat
+            </button>
+            <button
+              onClick={() => {
+                setTutarsizlikModalOpen(false)
+                setTutarsizlikRaporlari([])
+                handleTutarsizlikKontrol()
+              }}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              Yeniden Kontrol Et
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Detaylı Tutarsızlık Görüntüleme Modal */}
+      {selectedTutarsizlik && (
+        <Modal
+          isOpen={!!selectedTutarsizlik}
+          onClose={() => {
+            setSelectedTutarsizlik(null)
+            setTutarsizlikCurrentPage(1)
+          }}
+          title={`Detaylı Görüntüleme: ${
+            selectedTutarsizlik.type === 'COKLU_KOORDINATOR' ? 'Çoklu Koordinatör' :
+            selectedTutarsizlik.type === 'EKSIK_KOORDINATOR' ? 'Eksik Koordinatör' :
+            selectedTutarsizlik.type === 'HATALI_ATAMA' ? 'Alan Uyumsuzluğu' :
+            selectedTutarsizlik.type === 'SURESI_GECMIS_AKTIF' ? 'Süresi Geçmiş' :
+            selectedTutarsizlik.type === 'USTA_OGRETICI_EKSIK' ? 'Usta Öğreticisi Eksik' : 'Tutarsızlık'
+          }`}
+        >
+          <div className="space-y-4">
+            <div className={`border rounded-lg p-4 ${
+              selectedTutarsizlik.severity === 'HIGH' ? 'border-red-200 bg-red-50' :
+              selectedTutarsizlik.severity === 'MEDIUM' ? 'border-yellow-200 bg-yellow-50' :
+              'border-blue-200 bg-blue-50'
+            }`}>
+              <h4 className="font-medium text-gray-900 mb-2">
+                {selectedTutarsizlik.description}
+              </h4>
+              {selectedTutarsizlik.solution && (
+                <div className="bg-white/50 border border-gray-200 rounded p-3">
+                  <div className="text-sm font-medium text-gray-700 mb-1">Önerilen Çözüm:</div>
+                  <div className="text-sm text-gray-600">{selectedTutarsizlik.solution}</div>
+                </div>
+              )}
+            </div>
+
+            {selectedTutarsizlik.affectedItems && selectedTutarsizlik.affectedItems.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="font-medium text-gray-900">
+                    Etkilenen Öğeler ({selectedTutarsizlik.affectedItems.length} adet)
+                  </h5>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    selectedTutarsizlik.severity === 'HIGH' ? 'bg-red-100 text-red-800' :
+                    selectedTutarsizlik.severity === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-blue-100 text-blue-800'
+                  }`}>
+                    {selectedTutarsizlik.severity === 'HIGH' ? 'Yüksek' :
+                     selectedTutarsizlik.severity === 'MEDIUM' ? 'Orta' : 'Düşük'} Öncelik
+                  </span>
+                </div>
+
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {(() => {
+                    const startIndex = (tutarsizlikCurrentPage - 1) * tutarsizlikItemsPerPage
+                    const endIndex = startIndex + tutarsizlikItemsPerPage
+                    const paginatedItems = selectedTutarsizlik.affectedItems.slice(startIndex, endIndex)
+                    
+                    return paginatedItems.map((item, idx) => (
+                      <div key={startIndex + idx} className="bg-white border border-gray-200 rounded p-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <span className="text-sm font-medium text-gray-700 mr-2">
+                              #{startIndex + idx + 1}
+                            </span>
+                            <span className="text-sm text-gray-900 break-words">
+                              {typeof item === 'string' ? item : JSON.stringify(item)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  })()}
+                </div>
+
+                {/* Pagination for Detail Modal */}
+                {selectedTutarsizlik.affectedItems.length > tutarsizlikItemsPerPage && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                    <div className="text-sm text-gray-700">
+                      {((tutarsizlikCurrentPage - 1) * tutarsizlikItemsPerPage) + 1} - {Math.min(tutarsizlikCurrentPage * tutarsizlikItemsPerPage, selectedTutarsizlik.affectedItems.length)} / {selectedTutarsizlik.affectedItems.length} öğe
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setTutarsizlikCurrentPage(Math.max(1, tutarsizlikCurrentPage - 1))}
+                        disabled={tutarsizlikCurrentPage === 1}
+                        className="px-3 py-1 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      
+                      <span className="text-sm text-gray-700">
+                        Sayfa {tutarsizlikCurrentPage} / {Math.ceil(selectedTutarsizlik.affectedItems.length / tutarsizlikItemsPerPage)}
+                      </span>
+                      
+                      <button
+                        onClick={() => setTutarsizlikCurrentPage(Math.min(Math.ceil(selectedTutarsizlik.affectedItems.length / tutarsizlikItemsPerPage), tutarsizlikCurrentPage + 1))}
+                        disabled={tutarsizlikCurrentPage === Math.ceil(selectedTutarsizlik.affectedItems.length / tutarsizlikItemsPerPage)}
+                        className="px-3 py-1 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              {selectedTutarsizlik.canAutoFix && (
+                <button
+                  onClick={() => {
+                    handleTutarsizlikDuzelt(selectedTutarsizlik)
+                    setSelectedTutarsizlik(null)
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Otomatik Düzelt
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setSelectedTutarsizlik(null)
+                  setTutarsizlikCurrentPage(1)
+                }}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Kapat
+              </button>
             </div>
           </div>
         </Modal>

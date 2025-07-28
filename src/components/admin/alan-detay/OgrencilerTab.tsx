@@ -97,8 +97,24 @@ export default function OgrencilerTab({
     terminationDate: new Date().toISOString().split('T')[0]
   })
   
-  // Form data
-  const initialFormState = { ad: '', soyad: '', no: '', sinif: '' }
+  // Form data - Kapsamlı 12 alanlı form
+  const initialFormState = {
+    // Kişisel Bilgiler
+    ad: '',
+    soyad: '',
+    cinsiyet: '',
+    dogumTarihi: '',
+    tcKimlik: '',
+    telefon: '',
+    // Okul Bilgileri
+    sinif: '',
+    no: '',
+    // Veli Bilgileri
+    veliAdi: '',
+    veliSoyadi: '',
+    veliTelefon: '',
+    email: ''
+  }
   const [ogrenciFormData, setOgrenciFormData] = useState(initialFormState)
   const [editOgrenciFormData, setEditOgrenciFormData] = useState(initialFormState)
   
@@ -172,7 +188,7 @@ export default function OgrencilerTab({
   // Add student
   const handleOgrenciEkle = async () => {
     if (!ogrenciFormData.ad.trim() || !ogrenciFormData.soyad.trim() || !ogrenciFormData.no.trim() || !ogrenciFormData.sinif) {
-      toast.error('Tüm alanlar zorunludur!')
+      toast.error('Ad, soyad, numara ve sınıf alanları zorunludur!')
       return
     }
     
@@ -186,6 +202,14 @@ export default function OgrencilerTab({
           surname: ogrenciFormData.soyad.trim(),
           number: ogrenciFormData.no.trim(),
           className: ogrenciFormData.sinif,
+          // gender: ogrenciFormData.cinsiyet || null, // Henüz schema'da yok
+          // birthDate: ogrenciFormData.dogumTarihi || null,
+          tcNo: ogrenciFormData.tcKimlik.trim() || null,
+          phone: ogrenciFormData.telefon.trim() || null,
+          parentName: ogrenciFormData.veliAdi.trim() || null,
+          // parentSurname: ogrenciFormData.veliSoyadi.trim() || null, // Henüz schema'da yok
+          parentPhone: ogrenciFormData.veliTelefon.trim() || null,
+          email: ogrenciFormData.email.trim() || null,
           alanId
         })
       })
@@ -273,16 +297,67 @@ export default function OgrencilerTab({
     }
   }
 
-  // Edit student
-  const handleOgrenciDuzenle = (ogrenci: Ogrenci) => {
+  // Edit student - fetch full data
+  const handleOgrenciDuzenle = async (ogrenci: Ogrenci) => {
     setSelectedOgrenci(ogrenci)
-    setEditOgrenciFormData({
-      ad: ogrenci.ad,
-      soyad: ogrenci.soyad,
-      no: ogrenci.no,
-      sinif: ogrenci.sinif
-    })
-    setEditOgrenciModal(true)
+    setSubmitLoading(true)
+    
+          try {
+        // API'den tam öğrenci verisini çek
+        const response = await fetch(`/api/admin/students/${ogrenci.id}`)
+        if (response.ok) {
+          const studentData = await response.json()
+          setEditOgrenciFormData({
+            ad: studentData.name || ogrenci.ad,
+            soyad: studentData.surname || ogrenci.soyad,
+            no: studentData.number || ogrenci.no,
+            sinif: studentData.className || ogrenci.sinif,
+            cinsiyet: '', // studentData.gender || '', // Henüz schema'da yok
+            dogumTarihi: '', // studentData.birthDate ? studentData.birthDate.split('T')[0] : '',
+            tcKimlik: studentData.tcNo || '',
+            telefon: studentData.phone || '',
+            veliAdi: studentData.parentName || '',
+            veliSoyadi: '', // studentData.parentSurname || '', // Henüz schema'da yok
+            veliTelefon: studentData.parentPhone || '',
+            email: studentData.email || ''
+          })
+        } else {
+          // Fallback to basic data
+          setEditOgrenciFormData({
+            ad: ogrenci.ad,
+            soyad: ogrenci.soyad,
+            no: ogrenci.no,
+            sinif: ogrenci.sinif,
+            cinsiyet: '',
+            dogumTarihi: '',
+            tcKimlik: '',
+            telefon: '',
+            veliAdi: '',
+            veliSoyadi: '',
+            veliTelefon: '',
+            email: ''
+          })
+        }
+    } catch (error) {
+      console.error('Error fetching student details:', error)
+      setEditOgrenciFormData({
+        ad: ogrenci.ad,
+        soyad: ogrenci.soyad,
+        no: ogrenci.no,
+        sinif: ogrenci.sinif,
+        cinsiyet: '',
+        dogumTarihi: '',
+        tcKimlik: '',
+        telefon: '',
+        veliAdi: '',
+        veliSoyadi: '',
+        veliTelefon: '',
+        email: ''
+      })
+    } finally {
+      setSubmitLoading(false)
+      setEditOgrenciModal(true)
+    }
   }
 
   const handleOgrenciGuncelle = async () => {
@@ -293,14 +368,22 @@ export default function OgrencilerTab({
     
     setSubmitLoading(true)
     try {
-      const response = await fetch(`/api/admin/students?id=${selectedOgrenci.id}`, {
+      const response = await fetch(`/api/admin/students/${selectedOgrenci.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editOgrenciFormData.ad.trim(),
           surname: editOgrenciFormData.soyad.trim(),
           number: editOgrenciFormData.no.trim(),
-          className: editOgrenciFormData.sinif
+          className: editOgrenciFormData.sinif,
+          // gender: editOgrenciFormData.cinsiyet || null, // Henüz schema'da yok
+          // birthDate: editOgrenciFormData.dogumTarihi || null,
+          tcNo: editOgrenciFormData.tcKimlik.trim() || null,
+          phone: editOgrenciFormData.telefon.trim() || null,
+          parentName: editOgrenciFormData.veliAdi.trim() || null,
+          // parentSurname: editOgrenciFormData.veliSoyadi.trim() || null, // Henüz schema'da yok
+          parentPhone: editOgrenciFormData.veliTelefon.trim() || null,
+          email: editOgrenciFormData.email.trim() || null
         })
       })
       
@@ -584,8 +667,8 @@ export default function OgrencilerTab({
                             <div className="text-gray-500">{ogrenci.company.contact}</div>
                           </div>
                         ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            Atanmamış
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            -
                           </span>
                         )}
                       </td>
@@ -600,8 +683,8 @@ export default function OgrencilerTab({
                             </div>
                           </div>
                         ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            Atanmamış
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            -
                           </span>
                         )}
                       </td>
@@ -700,8 +783,8 @@ export default function OgrencilerTab({
                       <div className="text-gray-500 text-xs">{ogrenci.company.contact}</div>
                     </div>
                   ) : (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                      Atanmamış
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      -
                     </span>
                   )}
                 </div>
@@ -719,8 +802,8 @@ export default function OgrencilerTab({
                       </div>
                     </div>
                   ) : (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                      Atanmamış
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      -
                     </span>
                   )}
                 </div>
@@ -840,130 +923,368 @@ export default function OgrencilerTab({
         </div>
       )}
 
-      {/* Add Student Modal */}
-      <Modal isOpen={ogrenciModalOpen} onClose={() => setOgrenciModalOpen(false)} title="Yeni Öğrenci Ekle">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Ad</label>
-            <input
-              type="text"
-              value={ogrenciFormData.ad}
-              onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, ad: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="Öğrenci adı"
-            />
+      {/* Add Student Modal - Kapsamlı 12 Alanlı Form */}
+      <Modal isOpen={ogrenciModalOpen} onClose={() => setOgrenciModalOpen(false)} title="🎓 Yeni Öğrenci Ekle">
+        <div className="space-y-6">
+          {/* Kişisel Bilgiler Bölümü */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+            <h3 className="text-lg font-semibold text-blue-800 mb-4 flex items-center">
+              👤 Kişisel Bilgiler
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ad <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={ogrenciFormData.ad}
+                  onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, ad: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Öğrenci adı"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Soyad <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={ogrenciFormData.soyad}
+                  onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, soyad: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Öğrenci soyadı"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cinsiyet</label>
+                <select
+                  value={ogrenciFormData.cinsiyet}
+                  onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, cinsiyet: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Seçiniz</option>
+                  <option value="Erkek">Erkek</option>
+                  <option value="Kız">Kız</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Doğum Tarihi</label>
+                <input
+                  type="date"
+                  value={ogrenciFormData.dogumTarihi}
+                  onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, dogumTarihi: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">TC Kimlik No</label>
+                <input
+                  type="text"
+                  value={ogrenciFormData.tcKimlik}
+                  onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, tcKimlik: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="11 haneli TC kimlik numarası"
+                  maxLength={11}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Telefon</label>
+                <input
+                  type="tel"
+                  value={ogrenciFormData.telefon}
+                  onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, telefon: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="05XX XXX XX XX"
+                />
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Soyad</label>
-            <input
-              type="text"
-              value={ogrenciFormData.soyad}
-              onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, soyad: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="Öğrenci soyadı"
-            />
+
+          {/* Okul Bilgileri Bölümü */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
+            <h3 className="text-lg font-semibold text-green-800 mb-4 flex items-center">
+              🏫 Okul Bilgileri
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Sınıf <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={ogrenciFormData.sinif}
+                  onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, sinif: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="">Sınıf Seçin</option>
+                  {siniflar.map((sinif) => (
+                    <option key={sinif.id} value={sinif.ad}>
+                      {sinif.ad}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Okul Numarası <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={ogrenciFormData.no}
+                  onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, no: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  placeholder="Örn: 1234"
+                />
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Okul Numarası</label>
-            <input
-              type="text"
-              value={ogrenciFormData.no}
-              onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, no: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="Örn: 1234"
-            />
+
+          {/* Veli Bilgileri Bölümü */}
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4">
+            <h3 className="text-lg font-semibold text-purple-800 mb-4 flex items-center">
+              👨‍👩‍👧‍👦 Veli Bilgileri
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Veli Adı</label>
+                <input
+                  type="text"
+                  value={ogrenciFormData.veliAdi}
+                  onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, veliAdi: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  placeholder="Veli adı"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Veli Soyadı</label>
+                <input
+                  type="text"
+                  value={ogrenciFormData.veliSoyadi}
+                  onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, veliSoyadi: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  placeholder="Veli soyadı"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Veli Telefon</label>
+                <input
+                  type="tel"
+                  value={ogrenciFormData.veliTelefon}
+                  onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, veliTelefon: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  placeholder="05XX XXX XX XX"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">E-posta</label>
+                <input
+                  type="email"
+                  value={ogrenciFormData.email}
+                  onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  placeholder="ornek@email.com"
+                />
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Sınıf</label>
-            <select
-              value={ogrenciFormData.sinif}
-              onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, sinif: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="">Sınıf Seçin</option>
-              {siniflar.map((sinif) => (
-                <option key={sinif.id} value={sinif.ad}>
-                  {sinif.ad}
-                </option>
-              ))}
-            </select>
-          </div>
+
           <div className="flex justify-end space-x-3 pt-4 border-t">
             <button
               onClick={() => setOgrenciModalOpen(false)}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-6 py-3 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors font-medium"
             >
-              İptal
+              ✖️ İptal
             </button>
             <button
               onClick={handleOgrenciEkle}
               disabled={submitLoading}
-              className="px-4 py-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+              className="px-6 py-3 text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 font-medium shadow-lg"
             >
-              {submitLoading ? 'Ekleniyor...' : 'Ekle'}
+              {submitLoading ? '⏳ Ekleniyor...' : '✅ Öğrenci Ekle'}
             </button>
           </div>
         </div>
       </Modal>
 
-      {/* Edit Student Modal */}
+      {/* Edit Student Modal - Kapsamlı 12 Alanlı Form */}
       {editOgrenciModal && selectedOgrenci && (
-        <Modal isOpen={editOgrenciModal} onClose={() => setEditOgrenciModal(false)} title="Öğrenciyi Düzenle">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Ad</label>
-              <input
-                type="text"
-                value={editOgrenciFormData.ad}
-                onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, ad: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
+        <Modal isOpen={editOgrenciModal} onClose={() => setEditOgrenciModal(false)} title="✏️ Öğrenciyi Düzenle">
+          <div className="space-y-6">
+            {/* Kişisel Bilgiler Bölümü */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+              <h3 className="text-lg font-semibold text-blue-800 mb-4 flex items-center">
+                👤 Kişisel Bilgiler
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ad <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editOgrenciFormData.ad}
+                    onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, ad: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Öğrenci adı"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Soyad <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editOgrenciFormData.soyad}
+                    onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, soyad: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Öğrenci soyadı"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cinsiyet</label>
+                  <select
+                    value={editOgrenciFormData.cinsiyet}
+                    onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, cinsiyet: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Seçiniz</option>
+                    <option value="Erkek">Erkek</option>
+                    <option value="Kız">Kız</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Doğum Tarihi</label>
+                  <input
+                    type="date"
+                    value={editOgrenciFormData.dogumTarihi}
+                    onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, dogumTarihi: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">TC Kimlik No</label>
+                  <input
+                    type="text"
+                    value={editOgrenciFormData.tcKimlik}
+                    onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, tcKimlik: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="11 haneli TC kimlik numarası"
+                    maxLength={11}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Telefon</label>
+                  <input
+                    type="tel"
+                    value={editOgrenciFormData.telefon}
+                    onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, telefon: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="05XX XXX XX XX"
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Soyad</label>
-              <input
-                type="text"
-                value={editOgrenciFormData.soyad}
-                onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, soyad: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
+
+            {/* Okul Bilgileri Bölümü */}
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
+              <h3 className="text-lg font-semibold text-green-800 mb-4 flex items-center">
+                🏫 Okul Bilgileri
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sınıf <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={editOgrenciFormData.sinif}
+                    onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, sinif: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  >
+                    <option value="">Sınıf Seçin</option>
+                    {siniflar.map((sinif) => (
+                      <option key={sinif.id} value={sinif.ad}>
+                        {sinif.ad}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Okul Numarası <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editOgrenciFormData.no}
+                    onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, no: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    placeholder="Örn: 1234"
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Okul Numarası</label>
-              <input
-                type="text"
-                value={editOgrenciFormData.no}
-                onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, no: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
+
+            {/* Veli Bilgileri Bölümü */}
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-4">
+              <h3 className="text-lg font-semibold text-purple-800 mb-4 flex items-center">
+                👨‍👩‍👧‍👦 Veli Bilgileri
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Veli Adı</label>
+                  <input
+                    type="text"
+                    value={editOgrenciFormData.veliAdi}
+                    onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, veliAdi: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    placeholder="Veli adı"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Veli Soyadı</label>
+                  <input
+                    type="text"
+                    value={editOgrenciFormData.veliSoyadi}
+                    onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, veliSoyadi: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    placeholder="Veli soyadı"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Veli Telefon</label>
+                  <input
+                    type="tel"
+                    value={editOgrenciFormData.veliTelefon}
+                    onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, veliTelefon: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    placeholder="05XX XXX XX XX"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">E-posta</label>
+                  <input
+                    type="email"
+                    value={editOgrenciFormData.email}
+                    onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    placeholder="ornek@email.com"
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sınıf</label>
-              <select
-                value={editOgrenciFormData.sinif}
-                onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, sinif: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              >
-                {siniflar.map((sinif) => (
-                  <option key={sinif.id} value={sinif.ad}>
-                    {sinif.ad}
-                  </option>
-                ))}
-              </select>
-            </div>
+
             <div className="flex justify-end space-x-3 pt-4 border-t">
               <button
                 onClick={() => setEditOgrenciModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                className="px-6 py-3 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors font-medium"
               >
-                İptal
+                ✖️ İptal
               </button>
               <button
                 onClick={handleOgrenciGuncelle}
                 disabled={submitLoading}
-                className="px-4 py-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                className="px-6 py-3 text-white bg-gradient-to-r from-orange-600 to-red-600 rounded-xl hover:from-orange-700 hover:to-red-700 transition-all duration-200 disabled:opacity-50 font-medium shadow-lg"
               >
-                {submitLoading ? 'Güncelleniyor...' : 'Güncelle'}
+                {submitLoading ? '⏳ Güncelleniyor...' : '✅ Öğrenci Güncelle'}
               </button>
             </div>
           </div>

@@ -39,6 +39,7 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
   const [editUser, setEditUser] = useState<UpdateAdminUser>({
     ad: '',
     soyad: '',
+    email: '',
     yetki_seviyesi: 'operator',
     aktif: true
   })
@@ -123,8 +124,15 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
   }
 
   const handleEditUser = async () => {
-    if (!selectedUser || !editUser.ad.trim() || !editUser.soyad.trim()) {
+    if (!selectedUser || !editUser.ad.trim() || !editUser.soyad.trim() || !editUser.email.trim()) {
       alert('Lütfen tüm alanları doldurun')
+      return
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(editUser.email)) {
+      alert('Geçerli bir email adresi giriniz')
       return
     }
 
@@ -207,6 +215,7 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
     setEditUser({
       ad: user.ad,
       soyad: user.soyad,
+      email: user.email,
       yetki_seviyesi: user.yetki_seviyesi,
       aktif: user.aktif
     })
@@ -527,6 +536,23 @@ export function AdminManagement({ currentUserRole }: AdminManagementProps) {
                 </p>
               )}
             </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">E-posta Adresi</label>
+            <input
+              type="email"
+              value={editUser.email}
+              onChange={(e) => setEditUser({...editUser, email: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="admin@okul.edu.tr"
+              disabled={selectedUser?.email === 'admin@ozdilek'}
+            />
+            {selectedUser?.email === 'admin@ozdilek' && (
+              <p className="text-xs text-red-500 mt-1">
+                Koordinatör Müdür Yardımcısı email adresi değiştirilemez. Güvenlik koruması aktif.
+              </p>
+            )}
           </div>
           
           <div>

@@ -19,6 +19,7 @@ export interface CreateAdminUser {
 export interface UpdateAdminUser {
   ad: string
   soyad: string
+  email: string
   yetki_seviyesi: 'super_admin' | 'admin' | 'operator'
   aktif: boolean
 }

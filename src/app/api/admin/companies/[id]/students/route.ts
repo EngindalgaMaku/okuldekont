@@ -31,7 +31,12 @@ export async function GET(
         teacher: {
           select: {
             name: true,
-            surname: true
+            surname: true,
+            alan: {
+              select: {
+                name: true
+              }
+            }
           }
         }
       },
@@ -52,7 +57,8 @@ export async function GET(
       baslangic_tarihi: staj.startDate,
       bitis_tarihi: staj.endDate,
       ogretmen_ad: staj.teacher?.name || 'Bilinmiyor',
-      ogretmen_soyad: staj.teacher?.surname || ''
+      ogretmen_soyad: staj.teacher?.surname || '',
+      ogretmen_alan: staj.teacher?.alan?.name || 'Bilinmiyor'
     }));
 
     return NextResponse.json(formattedStudents);

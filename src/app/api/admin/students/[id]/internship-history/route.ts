@@ -81,13 +81,23 @@ export async function GET(
     // Sort timeline by date
     timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    // Calculate basic statistics
+    // Calculate basic statistics with detailed company info
+    const companyDetails = internships.map((internship: any) => ({
+      name: internship.company?.name || 'Bilinmeyen Şirket',
+      startDate: internship.startDate,
+      endDate: internship.endDate,
+      status: internship.status,
+      duration: internship.startDate && internship.endDate ? 
+        Math.ceil((new Date(internship.endDate).getTime() - new Date(internship.startDate).getTime()) / (1000 * 60 * 60 * 24)) : null
+    })).filter(company => company.name !== 'Bilinmeyen Şirket');
+
     const stats = {
       totalInternships: internships.length,
       activeInternships: internships.filter(i => i.status === 'ACTIVE').length,
       completedInternships: internships.filter(i => i.status === 'COMPLETED').length,
       terminatedInternships: internships.filter((i: any) => i.status === 'TERMINATED').length,
       companies: Array.from(new Set(internships.map((i: any) => i.company?.name).filter(Boolean))),
+      companyDetails: companyDetails,
       currentCompany: student.company?.name || null
     };
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Building2, Search, Filter, Plus, Eye, RefreshCw, ChevronLeft, ChevronRight, Shield, Unlock, Send, Bell } from 'lucide-react'
+import { Building2, Search, Filter, Plus, Eye, RefreshCw, ChevronLeft, ChevronRight, Shield, Unlock, Send, Bell, User, Phone, Mail, MapPin, Hash, CreditCard, UserPlus, Loader, X, Users, Calendar } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import CompanyQuickPinButton from './CompanyQuickPinButton'
@@ -23,6 +23,29 @@ interface Company {
     surname: string
   }
   isLocked?: boolean
+}
+
+interface Teacher {
+  id: string
+  name: string
+  surname: string
+  alan?: {
+    id: string
+    name: string
+  }
+}
+
+interface YeniIsletmeFormData {
+  name: string
+  contact: string
+  phone: string
+  email: string
+  address: string
+  taxNumber: string
+  teacherId: string
+  pin: string
+  usta_ogretici_ad: string
+  usta_ogretici_telefon: string
 }
 
 interface PaginationInfo {
@@ -63,6 +86,29 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
     priority: 'NORMAL' as 'LOW' | 'NORMAL' | 'HIGH'
   })
   const [sending, setSending] = useState(false)
+
+  // Yeni İşletme Modal States
+  const [yeniIsletmeModalOpen, setYeniIsletmeModalOpen] = useState(false)
+  const [createLoading, setCreateLoading] = useState(false)
+  const [availableTeachers, setAvailableTeachers] = useState<Teacher[]>([])
+  const [yeniIsletmeFormData, setYeniIsletmeFormData] = useState<YeniIsletmeFormData>({
+    name: '',
+    contact: '',
+    phone: '',
+    email: '',
+    address: '',
+    taxNumber: '',
+    teacherId: '',
+    pin: '',
+    usta_ogretici_ad: '',
+    usta_ogretici_telefon: ''
+  })
+
+  // Öğrenci Listesi Modal States
+  const [studentsModalOpen, setStudentsModalOpen] = useState(false)
+  const [selectedCompanyStudents, setSelectedCompanyStudents] = useState<any[]>([])
+  const [studentsLoading, setStudentsLoading] = useState(false)
+  const [selectedCompanyForStudents, setSelectedCompanyForStudents] = useState<Company | null>(null)
   
   const router = useRouter()
   
@@ -276,6 +322,182 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
     fetchCompanies()
   }
 
+  // Fetch teachers for coordinator dropdown
+  const fetchTeachers = async () => {
+    try {
+      const response = await fetch('/api/admin/teachers')
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error('Öğretmen listesi alınamadı')
+      }
+
+      setAvailableTeachers(data || [])
+    } catch (error) {
+      console.error('Teachers fetch error:', error)
+      toast.error('Öğretmen listesi yüklenirken hata oluştu')
+    }
+  }
+
+  // Open create modal and fetch teachers
+  const handleOpenCreateModal = async () => {
+    setYeniIsletmeFormData({
+      name: '',
+      contact: '',
+      phone: '',
+      email: '',
+      address: '',
+      taxNumber: '',
+      teacherId: '',
+      pin: '',
+      usta_ogretici_ad: '',
+      usta_ogretici_telefon: ''
+    })
+    setYeniIsletmeModalOpen(true)
+    await fetchTeachers()
+  }
+
+  // Validate form data
+  const validateFormData = (data: YeniIsletmeFormData): string[] => {
+    const errors: string[] = []
+
+    if (!data.name.trim()) {
+      errors.push('İşletme adı zorunludur')
+    } else if (data.name.trim().length < 2) {
+      errors.push('İşletme adı en az 2 karakter olmalıdır')
+    }
+
+    if (!data.contact.trim()) {
+      errors.push('Yetkili kişi zorunludur')
+    } else if (data.contact.trim().length < 2) {
+      errors.push('Yetkili kişi en az 2 karakter olmalıdır')
+    }
+
+    if (data.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(data.email.trim())) {
+        errors.push('Geçerli bir e-posta adresi girin')
+      }
+    }
+
+    if (data.pin.trim()) {
+      const pinRegex = /^\d{4}$/
+      if (!pinRegex.test(data.pin.trim())) {
+        errors.push('PIN kodu 4 haneli sayı olmalıdır')
+      }
+    }
+
+    if (data.phone.trim()) {
+      const phoneRegex = /^(\+90|0)?[1-9]\d{9}$/
+      if (!phoneRegex.test(data.phone.trim().replace(/\s/g, ''))) {
+        errors.push('Geçerli bir telefon numarası girin')
+      }
+    }
+
+    return errors
+  }
+
+  // Handle create company
+  const handleCreateCompany = async () => {
+    const errors = validateFormData(yeniIsletmeFormData)
+    
+    if (errors.length > 0) {
+      errors.forEach(error => toast.error(error))
+      return
+    }
+
+    setCreateLoading(true)
+    try {
+      const response = await fetch('/api/admin/companies', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: yeniIsletmeFormData.name.trim(),
+          contact: yeniIsletmeFormData.contact.trim(),
+          phone: yeniIsletmeFormData.phone.trim() || null,
+          email: yeniIsletmeFormData.email.trim() || null,
+          address: yeniIsletmeFormData.address.trim() || null,
+          taxNumber: yeniIsletmeFormData.taxNumber.trim() || null,
+          teacherId: yeniIsletmeFormData.teacherId || null,
+          pin: yeniIsletmeFormData.pin.trim() || null,
+          usta_ogretici_ad: yeniIsletmeFormData.usta_ogretici_ad.trim() || null,
+          usta_ogretici_telefon: yeniIsletmeFormData.usta_ogretici_telefon.trim() || null,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'İşletme oluşturulurken hata oluştu')
+      }
+
+      toast.success(data.message || 'İşletme başarıyla oluşturuldu!')
+      setYeniIsletmeModalOpen(false)
+      
+      // Reset form
+      setYeniIsletmeFormData({
+        name: '',
+        contact: '',
+        phone: '',
+        email: '',
+        address: '',
+        taxNumber: '',
+        teacherId: '',
+        pin: '',
+        usta_ogretici_ad: '',
+        usta_ogretici_telefon: ''
+      })
+
+      // Refresh companies list
+      await fetchCompanies()
+    } catch (error: any) {
+      toast.error(error.message || 'İşletme oluşturulurken hata oluştu')
+    } finally {
+      setCreateLoading(false)
+    }
+  }
+
+  // Handle form field changes
+  const handleFormFieldChange = (field: keyof YeniIsletmeFormData, value: string) => {
+    setYeniIsletmeFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  // Fetch company students
+  const fetchCompanyStudents = async (company: Company) => {
+    setStudentsLoading(true)
+    setSelectedCompanyForStudents(company)
+    setStudentsModalOpen(true)
+    
+    try {
+      const response = await fetch(`/api/admin/companies/${company.id}/students`)
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Öğrenci listesi alınamadı')
+      }
+
+      setSelectedCompanyStudents(data || [])
+    } catch (error) {
+      console.error('Students fetch error:', error)
+      toast.error('Öğrenci listesi yüklenirken hata oluştu')
+      setSelectedCompanyStudents([])
+    } finally {
+      setStudentsLoading(false)
+    }
+  }
+
+  // Handle student count click
+  const handleStudentCountClick = (company: Company) => {
+    if (company._count?.students && company._count.students > 0) {
+      fetchCompanyStudents(company)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -321,13 +543,13 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
           <h1 className="text-lg sm:text-2xl font-bold text-gray-900">İşletme Yönetimi</h1>
           <p className="text-gray-600 mt-0.5 sm:mt-1 text-xs sm:text-base">Sistemdeki tüm işletmeleri yönetin</p>
         </div>
-        <Link
-          href="/admin/isletmeler/yeni"
+        <button
+          onClick={handleOpenCreateModal}
           className="inline-flex items-center justify-center px-3 sm:px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 text-sm w-full sm:w-auto"
         >
           <Plus className="h-4 w-4 mr-2" />
           Yeni İşletme
-        </Link>
+        </button>
       </div>
 
       {/* Filters */}
@@ -420,10 +642,7 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                     İşletme
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Yetkili Kişi
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    İletişim
+                    Yetkili Kişi & İletişim
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Koordinatör
@@ -448,36 +667,39 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                       />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
-                          <Building2 className="h-5 w-5 text-indigo-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-900 truncate">
-                            {company.name}
+                      <div className="flex-1 min-w-0">
+                        <Link
+                          href={`/admin/isletmeler/${company.id}`}
+                          className="text-sm font-medium text-indigo-600 hover:text-indigo-900 truncate block"
+                        >
+                          {company.name}
+                        </Link>
+                        {company.address && (
+                          <div className="text-sm text-gray-500 truncate max-w-xs">
+                            {company.address}
                           </div>
-                          {company.address && (
-                            <div className="text-sm text-gray-500 truncate max-w-xs">
-                              {company.address}
-                            </div>
-                          )}
-                          {securityStatuses[company.id]?.isLocked && (
-                            <div className="text-xs text-red-600 flex items-center mt-1">
-                              <Shield className="w-3 h-3 mr-1" />
-                              Blokeli
-                            </div>
-                          )}
+                        )}
+                        {securityStatuses[company.id]?.isLocked && (
+                          <div className="text-xs text-red-600 flex items-center mt-1">
+                            <Shield className="w-3 h-3 mr-1" />
+                            Blokeli
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="space-y-1">
+                        <div className="text-sm text-gray-900">
+                          {company.contact || '-'}
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {company.contact || '-'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {company.phone || '-'}
+                        {company.phone && (
+                          <a
+                            href={`tel:${company.phone}`}
+                            className="text-sm text-indigo-600 hover:text-indigo-900"
+                          >
+                            {company.phone}
+                          </a>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -489,9 +711,17 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                      <button
+                        onClick={() => handleStudentCountClick(company)}
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                          company._count?.students && company._count.students > 0
+                            ? 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 cursor-pointer'
+                            : 'bg-gray-100 text-gray-600 cursor-default'
+                        }`}
+                        disabled={!company._count?.students || company._count.students === 0}
+                      >
                         {company._count?.students || 0} öğrenci
-                      </span>
+                      </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
@@ -585,17 +815,25 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                       onChange={(e) => handleSelectCompany(company.id, e.target.checked)}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3 mt-1"
                     />
-                    <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center mr-2 flex-shrink-0">
-                      <Building2 className="h-4 w-4 text-indigo-600" />
-                    </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 text-sm truncate">
+                      <Link
+                        href={`/admin/isletmeler/${company.id}`}
+                        className="font-semibold text-indigo-600 hover:text-indigo-900 text-sm truncate block"
+                      >
                         {company.name}
-                      </h3>
+                      </Link>
                       <div className="flex items-center gap-2">
-                        <p className="text-xs text-gray-500">
+                        <button
+                          onClick={() => handleStudentCountClick(company)}
+                          className={`text-xs transition-colors ${
+                            company._count?.students && company._count.students > 0
+                              ? 'text-indigo-600 hover:text-indigo-900 cursor-pointer'
+                              : 'text-gray-500 cursor-default'
+                          }`}
+                          disabled={!company._count?.students || company._count.students === 0}
+                        >
                           {company._count?.students || 0} öğrenci
-                        </p>
+                        </button>
                         {securityStatuses[company.id]?.isLocked && (
                           <span className="text-xs text-red-600 flex items-center">
                             <Shield className="w-3 h-3 mr-1" />
@@ -637,7 +875,12 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                   {company.phone && (
                     <p className="text-xs text-gray-600">
                       <span className="font-medium">Tel:</span>
-                      <span className="ml-1">{company.phone}</span>
+                      <a
+                        href={`tel:${company.phone}`}
+                        className="ml-1 text-indigo-600 hover:text-indigo-900"
+                      >
+                        {company.phone}
+                      </a>
                     </p>
                   )}
                   {company.teacher && (
@@ -748,6 +991,352 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
               className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 disabled:opacity-50"
             >
               {sending ? 'Gönderiliyor...' : 'Mesaj Gönder'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Yeni İşletme Ekleme Modal'ı */}
+      <Modal
+        isOpen={yeniIsletmeModalOpen}
+        onClose={() => setYeniIsletmeModalOpen(false)}
+        title="Yeni İşletme Ekle"
+      >
+        <div className="space-y-6">
+          {/* Temel Bilgiler Bölümü */}
+          <div className="space-y-4">
+            <div className="flex items-center mb-4">
+              <div className="w-8 h-8 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center mr-3">
+                <Building2 className="h-4 w-4 text-indigo-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Temel Bilgiler</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  İşletme Adı <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={yeniIsletmeFormData.name}
+                  onChange={(e) => handleFormFieldChange('name', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="İşletme adını girin"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Yetkili Kişi <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={yeniIsletmeFormData.contact}
+                  onChange={(e) => handleFormFieldChange('contact', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Yetkili kişi adı soyadı"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Phone className="h-4 w-4 inline mr-1" />
+                  Telefon
+                </label>
+                <input
+                  type="tel"
+                  value={yeniIsletmeFormData.phone}
+                  onChange={(e) => handleFormFieldChange('phone', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="0555 123 45 67"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Mail className="h-4 w-4 inline mr-1" />
+                  E-posta
+                </label>
+                <input
+                  type="email"
+                  value={yeniIsletmeFormData.email}
+                  onChange={(e) => handleFormFieldChange('email', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="ornek@sirket.com"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <MapPin className="h-4 w-4 inline mr-1" />
+                Adres
+              </label>
+              <textarea
+                value={yeniIsletmeFormData.address}
+                onChange={(e) => handleFormFieldChange('address', e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="İşletme adresi"
+              />
+            </div>
+          </div>
+
+          {/* Teknik & Mali Bilgiler Bölümü */}
+          <div className="space-y-4 border-t pt-6">
+            <div className="flex items-center mb-4">
+              <div className="w-8 h-8 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center mr-3">
+                <CreditCard className="h-4 w-4 text-indigo-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Teknik & Mali Bilgiler</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Hash className="h-4 w-4 inline mr-1" />
+                  Vergi Numarası
+                </label>
+                <input
+                  type="text"
+                  value={yeniIsletmeFormData.taxNumber}
+                  onChange={(e) => handleFormFieldChange('taxNumber', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="1234567890"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  PIN Kodu (4 haneli)
+                </label>
+                <input
+                  type="text"
+                  value={yeniIsletmeFormData.pin}
+                  onChange={(e) => handleFormFieldChange('pin', e.target.value)}
+                  maxLength={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+                  placeholder="0000 (boş bırakılırsa otomatik oluşturulur)"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <User className="h-4 w-4 inline mr-1" />
+                  Koordinatör Öğretmen
+                </label>
+                <select
+                  value={yeniIsletmeFormData.teacherId}
+                  onChange={(e) => handleFormFieldChange('teacherId', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="">Koordinatör seçiniz (opsiyonel)</option>
+                  {availableTeachers.map((teacher) => (
+                    <option key={teacher.id} value={teacher.id}>
+                      {teacher.name} {teacher.surname}
+                      {teacher.alan ? ` (${teacher.alan.name})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Usta Öğretici Bölümü */}
+          <div className="space-y-4 border-t pt-6">
+            <div className="flex items-center mb-4">
+              <div className="w-8 h-8 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center mr-3">
+                <UserPlus className="h-4 w-4 text-indigo-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Usta Öğretici</h3>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-blue-800">
+                <strong>Usta Öğretici:</strong> İşletmede stajyer öğrencilere rehberlik edecek deneyimli personel bilgileri.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <User className="h-4 w-4 inline mr-1" />
+                  Usta Öğretici Ad Soyad
+                </label>
+                <input
+                  type="text"
+                  value={yeniIsletmeFormData.usta_ogretici_ad}
+                  onChange={(e) => handleFormFieldChange('usta_ogretici_ad', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Örn: Ahmet Yılmaz"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Phone className="h-4 w-4 inline mr-1" />
+                  Usta Öğretici Telefon
+                </label>
+                <input
+                  type="tel"
+                  value={yeniIsletmeFormData.usta_ogretici_telefon}
+                  onChange={(e) => handleFormFieldChange('usta_ogretici_telefon', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="0555 123 45 67"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Form Butonları */}
+          <div className="flex justify-end gap-3 pt-6 border-t">
+            <button
+              onClick={() => setYeniIsletmeModalOpen(false)}
+              className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              disabled={createLoading}
+            >
+              <X className="h-4 w-4 mr-2 inline" />
+              İptal
+            </button>
+            <button
+              onClick={handleCreateCompany}
+              disabled={createLoading || !yeniIsletmeFormData.name.trim() || !yeniIsletmeFormData.contact.trim()}
+              className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center"
+            >
+              {createLoading ? (
+                <>
+                  <Loader className="animate-spin h-4 w-4 mr-2" />
+                  Oluşturuluyor...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  İşletme Oluştur
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Öğrenci Listesi Modal'ı */}
+      <Modal
+        isOpen={studentsModalOpen}
+        onClose={() => setStudentsModalOpen(false)}
+        title={`${selectedCompanyForStudents?.name || 'İşletme'} - Öğrenci Listesi`}
+      >
+        <div className="space-y-4">
+          {studentsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <Loader className="animate-spin h-8 w-8 text-indigo-600 mx-auto mb-4" />
+                <p className="text-gray-600">Öğrenciler yükleniyor...</p>
+              </div>
+            </div>
+          ) : selectedCompanyStudents.length > 0 ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b pb-3">
+                <div className="flex items-center">
+                  <div className="w-10 h-10 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center mr-3">
+                    <Users className="h-5 w-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Aktif Stajyer Öğrenciler</h3>
+                    <p className="text-sm text-gray-600">{selectedCompanyStudents.length} öğrenci</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="max-h-96 overflow-y-auto">
+                <div className="space-y-3">
+                  {selectedCompanyStudents.map((student: any) => (
+                    <div key={student.id} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center mb-2">
+                            <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center mr-3">
+                              <User className="h-4 w-4 text-indigo-600" />
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-gray-900 text-sm">
+                                {student.ad} {student.soyad}
+                              </h4>
+                              <p className="text-xs text-gray-600">
+                                No: {student.no} • Sınıf: {student.sinif}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-3 ml-11">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="text-xs">
+                                <span className="font-medium text-gray-700">Alan:</span>
+                                <span className="ml-1 text-gray-600">{student.alanlar?.name || 'Bilinmiyor'}</span>
+                              </div>
+                              <div className="text-xs">
+                                <span className="font-medium text-gray-700">Koordinatör:</span>
+                                <span className="ml-1 text-gray-600">
+                                  {student.ogretmen_ad} {student.ogretmen_soyad}
+                                  {student.ogretmen_alan && (
+                                    <span className="ml-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                                      {student.ogretmen_alan}
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {/* Staj Dönemi */}
+                            <div className="bg-white rounded-lg border border-indigo-100 p-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-4">
+                                  <div className="flex items-center">
+                                    <Calendar className="h-4 w-4 text-green-600 mr-1.5" />
+                                    <div>
+                                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Başlangıç</div>
+                                      <div className="text-sm font-semibold text-gray-900">
+                                        {new Date(student.baslangic_tarihi).toLocaleDateString('tr-TR')}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="h-8 w-px bg-gray-300"></div>
+                                  
+                                  <div className="flex items-center">
+                                    <Calendar className="h-4 w-4 text-red-600 mr-1.5" />
+                                    <div>
+                                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Bitiş</div>
+                                      <div className="text-sm font-semibold text-gray-900">
+                                        {new Date(student.bitis_tarihi).toLocaleDateString('tr-TR')}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Öğrenci Bulunamadı</h3>
+              <p className="text-gray-600">Bu işletmede aktif staj yapan öğrenci bulunmuyor.</p>
+            </div>
+          )}
+          
+          <div className="flex justify-end pt-4 border-t">
+            <button
+              onClick={() => setStudentsModalOpen(false)}
+              className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Kapat
             </button>
           </div>
         </div>

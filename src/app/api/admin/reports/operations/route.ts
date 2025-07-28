@@ -182,6 +182,78 @@ export async function GET(request: NextRequest) {
         assignedBy: change.assignedByUser?.email || 'Bilinmeyen',
         reason: change.reason || 'Belirtilmemiş'
       }))
+    } else if (type === 'staj-tamamlama') {
+      // Tamamlanmış stajlar için where koşulları
+      const where: any = {
+        status: 'COMPLETED'
+      }
+      
+      // Filtreleme koşulları
+      if (startDate || endDate) {
+        where.lastModifiedAt = {}
+        if (startDate) where.lastModifiedAt.gte = new Date(startDate)
+        if (endDate) where.lastModifiedAt.lte = new Date(endDate)
+      }
+      
+      if (fieldId) {
+        where.student = { alanId: fieldId }
+      }
+      
+      if (studentName) {
+        where.student = {
+          ...where.student,
+          OR: [
+            { name: { contains: studentName } },
+            { surname: { contains: studentName } }
+          ]
+        }
+      }
+      
+      if (companyName) {
+        where.company = {
+          name: { contains: companyName }
+        }
+      }
+
+      const stajlar = await prisma.staj.findMany({
+        where,
+        include: {
+          student: {
+            include: {
+              alan: true
+            }
+          },
+          company: true,
+          teacher: {
+            include: {
+              alan: true
+            }
+          }
+        },
+        orderBy: {
+          lastModifiedAt: 'desc'
+        },
+        skip,
+        take: limit
+      })
+
+      total = await prisma.staj.count({ where })
+
+      operations = stajlar.map(staj => ({
+        id: staj.id,
+        type: 'staj-tamamlama',
+        title: `${staj.student.name} ${staj.student.surname} - Staj Tamamlama`,
+        studentName: `${staj.student.name} ${staj.student.surname}`,
+        companyName: staj.company?.name || '',
+        teacherName: staj.teacher ? `${staj.teacher.name} ${staj.teacher.surname}` : '',
+        fieldName: staj.student.alan?.name || '',
+        className: staj.student.className || '',
+        date: staj.lastModifiedAt || staj.endDate,
+        startDate: staj.startDate,
+        endDate: staj.endDate,
+        completedAt: staj.lastModifiedAt,
+        completionNotes: staj.terminationNotes || ''
+      }))
     }
 
     return NextResponse.json({

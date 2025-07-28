@@ -26,8 +26,27 @@ interface Ogretmen {
 interface Staj {
   id: string;
   baslangic_tarihi: string;
-  ogrenciler: { id: string; ad: string; soyad: string; sinif: string; no: string } | null;
-  isletmeler: { id: string; ad: string } | null;
+  bitis_tarihi?: string;
+  fesih_tarihi?: string;
+  durum: string;
+  koordinator_degisen?: boolean;
+  ogrenciler: {
+    id: string;
+    ad: string;
+    soyad: string;
+    sinif: string;
+    no: string;
+    alan?: { id: string; ad: string } | null;
+  } | null;
+  isletmeler: {
+    id: string;
+    ad: string;
+    yetkili?: string;
+    telefon?: string;
+    email?: string;
+    usta_ogretici_ad?: string;
+    usta_ogretici_telefon?: string;
+  } | null;
   dekontlar: { id: string; ay: number; yil: number; onay_durumu: 'onaylandi' | 'bekliyor' | 'reddedildi' }[];
 }
 interface Program {
@@ -85,7 +104,13 @@ export default function OgretmenDetayClient({
                 dekontList.push({
                     ...dekont,
                     ogrenci_ad_soyad: `${staj.ogrenciler!.ad} ${staj.ogrenciler!.soyad}`,
-                    isletme_ad: staj.isletmeler!.ad
+                    ogrenci_sinif: staj.ogrenciler!.sinif,
+                    ogrenci_no: staj.ogrenciler!.no,
+                    ogrenci_alan: staj.ogrenciler!.alan?.ad,
+                    isletme_ad: staj.isletmeler!.ad,
+                    isletme_yetkili: staj.isletmeler!.yetkili,
+                    isletme_telefon: staj.isletmeler!.telefon,
+                    isletme_email: staj.isletmeler!.email
                 })
             })
         }
@@ -106,9 +131,9 @@ export default function OgretmenDetayClient({
   );
 
   return (
-    <div className="bg-white rounded-lg shadow-md border border-gray-200">
+    <div className="bg-white rounded-lg shadow-md border border-gray-200 w-full max-w-none">
       <div className="border-b border-gray-200">
-        <nav className="flex -mb-px px-6 space-x-6">
+        <nav className="flex -mb-px px-0 space-x-6">
           <TabButton id="detaylar" label="Öğrenci Listesi" icon={User} activeTab={activeTab} onClick={handleTabChange} />
           <TabButton id="program" label="Haftalık Program" icon={Clock} activeTab={activeTab} onClick={handleTabChange} />
           <TabButton id="dekontlar" label="Dekontlar" icon={Receipt} activeTab={activeTab} onClick={handleTabChange} />
@@ -116,7 +141,7 @@ export default function OgretmenDetayClient({
         </nav>
       </div>
 
-      <div className="p-6">
+      <div className="p-0">
         {activeTab === 'detaylar' && (
           <OgrenciListesiTab
             stajlar={paginatedStajlar}
@@ -130,16 +155,46 @@ export default function OgretmenDetayClient({
                 isletmeler={Array.from(new Map(stajlar.map(s => s.isletmeler).filter(Boolean).map(i => [i!.id, i!])).values())}
                 ogrenciler={koordinatoerlukOgrenciler}
                 onProgramEkle={async (yeni) => {
-                    // Program functionality disabled during migration
-                    toast.error('Program özelliği geçici olarak devre dışı.');
+                    try {
+                        const response = await fetch(`/api/admin/teachers/${ogretmen.id}/program`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(yeni),
+                        });
+
+                        if (response.ok) {
+                            toast.success('Program başarıyla eklendi.');
+                            refreshData();
+                        } else {
+                            const errorData = await response.json();
+                            toast.error(errorData.error || 'Program eklenirken hata oluştu.');
+                        }
+                    } catch (error) {
+                        toast.error('Program eklenirken hata oluştu.');
+                    }
                 }}
                 onProgramSil={async (id) => {
-                    // Program functionality disabled during migration
-                    toast.error('Program özelliği geçici olarak devre dışı.');
+                    try {
+                        const response = await fetch(`/api/admin/teachers/${ogretmen.id}/program/${id}`, {
+                            method: 'DELETE',
+                        });
+
+                        if (response.ok) {
+                            toast.success('Program başarıyla silindi.');
+                            refreshData();
+                        } else {
+                            const errorData = await response.json();
+                            toast.error(errorData.error || 'Program silinirken hata oluştu.');
+                        }
+                    } catch (error) {
+                        toast.error('Program silinirken hata oluştu.');
+                    }
                 }}
             />
         )}
-        {activeTab === 'dekontlar' && <OgretmenDekontListesi dekontlar={tumDekontlar} />}
+        {activeTab === 'dekontlar' && <OgretmenDekontListesi dekontlar={tumDekontlar} onUpdate={refreshData} />}
         {activeTab === 'ayarlar' && <AyarlarTab ogretmen={ogretmen} onUpdate={refreshData} />}
       </div>
     </div>
@@ -163,45 +218,244 @@ const TabButton = ({ id, label, icon: Icon, activeTab, onClick }: { id: string, 
 )
 
 const OgrenciListesiTab = ({ stajlar, totalPages, currentPage }: { stajlar: Staj[], totalPages: number, currentPage: number }) => {
+  const [filters, setFilters] = useState({
+    aktif: true,
+    tamamlanan: false,
+    fesih: false,
+    koordinator_degisen: false
+  })
+
+  const handleFilterChange = (filterName: string, checked: boolean) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterName]: checked
+    }))
+  }
+
+  // Filter stajlar based on selected filters
+  const filteredStajlar = stajlar.filter(staj => {
+    if (filters.aktif && staj.durum === 'ACTIVE') return true
+    if (filters.tamamlanan && staj.durum === 'COMPLETED') return true
+    if (filters.fesih && staj.durum === 'TERMINATED') return true
+    if (filters.koordinator_degisen && staj.koordinator_degisen) return true
+    return false
+  })
+
   if (stajlar.length === 0) {
     return (
       <div className="text-center py-12 text-gray-500">
         <Info className="mx-auto h-10 w-10 mb-2" />
-        Bu öğretmenin sorumlu olduğu aktif staj bulunmuyor.
+        Bu öğretmenin sorumlu olduğu staj bulunmuyor.
+      </div>
+    )
+  }
+
+  if (filteredStajlar.length === 0) {
+    return (
+      <div>
+        {/* Filter Controls */}
+        <div className="mb-4 flex justify-end mt-2 mr-2">
+          <div className="flex items-center gap-6 p-3 bg-gray-50 rounded-lg border">
+            <span className="text-sm font-medium text-gray-700">Filtreler:</span>
+            
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={filters.aktif}
+                onChange={(e) => handleFilterChange('aktif', e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Aktif</span>
+            </label>
+
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={filters.tamamlanan}
+                onChange={(e) => handleFilterChange('tamamlanan', e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Tamamlanan</span>
+            </label>
+
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={filters.fesih}
+                onChange={(e) => handleFilterChange('fesih', e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Fesih Olan</span>
+            </label>
+
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={filters.koordinator_degisen}
+                onChange={(e) => handleFilterChange('koordinator_degisen', e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Koordinatörü Değişen</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="text-center py-12 text-gray-500">
+          <Info className="mx-auto h-10 w-10 mb-2" />
+          Seçili filtrelere uygun staj bulunmuyor.
+        </div>
       </div>
     )
   }
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="bg-gray-50">
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Öğrenci</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">İşletme</th>
-            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Staj Başlangıcı</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200">
-          {stajlar.map(staj => (
-            <tr key={staj.id} className="hover:bg-gray-50">
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="font-medium text-gray-900">{staj.ogrenciler?.ad} {staj.ogrenciler?.soyad}</div>
-                <div className="text-sm text-gray-500">{staj.ogrenciler?.sinif}</div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <Link href={`/admin/isletmeler/${staj.isletmeler?.id}`} className="text-blue-600 hover:underline">
-                  {staj.isletmeler?.ad}
-                </Link>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-700">
-                {new Date(staj.baslangic_tarihi).toLocaleDateString('tr-TR')}
-              </td>
+    <div>
+      {/* Filter Controls */}
+      <div className="mb-4 flex justify-end mt-2 mr-2">
+        <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg border">
+          <span className="text-sm font-medium text-gray-700">Filtreler:</span>
+          
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={filters.aktif}
+              onChange={(e) => handleFilterChange('aktif', e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-700">Aktif ({stajlar.filter(s => s.durum === 'ACTIVE').length})</span>
+          </label>
+
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={filters.tamamlanan}
+              onChange={(e) => handleFilterChange('tamamlanan', e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-700">Tamamlanan ({stajlar.filter(s => s.durum === 'COMPLETED').length})</span>
+          </label>
+
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={filters.fesih}
+              onChange={(e) => handleFilterChange('fesih', e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-700">Fesih Olan ({stajlar.filter(s => s.durum === 'TERMINATED').length})</span>
+          </label>
+
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={filters.koordinator_degisen}
+              onChange={(e) => handleFilterChange('koordinator_degisen', e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-700">Koordinatörü Değişen ({stajlar.filter(s => s.koordinator_degisen).length})</span>
+          </label>
+        </div>
+      </div>
+
+      <div className="max-w-8xl mx-auto px-2 sm:px-8">
+        <table className="w-full table-auto rounded-xl shadow-lg border border-gray-200 bg-white">
+          <thead>
+            <tr className="bg-gradient-to-r from-blue-50 to-gray-100">
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider rounded-tl-xl">Öğrenci Bilgileri</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider">İşletme & İletişim</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700 uppercase tracking-wider">Tarihler</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700 uppercase tracking-wider rounded-tr-xl">Durum</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="mt-4">
-        <Pagination currentPage={currentPage} totalPages={totalPages} />
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {filteredStajlar.map(staj => (
+              <tr key={staj.id} className="hover:bg-blue-50 transition-colors group">
+                <td className="px-6 py-5 align-top">
+                  <div className="space-y-1">
+                    <div className="font-semibold text-gray-900 text-base">{staj.ogrenciler?.ad} {staj.ogrenciler?.soyad}</div>
+                    {staj.ogrenciler?.no && (
+                      <div className="text-xs text-gray-500">No: {staj.ogrenciler.no}</div>
+                    )}
+                    <div className="text-sm text-gray-600">{staj.ogrenciler?.sinif}</div>
+                    {staj.ogrenciler?.alan && (
+                      <div className="text-xs text-blue-700 font-medium">{staj.ogrenciler.alan.ad}</div>
+                    )}
+                  </div>
+                </td>
+                <td className="px-6 py-5 align-top">
+                  <div className="space-y-1">
+                    <Link href={`/admin/isletmeler/${staj.isletmeler?.id}`} className="text-blue-700 hover:underline font-semibold">
+                      {staj.isletmeler?.ad}
+                    </Link>
+                    {staj.isletmeler?.yetkili && (
+                      <div className="text-xs text-gray-500">
+                        <span className="font-medium">Yetkili: </span>
+                        {staj.isletmeler.yetkili}
+                      </div>
+                    )}
+                    {staj.isletmeler?.telefon && (
+                      <div className="text-xs text-blue-700">
+                        <a href={`tel:${staj.isletmeler.telefon}`} className="hover:underline">
+                          {staj.isletmeler.telefon}
+                        </a>
+                      </div>
+                    )}
+                    {staj.isletmeler?.usta_ogretici_ad && (
+                      <div className="text-xs text-gray-500">
+                        <span className="font-medium">Usta Öğretici: </span>
+                        {staj.isletmeler.usta_ogretici_ad}
+                      </div>
+                    )}
+                    {staj.isletmeler?.usta_ogretici_telefon && (
+                      <div className="text-xs text-blue-700">
+                        <a href={`tel:${staj.isletmeler.usta_ogretici_telefon}`} className="hover:underline">
+                          {staj.isletmeler.usta_ogretici_telefon}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </td>
+                <td className="px-6 py-5 text-center align-top">
+                  <div className="text-base text-gray-700 font-medium">
+                    {new Date(staj.baslangic_tarihi).toLocaleDateString('tr-TR')}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {staj.durum === 'TERMINATED' && staj.fesih_tarihi ? (
+                      <span className="text-red-600 font-semibold">
+                        Fesih: {new Date(staj.fesih_tarihi).toLocaleDateString('tr-TR')}
+                      </span>
+                    ) : staj.bitis_tarihi ? (
+                      <span>
+                        Bitiş: {new Date(staj.bitis_tarihi).toLocaleDateString('tr-TR')}
+                      </span>
+                    ) : (
+                      <span className="text-green-600 font-semibold">Devam ediyor</span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-6 py-5 text-center align-top">
+                  <span className={`inline-flex px-3 py-1 text-sm font-bold rounded-full shadow-sm border border-gray-200 ${
+                    staj.durum === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                    staj.durum === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                    staj.durum === 'TERMINATED' ? 'bg-red-100 text-red-800' :
+                    staj.durum === 'CANCELLED' ? 'bg-gray-100 text-gray-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {staj.durum === 'ACTIVE' ? 'Aktif' :
+                     staj.durum === 'COMPLETED' ? 'Tamamlandı' :
+                     staj.durum === 'TERMINATED' ? 'Fesih' :
+                     staj.durum === 'CANCELLED' ? 'İptal' :
+                     staj.durum}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {filteredStajlar.length > 0 && (
+          <div className="mt-4">
+            <Pagination currentPage={currentPage} totalPages={totalPages} />
+          </div>
+        )}
       </div>
     </div>
   )

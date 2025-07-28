@@ -32,6 +32,13 @@ export default withAuth(
       authorized: ({ token, req }) => {
         const { pathname } = req.nextUrl
         
+        // Allow access to login pages without authentication
+        if (pathname === '/admin/login' ||
+            pathname === '/ogretmen/login' ||
+            pathname === '/isletme/login') {
+          return true
+        }
+        
         // Admin routes need admin role
         if (pathname.startsWith('/admin')) {
           return token?.role === 'ADMIN'

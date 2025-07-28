@@ -26,6 +26,13 @@ model User {
   internshipHistory     InternshipHistory[]
   teacherAssignments    TeacherAssignmentHistory[] @relation("TeacherAssignmentPerformer")
   
+  // Messaging Relations
+  conversations         ConversationParticipant[]
+  sentMessages          Message[]
+  messageReads          MessageRead[]
+  presence              UserPresence?
+  messageNotifications  MessageNotification[]
+  
   @@map("users")
 }
 
@@ -69,6 +76,7 @@ model TeacherProfile {
   teacherAssignments         TeacherAssignmentHistory[]
   previousTeacherAssignments TeacherAssignmentHistory[] @relation("PreviousTeacherAssignment")
   pinAttempts                PinAttempt[] @relation("TeacherPinAttempts")
+  koordinatorlukProgrami     KoordinatorlukProgrami[]
 
   @@map("teachers")
 }
@@ -107,6 +115,7 @@ model CompanyProfile {
   belgeler                Belge[]
   teacherAssignmentHistory TeacherAssignmentHistory[]
   pinAttempts             PinAttempt[] @relation("CompanyPinAttempts")
+  koordinatorlukProgrami  KoordinatorlukProgrami[]
 
   @@map("companies")
 }
@@ -156,19 +165,22 @@ model Class {
 }
 
 model Student {
-  id          String  @id @default(cuid())
-  name        String
-  surname     String
-  className   String
-  number      String?
-  tcNo        String?
-  phone       String?
-  email       String?
-  parentName  String?
-  parentPhone String?
-  alanId      String
-  companyId   String?
-  classId     String?
+  id            String    @id @default(cuid())
+  name          String
+  surname       String
+  className     String
+  number        String?
+  tcNo          String?
+  phone         String?
+  email         String?
+  gender        String?   // Cinsiyet (Erkek/Kız)
+  birthDate     DateTime? // Doğum tarihi
+  parentName    String?
+  parentSurname String?   // Veli soyadı
+  parentPhone   String?
+  alanId        String
+  companyId     String?
+  classId       String?
   
   alan    Alan            @relation(fields: [alanId], references: [id])
   company CompanyProfile? @relation(fields: [companyId], references: [id])
@@ -412,6 +424,22 @@ model WageRate {
   @@map("wage_rates")
 }
 
+// Koordinatörlük Programı
+model KoordinatorlukProgrami {
+  id           String @id @default(cuid())
+  ogretmenId   String
+  gun          String
+  saatAraligi  String
+  isletmeId    String
+  createdAt    DateTime @default(now())
+  
+  teacher      TeacherProfile @relation(fields: [ogretmenId], references: [id], onDelete: Cascade)
+  company      CompanyProfile @relation(fields: [isletmeId], references: [id], onDelete: Cascade)
+  
+  @@unique([ogretmenId, gun, saatAraligi])
+  @@map("koordinatorluk_programi")
+}
+
 // System Settings
 model SystemSetting {
   id    String @id @default(cuid())
@@ -419,6 +447,57 @@ model SystemSetting {
   value String
   
   @@map("system_settings")
+}
+
+// SMS System Tables
+model SMSSettings {
+  id          String  @id @default(cuid())
+  provider    String  // 'twilio', 'jetimsi', etc.
+  apiKey      String
+  apiSecret   String
+  senderName  String?
+  enabled     Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("sms_settings")
+}
+
+model SMSTemplate {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  content      String   @db.Text
+  variables    Json?    // {student_name, company_name, etc.}
+  triggerEvent String   // 'internship_created', 'dekont_approved', etc.
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  smsHistory   SMSHistory[]
+  
+  @@map("sms_templates")
+}
+
+model SMSHistory {
+  id            String      @id @default(cuid())
+  templateId    String?
+  recipientPhone String
+  recipientName String?
+  message       String      @db.Text
+  status        SMSStatus   @default(PENDING)
+  providerId    String?     // Twilio message SID
+  errorMessage  String?
+  createdAt     DateTime    @default(now())
+  sentAt        DateTime?
+  
+  // Relations
+  template      SMSTemplate? @relation(fields: [templateId], references: [id])
+  
+  @@index([recipientPhone])
+  @@index([status])
+  @@index([createdAt])
+  @@map("sms_history")
 }
 
 // Enums
@@ -473,4 +552,186 @@ enum DocumentType {
   COMPLETION_CERTIFICATE
   EVALUATION_FORM
   OTHER
+}
+
+enum SMSStatus {
+  PENDING
+  SENT
+  FAILED
+  DELIVERED
+  UNDELIVERED
+}
+
+// Messaging System Tables
+model Conversation {
+  id            String             @id @default(cuid())
+  title         String?            // For group conversations
+  type          ConversationType   @default(DIRECT)
+  isGroup       Boolean            @default(false)
+  description   String?
+  avatar        String?            // Group avatar URL
+  isArchived    Boolean            @default(false)
+  lastMessageAt DateTime?
+  createdBy     String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  
+  // Relations
+  participants  ConversationParticipant[]
+  messages      Message[]
+  notifications MessageNotification[]
+  
+  @@index([type])
+  @@index([lastMessageAt])
+  @@index([createdAt])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  userId         String
+  role           ParticipantRole @default(MEMBER)
+  joinedAt       DateTime     @default(now())
+  leftAt         DateTime?
+  isActive       Boolean      @default(true)
+  lastReadAt     DateTime?
+  notificationSettings Json?  // Custom notification settings per conversation
+  
+  // Relations
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@index([conversationId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String        @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String?       @db.Text
+  messageType    MessageType   @default(TEXT)
+  attachments    Json?         // Array of file attachments
+  metadata       Json?         // Additional message metadata
+  parentId       String?       // For reply/thread functionality
+  isEdited       Boolean       @default(false)
+  editedAt       DateTime?
+  isDeleted      Boolean       @default(false)
+  deletedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  
+  // Relations
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User          @relation(fields: [senderId], references: [id])
+  parent         Message?      @relation("MessageReplies", fields: [parentId], references: [id])
+  replies        Message[]     @relation("MessageReplies")
+  readReceipts   MessageRead[]
+  notifications  MessageNotification[]
+  
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@index([messageType])
+  @@index([parentId])
+  @@map("messages")
+}
+
+model MessageRead {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+  
+  // Relations
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@index([readAt])
+  @@map("message_reads")
+}
+
+model UserPresence {
+  id           String        @id @default(cuid())
+  userId       String        @unique
+  status       PresenceStatus @default(OFFLINE)
+  lastSeenAt   DateTime      @default(now())
+  customStatus String?
+  isTyping     Boolean       @default(false)
+  typingIn     String?       // conversationId if typing
+  updatedAt    DateTime      @updatedAt
+  
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([status])
+  @@index([lastSeenAt])
+  @@map("user_presence")
+}
+
+model MessageNotification {
+  id             String        @id @default(cuid())
+  userId         String
+  conversationId String
+  messageId      String
+  type           NotificationType @default(MESSAGE)
+  isRead         Boolean       @default(false)
+  isMuted        Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  readAt         DateTime?
+  
+  // Relations
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message        Message       @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, messageId])
+  @@index([userId, isRead])
+  @@index([conversationId])
+  @@map("message_notifications")
+}
+
+// Messaging Enums
+enum ConversationType {
+  DIRECT      // 1-on-1 conversation
+  GROUP       // Multi-user group
+  BROADCAST   // One-to-many broadcast
+  SYSTEM      // System announcements
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  AUDIO
+  VIDEO
+  SYSTEM      // System-generated messages
+  ANNOUNCEMENT
+  LOCATION
+}
+
+enum ParticipantRole {
+  OWNER
+  ADMIN
+  MODERATOR
+  MEMBER
+}
+
+enum PresenceStatus {
+  ONLINE
+  AWAY
+  BUSY
+  OFFLINE
+  INVISIBLE
+}
+
+enum NotificationType {
+  MESSAGE
+  MENTION
+  REACTION
+  SYSTEM
 }

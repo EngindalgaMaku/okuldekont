@@ -479,7 +479,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                         title={!desktopSidebarOpen ? item.title : undefined}
                       >
                         <item.icon className={classNames(
-                          pathname === item.href ? 'text-indigo-600' : 'text-gray-400 group-hover:text-indigo-600',
+                          pathname === item.href ? 'text-indigo-600' :
+                          !desktopSidebarOpen ?
+                            (item.href === '/admin' ? 'text-blue-500 group-hover:text-blue-600' :
+                             item.href === '/admin/alanlar' ? 'text-green-500 group-hover:text-green-600' :
+                             item.href === '/admin/dekontlar' ? 'text-purple-500 group-hover:text-purple-600' :
+                             item.href === '/admin/araclar' ? 'text-orange-500 group-hover:text-orange-600' :
+                             'text-gray-400 group-hover:text-indigo-600') :
+                          'text-gray-400 group-hover:text-indigo-600',
                           'h-5 w-5 shrink-0'
                         )} />
                         {desktopSidebarOpen && <span className="font-medium">{item.title}</span>}
@@ -489,6 +496,18 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   ))}
                 </ul>
               </li>
+              
+              {/* Sidebar Footer - sadece açık durumda göster */}
+              {desktopSidebarOpen && (
+                <li className="mt-auto">
+                  <div className="bg-gradient-to-br from-indigo-900 to-indigo-800 text-white py-4">
+                    <div className="px-4 sm:px-6 lg:px-8">
+                      <div className="flex items-center justify-center h-6">
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              )}
             </ul>
           </nav>
         </div>

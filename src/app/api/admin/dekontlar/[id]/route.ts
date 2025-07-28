@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { unlink } from 'fs/promises';
+import { join } from 'path';
+import { existsSync } from 'fs';
 
 // Dekont sil
 export async function DELETE(
@@ -8,7 +11,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    
+
     if (!id) {
       return NextResponse.json(
         { error: 'Dekont ID\'si gerekli' },
@@ -18,11 +21,48 @@ export async function DELETE(
 
     console.log('Deleting dekont with ID:', id);
 
+    // Önce dekont bilgilerini al (dosya URL'si için)
+    const dekont = await prisma.dekont.findUnique({
+      where: { id },
+      select: { fileUrl: true }
+    });
+
+    if (!dekont) {
+      return NextResponse.json(
+        { error: 'Dekont bulunamadı' },
+        { status: 404 }
+      );
+    }
+
+    // Dekont veritabanından sil
     await prisma.dekont.delete({
       where: { id }
     });
 
-    return NextResponse.json({ success: true });
+    // Eğer dosya varsa fiziksel olarak sil
+    if (dekont.fileUrl) {
+      try {
+        // Dosya yolunu oluştur (public/uploads/dekontlar/filename.pdf formatında)
+        const filename = dekont.fileUrl.split('/').pop();
+        if (filename) {
+          const filePath = join(process.cwd(), 'public', 'uploads', 'dekontlar', filename);
+          
+          // Dosya mevcutsa sil
+          if (existsSync(filePath)) {
+            await unlink(filePath);
+            console.log('File deleted:', filePath);
+          }
+        }
+      } catch (fileError) {
+        console.error('Dosya silinirken hata:', fileError);
+        // Dosya silme hatası dekont silme işlemini engellemez
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Dekont ve ilişkili dosya başarıyla silindi'
+    });
   } catch (error) {
     console.error('Dekont silinirken hata:', error);
     return NextResponse.json(

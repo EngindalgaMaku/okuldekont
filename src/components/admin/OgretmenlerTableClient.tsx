@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { User, Mail, Phone, Info, Building2, Send, Bell, Shield, Unlock } from 'lucide-react'
+import { User, Mail, Phone, Info, Building2, Send, Bell, Shield, Unlock, BarChart3, Calendar, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import QuickPinButton from './QuickPinButton'
 import Modal from '@/components/ui/Modal'
@@ -24,6 +24,50 @@ interface Props {
   ogretmenler: Ogretmen[]
 }
 
+interface TeacherStatistics {
+  teacherId: string
+  teacherName: string
+  totalCompanies: number
+  totalStudents: number
+  terminatedInternships: number
+  completedInternships: number
+  transferredToOthers: number
+  companies: Array<{
+    id: string
+    name: string
+    contact?: string
+    phone?: string
+    masterTeacherName?: string
+    masterTeacherPhone?: string
+    studentCount: number
+    activeStudents: number
+  }>
+  students: Array<{
+    id: string
+    internshipId: string
+    name: string
+    email?: string
+    number?: string
+    fieldName?: string
+    companyName?: string
+    companyContact?: string
+    companyPhone?: string
+    masterTeacherName?: string
+    masterTeacherPhone?: string
+    startDate?: string
+    endDate?: string
+    terminationDate?: string
+    status: string
+  }>
+  teacherChanges: Array<{
+    id: string
+    companyName: string
+    newTeacherName: string
+    assignedAt: string
+    reason?: string
+  }>
+}
+
 export default function OgretmenlerTableClient({ ogretmenler }: Props) {
   const [selectedTeachers, setSelectedTeachers] = useState<string[]>([])
   const [mesajModalOpen, setMesajModalOpen] = useState(false)
@@ -35,6 +79,10 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
   const [sending, setSending] = useState(false)
   const [securityStatuses, setSecurityStatuses] = useState<Record<string, any>>({})
   const [unlockingTeachers, setUnlockingTeachers] = useState<Set<string>>(new Set())
+  const [statisticsModalOpen, setStatisticsModalOpen] = useState(false)
+  const [statisticsData, setStatisticsData] = useState<TeacherStatistics | null>(null)
+  const [loadingStatistics, setLoadingStatistics] = useState(false)
+  const [activeAccordion, setActiveAccordion] = useState<'companies' | 'students' | 'changes' | null>(null)
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -168,6 +216,36 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
     }
   }
 
+  // Handle view teacher statistics
+  const handleViewStatistics = async (teacher: Ogretmen) => {
+    setLoadingStatistics(true)
+    setStatisticsModalOpen(true)
+    setStatisticsData(null)
+    setActiveAccordion(null) // Accordion'u sıfırla
+
+    try {
+      const response = await fetch(`/api/admin/teachers/${teacher.id}/statistics`)
+      
+      if (!response.ok) {
+        throw new Error('İstatistikler alınırken hata oluştu')
+      }
+
+      const data = await response.json()
+      setStatisticsData(data)
+    } catch (error: any) {
+      console.error('İstatistik alma hatası:', error)
+      toast.error(error.message || 'İstatistikler alınırken hata oluştu')
+      setStatisticsModalOpen(false)
+    } finally {
+      setLoadingStatistics(false)
+    }
+  }
+
+  // Handle accordion toggle
+  const toggleAccordion = (section: 'companies' | 'students' | 'changes') => {
+    setActiveAccordion(activeAccordion === section ? null : section)
+  }
+
   const isAllSelected = ogretmenler.length > 0 && selectedTeachers.length === ogretmenler.length
   const isPartiallySelected = selectedTeachers.length > 0 && selectedTeachers.length < ogretmenler.length
 
@@ -248,18 +326,31 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
                            {ogretmen.telefon && (
                              <div className="flex items-center gap-1 text-xs text-gray-600">
                                <Phone className="w-3 h-3 flex-shrink-0" />
-                               <span className="truncate">{ogretmen.telefon}</span>
+                               <a 
+                                 href={`tel:${ogretmen.telefon}`}
+                                 className="truncate text-blue-600 hover:text-blue-800 hover:underline"
+                               >
+                                 {ogretmen.telefon}
+                               </a>
                              </div>
                            )}
                            <div className="flex items-center gap-3 text-xs text-gray-600 mt-2 flex-wrap">
-                             <span className="flex items-center gap-1 flex-shrink-0">
+                             <button
+                               onClick={() => handleViewStatistics(ogretmen)}
+                               className="flex items-center gap-1 flex-shrink-0 hover:text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                               title="İstatistikleri Görüntüle"
+                             >
                                <Building2 className="w-3 h-3" />
                                {ogretmen.koordinatorlukCount} işletme
-                             </span>
-                             <span className="flex items-center gap-1 flex-shrink-0">
+                             </button>
+                             <button
+                               onClick={() => handleViewStatistics(ogretmen)}
+                               className="flex items-center gap-1 flex-shrink-0 hover:text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                               title="İstatistikleri Görüntüle"
+                             >
                                <User className="w-3 h-3" />
                                {ogretmen.stajlarCount} öğrenci
-                             </span>
+                             </button>
                            </div>
                          </div>
                        </div>
@@ -349,7 +440,12 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
                           {ogretmen.telefon && (
                             <div className="flex items-center gap-1 text-xs text-gray-600">
                               <Phone className="w-3 h-3" />
-                              {ogretmen.telefon}
+                              <a 
+                                href={`tel:${ogretmen.telefon}`}
+                                className="text-blue-600 hover:text-blue-800 hover:underline"
+                              >
+                                {ogretmen.telefon}
+                              </a>
                             </div>
                           )}
                         </div>
@@ -365,19 +461,27 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
                         }
                       </div>
                     ) : (
-                      <div className="text-sm text-gray-400">Atanmamış</div>
+                      <div className="text-sm text-gray-400">-</div>
                     )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-center space-y-1">
-                      <div className="text-xs text-gray-600">
+                      <button
+                        onClick={() => handleViewStatistics(ogretmen)}
+                        className="text-xs text-gray-600 hover:text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors cursor-pointer block w-full"
+                        title="İstatistikleri Görüntüle"
+                      >
                         <Building2 className="w-3 h-3 inline mr-1" />
                         {ogretmen.koordinatorlukCount} işletme
-                      </div>
-                      <div className="text-xs text-gray-600">
+                      </button>
+                      <button
+                        onClick={() => handleViewStatistics(ogretmen)}
+                        className="text-xs text-gray-600 hover:text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors cursor-pointer block w-full"
+                        title="İstatistikleri Görüntüle"
+                      >
                         <User className="w-3 h-3 inline mr-1" />
                         {ogretmen.stajlarCount} öğrenci
-                      </div>
+                      </button>
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -486,6 +590,364 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Öğretmen İstatistikleri Modalı */}
+      <Modal
+        isOpen={statisticsModalOpen}
+        onClose={() => setStatisticsModalOpen(false)}
+        title="Öğretmen İstatistikleri"
+      >
+        {loadingStatistics ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+            <span className="ml-3 text-gray-600">İstatistikler yükleniyor...</span>
+          </div>
+        ) : statisticsData ? (
+          <div className="space-y-6">
+            {/* Öğretmen Bilgileri */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <User className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">{statisticsData.teacherName}</h3>
+                  <p className="text-sm text-gray-600">Öğretmen İstatistikleri</p>
+                </div>
+              </div>
+            </div>
+
+            {/* İstatistik Kartları */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800">Toplam İşletme</span>
+                </div>
+                <p className="text-2xl font-bold text-blue-900 mt-1">{statisticsData.totalCompanies}</p>
+              </div>
+              
+              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                <div className="flex items-center gap-2">
+                  <User className="h-5 w-5 text-green-600" />
+                  <span className="text-sm font-medium text-green-800">Aktif Öğrenci</span>
+                </div>
+                <p className="text-2xl font-bold text-green-900 mt-1">{statisticsData.totalStudents}</p>
+              </div>
+              
+              <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-red-600" />
+                  <span className="text-sm font-medium text-red-800">Fesih Olan</span>
+                </div>
+                <p className="text-2xl font-bold text-red-900 mt-1">{statisticsData.terminatedInternships}</p>
+              </div>
+
+              <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-orange-600" />
+                  <span className="text-sm font-medium text-orange-800">Başkasına Verilen</span>
+                </div>
+                <p className="text-2xl font-bold text-orange-900 mt-1">{statisticsData.transferredToOthers}</p>
+              </div>
+            </div>
+
+            {/* İşletmeler Accordion */}
+            {statisticsData.companies.length > 0 && (
+              <div className="border border-gray-200 rounded-lg">
+                <button
+                  onClick={() => toggleAccordion('companies')}
+                  className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors rounded-t-lg"
+                >
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-blue-600" />
+                    <h4 className="text-lg font-semibold text-gray-900">
+                      Koordinatörlüğündeki İşletmeler ({statisticsData.companies.length})
+                    </h4>
+                  </div>
+                  <ChevronRight className={`h-5 w-5 text-gray-500 transition-transform duration-300 ${
+                    activeAccordion === 'companies' ? 'rotate-90' : ''
+                  }`} />
+                </button>
+                
+                <div className={`border-t border-gray-200 transition-all duration-300 ease-in-out overflow-hidden ${
+                  activeAccordion === 'companies' ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                }`}>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            İşletme Adı
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            İletişim
+                          </th>
+                          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Toplam Öğrenci
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {statisticsData.companies.map((company) => (
+                          <tr key={company.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <div className="text-sm font-medium text-gray-900">{company.name}</div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="space-y-1">
+                            {company.contact && (
+                              <div className="text-sm text-gray-600">{company.contact}</div>
+                            )}
+                            {company.phone && (
+                              <div className="text-sm text-blue-600">
+                                <a href={`tel:${company.phone}`} className="hover:underline">
+                                  {company.phone}
+                                </a>
+                              </div>
+                            )}
+                            {company.masterTeacherName && (
+                              <div className="text-sm text-gray-600">
+                                <span className="font-medium">Usta: </span>
+                                {company.masterTeacherName}
+                              </div>
+                            )}
+                            {company.masterTeacherPhone && (
+                              <div className="text-sm text-blue-600">
+                                <a href={`tel:${company.masterTeacherPhone}`} className="hover:underline">
+                                  {company.masterTeacherPhone}
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="text-sm font-medium text-gray-900">{company.studentCount}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Öğrenciler Accordion */}
+            {statisticsData.students.length > 0 && (
+              <div className="border border-gray-200 rounded-lg">
+                <button
+                  onClick={() => toggleAccordion('students')}
+                  className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors rounded-t-lg"
+                >
+                  <div className="flex items-center gap-2">
+                    <User className="h-5 w-5 text-green-600" />
+                    <h4 className="text-lg font-semibold text-gray-900">
+                      Sorumlu Olduğu Öğrenciler ({statisticsData.students.length})
+                    </h4>
+                  </div>
+                  <ChevronRight className={`h-5 w-5 text-gray-500 transition-transform duration-300 ${
+                    activeAccordion === 'students' ? 'rotate-90' : ''
+                  }`} />
+                </button>
+                
+                <div className={`border-t border-gray-200 transition-all duration-300 ease-in-out overflow-hidden ${
+                  activeAccordion === 'students' ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                }`}>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Öğrenci Bilgileri
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            İşletme & İletişim
+                          </th>
+                          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Tarihler
+                          </th>
+                          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Durum
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {statisticsData.students.map((student) => (
+                          <tr key={`${student.id}_${student.internshipId}`} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <div className="space-y-1">
+                                <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                                {student.number && (
+                                  <div className="text-xs text-gray-600">No: {student.number}</div>
+                                )}
+                                {student.fieldName && (
+                                  <div className="text-xs text-blue-600 font-medium">{student.fieldName}</div>
+                                )}
+                                {student.email && (
+                                  <div className="text-xs text-gray-500">{student.email}</div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="space-y-1">
+                                <div className="text-sm font-medium text-gray-900">{student.companyName || '-'}</div>
+                                {student.companyContact && (
+                                  <div className="text-xs text-gray-600">{student.companyContact}</div>
+                                )}
+                                {student.companyPhone && (
+                                  <div className="text-xs text-blue-600">
+                                    <a href={`tel:${student.companyPhone}`} className="hover:underline">
+                                      {student.companyPhone}
+                                    </a>
+                                  </div>
+                                )}
+                                {student.masterTeacherName && (
+                                  <div className="text-xs text-gray-600">
+                                    <span className="font-medium">Usta: </span>
+                                    {student.masterTeacherName}
+                                  </div>
+                                )}
+                                {student.masterTeacherPhone && (
+                                  <div className="text-xs text-blue-600">
+                                    <a href={`tel:${student.masterTeacherPhone}`} className="hover:underline">
+                                      {student.masterTeacherPhone}
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="text-sm text-gray-600">
+                                {student.startDate && (
+                                  <div className="font-medium">
+                                    {new Date(student.startDate).toLocaleDateString('tr-TR')}
+                                  </div>
+                                )}
+                                <div className="text-xs text-gray-500">
+                                  {student.status === 'TERMINATED' && student.terminationDate ? (
+                                    <span className="text-red-600">
+                                      Fesih: {new Date(student.terminationDate).toLocaleDateString('tr-TR')}
+                                    </span>
+                                  ) : student.endDate ? (
+                                    <span>
+                                      Bitiş: {new Date(student.endDate).toLocaleDateString('tr-TR')}
+                                    </span>
+                                  ) : (
+                                    <span className="text-green-600">Devam ediyor</span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                student.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                                student.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                                student.status === 'TERMINATED' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {student.status === 'ACTIVE' ? 'Aktif' :
+                                 student.status === 'COMPLETED' ? 'Tamamlandı' :
+                                 student.status === 'TERMINATED' ? 'Fesih' :
+                                 student.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Öğretmen Değişiklikleri Accordion */}
+            {statisticsData.teacherChanges && statisticsData.teacherChanges.length > 0 && (
+              <div className="border border-gray-200 rounded-lg">
+                <button
+                  onClick={() => toggleAccordion('changes')}
+                  className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors rounded-t-lg"
+                >
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-orange-600" />
+                    <h4 className="text-lg font-semibold text-gray-900">
+                      Başkasına Verilen Koordinatörlükler ({statisticsData.teacherChanges.length})
+                    </h4>
+                  </div>
+                  <ChevronRight className={`h-5 w-5 text-gray-500 transition-transform duration-300 ${
+                    activeAccordion === 'changes' ? 'rotate-90' : ''
+                  }`} />
+                </button>
+                
+                <div className={`border-t border-gray-200 transition-all duration-300 ease-in-out overflow-hidden ${
+                  activeAccordion === 'changes' ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                }`}>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            İşletme Adı
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Yeni Koordinatör
+                          </th>
+                          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Değişiklik Tarihi
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Sebep
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {statisticsData.teacherChanges.map((change) => (
+                          <tr key={change.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <div className="text-sm font-medium text-gray-900">{change.companyName}</div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="text-sm text-gray-900">{change.newTeacherName}</div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="text-sm text-gray-600">
+                                {new Date(change.assignedAt).toLocaleDateString('tr-TR')}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="text-sm text-gray-600">{change.reason || 'Belirtilmemiş'}</div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Veri yoksa mesaj */}
+            {statisticsData.companies.length === 0 && statisticsData.students.length === 0 &&
+             statisticsData.teacherChanges.length === 0 && (
+              <div className="text-center py-8">
+                <BarChart3 className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">Henüz veri yok</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Bu öğretmene ait işletme veya öğrenci kaydı bulunmuyor.
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <BarChart3 className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">İstatistik yüklenemedi</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Öğretmen istatistikleri alınırken bir hata oluştu.
+            </p>
+          </div>
+        )}
       </Modal>
     </>
   )

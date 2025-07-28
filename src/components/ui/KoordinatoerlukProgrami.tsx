@@ -36,6 +36,32 @@ interface KoordinatoerlukProgramiProps {
 const dersSaatleri = Array.from({ length: 10 }, (_, i) => `${i + 1}. Ders`)
 const gunler = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma']
 
+// --- Color System ---
+const renkPaleti = [
+  { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200' },
+  { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200' },
+  { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200' },
+  { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-200' },
+  { bg: 'bg-pink-100', text: 'text-pink-800', border: 'border-pink-200' },
+  { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-200' },
+  { bg: 'bg-teal-100', text: 'text-teal-800', border: 'border-teal-200' },
+  { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200' },
+  { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200' },
+  { bg: 'bg-cyan-100', text: 'text-cyan-800', border: 'border-cyan-200' }
+]
+
+// Hash function to assign consistent colors to companies
+const getIsletmeRengi = (isletmeId: string) => {
+  let hash = 0
+  for (let i = 0; i < isletmeId.length; i++) {
+    const char = isletmeId.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  const index = Math.abs(hash) % renkPaleti.length
+  return renkPaleti[index]
+}
+
 // --- Main Component ---
 export default function KoordinatoerlukProgrami({
   programlar,
@@ -81,7 +107,7 @@ export default function KoordinatoerlukProgrami({
             <tr className="bg-gray-50">
               <th className="p-2 border border-gray-200 w-24">Dersler</th>
               {gunler.map(gun => (
-                <th key={gun} className="p-2 border border-gray-200">{gun}</th>
+                <th key={gun} className="p-2 border border-gray-200 w-1/5 min-w-[120px]">{gun}</th>
               ))}
             </tr>
           </thead>
@@ -94,11 +120,14 @@ export default function KoordinatoerlukProgrami({
                   const isletmedekiOgrenciler = program
                     ? ogrenciler.filter(o => o.isletme_id === program.isletme_id)
                     : []
+                  
+                  // Get company color scheme
+                  const renkSemasi = program ? getIsletmeRengi(program.isletme_id) : null
 
                   return (
-                    <td key={gun} className="p-1 border border-gray-200 align-top h-24">
-                      {program ? (
-                        <div className="bg-indigo-100 text-indigo-800 rounded-md p-1.5 h-full flex flex-col justify-between text-xs">
+                    <td key={gun} className="p-1 border border-gray-200 align-top h-24 w-1/5 min-w-[120px]">
+                      {program && renkSemasi ? (
+                        <div className={`${renkSemasi.bg} ${renkSemasi.text} rounded-md p-1.5 h-full flex flex-col justify-between text-xs border ${renkSemasi.border}`}>
                           <div>
                             <div className="flex items-start font-semibold mb-1">
                               <Building2 className="h-3 w-3 mr-1 mt-0.5 flex-shrink-0" />
@@ -108,7 +137,7 @@ export default function KoordinatoerlukProgrami({
                             </div>
                             <ul className="pl-2 space-y-0.5">
                                 {isletmedekiOgrenciler.map(o => (
-                                    <li key={o.id} className="flex items-center text-indigo-700">
+                                    <li key={o.id} className={`flex items-center ${renkSemasi.text.replace('800', '700')}`}>
                                         <User className="h-3 w-3 mr-1 flex-shrink-0" />
                                         <span>{o.ad} {o.soyad}</span>
                                     </li>
@@ -117,7 +146,7 @@ export default function KoordinatoerlukProgrami({
                           </div>
                           <button
                             onClick={() => program.id && onProgramSil(program.id)}
-                            className="self-end p-0.5 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-200 rounded-full"
+                            className={`self-end p-0.5 ${renkSemasi.text.replace('800', '500')} hover:${renkSemasi.text.replace('800', '700')} hover:${renkSemasi.bg.replace('100', '200')} rounded-full transition-colors`}
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>

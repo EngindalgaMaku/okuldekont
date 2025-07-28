@@ -108,7 +108,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { userId, ad, soyad, yetki_seviyesi, aktif, password } = await request.json()
+    const { userId, ad, soyad, email, yetki_seviyesi, aktif, password } = await request.json()
 
     // Get admin profile to check if it's admin@ozdilek
     const adminProfile = await prisma.adminProfile.findUnique({
@@ -147,22 +147,47 @@ export async function PUT(request: NextRequest) {
         }
       }
       
-      // Block role and status changes
-      if (yetki_seviyesi !== undefined || aktif !== undefined) {
-        return NextResponse.json({ error: 'Koordinatör Müdür Yardımcısı yetki seviyesi ve aktif durumu değiştirilemez. Güvenlik koruması aktif.' }, { status: 403 })
+      // Block role, status and email changes
+      if (yetki_seviyesi !== undefined || aktif !== undefined || email !== undefined) {
+        return NextResponse.json({ error: 'Koordinatör Müdür Yardımcısı email, yetki seviyesi ve aktif durumu değiştirilemez. Güvenlik koruması aktif.' }, { status: 403 })
       }
       
       return NextResponse.json({ message: 'Koordinatör Müdür Yardımcısı başarıyla güncellendi' })
     }
 
+    // Check for email conflicts if email is being updated
+    if (email && email !== adminProfile.email) {
+      const existingUser = await prisma.user.findUnique({
+        where: { email }
+      })
+      
+      if (existingUser) {
+        return NextResponse.json({ error: 'Bu email adresi zaten kullanılıyor' }, { status: 400 })
+      }
+    }
+
     // Update admin profile for other users
+    const updateData: any = {
+      name: `${ad} ${soyad}`,
+      role: yetki_seviyesi?.toUpperCase()
+    }
+    
+    if (email) {
+      updateData.email = email
+    }
+    
     await prisma.adminProfile.update({
       where: { id: userId },
-      data: {
-        name: `${ad} ${soyad}`,
-        role: yetki_seviyesi?.toUpperCase()
-      }
+      data: updateData
     })
+
+    // Update email in user table if provided
+    if (email && adminProfile.userId) {
+      await prisma.user.update({
+        where: { id: adminProfile.userId },
+        data: { email }
+      })
+    }
 
     // Update password if provided
     if (password) {

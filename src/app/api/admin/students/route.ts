@@ -236,7 +236,21 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { name, surname, className, number, tcNo, phone, email, parentName, parentPhone, alanId } = await request.json()
+    const { 
+      name, 
+      surname, 
+      className, 
+      number, 
+      tcNo, 
+      phone, 
+      email, 
+      gender,
+      birthDate,
+      parentName, 
+      parentSurname,
+      parentPhone, 
+      alanId 
+    } = await request.json()
 
     if (!name || !surname || !className || !alanId) {
       return NextResponse.json(
@@ -254,7 +268,10 @@ export async function POST(request: Request) {
         tcNo: tcNo?.trim() || null,
         phone: phone?.trim() || null,
         email: email?.trim() || null,
+        gender: gender?.trim() || null,
+        birthDate: birthDate ? new Date(birthDate) : null,
         parentName: parentName?.trim() || null,
+        parentSurname: parentSurname?.trim() || null,
         parentPhone: parentPhone?.trim() || null,
         alanId
       },

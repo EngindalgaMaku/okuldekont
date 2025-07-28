@@ -53,13 +53,17 @@ export default function AdminLoginPageNextAuth() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
         <div className="text-center">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
-            <GraduationCap className="h-8 w-8 text-white" />
+          <div className="mx-auto w-20 h-20 bg-white rounded-2xl flex items-center justify-center mb-4 shadow-lg border border-gray-100">
+            <img 
+              src="/images/logo_kucuk.png" 
+              alt="Hüsniye Özdilek Ticaret MTAL Logo" 
+              className="w-16 h-16 object-contain"
+            />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">
             Admin Panel
           </h1>
-          <p className="text-gray-600 mt-1">Prisma + NextAuth.js ile güvenli giriş</p>
+          <p className="text-gray-600 mt-1">Hüsniye Özdilek Ticaret MTAL</p>
         </div>
         
         <form className="space-y-6" onSubmit={handleLogin}>

@@ -256,9 +256,37 @@ export async function fetchOgretmenDetayOptimized(ogretmenId: string) {
       throw new Error('Öğretmen bulunamadı')
     }
 
-    // Get stajlar with related data
+    // Get teacher assignment changes where this teacher was previously assigned
+    const teacherChanges = await prisma.teacherAssignmentHistory.findMany({
+      where: {
+        previousTeacherId: ogretmenId
+      },
+      select: {
+        companyId: true,
+        assignedAt: true
+      }
+    })
+
+    const changedCompanyIds = teacherChanges.map(tc => tc.companyId)
+
+    // Get stajlar with related data (including all statuses)
     const stajlar = await prisma.staj.findMany({
-      where: { teacherId: ogretmenId },
+      where: {
+        OR: [
+          { teacherId: ogretmenId },
+          {
+            company: {
+              teacherId: ogretmenId
+            }
+          },
+          // Include stajlar from companies where this teacher was previously coordinator
+          {
+            companyId: {
+              in: changedCompanyIds
+            }
+          }
+        ]
+      },
       include: {
         student: {
           select: {
@@ -266,13 +294,25 @@ export async function fetchOgretmenDetayOptimized(ogretmenId: string) {
             name: true,
             surname: true,
             className: true,
-            number: true
+            number: true,
+            alan: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
           }
         },
         company: {
           select: {
             id: true,
-            name: true
+            name: true,
+            contact: true,
+            phone: true,
+            email: true,
+            masterTeacherName: true,
+            masterTeacherPhone: true,
+            teacherId: true
           }
         },
         dekontlar: {
@@ -280,7 +320,12 @@ export async function fetchOgretmenDetayOptimized(ogretmenId: string) {
             id: true,
             month: true,
             year: true,
-            status: true
+            status: true,
+            amount: true,
+            fileUrl: true,
+            rejectReason: true,
+            approvedAt: true,
+            rejectedAt: true
           }
         }
       },
@@ -290,28 +335,69 @@ export async function fetchOgretmenDetayOptimized(ogretmenId: string) {
     })
 
     // Transform to expected format
-    const transformedStajlar = stajlar.map((staj: any) => ({
-      id: staj.id,
-      baslangic_tarihi: staj.startDate,
-      ogrenci_id: staj.studentId,
-      isletme_id: staj.companyId,
-      ogrenciler: staj.student ? {
-        id: staj.student.id,
-        ad: staj.student.name,
-        soyad: staj.student.surname,
-        sinif: staj.student.className,
-        no: staj.student.number
-      } : null,
-      isletmeler: staj.company ? {
-        id: staj.company.id,
-        ad: staj.company.name
-      } : null,
-      dekontlar: staj.dekontlar.map((d: any) => ({
-        id: d.id,
-        ay: d.month,
-        yil: d.year,
-        onay_durumu: d.status
-      }))
+    const transformedStajlar = stajlar.map((staj: any) => {
+      // Check if this staj's company coordinator was changed from this teacher
+      const wasCoordinatorChanged = changedCompanyIds.includes(staj.companyId) &&
+                                   staj.company.teacherId !== ogretmenId
+
+      return {
+        id: staj.id,
+        baslangic_tarihi: staj.startDate,
+        bitis_tarihi: staj.endDate,
+        fesih_tarihi: staj.terminationDate,
+        durum: staj.status,
+        koordinator_degisen: wasCoordinatorChanged,
+        ogrenci_id: staj.studentId,
+        isletme_id: staj.companyId,
+        ogrenciler: staj.student ? {
+          id: staj.student.id,
+          ad: staj.student.name,
+          soyad: staj.student.surname,
+          sinif: staj.student.className,
+          no: staj.student.number,
+          alan: staj.student.alan ? {
+            id: staj.student.alan.id,
+            ad: staj.student.alan.name
+          } : null
+        } : null,
+        isletmeler: staj.company ? {
+          id: staj.company.id,
+          ad: staj.company.name,
+          yetkili: staj.company.contact,
+          telefon: staj.company.phone,
+          email: staj.company.email,
+          usta_ogretici_ad: staj.company.masterTeacherName,
+          usta_ogretici_telefon: staj.company.masterTeacherPhone
+        } : null,
+        dekontlar: staj.dekontlar.map((d: any) => ({
+          id: d.id,
+          ay: d.month,
+          yil: d.year,
+          onay_durumu: d.status === 'APPROVED' ? 'onaylandi' : d.status === 'REJECTED' ? 'reddedildi' : 'bekliyor',
+          miktar: d.amount ? Number(d.amount) : undefined,
+          dosya_url: d.fileUrl,
+          red_nedeni: d.rejectReason
+        }))
+      }
+    })
+
+    // Get koordinatörlük programı data
+    const koordinatorlukProgrami = await prisma.koordinatorlukProgrami.findMany({
+      where: {
+        ogretmenId: ogretmenId
+      },
+      orderBy: [
+        { gun: 'asc' },
+        { saatAraligi: 'asc' }
+      ]
+    })
+
+    // Transform program data to expected format
+    const transformedProgram = koordinatorlukProgrami.map((program: any) => ({
+      id: program.id,
+      isletme_id: program.isletmeId,
+      gun: program.gun,
+      saat_araligi: program.saatAraligi
     }))
 
     return {
@@ -323,7 +409,7 @@ export async function fetchOgretmenDetayOptimized(ogretmenId: string) {
       alan_id: teacher.alanId,
       alanlar: teacher.alan ? { ad: teacher.alan.name } : null,
       stajlar: transformedStajlar,
-      koordinatorluk_programi: []
+      koordinatorluk_programi: transformedProgram
     }
 
   } catch (error) {

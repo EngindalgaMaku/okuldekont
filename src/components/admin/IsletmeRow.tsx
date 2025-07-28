@@ -104,7 +104,7 @@ export default function IsletmeRow({ isletme, isSelected, onSelectionChange }: P
             </div>
           ) : (
             <div className="text-sm text-gray-400">
-              Atanmamış
+              -
             </div>
           )}
         </div>
@@ -124,7 +124,7 @@ export default function IsletmeRow({ isletme, isSelected, onSelectionChange }: P
             </div>
           ) : (
             <div className="text-sm text-gray-400">
-              Atanmamış
+              -
             </div>
           )}
         </div>

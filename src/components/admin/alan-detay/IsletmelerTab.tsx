@@ -41,17 +41,37 @@ interface Isletme {
   stajlar?: IsletmeStaj[]
 }
 
+interface Sinif {
+  id: string
+  name: string
+}
+
 interface Props {
   alanId: string
   initialIsletmeListesi: Isletme[]
+  initialTotalCount?: number
+  initialTotalPages?: number
+  initialCurrentPage?: number
+  siniflar?: Sinif[]
   onCountChange?: (count: number) => void
 }
 
-export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountChange }: Props) {
+export default function IsletmelerTab({ 
+  alanId, 
+  initialIsletmeListesi, 
+  initialTotalCount = 0,
+  initialTotalPages = 1,
+  initialCurrentPage = 1,
+  siniflar = [],
+  onCountChange 
+}: Props) {
   const router = useRouter()
   
   // State management
   const [isletmeler, setIsletmeler] = useState<Isletme[]>(initialIsletmeListesi)
+  const [totalCount, setTotalCount] = useState(initialTotalCount)
+  const [totalPages, setTotalPages] = useState(initialTotalPages)
+  const [currentPage, setCurrentPage] = useState(initialCurrentPage)
   const [loading, setLoading] = useState(false)
   
   // Modal states
@@ -67,7 +87,7 @@ export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountCh
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('')
-  const [filteredIsletmeler, setFilteredIsletmeler] = useState<Isletme[]>(initialIsletmeListesi)
+  const [selectedSinif, setSelectedSinif] = useState('')
   
   // Expand/collapse states - default collapsed
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({})
@@ -93,15 +113,25 @@ export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountCh
   }
   const [isletmeFormData, setIsletmeFormData] = useState(initialFormState)
 
-  // Fetch companies for this field
-  const fetchIsletmeler = async () => {
+  // Fetch companies for this field with pagination
+  const fetchIsletmeler = async (page: number = 1, search: string = '', classId: string = '') => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/admin/alanlar/${alanId}/isletmeler`)
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '10',
+        ...(search && { search }),
+        ...(classId && { classId })
+      })
+      
+      const response = await fetch(`/api/admin/alanlar/${alanId}/isletmeler?${params}`)
       if (!response.ok) throw new Error('İşletmeler getirilemedi')
       
       const data = await response.json()
-      setIsletmeler(data || [])
+      setIsletmeler(data.companies || [])
+      setTotalCount(data.pagination?.totalCount || 0)
+      setTotalPages(data.pagination?.totalPages || 1)
+      setCurrentPage(page)
     } catch (error: any) {
       toast.error(`Hata: ${error.message}`)
     } finally {
@@ -109,27 +139,21 @@ export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountCh
     }
   }
 
-  // Filter companies based on search term
+  // Handle search and class filter with debounce
   useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredIsletmeler(isletmeler)
-    } else {
-      const filtered = isletmeler.filter(isletme =>
-        isletme.ad.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        isletme.yetkili.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        isletme.telefon?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        isletme.email?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-      setFilteredIsletmeler(filtered)
-    }
-  }, [searchTerm, isletmeler])
+    const timeoutId = setTimeout(() => {
+      fetchIsletmeler(1, searchTerm, selectedSinif)
+    }, 500)
+    
+    return () => clearTimeout(timeoutId)
+  }, [searchTerm, selectedSinif])
 
   // Notify parent about count changes
   useEffect(() => {
     if (onCountChange) {
-      onCountChange(isletmeler.length)
+      onCountChange(totalCount)
     }
-  }, [isletmeler.length, onCountChange])
+  }, [totalCount, onCountChange])
 
   // Fetch available teachers for assignment
   const fetchAvailableTeachers = async (companyId: string) => {
@@ -178,7 +202,7 @@ export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountCh
       toast.success(result.message || 'Koordinatör atama işlemi başarıyla tamamlandı')
       setTeacherAssignmentModal(false)
       setSelectedIsletme(null)
-      fetchIsletmeler() // Refresh the companies list
+      fetchIsletmeler(currentPage, searchTerm, selectedSinif) // Refresh the companies list
     } catch (error: any) {
       toast.error(`Hata: ${error.message}`)
     } finally {
@@ -218,7 +242,7 @@ export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountCh
       toast.success('İşletme başarıyla eklendi!')
       setIsletmeModalOpen(false)
       setIsletmeFormData(initialFormState)
-      fetchIsletmeler()
+      fetchIsletmeler(1, searchTerm, selectedSinif)
     } catch (error: any) {
       toast.error(`Hata: ${error.message}`)
     } finally {
@@ -232,7 +256,7 @@ export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountCh
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <h2 className="text-xl font-semibold text-gray-900">
-          İşletmeler ({filteredIsletmeler.length})
+          İşletmeler ({totalCount})
         </h2>
         <button
           onClick={() => {
@@ -264,17 +288,36 @@ export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountCh
         </div>
       </div>
 
-      {/* Search */}
+      {/* Search and Filter */}
       <div className="mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="İşletme, yetkili kişi, telefon veya e-posta ara..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-          />
+        <div className="flex flex-col sm:flex-row gap-4">
+          {/* Search Input */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="İşletme, yetkili kişi, telefon veya e-posta ara..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+          
+          {/* Class Filter */}
+          <div className="sm:w-56">
+            <select
+              value={selectedSinif}
+              onChange={(e) => setSelectedSinif(e.target.value)}
+              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="">Tüm Sınıflar</option>
+              {siniflar.map((sinif) => (
+                <option key={sinif.id} value={sinif.id}>
+                  {sinif.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -284,9 +327,9 @@ export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountCh
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
           <p className="mt-2 text-gray-500">Yükleniyor...</p>
         </div>
-      ) : filteredIsletmeler.length > 0 ? (
+      ) : isletmeler.length > 0 ? (
         <div className="space-y-4">
-          {filteredIsletmeler.map((isletme) => {
+          {isletmeler.map((isletme: any) => {
             const isExpanded = expandedCards[isletme.id] || false
             return (
               <div key={isletme.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
@@ -396,7 +439,7 @@ export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountCh
                         </h4>
                         {isletme.stajlar && isletme.stajlar.length > 0 ? (
                           <div className="space-y-2 max-h-40 overflow-y-auto">
-                            {isletme.stajlar.map((staj) => (
+                            {isletme.stajlar.map((staj: IsletmeStaj) => (
                               <div
                                 key={staj.id}
                                 className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-sm bg-white rounded-lg p-3 border border-gray-100 gap-2"
@@ -431,6 +474,93 @@ export default function IsletmelerTab({ alanId, initialIsletmeListesi, onCountCh
               : 'Bu alan için henüz stajyer öğrenci olan işletme bulunmuyor.'
             }
           </p>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-6">
+          <div className="flex flex-1 justify-between sm:hidden">
+                            <button
+                  onClick={() => fetchIsletmeler(currentPage - 1, searchTerm, selectedSinif)}
+                  disabled={currentPage <= 1 || loading}
+                  className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Önceki
+                </button>
+                <button
+                  onClick={() => fetchIsletmeler(currentPage + 1, searchTerm, selectedSinif)}
+                  disabled={currentPage >= totalPages || loading}
+                  className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Sonraki
+                </button>
+          </div>
+          <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-gray-700">
+                <span className="font-medium">{Math.min((currentPage - 1) * 10 + 1, totalCount)}</span>
+                {' '}-{' '}
+                <span className="font-medium">{Math.min(currentPage * 10, totalCount)}</span>
+                {' '}arası, toplam{' '}
+                <span className="font-medium">{totalCount}</span>
+                {' '}sonuç gösteriliyor
+              </p>
+            </div>
+            <div>
+              <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm">
+                                  <button
+                    onClick={() => fetchIsletmeler(currentPage - 1, searchTerm, selectedSinif)}
+                    disabled={currentPage <= 1 || loading}
+                    className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                  <span className="sr-only">Önceki</span>
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                  </svg>
+                </button>
+
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  let pageNum = i + 1;
+                  if (totalPages > 5) {
+                    if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                  }
+
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => fetchIsletmeler(pageNum, searchTerm, selectedSinif)}
+                      disabled={loading}
+                      className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
+                        pageNum === currentPage
+                          ? 'z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
+                          : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+
+                                  <button
+                    onClick={() => fetchIsletmeler(currentPage + 1, searchTerm, selectedSinif)}
+                    disabled={currentPage >= totalPages || loading}
+                    className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                  <span className="sr-only">Sonraki</span>
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </nav>
+            </div>
+          </div>
         </div>
       )}
 
