@@ -19,28 +19,77 @@ export async function GET() {
       }
     })
 
-    // Get real counts from database
+    // Get real counts from database and current education year
     const [
       userCount,
       adminCount,
       teacherCount,
       companyCount,
-      educationYearCount
+      educationYearCount,
+      currentEducationYear
     ] = await Promise.all([
       prisma.user.count(),
       prisma.adminProfile.count(),
       prisma.teacherProfile.count(),
       prisma.companyProfile.count(),
-      prisma.egitimYili.count()
+      prisma.egitimYili.count(),
+      prisma.egitimYili.findFirst({
+        where: {
+          active: true
+        }
+      })
     ])
 
-    // For now, dekont stats are 0 since we don't have dekont data in the current schema
-    // You can add dekont queries here when the dekont table is available
+    // Get current date and calculate previous month for dekont statistics
+    const currentDate = new Date()
+    const currentYear = currentDate.getFullYear()
+    const currentMonth = currentDate.getMonth() + 1 // 1-based month
+    
+    // Calculate previous month and year
+    const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1
+    const previousYear = currentMonth === 1 ? currentYear - 1 : currentYear
+    
+    // Get dekont statistics for previous month (current month's dekont reports)
+    const [
+      totalDekontlar,
+      pendingDekontlar,
+      approvedDekontlar,
+      rejectedDekontlar
+    ] = await Promise.all([
+      prisma.dekont.count({
+        where: {
+          month: previousMonth,
+          year: previousYear
+        }
+      }),
+      prisma.dekont.count({
+        where: {
+          month: previousMonth,
+          year: previousYear,
+          status: 'PENDING'
+        }
+      }),
+      prisma.dekont.count({
+        where: {
+          month: previousMonth,
+          year: previousYear,
+          status: 'APPROVED'
+        }
+      }),
+      prisma.dekont.count({
+        where: {
+          month: previousMonth,
+          year: previousYear,
+          status: 'REJECTED'
+        }
+      })
+    ])
+
     const dekontStats = {
-      total: 0,
-      pending: 0,
-      approved: 0,
-      rejected: 0
+      total: totalDekontlar,
+      pending: pendingDekontlar,
+      approved: approvedDekontlar,
+      rejected: rejectedDekontlar
     }
 
     return NextResponse.json({
@@ -50,6 +99,9 @@ export async function GET() {
       teacherCount,
       companyCount,
       educationYearCount,
+      currentEducationYear: currentEducationYear ?
+        currentEducationYear.year || `${currentEducationYear.baslangicYili || new Date().getFullYear()}-${currentEducationYear.bitisYili || new Date().getFullYear() + 1}` :
+        `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
       dekontStats
     })
   } catch (error) {
@@ -61,6 +113,7 @@ export async function GET() {
       teacherCount: 0,
       companyCount: 0,
       educationYearCount: 0,
+      currentEducationYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
       dekontStats: {
         total: 0,
         pending: 0,

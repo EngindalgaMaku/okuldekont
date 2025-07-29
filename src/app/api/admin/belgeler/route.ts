@@ -2,9 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { validateAuthAndRole } from '@/middleware/auth';
+import { validateFileUpload, generateSecureFileName, quarantineFile } from '@/lib/file-security';
 
 export async function GET(request: NextRequest) {
+  // 🛡️ KRİTİK GÜVENLİK: Authentication kontrolü - SADECE ADMIN
+  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
+    console.log('🛡️ ADMIN SECURITY: Authorized admin accessing documents list:', {
+      adminId: authResult.user?.id,
+      adminEmail: authResult.user?.email,
+      timestamp: new Date().toISOString()
+    })
+
     const belgeler = await prisma.belge.findMany({
       include: {
         teacher: {
@@ -40,12 +54,70 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // 🛡️ KRİTİK GÜVENLİK: Authentication kontrolü - ADMIN ve TEACHER
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'TEACHER'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
+    console.log('🛡️ FILE SECURITY: Starting secure admin document upload:', {
+      adminId: authResult.user?.id,
+      adminEmail: authResult.user?.email,
+      timestamp: new Date().toISOString()
+    })
+
     const formData = await request.formData();
     const isletmeId = formData.get('isletme_id') as string;
     const belgeTuru = formData.get('belge_turu') as string;
     const dosya = formData.get('dosya') as File;
     const ogretmenId = formData.get('ogretmen_id') as string;
+
+    // Basic validation
+    if (!belgeTuru || !dosya || !isletmeId) {
+      return NextResponse.json({ error: 'İşletme ID, belge türü ve dosya gereklidir' }, { status: 400 });
+    }
+
+    // 🛡️ KRİTİK GÜVENLİK TARAMASI - Admin document uploads için
+    const securityResult = await validateFileUpload(dosya, {
+      maxSize: 10 * 1024 * 1024, // 10MB for admin document uploads
+      allowedTypes: ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+      strictMode: true // Admin uploads için sıkı güvenlik
+    })
+
+    if (!securityResult.safe) {
+      // Güvenli olmayan dosya - quarantine
+      quarantineFile({
+        originalName: dosya.name,
+        adminId: authResult.user?.id,
+        userEmail: authResult.user?.email,
+        companyId: isletmeId
+      }, securityResult.error || 'Security validation failed')
+      
+      console.error('🚨 FILE SECURITY: Malicious admin document blocked:', {
+        fileName: dosya.name,
+        adminId: authResult.user?.id,
+        companyId: isletmeId,
+        error: securityResult.error,
+        timestamp: new Date().toISOString()
+      })
+      
+      return NextResponse.json(
+        { error: securityResult.error },
+        { status: 400 }
+      )
+    }
+
+    // Security warnings varsa logla
+    if (securityResult.warnings && securityResult.warnings.length > 0) {
+      console.warn('⚠️ FILE SECURITY: Admin document warnings:', {
+        fileName: dosya.name,
+        warnings: securityResult.warnings,
+        adminId: authResult.user?.id
+      })
+    }
+
+    console.log('✅ FILE SECURITY: Admin document passed security scan')
 
     // Türkçe karakterleri İngilizce karakterlere çeviren fonksiyon - işletme paneli ile tutarlı
     const sanitizeName = (name: string) => {
@@ -65,8 +137,14 @@ export async function POST(request: NextRequest) {
         .toLowerCase();
     };
     
-    // Dosya uzantısını al
-    const fileExtension = path.extname(dosya.name);
+    // Generate SECURE filename with hash
+    const secureFileName = generateSecureFileName(
+      dosya.name,
+      securityResult.fileInfo?.hash || 'unknown'
+    )
+    
+    // Dosya uzantısını al - secure filename'den
+    const fileExtension = path.extname(secureFileName);
     const tarih = new Date().toISOString().split('T')[0]; // YYYY-MM-DD formatı
 
     // İşletme bilgisini al
@@ -151,6 +229,16 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
     
     await writeFile(filePath, buffer);
+
+    // Log successful secure upload
+    console.log('✅ FILE SECURITY: Secure admin document upload completed:', {
+      originalName: dosya.name,
+      secureFileName: yeniDosyaAdi,
+      fileHash: securityResult.fileInfo?.hash?.substring(0, 16) + '...',
+      adminId: authResult.user?.id,
+      companyId: isletmeId,
+      timestamp: new Date().toISOString()
+    })
 
     // Dosya URL'si
     const dosyaUrl = `/uploads/belgeler/${yeniDosyaAdi}`;

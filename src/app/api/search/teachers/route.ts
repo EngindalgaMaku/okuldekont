@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(request: Request) {
+  // PUBLIC: Öğretmen arama - Dropdown data için herkese açık
   try {
     const { searchParams } = new URL(request.url)
     const term = searchParams.get('term')
@@ -13,6 +14,8 @@ export async function GET(request: Request) {
 
     console.log('🔍 Teacher search:', { term, limit })
 
+    // Optimize with Prisma ORM for better performance and type safety
+    // Note: Removed 'mode' for MySQL compatibility (most MySQL collations are case-insensitive by default)
     const teachers = await prisma.teacherProfile.findMany({
       where: {
         OR: [
@@ -39,7 +42,9 @@ export async function GET(request: Request) {
       take: limit
     })
 
-    console.log('📊 Teacher search results:', teachers.length, 'found')
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📊 Teacher search results:', teachers.length, 'found')
+    }
 
     // Format to match expected interface
     const formattedTeachers = teachers.map((teacher) => ({

@@ -1,7 +1,20 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { validateAuthAndRole } from '@/middleware/auth'
 
 export async function POST(request: Request) {
+  // KRİTİK KVKK KORUMA: Toplu öğrenci kişisel veri oluşturma - SADECE ADMIN
+  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
+  // KVKK compliance logging - Bulk personal data creation
+  console.log(`🔒 KVKV: Admin ${authResult.user?.email} creating bulk student personal data`, {
+    timestamp: new Date().toISOString(),
+    action: 'BULK_CREATE_STUDENT_DATA'
+  })
+
   try {
     const { students, alanId } = await request.json()
 

@@ -211,42 +211,20 @@ export default function LoginPage() {
     }
 
     try {
-      // Direct PIN check instead of NextAuth
-      const response = await fetch('/api/auth/check-pin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: isIsletme ? 'isletme' : 'ogretmen',
-          entityId: selectedEntity.id,
-          pin: pinInput
-        })
+      const result = await signIn('pin', {
+        redirect: false,
+        type: isIsletme ? 'isletme' : 'ogretmen',
+        entityId: selectedEntity.id,
+        pin: pinInput,
+        // Güvenlik için IP ve User Agent gönder
+        ipAddress: 'not-collected', // Sunucu tarafında toplanacak
+        userAgent: navigator.userAgent
       })
 
-      const result = await response.json()
-
-      if (result.success) {
+      if (result?.ok) {
         // Store last successful login type for next time
         const currentLoginType = isIsletme ? 'isletme' : 'ogretmen'
-        console.log('💾 Başarılı giriş - localStorage\'a kaydediliyor:', currentLoginType)
         localStorage.setItem('lastLoginType', currentLoginType)
-        console.log('✅ localStorage kaydedildi. Kontrol:', localStorage.getItem('lastLoginType'))
-        
-        // Store login data in localStorage
-        const loginData = {
-          ...selectedEntity,
-          loginType: currentLoginType
-        }
-        
-        localStorage.setItem(isIsletme ? 'isletme' : 'ogretmen', JSON.stringify(loginData))
-        
-        // Also store in sessionStorage for compatibility with existing pages
-        if (isIsletme) {
-          sessionStorage.setItem('isletme_id', selectedEntity.id)
-        } else {
-          sessionStorage.setItem('ogretmen_id', selectedEntity.id)
-        }
         
         // Başarılı giriş bildirimi
         const entityName = isIsletme
@@ -271,11 +249,12 @@ export default function LoginPage() {
         }, 1000)
       } else {
         // Handle error
-        setPinError(result.error || 'Hatalı PIN kodu')
+        const errorMessage = result?.error || 'Hatalı PIN kodu veya sistem hatası'
+        setPinError(errorMessage)
         showToast({
           type: 'error',
           title: 'Giriş Başarısız',
-          message: result.error || 'Hatalı PIN kodu',
+          message: errorMessage,
           duration: 4000
         })
         setPinInput('') // Clear PIN on error

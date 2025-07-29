@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(request: Request) {
+  // PUBLIC: Şirket arama - Dropdown data için herkese açık
   try {
     const { searchParams } = new URL(request.url)
     const term = searchParams.get('term')
@@ -11,7 +12,9 @@ export async function GET(request: Request) {
       return NextResponse.json([])
     }
 
-    console.log('🔍 Company search:', { term, limit })
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Company search:', { term, limit })
+    }
 
     const companies = await prisma.companyProfile.findMany({
       where: {
@@ -30,7 +33,9 @@ export async function GET(request: Request) {
       take: limit
     })
 
-    console.log('📊 Company search results:', companies.length, 'found')
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📊 Company search results:', companies.length, 'found')
+    }
 
     // Format to match expected interface
     const formattedCompanies = companies.map((company) => ({

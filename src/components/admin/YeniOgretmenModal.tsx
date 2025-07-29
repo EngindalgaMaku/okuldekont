@@ -24,10 +24,12 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
   const [formData, setFormData] = useState({
     name: '',
     surname: '',
+    tcNo: '',
     phone: '',
     email: '',
     pin: '1234',
-    alanId: ''
+    alanId: '',
+    position: ''
   })
 
   // Fetch alanlar for the dropdown
@@ -54,16 +56,28 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
       setFormData({
         name: '',
         surname: '',
+        tcNo: '',
         phone: '',
         email: '',
         pin: '1234',
-        alanId: ''
+        alanId: '',
+        position: ''
       })
     }
   }, [isOpen])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
+    
+    // TC No için sadece rakam
+    if (name === 'tcNo') {
+      const numericValue = value.replace(/\D/g, '')
+      if (numericValue.length <= 11) {
+        setFormData(prev => ({ ...prev, [name]: numericValue }))
+      }
+      return
+    }
+    
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
@@ -102,10 +116,12 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
         body: JSON.stringify({
           name: formData.name.trim(),
           surname: formData.surname.trim(),
+          tcNo: formData.tcNo.trim() || null,
           phone: formData.phone.trim() || null,
           email: formData.email.trim() || null,
           pin: formData.pin.trim(),
-          alanId: formData.alanId || null
+          alanId: formData.alanId || null,
+          position: formData.position || null
         }),
       })
 
@@ -186,6 +202,30 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
           </div>
         </div>
 
+        {/* TC No */}
+        <div>
+          <label htmlFor="tcNo" className="block text-sm font-medium text-gray-700 mb-2">
+            TC Kimlik No
+          </label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <User className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              id="tcNo"
+              name="tcNo"
+              value={formData.tcNo}
+              onChange={handleInputChange}
+              autoComplete="off"
+              maxLength={11}
+              inputMode="numeric"
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="12345678901"
+            />
+          </div>
+        </div>
+
         {/* Email and Phone */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -258,9 +298,6 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
                 placeholder="1234"
               />
             </div>
-            <p className="mt-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
-              <span className="font-medium">⚠️ Not:</span> Varsayılan PIN (1234) seçilirse, öğretmen ilk girişte PIN'ini değiştirmek zorunda bırakılır.
-            </p>
           </div>
 
           <div>
@@ -286,6 +323,48 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
                 ))}
               </select>
             </div>
+          </div>
+        </div>
+
+        {/* Position */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            Görev
+          </label>
+          <div className="space-y-2">
+            <label className="flex items-center">
+              <input
+                type="radio"
+                name="position"
+                value="alan_sefi"
+                checked={formData.position === 'alan_sefi'}
+                onChange={handleInputChange}
+                className="mr-3 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Alan Şefi</span>
+            </label>
+            <label className="flex items-center">
+              <input
+                type="radio"
+                name="position"
+                value="atolye_sefi"
+                checked={formData.position === 'atolye_sefi'}
+                onChange={handleInputChange}
+                className="mr-3 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Atölye Şefi</span>
+            </label>
+            <label className="flex items-center">
+              <input
+                type="radio"
+                name="position"
+                value=""
+                checked={formData.position === ''}
+                onChange={handleInputChange}
+                className="mr-3 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-gray-700">Öğretmen (Görev Yok)</span>
+            </label>
           </div>
         </div>
 

@@ -143,10 +143,18 @@ export default function IsletmeLoginPage() {
   }
 
   const handlePinSubmit = async () => {
+    console.log('🚀 LOGIN: handlePinSubmit başladı', {
+      isLoggingIn,
+      selectedIsletme: selectedIsletme?.id,
+      pinLength: pinInput.length
+    });
+    
     if (isLoggingIn) return;
     
     setIsLoggingIn(true);
     setPinError('');
+
+    console.log('🔧 LOGIN: Maintenance check başlıyor...');
 
     // Check maintenance mode before login attempt
     try {
@@ -154,6 +162,7 @@ export default function IsletmeLoginPage() {
       if (response.ok) {
         const { isMaintenanceMode: currentMaintenanceStatus } = await response.json()
         if (currentMaintenanceStatus) {
+          console.log('⚠️ LOGIN: Maintenance mode aktif');
           setPinError('Sistem şu anda bakım modunda. Giriş yapılamaz.');
           setIsLoggingIn(false);
           return;
@@ -164,17 +173,26 @@ export default function IsletmeLoginPage() {
       // Continue with login if maintenance check fails
     }
     
+    console.log('✅ LOGIN: Maintenance check tamamlandı');
+    
     if (!selectedIsletme) {
+      console.log('❌ LOGIN: İşletme seçilmemiş');
       setPinError('Lütfen bir işletme seçin');
       setIsLoggingIn(false);
       return;
     }
 
     if (!pinInput.trim() || pinInput.length !== 4) {
+      console.log('❌ LOGIN: PIN geçersiz', { pinLength: pinInput.length });
       setPinError('PIN kodu 4 haneli olmalıdır');
       setIsLoggingIn(false);
       return;
     }
+
+    console.log('🔒 LOGIN: PIN güvenlik kontrolü başlıyor...', {
+      entityType: 'company',
+      entityId: selectedIsletme.id
+    });
 
     // PIN güvenlik kontrolü
     try {
@@ -189,12 +207,15 @@ export default function IsletmeLoginPage() {
         }),
       });
 
+      console.log('🔒 LOGIN: PIN güvenlik response:', securityResponse.status);
+
       if (securityResponse.ok) {
         const { securityStatus } = await securityResponse.json();
         if (securityStatus.isLocked) {
           const lockEndTime = new Date(securityStatus.lockEndTime);
           const now = new Date();
           const remainingMinutes = Math.ceil((lockEndTime.getTime() - now.getTime()) / (1000 * 60));
+          console.log('🔒 LOGIN: Hesap bloke edilmiş', { remainingMinutes });
           setPinError(`Hesabınız güvenlik nedeniyle bloke edilmiştir. ${remainingMinutes} dakika sonra tekrar deneyebilirsiniz.`);
           setIsLoggingIn(false);
           return;
@@ -204,6 +225,13 @@ export default function IsletmeLoginPage() {
       console.error('Security check failed:', error);
       // Continue with login if security check fails
     }
+
+    console.log('🔑 LOGIN: NextAuth signIn başlıyor...', {
+      provider: 'pin',
+      type: 'isletme',
+      entityId: selectedIsletme.id,
+      pinLength: pinInput.length
+    });
 
     try {
       const result = await signIn('pin', {
@@ -215,17 +243,29 @@ export default function IsletmeLoginPage() {
         redirect: false,
       });
 
+      console.log('🔑 LOGIN: NextAuth signIn tamamlandı', {
+        result: {
+          ok: result?.ok,
+          error: result?.error,
+          status: result?.status,
+          url: result?.url
+        }
+      });
+
       if (result?.error) {
+        console.log('❌ LOGIN: SignIn hatası', result.error);
         setPinError('Hatalı PIN kodu girdiniz veya hesabınız bloke edilmiştir.');
         setIsLoggingIn(false);
       } else if (result?.ok) {
+        console.log('✅ LOGIN: SignIn başarılı, yönlendiriliyor...');
         router.push('/isletme');
       } else {
+        console.log('❌ LOGIN: Bilinmeyen sonuç', result);
         setPinError('Bilinmeyen bir hata oluştu.');
         setIsLoggingIn(false);
       }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('🔥 LOGIN: SignIn exception:', error);
       setPinError('Giriş sırasında beklenmeyen bir hata oluştu.');
       setIsLoggingIn(false);
     }

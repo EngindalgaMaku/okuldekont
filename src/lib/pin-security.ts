@@ -72,7 +72,7 @@ export async function recordPinAttempt(
 }
 
 /**
- * Güvenlik durumunu kontrol eder ve günceller
+ * Güvenlik durumunu kontrol eder ve günceller (optimized version)
  */
 export async function updateSecurityStatus(
   entityType: 'teacher' | 'company',
@@ -81,19 +81,21 @@ export async function updateSecurityStatus(
   const now = new Date()
   const windowStart = new Date(now.getTime() - PIN_SECURITY_CONFIG.ATTEMPT_WINDOW_MINUTES * 60 * 1000)
 
-  // Son X dakika içindeki başarısız denemeleri say
-  const recentFailedAttempts = await prisma.pinAttempt.count({
-    where: {
-      entityType,
-      entityId,
-      successful: false,
-      attemptedAt: {
-        gte: windowStart
+  // Single query to get both profile and recent failed attempts count
+  const [profile, recentFailedAttempts] = await Promise.all([
+    getEntityProfile(entityType, entityId),
+    prisma.pinAttempt.count({
+      where: {
+        entityType,
+        entityId,
+        successful: false,
+        attemptedAt: {
+          gte: windowStart
+        }
       }
-    }
-  })
+    })
+  ])
 
-  const profile = await getEntityProfile(entityType, entityId)
   if (!profile) {
     throw new Error('Entity not found')
   }
@@ -107,32 +109,38 @@ export async function updateSecurityStatus(
     isLocked = now < lockEndTime
   }
 
+  // Batch update operations
+  const updates: any = {}
+  let needsUpdate = false
+
   // Eğer bloke süresi dolmuşsa bloke açık
   if (profile.isLocked && !isLocked) {
-    await updateEntityProfile(entityType, entityId, {
-      isLocked: false,
-      lockStartTime: null,
-      failedAttempts: 0
-    })
+    updates.isLocked = false
+    updates.lockStartTime = null
+    updates.failedAttempts = 0
+    needsUpdate = true
   }
-
   // Eğer maksimum deneme sayısına ulaşıldıysa bloke et
-  if (!isLocked && recentFailedAttempts >= PIN_SECURITY_CONFIG.MAX_ATTEMPTS) {
-    await updateEntityProfile(entityType, entityId, {
-      isLocked: true,
-      lockStartTime: now,
-      failedAttempts: recentFailedAttempts,
-      lastFailedAttempt: now
-    })
+  else if (!isLocked && recentFailedAttempts >= PIN_SECURITY_CONFIG.MAX_ATTEMPTS) {
+    updates.isLocked = true
+    updates.lockStartTime = now
+    updates.failedAttempts = recentFailedAttempts
+    updates.lastFailedAttempt = now
+    needsUpdate = true
     
     isLocked = true
     lockEndTime = new Date(now.getTime() + PIN_SECURITY_CONFIG.LOCK_DURATION_MINUTES * 60 * 1000)
-  } else if (!isLocked) {
-    // Bloke değilse failed attempts sayısını güncelle
-    await updateEntityProfile(entityType, entityId, {
-      failedAttempts: recentFailedAttempts,
-      lastFailedAttempt: recentFailedAttempts > 0 ? now : null
-    })
+  }
+  // Bloke değilse failed attempts sayısını güncelle (only if changed)
+  else if (!isLocked && profile.failedAttempts !== recentFailedAttempts) {
+    updates.failedAttempts = recentFailedAttempts
+    updates.lastFailedAttempt = recentFailedAttempts > 0 ? now : null
+    needsUpdate = true
+  }
+
+  // Only update if there are actual changes
+  if (needsUpdate) {
+    await updateEntityProfile(entityType, entityId, updates)
   }
 
   return {

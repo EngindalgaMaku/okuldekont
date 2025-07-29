@@ -42,7 +42,6 @@ interface YeniIsletmeFormData {
   email: string
   address: string
   taxNumber: string
-  teacherId: string
   pin: string
   usta_ogretici_ad: string
   usta_ogretici_telefon: string
@@ -90,7 +89,6 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
   // Yeni İşletme Modal States
   const [yeniIsletmeModalOpen, setYeniIsletmeModalOpen] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
-  const [availableTeachers, setAvailableTeachers] = useState<Teacher[]>([])
   const [yeniIsletmeFormData, setYeniIsletmeFormData] = useState<YeniIsletmeFormData>({
     name: '',
     contact: '',
@@ -98,7 +96,6 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
     email: '',
     address: '',
     taxNumber: '',
-    teacherId: '',
     pin: '',
     usta_ogretici_ad: '',
     usta_ogretici_telefon: ''
@@ -322,24 +319,7 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
     fetchCompanies()
   }
 
-  // Fetch teachers for coordinator dropdown
-  const fetchTeachers = async () => {
-    try {
-      const response = await fetch('/api/admin/teachers')
-      const data = await response.json()
-      
-      if (!response.ok) {
-        throw new Error('Öğretmen listesi alınamadı')
-      }
-
-      setAvailableTeachers(data || [])
-    } catch (error) {
-      console.error('Teachers fetch error:', error)
-      toast.error('Öğretmen listesi yüklenirken hata oluştu')
-    }
-  }
-
-  // Open create modal and fetch teachers
+  // Open create modal
   const handleOpenCreateModal = async () => {
     setYeniIsletmeFormData({
       name: '',
@@ -348,13 +328,11 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
       email: '',
       address: '',
       taxNumber: '',
-      teacherId: '',
       pin: '',
       usta_ogretici_ad: '',
       usta_ogretici_telefon: ''
     })
     setYeniIsletmeModalOpen(true)
-    await fetchTeachers()
   }
 
   // Validate form data
@@ -388,9 +366,11 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
     }
 
     if (data.phone.trim()) {
-      const phoneRegex = /^(\+90|0)?[1-9]\d{9}$/
-      if (!phoneRegex.test(data.phone.trim().replace(/\s/g, ''))) {
-        errors.push('Geçerli bir telefon numarası girin')
+      // Daha esnek telefon validasyonu - uluslararası formatları da destekler
+      const cleanPhone = data.phone.trim().replace(/[\s\-\(\)]/g, '')
+      const phoneRegex = /^(\+\d{1,3})?\d{10,14}$/
+      if (!phoneRegex.test(cleanPhone)) {
+        errors.push('Geçerli bir telefon numarası girin (örn: +90 555 123 45 67 veya +1 555 123 4567)')
       }
     }
 
@@ -420,7 +400,6 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
           email: yeniIsletmeFormData.email.trim() || null,
           address: yeniIsletmeFormData.address.trim() || null,
           taxNumber: yeniIsletmeFormData.taxNumber.trim() || null,
-          teacherId: yeniIsletmeFormData.teacherId || null,
           pin: yeniIsletmeFormData.pin.trim() || null,
           usta_ogretici_ad: yeniIsletmeFormData.usta_ogretici_ad.trim() || null,
           usta_ogretici_telefon: yeniIsletmeFormData.usta_ogretici_telefon.trim() || null,
@@ -444,7 +423,6 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
         email: '',
         address: '',
         taxNumber: '',
-        teacherId: '',
         pin: '',
         usta_ogretici_ad: '',
         usta_ogretici_telefon: ''
@@ -1114,32 +1092,19 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                 <input
                   type="text"
                   value={yeniIsletmeFormData.pin}
-                  onChange={(e) => handleFormFieldChange('pin', e.target.value)}
+                  onChange={(e) => {
+                    // Sadece sayı girişine izin ver
+                    const value = e.target.value.replace(/[^0-9]/g, '');
+                    handleFormFieldChange('pin', value);
+                  }}
                   maxLength={4}
+                  pattern="[0-9]{4}"
+                  inputMode="numeric"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
                   placeholder="0000 (boş bırakılırsa otomatik oluşturulur)"
                 />
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <User className="h-4 w-4 inline mr-1" />
-                  Koordinatör Öğretmen
-                </label>
-                <select
-                  value={yeniIsletmeFormData.teacherId}
-                  onChange={(e) => handleFormFieldChange('teacherId', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                >
-                  <option value="">Koordinatör seçiniz (opsiyonel)</option>
-                  {availableTeachers.map((teacher) => (
-                    <option key={teacher.id} value={teacher.id}>
-                      {teacher.name} {teacher.surname}
-                      {teacher.alan ? ` (${teacher.alan.name})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
           </div>
 

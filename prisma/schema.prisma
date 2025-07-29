@@ -52,11 +52,13 @@ model TeacherProfile {
   id       String  @id @default(cuid())
   name     String
   surname  String
+  tcNo     String? @unique
   phone    String?
   email    String?
   pin      String
   userId   String  @unique
   alanId   String?
+  position String? // alan_sefi, atolye_sefi
   active   Boolean @default(true)
   isLocked Boolean @default(false)
   lockStartTime DateTime?

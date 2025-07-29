@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
+import { validateAuthAndRole } from '@/middleware/auth'
+import { validateFileUpload, generateSecureFileName, quarantineFile } from '@/lib/file-security'
 
 // Next.js cache'ini devre dışı bırak
 export const dynamic = 'force-dynamic';
@@ -13,7 +15,30 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    console.log('Belge yükleme başlıyor, işletme ID:', id)
+    
+    // 🛡️ KRİTİK GÜVENLİK: Authentication kontrolü
+    const authResult = await validateAuthAndRole(request, ['COMPANY', 'ADMIN'])
+    if (!authResult.success || !authResult.user) {
+      return NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 401 })
+    }
+
+    // İşletme yetkisi kontrolü - sadece kendi belgelerini yükleyebilir
+    if (authResult.user.role === 'COMPANY' && authResult.user.companyId !== id) {
+      console.error('🚨 SECURITY: Unauthorized company document access attempt:', {
+        requestedCompanyId: id,
+        userCompanyId: authResult.user.companyId,
+        userEmail: authResult.user.email,
+        timestamp: new Date().toISOString()
+      })
+      return NextResponse.json({ error: 'Bu işletmenin belgelerini yükleme yetkiniz yok' }, { status: 403 })
+    }
+
+    console.log('🛡️ FILE SECURITY: Starting secure company document upload:', {
+      companyId: id,
+      userEmail: authResult.user.email,
+      userRole: authResult.user.role,
+      timestamp: new Date().toISOString()
+    })
     
     const formData = await request.formData()
     
@@ -30,6 +55,46 @@ export async function POST(
       console.log('Eksik alan:', { belgeTuru: !!belgeTuru, dosya: !!dosya })
       return NextResponse.json({ error: 'Belge türü ve dosya gereklidir' }, { status: 400 })
     }
+
+    // 🛡️ KRİTİK GÜVENLİK TARAMASI - Company documents için
+    const securityResult = await validateFileUpload(dosya, {
+      maxSize: 5 * 1024 * 1024, // 5MB limit for documents
+      allowedTypes: ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+      strictMode: true // Company documents için sıkı güvenlik
+    })
+
+    if (!securityResult.safe) {
+      // Güvenli olmayan dosya - quarantine
+      quarantineFile({
+        originalName: dosya.name,
+        companyId: id,
+        userEmail: authResult.user?.email
+      }, securityResult.error || 'Security validation failed')
+      
+      console.error('🚨 FILE SECURITY: Malicious company document blocked:', {
+        fileName: dosya.name,
+        companyId: id,
+        userEmail: authResult.user.email,
+        error: securityResult.error,
+        timestamp: new Date().toISOString()
+      })
+      
+      return NextResponse.json(
+        { error: securityResult.error },
+        { status: 400 }
+      )
+    }
+
+    // Security warnings varsa logla
+    if (securityResult.warnings && securityResult.warnings.length > 0) {
+      console.warn('⚠️ FILE SECURITY: Company document warnings:', {
+        fileName: dosya.name,
+        warnings: securityResult.warnings,
+        companyId: id
+      })
+    }
+
+    console.log('✅ FILE SECURITY: Company document passed security scan')
 
     // Türkçe karakterleri İngilizce karakterlere çeviren fonksiyon
     const sanitizeName = (name: string) => {
@@ -59,12 +124,22 @@ export async function POST(
       return NextResponse.json({ error: 'İşletme bulunamadı' }, { status: 404 })
     }
 
+    // Generate SECURE filename with hash
+    const secureFileName = generateSecureFileName(
+      dosya.name,
+      securityResult.fileInfo?.hash || 'unknown'
+    )
+    
     // Dosya uzantısını al
-    const fileExtension = path.extname(dosya.name)
+    const fileExtension = path.extname(secureFileName)
     const tarih = new Date().toISOString().split('T')[0] // YYYY-MM-DD formatı
 
     const yeniDosyaAdi = `${sanitizeName(belgeTuru)}_${sanitizeName(isletme.name)}_${sanitizeName(isletme.contact)}_${tarih}${fileExtension}`
-    console.log('Oluşturulan dosya adı:', yeniDosyaAdi)
+    console.log('🛡️ FILE SECURITY: Secure company document filename generated:', {
+      original: dosya.name,
+      secure: yeniDosyaAdi,
+      hash: securityResult.fileInfo?.hash?.substring(0, 16) + '...'
+    })
 
     // Dosyayı kaydet
     const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'belgeler')
@@ -85,7 +160,16 @@ export async function POST(
       const buffer = Buffer.from(bytes)
       
       await writeFile(filePath, buffer)
-      console.log('Dosya başarıyla kaydedildi')
+      
+      // Log successful secure upload
+      console.log('✅ FILE SECURITY: Secure company document upload completed:', {
+        originalName: dosya.name,
+        secureFileName: yeniDosyaAdi,
+        fileHash: securityResult.fileInfo?.hash?.substring(0, 16) + '...',
+        companyId: id,
+        uploadedBy: authResult.user.email,
+        timestamp: new Date().toISOString()
+      })
     } catch (fileError) {
       console.error('Dosya kaydetme hatası:', fileError)
       throw new Error(`Dosya kaydetme hatası: ${fileError}`)

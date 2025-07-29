@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 import { Eye, Download, Check, X, Filter, Search, Calendar, Trash2, Loader } from 'lucide-react'
 
 interface Dekont {
@@ -60,7 +60,6 @@ const STATUS_LABELS = {
 
 export default function DekontlarPage() {
   const [dekontlar, setDekontlar] = useState<Dekont[]>([])
-  const [filteredDekontlar, setFilteredDekontlar] = useState<Dekont[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [selectedMonth, setSelectedMonth] = useState<string>('all')
@@ -78,15 +77,8 @@ export default function DekontlarPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
 
-  useEffect(() => {
-    fetchDekontlar()
-  }, [])
-
-  useEffect(() => {
-    applyFilters()
-  }, [dekontlar, selectedStatus, selectedMonth, selectedYear, searchTerm])
-
-  const fetchDekontlar = async () => {
+  // Memoized fetch function - prevents re-creation on every render
+  const fetchDekontlar = useCallback(async () => {
     try {
       setLoading(true)
       const response = await fetch('/api/admin/dekontlar')
@@ -99,9 +91,10 @@ export default function DekontlarPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const applyFilters = () => {
+  // Memoized filtered data calculation - expensive operation
+  const filteredDekontlar = useMemo(() => {
     let filtered = [...dekontlar]
 
     // Durum filtresi
@@ -129,26 +122,45 @@ export default function DekontlarPage() {
       )
     }
 
-    setFilteredDekontlar(filtered)
-    setCurrentPage(1) // Reset to first page when filters change
-    setSelectedIds([]) // Clear selections when filters change
-  }
+    return filtered
+  }, [dekontlar, selectedStatus, selectedMonth, selectedYear, searchTerm])
 
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Memoized pagination calculations - expensive computation
+  const paginationData = useMemo(() => {
+    const totalPages = Math.ceil(filteredDekontlar.length / itemsPerPage)
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    const currentDekontlar = filteredDekontlar.slice(startIndex, endIndex)
+    
+    return {
+      totalPages,
+      startIndex,
+      endIndex,
+      currentDekontlar
+    }
+  }, [filteredDekontlar, currentPage, itemsPerPage])
+
+  // Memoized available years calculation - expensive operation
+  const availableYears = useMemo(() => {
+    return Array.from(new Set(dekontlar.map(d => d.yil))).sort((a, b) => b - a)
+  }, [dekontlar])
+
+  // Memoized event handlers - prevent re-creation
+  const handleSelectAll = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      setSelectedIds(currentDekontlar.map(d => d.id))
+      setSelectedIds(paginationData.currentDekontlar.map(d => d.id))
     } else {
       setSelectedIds([])
     }
-  }
+  }, [paginationData.currentDekontlar])
 
-  const handleSelectOne = (id: string) => {
+  const handleSelectOne = useCallback((id: string) => {
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     )
-  }
+  }, [])
 
-  const handleBulkAction = async () => {
+  const handleBulkAction = useCallback(async () => {
     if (selectedIds.length === 0 || !bulkAction) return
 
     if (bulkAction === 'DELETE') {
@@ -169,9 +181,9 @@ export default function DekontlarPage() {
     } finally {
       setIsProcessing(false)
     }
-  }
+  }, [selectedIds, bulkAction])
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = useCallback(async () => {
     setIsProcessing(true)
     try {
       for (const id of selectedIds) {
@@ -186,9 +198,20 @@ export default function DekontlarPage() {
     } finally {
       setIsProcessing(false)
     }
-  }
+  }, [selectedIds])
 
-  const updateDekontStatus = async (dekontId: string, status: 'APPROVED' | 'REJECTED', reason?: string) => {
+  useEffect(() => {
+    fetchDekontlar()
+  }, [fetchDekontlar])
+
+  // Reset page and selections when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+    setSelectedIds([])
+  }, [filteredDekontlar])
+
+  // Memoized API functions to prevent re-creation
+  const updateDekontStatus = useCallback(async (dekontId: string, status: 'APPROVED' | 'REJECTED', reason?: string) => {
     try {
       const updateData = {
         status,
@@ -222,24 +245,9 @@ export default function DekontlarPage() {
       console.error('Dekont durumu güncellenirken hata:', error)
       alert('Dekont durumu güncellenirken bir hata oluştu')
     }
-  }
+  }, [fetchDekontlar])
 
-  const handleApprove = (dekont: Dekont) => {
-    setSelectedDekont(dekont)
-    setShowApproveModal(true)
-  }
-
-  const handleReject = (dekont: Dekont) => {
-    setSelectedDekont(dekont)
-    setShowRejectModal(true)
-  }
-
-  const handleDelete = (dekont: Dekont) => {
-    setSelectedDekont(dekont)
-    setShowDeleteModal(true)
-  }
-
-  const deleteDekont = async (dekontId: string) => {
+  const deleteDekont = useCallback(async (dekontId: string) => {
     try {
       const response = await fetch(`/api/admin/dekontlar/${dekontId}`, {
         method: 'DELETE',
@@ -257,29 +265,47 @@ export default function DekontlarPage() {
       console.error('Dekont silinirken hata:', error)
       alert('Dekont silinirken bir hata oluştu')
     }
-  }
+  }, [fetchDekontlar])
 
-  const submitApprove = async () => {
+  // Memoized modal handlers
+  const handleApprove = useCallback((dekont: Dekont) => {
+    setSelectedDekont(dekont)
+    setShowApproveModal(true)
+  }, [])
+
+  const handleReject = useCallback((dekont: Dekont) => {
+    setSelectedDekont(dekont)
+    setShowRejectModal(true)
+  }, [])
+
+  const handleDelete = useCallback((dekont: Dekont) => {
+    setSelectedDekont(dekont)
+    setShowDeleteModal(true)
+  }, [])
+
+  // Memoized submit handlers
+  const submitApprove = useCallback(async () => {
     if (selectedDekont) {
       await updateDekontStatus(selectedDekont.id, 'APPROVED')
     }
-  }
+  }, [selectedDekont, updateDekontStatus])
 
-  const submitReject = async () => {
+  const submitReject = useCallback(async () => {
     if (selectedDekont && rejectReason.trim()) {
       await updateDekontStatus(selectedDekont.id, 'REJECTED', rejectReason)
     }
-  }
+  }, [selectedDekont, rejectReason, updateDekontStatus])
 
-  const closeModals = () => {
+  const closeModals = useCallback(() => {
     setShowRejectModal(false)
     setShowApproveModal(false)
     setShowDeleteModal(false)
     setSelectedDekont(null)
     setRejectReason('')
-  }
+  }, [])
 
-  const downloadFile = async (fileUrl: string, filename: string) => {
+  // Memoized download function
+  const downloadFile = useCallback(async (fileUrl: string, filename: string) => {
     try {
       // Dosya URL'inden dosya adını çıkar
       const urlParts = fileUrl.split('/')
@@ -322,16 +348,18 @@ export default function DekontlarPage() {
       console.error('Download error:', error)
       alert('Dosya indirme sırasında bir hata oluştu')
     }
-  }
+  }, [])
 
-  // Pagination logic
-  const totalPages = Math.ceil(filteredDekontlar.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const currentDekontlar = filteredDekontlar.slice(startIndex, endIndex)
+  // Memoized filter clear handler
+  const clearFilters = useCallback(() => {
+    setSelectedStatus('all')
+    setSelectedMonth('all')
+    setSelectedYear('all')
+    setSearchTerm('')
+  }, [])
 
-  // Get unique years from data
-  const availableYears = Array.from(new Set(dekontlar.map(d => d.yil))).sort((a, b) => b - a)
+  // Extract current page data from memoized pagination
+  const { totalPages, startIndex, endIndex, currentDekontlar } = paginationData
 
   if (loading) {
     return (
@@ -403,12 +431,7 @@ export default function DekontlarPage() {
 
           {/* Clear Filters */}
           <button
-            onClick={() => {
-              setSelectedStatus('all')
-              setSelectedMonth('all')
-              setSelectedYear('all')
-              setSearchTerm('')
-            }}
+            onClick={clearFilters}
             className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50"
           >
             Filtreleri Temizle

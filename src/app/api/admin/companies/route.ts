@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { validateAuthAndRole } from '@/middleware/auth'
 
 export async function GET(request: Request) {
+  // KRİTİK: Şirket verileri - SADECE ADMIN
+  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
@@ -146,8 +153,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // KRİTİK: Şirket oluşturma - SADECE ADMIN
+  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
-    const { name, contact, phone, email, address, taxNumber, teacherId, pin, usta_ogretici_ad, usta_ogretici_telefon } = await request.json()
+    const { name, contact, phone, email, address, taxNumber, pin, usta_ogretici_ad, usta_ogretici_telefon } = await request.json()
 
     if (!name || !contact) {
       return NextResponse.json(

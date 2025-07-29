@@ -1,7 +1,21 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { validateAuthAndRole } from '@/middleware/auth'
+import { validateAndSanitize, validateStudent, sanitizeString } from '@/lib/validation'
 
 export async function GET(request: Request) {
+  // KRİTİK KVKK KORUMA: Öğrenci kişisel verileri - SADECE ADMIN ve TEACHER
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'TEACHER'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
+  // KVKK compliance logging
+  console.log(`🔒 KVKK: ${authResult.user?.role} ${authResult.user?.email} accessing student personal data`, {
+    timestamp: new Date().toISOString(),
+    action: 'VIEW_STUDENT_DATA'
+  })
+
   try {
     const { searchParams } = new URL(request.url)
     const alanId = searchParams.get('alanId')
@@ -235,44 +249,64 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  try {
-    const { 
-      name, 
-      surname, 
-      className, 
-      number, 
-      tcNo, 
-      phone, 
-      email, 
-      gender,
-      birthDate,
-      parentName, 
-      parentSurname,
-      parentPhone, 
-      alanId 
-    } = await request.json()
+  // KRİTİK KVKK KORUMA: Öğrenci oluşturma - SADECE ADMIN
+  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
 
-    if (!name || !surname || !className || !alanId) {
+  // KVKK compliance logging
+  console.log(`🔒 KVKK: Admin ${authResult.user?.email} creating student with personal data`, {
+    timestamp: new Date().toISOString(),
+    action: 'CREATE_STUDENT_DATA'
+  })
+
+  try {
+    const requestData = await request.json()
+    
+    // INPUT VALIDATION & SANITIZATION
+    const validationResult = validateAndSanitize(requestData, validateStudent)
+    if (!validationResult.success) {
+      console.warn(`🛡️ VALIDATION: Student creation failed`, {
+        error: validationResult.error,
+        adminId: authResult.user?.id
+      })
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: validationResult.error },
         { status: 400 }
       )
     }
 
+    const {
+      name,
+      surname,
+      className,
+      number,
+      tcNo,
+      phone,
+      email,
+      gender,
+      birthDate,
+      parentName,
+      parentSurname,
+      parentPhone,
+      alanId
+    } = validationResult.data
+
     const student = await prisma.student.create({
       data: {
-        name: name.trim(),
-        surname: surname.trim(),
-        className: className.trim(),
-        number: number?.trim() || null,
-        tcNo: tcNo?.trim() || null,
-        phone: phone?.trim() || null,
-        email: email?.trim() || null,
-        gender: gender?.trim() || null,
+        name: sanitizeString(name),
+        surname: sanitizeString(surname),
+        className: sanitizeString(className),
+        number: number ? sanitizeString(number) : null,
+        tcNo: tcNo ? sanitizeString(tcNo) : null,
+        phone: phone ? sanitizeString(phone) : null,
+        email: email ? sanitizeString(email) : null,
+        gender: gender ? sanitizeString(gender) : null,
         birthDate: birthDate ? new Date(birthDate) : null,
-        parentName: parentName?.trim() || null,
-        parentSurname: parentSurname?.trim() || null,
-        parentPhone: parentPhone?.trim() || null,
+        parentName: parentName ? sanitizeString(parentName) : null,
+        parentSurname: parentSurname ? sanitizeString(parentSurname) : null,
+        parentPhone: parentPhone ? sanitizeString(parentPhone) : null,
         alanId
       },
       include: {
@@ -320,6 +354,12 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  // KRİTİK KVKK KORUMA: Öğrenci güncelleme - SADECE ADMIN
+  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const studentId = searchParams.get('id')
@@ -394,6 +434,18 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  // KRİTİK KVKK KORUMA: Öğrenci silme - SADECE ADMIN
+  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
+  // KVKK compliance logging - Data deletion
+  console.log(`🔒 KVKK: Admin ${authResult.user?.email} deleting student personal data`, {
+    timestamp: new Date().toISOString(),
+    action: 'DELETE_STUDENT_DATA'
+  })
+
   try {
     const { searchParams } = new URL(request.url)
     const studentId = searchParams.get('id')

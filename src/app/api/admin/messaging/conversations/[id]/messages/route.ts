@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { messagingService } from '@/lib/messaging/service'
 import { SendMessageRequest } from '@/lib/messaging/types'
+import { validateAuthAndRole } from '@/middleware/auth'
 
 interface RouteParams {
   params: Promise<{
@@ -36,12 +37,22 @@ function parseQuery(searchParams: URLSearchParams) {
   return { page, pageSize }
 }
 
-// GET /api/admin/messaging/conversations/[id]/messages - Get messages in conversation
+// GET /api/admin/messaging/conversations/[id]/messages - Get messages in conversation - KRİTİK KORUMA
 export async function GET(request: NextRequest, { params }: RouteParams) {
+  // KRİTİK: Özel mesajları okuma - Sadece kimlik doğrulanmış kullanıcılar
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'TEACHER', 'COMPANY'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
-    // TODO: Add authentication middleware to get userId
-    const userId = request.headers.get('x-user-id') || 'temp-user-id'
+    const userId = authResult.user?.id || ''
     const { id } = await params
+    
+    // Log private message access for security monitoring
+    console.log(`🔒 MESSAGING: ${authResult.user?.role} ${authResult.user?.email} accessing conversation ${id}`, {
+      timestamp: new Date().toISOString()
+    })
     
     const { searchParams } = new URL(request.url)
     const query = parseQuery(searchParams)
@@ -74,12 +85,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// POST /api/admin/messaging/conversations/[id]/messages - Send message
+// POST /api/admin/messaging/conversations/[id]/messages - Send message - KRİTİK KORUMA
 export async function POST(request: NextRequest, { params }: RouteParams) {
+  // KRİTİK: Mesaj gönderme - Sadece kimlik doğrulanmış kullanıcılar
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'TEACHER', 'COMPANY'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
-    // TODO: Add authentication middleware to get userId
-    const userId = request.headers.get('x-user-id') || 'temp-user-id'
+    const userId = authResult.user?.id || ''
     const { id } = await params
+    
+    // Log message sending for security monitoring
+    console.log(`🔒 MESSAGING: ${authResult.user?.role} ${authResult.user?.email} sending message to conversation ${id}`, {
+      timestamp: new Date().toISOString()
+    })
     
     const body = await request.json()
     

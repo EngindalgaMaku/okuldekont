@@ -12,8 +12,8 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions)
     
-    // Admin yetkisi kontrolü
-    if (!session || session.user.role !== 'ADMIN') {
+    // Admin ve Teacher yetkisi kontrolü
+    if (!session || !['ADMIN', 'TEACHER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

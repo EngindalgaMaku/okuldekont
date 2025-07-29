@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { messagingService } from '@/lib/messaging/service'
 import { CreateConversationRequest } from '@/lib/messaging/types'
+import { validateAuthAndRole } from '@/middleware/auth'
 
 function validateCreateConversation(data: any): CreateConversationRequest {
   if (!data.type || !['DIRECT', 'GROUP', 'BROADCAST', 'SYSTEM'].includes(data.type)) {
@@ -26,11 +27,16 @@ function parseQuery(searchParams: URLSearchParams) {
   return { page, pageSize }
 }
 
-// GET /api/admin/messaging/conversations - Get user's conversations
+// GET /api/admin/messaging/conversations - Get user's conversations - SADECE AUTHENTİCATED USERS
 export async function GET(request: NextRequest) {
+  // KRİTİK: Özel konuşmaları koruma
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'TEACHER', 'COMPANY'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
-    // TODO: Add authentication middleware to get userId
-    const userId = request.headers.get('x-user-id') || 'temp-user-id'
+    const userId = authResult.user?.id || ''
     
     const { searchParams } = new URL(request.url)
     const query = parseQuery(searchParams)
@@ -62,11 +68,21 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/admin/messaging/conversations - Create new conversation
+// POST /api/admin/messaging/conversations - Create new conversation - SADECE AUTHENTİCATED USERS
 export async function POST(request: NextRequest) {
+  // KRİTİK: Sadece kimlik doğrulanmış kullanıcılar konuşma oluşturabilir
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'TEACHER', 'COMPANY'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
-    // TODO: Add authentication middleware to get userId
-    const userId = request.headers.get('x-user-id') || 'temp-user-id'
+    const userId = authResult.user?.id || ''
+    
+    // Log conversation creation for security monitoring
+    console.log(`🔒 MESSAGING: ${authResult.user?.role} ${authResult.user?.email} creating conversation`, {
+      timestamp: new Date().toISOString()
+    })
     
     const body = await request.json()
     const validatedData = validateCreateConversation(body)

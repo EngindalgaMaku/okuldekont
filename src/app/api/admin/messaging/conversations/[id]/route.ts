@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { messagingService } from '@/lib/messaging/service'
+import { validateAuthAndRole } from '@/middleware/auth'
 
 interface RouteParams {
   params: Promise<{
@@ -7,11 +8,16 @@ interface RouteParams {
   }>
 }
 
-// GET /api/admin/messaging/conversations/[id] - Get conversation details
+// GET /api/admin/messaging/conversations/[id] - Get conversation details - SADECE AUTHENTİCATED USERS
 export async function GET(request: NextRequest, { params }: RouteParams) {
+  // KRİTİK: Özel konuşma detaylarını koruma
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'TEACHER', 'COMPANY'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
-    // TODO: Add authentication middleware to get userId
-    const userId = request.headers.get('x-user-id') || 'temp-user-id'
+    const userId = authResult.user?.id || ''
     const { id } = await params
     
     const result = await messagingService.getConversationDetails(id, userId)
@@ -33,11 +39,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// PUT /api/admin/messaging/conversations/[id] - Update conversation
+// PUT /api/admin/messaging/conversations/[id] - Update conversation - SADECE AUTHENTİCATED USERS
 export async function PUT(request: NextRequest, { params }: RouteParams) {
+  // KRİTİK: Sadece kimlik doğrulanmış kullanıcılar konuşma güncelleyebilir
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'TEACHER', 'COMPANY'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
-    // TODO: Add authentication middleware to get userId
-    const userId = request.headers.get('x-user-id') || 'temp-user-id'
+    const userId = authResult.user?.id || ''
     const { id } = await params
     
     const body = await request.json()
@@ -81,11 +92,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/admin/messaging/conversations/[id] - Leave/delete conversation
+// DELETE /api/admin/messaging/conversations/[id] - Leave/delete conversation - SADECE AUTHENTİCATED USERS
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  // KRİTİK: Sadece kimlik doğrulanmış kullanıcılar konuşmadan ayrılabilir
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'TEACHER', 'COMPANY'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
-    // TODO: Add authentication middleware to get userId
-    const userId = request.headers.get('x-user-id') || 'temp-user-id'
+    const userId = authResult.user?.id || ''
     const { id } = await params
     
     // TODO: Implement leave conversation functionality in service

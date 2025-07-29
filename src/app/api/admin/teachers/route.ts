@@ -1,7 +1,20 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { validateAuthAndRole } from '@/middleware/auth'
 
-export async function GET() {
+export async function GET(request: Request) {
+  // KRİTİK KVKK KORUMA: Öğretmen kişisel verileri ve PIN kodları - SADECE ADMIN
+  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
+  // KVKK compliance logging
+  console.log(`🔒 KVKK: Admin ${authResult.user?.email} accessing teacher personal data and PINs`, {
+    timestamp: new Date().toISOString(),
+    action: 'VIEW_TEACHER_DATA'
+  })
+
   try {
     // Get all teachers with related data
     const teachers = await prisma.teacherProfile.findMany({
@@ -20,10 +33,12 @@ export async function GET() {
       id: teacher.id,
       name: teacher.name,
       surname: teacher.surname,
+      tcNo: teacher.tcNo,
       phone: teacher.phone,
       email: teacher.email,
       pin: teacher.pin,
       alanId: teacher.alanId,
+      position: teacher.position,
       alan: teacher.alan ? {
         id: teacher.alan.id,
         name: teacher.alan.name
@@ -41,8 +56,20 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // KRİTİK KVKK KORUMA: Öğretmen oluşturma - SADECE ADMIN
+  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
+  // KVKK compliance logging
+  console.log(`🔒 KVKK: Admin ${authResult.user?.email} creating teacher with personal data`, {
+    timestamp: new Date().toISOString(),
+    action: 'CREATE_TEACHER_DATA'
+  })
+
   try {
-    const { name, surname, phone, email, pin, alanId } = await request.json()
+    const { name, surname, tcNo, phone, email, pin, alanId, position } = await request.json()
 
     if (!name || !surname || !pin) {
       return NextResponse.json(
@@ -66,10 +93,12 @@ export async function POST(request: Request) {
       data: {
         name: name.trim(),
         surname: surname.trim(),
+        tcNo: tcNo?.trim() || null,
         phone: phone?.trim() || null,
         email: email?.trim() || null,
         pin: pin.trim(),
         alanId: alanId || null,
+        position: position || null,
         userId: user.id
       },
       include: {
@@ -82,10 +111,12 @@ export async function POST(request: Request) {
       id: teacher.id,
       name: teacher.name,
       surname: teacher.surname,
+      tcNo: teacher.tcNo,
       phone: teacher.phone,
       email: teacher.email,
       pin: teacher.pin,
       alanId: teacher.alanId,
+      position: teacher.position,
       alan: teacher.alan ? {
         id: teacher.alan.id,
         name: teacher.alan.name

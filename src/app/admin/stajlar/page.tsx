@@ -1,10 +1,16 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { Building2, Users, FileText, Search, Filter, Download, Upload, UserCheck, Calendar, GraduationCap, User, AlertTriangle, ChevronDown, X, ChevronLeft, ChevronRight, CheckCircle, Wrench, Settings } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react'
+import { FileText, UserCheck, AlertTriangle, CheckCircle, Settings, ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { useInternshipAssignmentRules } from '@/hooks/useInternshipAssignmentRules'
+import StajCard from '@/components/staj/StajCard'
+import OgrenciCard from '@/components/staj/OgrenciCard'
+import TabHeader from '@/components/staj/TabHeader'
+import FilterSection from '@/components/staj/FilterSection'
+import Pagination from '@/components/staj/Pagination'
+import VirtualList from '@/components/staj/VirtualList'
 
 interface Staj {
   id: string
@@ -81,19 +87,36 @@ interface TutarsizlikRaporu {
   solution?: string
 }
 
-// Utility function to ensure unique data
-const getUniqueById = <T extends { id: string }>(items: T[]): T[] => {
-  const seen = new Set<string>()
-  return items.filter(item => {
-    if (seen.has(item.id)) {
-      return false
+// Memoized utility function to ensure unique data
+const createGetUniqueById = () => {
+  const cache = new WeakMap<any[], any[]>()
+  
+  return <T extends { id: string }>(items: T[]): T[] => {
+    if (!Array.isArray(items) || items.length === 0) return items
+    
+    // Check cache first
+    if (cache.has(items)) {
+      const cached = cache.get(items)
+      return cached as T[]
     }
-    seen.add(item.id)
-    return true
-  })
+    
+    const seen = new Set<string>()
+    const result = items.filter(item => {
+      if (!item?.id || seen.has(item.id)) {
+        return false
+      }
+      seen.add(item.id)
+      return true
+    })
+    
+    // Cache the result
+    cache.set(items, result)
+    return result
+  }
 }
 
-export default function StajYonetimiPage() {
+const getUniqueById = createGetUniqueById()
+const StajYonetimiPage = memo(function StajYonetimiPage() {
   const [stajlar, setStajlar] = useState<Staj[]>([])
   const [bostOgrenciler, setBostOgrenciler] = useState<Ogrenci[]>([])
   const [bostOgrencilerTotal, setBostOgrencilerTotal] = useState(0)
@@ -103,7 +126,7 @@ export default function StajYonetimiPage() {
   const [alanlar, setAlanlar] = useState<Alan[]>([])
   const [loading, setLoading] = useState(true)
   const [dataLoading, setDataLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'aktif' | 'bost' | 'tamamlandi' | 'feshedildi' | 'suresi-gecmis'>('aktif')
+  const [activeTab, setActiveTab] = useState<'stajlar' | 'bast' | 'bost'>('stajlar')
   
   // Modal states
   const [newOgretmenModalOpen, setNewOgretmenModalOpen] = useState(false)
@@ -113,15 +136,6 @@ export default function StajYonetimiPage() {
 
   const [selectedStaj, setSelectedStaj] = useState<Staj | null>(null)
   const [selectedOgrenci, setSelectedOgrenci] = useState<Ogrenci | null>(null)
-
-  
-  // Form states
-  
-
-  
-
-  
-
   const [submitLoading, setSubmitLoading] = useState(false)
 
   // New teacher form data
@@ -158,7 +172,6 @@ export default function StajYonetimiPage() {
   const [filterAlan, setFilterAlan] = useState('')
   const [filterSinif, setFilterSinif] = useState('')
 
-  
   // Pagination states
   const [currentPageStajlar, setCurrentPageStajlar] = useState(1)
   const [currentPageBost, setCurrentPageBost] = useState(1)
@@ -170,7 +183,6 @@ export default function StajYonetimiPage() {
   
   const { showToast } = useToast()
   const assignmentRules = useInternshipAssignmentRules()
-
   useEffect(() => {
     // İlk render'da loading false yap ki sayfa yapısı gelsin
     setLoading(false)
@@ -228,7 +240,7 @@ export default function StajYonetimiPage() {
     }
   }, [])
 
-  const fetchBostOgrenciler = async (page: number = 1) => {
+  const fetchBostOgrenciler = useCallback(async (page: number = 1) => {
     try {
       const params = new URLSearchParams({
         status: 'unassigned',
@@ -265,9 +277,9 @@ export default function StajYonetimiPage() {
       setBostOgrencilerTotalPages(0)
       return { students: [], totalCount: 0, totalPages: 0 }
     }
-  }
+  }, [filterAlan, filterSinif, searchTerm])
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setDataLoading(true)
       
@@ -333,7 +345,7 @@ export default function StajYonetimiPage() {
     } finally {
       setDataLoading(false)
     }
-  }
+  }, [showToast])
 
   const handleTutarsizlikKontrol = async () => {
     setTutarsizlikLoading(true)
@@ -459,7 +471,7 @@ export default function StajYonetimiPage() {
         name: newTeacher.name,
         surname: newTeacher.surname,
         alanId: newTeacher.alanId,
-        alan: alanlar.find(a => a.id === newTeacher.alanId) || null
+        alan: uniqueAlanlar.find(a => a.id === newTeacher.alanId) || null
       }])
 
 
@@ -487,7 +499,7 @@ export default function StajYonetimiPage() {
 
 
 
-  const handleTamamlandiOlarakKaydet = async (stajId: string) => {
+  const handleTamamlandiOlarakKaydet = useCallback(async (stajId: string) => {
     try {
       const response = await fetch(`/api/admin/internships/${stajId}`, {
         method: 'PATCH',
@@ -517,17 +529,17 @@ export default function StajYonetimiPage() {
         message: 'Staj tamamlanırken bir hata oluştu'
       })
     }
-  }
+  }, [showToast])
 
-  const handleFesihEt = (staj: Staj) => {
+  const handleFesihEt = useCallback((staj: Staj) => {
     setSelectedStaj(staj)
     setFesihModalOpen(true)
     setFesihFormData({
       reason: '',
       notes: '',
-      terminationDate: new Date().toISOString().split('T')[0]
+      terminationDate: dateCalculations.today
     })
-  }
+  }, [])
 
   const handleFesihOnayla = async () => {
     if (!selectedStaj || !fesihFormData.reason.trim()) return
@@ -571,7 +583,7 @@ export default function StajYonetimiPage() {
     }
   }
 
-  const handleKoordinatorDegistir = async (staj: Staj) => {
+  const handleKoordinatorDegistir = useCallback(async (staj: Staj) => {
     setSelectedStaj(staj)
     setKoordinatorModalOpen(true)
 
@@ -592,7 +604,7 @@ export default function StajYonetimiPage() {
     } else {
       setYeniKoordinator(staj.teacherId || '')
     }
-  }
+  }, [assignmentRules])
 
   const koordinatorDegistir = async () => {
     if (!selectedStaj || !yeniKoordinator) {
@@ -666,21 +678,41 @@ export default function StajYonetimiPage() {
 
 
 
+  // Memoized unique arrays - performans optimizasyonu
+  const uniqueAlanlar = useMemo(() => getUniqueById(alanlar), [alanlar])
+  const uniqueIsletmeler = useMemo(() => getUniqueById(isletmeler), [isletmeler])
+  const uniqueOgretmenler = useMemo(() => getUniqueById(ogretmenler), [ogretmenler])
+
+  // Memoized heavy date calculations
+  const dateCalculations = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const todayFormatted = new Date().toLocaleDateString('tr-TR')
+    
+    return {
+      today,
+      todayFormatted,
+      maxDate: today // For form inputs
+    }
+  }, []) // Only calculate once per component lifecycle
+
+  // Memoized unique class names
+  const uniqueClassNames = useMemo(() => {
+    const classNames = activeTab === 'bost'
+      ? bostOgrenciler.map(o => o.className).filter((name): name is string => Boolean(name))
+      : stajlar.map(s => s.student?.className).filter((name): name is string => Boolean(name))
+    return Array.from(new Set(classNames)).sort()
+  }, [activeTab, bostOgrenciler, stajlar])
+
   // Memoized filtreleme mantığı - performans optimizasyonu
   const filteredStajlar = useMemo(() => {
     if (!Array.isArray(stajlar)) {
       return []
     }
+    const { today } = dateCalculations
+    
     return stajlar.filter(staj => {
-      const today = new Date().toISOString().split('T')[0]
-      const isExpired = staj.status === 'ACTIVE' && staj.endDate && staj.endDate < today
-      const isActive = staj.status === 'ACTIVE' && (!staj.endDate || staj.endDate >= today)
-      
-      // Tab bazlı filtreleme
-      if (activeTab === 'aktif' && !isActive) return false
-      if (activeTab === 'suresi-gecmis' && !isExpired) return false
-      if (activeTab === 'tamamlandi' && staj.status !== 'COMPLETED') return false
-      if (activeTab === 'feshedildi' && staj.status !== 'TERMINATED') return false
+      // Sadece stajlar tab'ında göster
+      if (activeTab !== 'stajlar') return false
       
       const searchMatch = searchTerm === '' ||
         staj.student?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -698,7 +730,7 @@ export default function StajYonetimiPage() {
       
       return searchMatch && isletmeMatch && ogretmenMatch && alanMatch && sinifMatch
     })
-  }, [stajlar, activeTab, searchTerm, filterIsletme, filterOgretmen, filterAlan, filterSinif, alanlar])
+  }, [stajlar, activeTab, searchTerm, filterIsletme, filterOgretmen, filterAlan, filterSinif, alanlar, dateCalculations])
 
 
 
@@ -714,6 +746,20 @@ export default function StajYonetimiPage() {
   }, [searchTerm, filterAlan, filterSinif, activeTab])
 
 
+  // Memoized tab counts - ağır hesaplama optimizasyonu
+  const tabCounts = useMemo(() => {
+    const safeStajlar = Array.isArray(stajlar) ? stajlar : []
+    const { today } = dateCalculations
+    
+    const bastOgrenciler = safeStajlar.filter(s => s.status === 'ACTIVE')
+    
+    return {
+      stajlar: safeStajlar.length,
+      bast: bastOgrenciler.length,
+      bost: bostOgrencilerTotal
+    }
+  }, [stajlar, bostOgrencilerTotal, dateCalculations])
+
   // Memoized pagination hesaplamaları - sadece stajlar için
   const paginationData = useMemo(() => {
     const totalStajlar = filteredStajlar.length
@@ -723,14 +769,43 @@ export default function StajYonetimiPage() {
     const endIndexStajlar = startIndexStajlar + itemsPerPage
     const paginatedStajlar = filteredStajlar.slice(startIndexStajlar, endIndexStajlar)
 
+    // Büyük listeler için virtual scrolling kullan
+    const useVirtualScrolling = totalStajlar > 50
+
     return {
       totalStajlar,
       totalPagesStajlar,
       startIndexStajlar,
       endIndexStajlar,
-      paginatedStajlar
+      paginatedStajlar,
+      useVirtualScrolling
     }
   }, [filteredStajlar, currentPageStajlar, itemsPerPage])
+
+  // Virtual list render function
+  const renderStajItem = useCallback((staj: any, index: number) => {
+    const { today } = dateCalculations
+    const isExpired = Boolean(staj.status === 'ACTIVE' && staj.endDate && staj.endDate < today)
+    const isVisible = visibleItems.has(staj.id)
+    
+    return (
+      <div ref={(el) => setItemRef(el, staj.id)}>
+        <StajCard
+          staj={staj}
+          isExpired={isExpired}
+          isVisible={isVisible}
+          onTamamla={handleTamamlandiOlarakKaydet}
+          onFesih={handleFesihEt}
+          onKoordinatorDegistir={handleKoordinatorDegistir}
+        />
+      </div>
+    )
+  }, [dateCalculations, visibleItems, setItemRef, handleTamamlandiOlarakKaydet, handleFesihEt, handleKoordinatorDegistir])
+
+  // Virtual list render function for students
+  const renderOgrenciItem = useCallback((ogrenci: any, index: number) => {
+    return <OgrenciCard key={ogrenci.id} ogrenci={ogrenci} />
+  }, [])
 
 
 
@@ -762,231 +837,38 @@ export default function StajYonetimiPage() {
 
       {/* Tabs */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex overflow-x-auto space-x-2 md:space-x-8 px-3 md:px-6">
-            {(() => {
-              const today = new Date().toISOString().split('T')[0]
-              const safeStajlar = Array.isArray(stajlar) ? stajlar : []
-              const aktifStajlar = safeStajlar.filter(s =>
-                s.status === 'ACTIVE' && (!s.endDate || s.endDate >= today)
-              )
-              const suresiGecmisStajlar = safeStajlar.filter(s =>
-                s.status === 'ACTIVE' && s.endDate && s.endDate < today
-              )
-              const tamamlananStajlar = safeStajlar.filter(s => s.status === 'COMPLETED')
-              const feshedilenStajlar = safeStajlar.filter(s => s.status === 'TERMINATED')
-              
-              return [
-                { id: 'aktif', label: 'Aktif', shortLabel: 'Aktif', count: aktifStajlar.length },
-                { id: 'suresi-gecmis', label: 'Süresi Geçmiş', shortLabel: 'S.Geçmiş', count: suresiGecmisStajlar.length },
-                { id: 'bost', label: 'Boşta Olan Öğrenciler', shortLabel: 'Boşta', count: bostOgrencilerTotal },
-                { id: 'tamamlandi', label: 'Tamamlanan', shortLabel: 'Tamam', count: tamamlananStajlar.length },
-                { id: 'feshedildi', label: 'Feshedilen', shortLabel: 'Fesih', count: feshedilenStajlar.length }
-              ]
-            })().map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`py-4 px-2 md:px-1 border-b-2 font-medium text-xs md:text-sm whitespace-nowrap flex-shrink-0 ${
-                  activeTab === tab.id
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <span className="block md:hidden">{tab.shortLabel} ({tab.count})</span>
-                <span className="hidden md:block">{tab.label} ({tab.count})</span>
-              </button>
-            ))}
-          </nav>
-        </div>
+        <TabHeader
+          activeTab={activeTab}
+          setActiveTab={(tab: string) => setActiveTab(tab as 'stajlar' | 'bast' | 'bost')}
+          stajlarCount={tabCounts.stajlar}
+          bastOgrencilerCount={tabCounts.bast}
+          bostOgrencilerCount={tabCounts.bost}
+        />
 
-        {/* Filters */}
-        <div className="p-6 border-b border-gray-200">
-          <div className="space-y-4">
-            {/* Arama */}
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder={
-                    activeTab === 'bost' ? 'Öğrenci ara...' :
-                    'Öğrenci veya işletme ara...'
-                  }
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-            </div>
-            
-            {/* Filtreler */}
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* Alan Filtresi */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Alan
-                  </label>
-                  <select
-                    value={filterAlan}
-                    onChange={(e) => setFilterAlan(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  >
-                    <option value="">Tüm Alanlar</option>
-                    {getUniqueById(alanlar).map((alan) => (
-                      <option key={alan.id} value={alan.id}>
-                        {alan.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Sınıf Filtresi */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Sınıf
-                  </label>
-                  <select
-                    value={filterSinif}
-                    onChange={(e) => setFilterSinif(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  >
-                    <option value="">Tüm Sınıflar</option>
-                    {Array.from(new Set(
-                      (activeTab === 'bost' ? bostOgrenciler : stajlar.map(s => s.student).filter(Boolean))
-                        .map(o => o!.className)
-                        .filter(Boolean)
-                    )).sort().map((sinif) => (
-                      <option key={sinif} value={sinif}>
-                        {sinif}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* İşletme ve Öğretmen Filtreleri - Sadece stajlar için */}
-              {activeTab !== 'bost' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {/* İşletme Filtresi */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      İşletme
-                    </label>
-                    <select
-                      value={filterIsletme}
-                      onChange={(e) => setFilterIsletme(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    >
-                      <option value="">Tüm İşletmeler</option>
-                      {getUniqueById(isletmeler).map((isletme) => (
-                        <option key={isletme.id} value={isletme.id}>
-                          {isletme.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Öğretmen Filtresi */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Koordinatör
-                    </label>
-                    <select
-                      value={filterOgretmen}
-                      onChange={(e) => setFilterOgretmen(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    >
-                      <option value="">Tüm Koordinatörler</option>
-                      {getUniqueById(ogretmenler).map((ogretmen) => (
-                        <option key={ogretmen.id} value={ogretmen.id}>
-                          {ogretmen.name} {ogretmen.surname}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Aktif filtreleri temizle */}
-            {(searchTerm || filterAlan || filterSinif || filterIsletme || filterOgretmen) && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-600">Aktif filtreler:</span>
-                  {searchTerm && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                      Arama: {searchTerm}
-                      <button
-                        onClick={() => setSearchTerm('')}
-                        className="ml-1 text-indigo-600 hover:text-indigo-800"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                  {filterAlan && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                      Alan: {alanlar.find(a => a.id === filterAlan)?.name}
-                      <button
-                        onClick={() => setFilterAlan('')}
-                        className="ml-1 text-indigo-600 hover:text-indigo-800"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                  {filterSinif && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                      Sınıf: {filterSinif}
-                      <button
-                        onClick={() => setFilterSinif('')}
-                        className="ml-1 text-indigo-600 hover:text-indigo-800"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                  {filterIsletme && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                      İşletme: {isletmeler.find(i => i.id === filterIsletme)?.name}
-                      <button
-                        onClick={() => setFilterIsletme('')}
-                        className="ml-1 text-indigo-600 hover:text-indigo-800"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                  {filterOgretmen && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                      Koordinatör: {ogretmenler.find(o => o.id === filterOgretmen)?.name} {ogretmenler.find(o => o.id === filterOgretmen)?.surname}
-                      <button
-                        onClick={() => setFilterOgretmen('')}
-                        className="ml-1 text-indigo-600 hover:text-indigo-800"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={() => {
-                    setSearchTerm('')
-                    setFilterAlan('')
-                    setFilterSinif('')
-                    setFilterIsletme('')
-                    setFilterOgretmen('')
-                  }}
-                  className="text-sm text-gray-600 hover:text-gray-800"
-                >
-                  Tüm Filtreleri Temizle
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        <FilterSection
+          activeTab={activeTab}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          filterAlan={filterAlan}
+          setFilterAlan={setFilterAlan}
+          filterSinif={filterSinif}
+          setFilterSinif={setFilterSinif}
+          filterIsletme={filterIsletme}
+          setFilterIsletme={setFilterIsletme}
+          filterOgretmen={filterOgretmen}
+          setFilterOgretmen={setFilterOgretmen}
+          uniqueAlanlar={uniqueAlanlar}
+          uniqueClassNames={uniqueClassNames}
+          uniqueIsletmeler={uniqueIsletmeler}
+          uniqueOgretmenler={uniqueOgretmenler}
+          onClearAllFilters={useCallback(() => {
+            setSearchTerm('')
+            setFilterAlan('')
+            setFilterSinif('')
+            setFilterIsletme('')
+            setFilterOgretmen('')
+          }, [])}
+        />
 
         {/* Content */}
         <div className="p-6">
@@ -1008,74 +890,28 @@ export default function StajYonetimiPage() {
                 </div>
               ) : (
                 <>
-                  {bostOgrenciler.map((ogrenci) => (
-                    <div
-                      key={ogrenci.id}
-                      className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 md:p-4"
-                    >
-                      <div className="flex items-start">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-base md:text-lg font-medium text-gray-900">
-                            {ogrenci.name} {ogrenci.surname}
-                          </h3>
-                          <div className="text-xs md:text-sm text-gray-600 space-y-1">
-                            <div className="flex items-center">
-                              <GraduationCap className="h-3 w-3 md:h-4 md:w-4 mr-1 flex-shrink-0" />
-                              <span>{ogrenci.className} - No: {ogrenci.number}</span>
-                            </div>
-                            <div className="ml-4">{ogrenci.alan?.name || 'Alan belirtilmemiş'}</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  {/* Virtual scrolling for large student lists */}
+                  {bostOgrenciler.length > 30 ? (
+                    <VirtualList
+                      items={bostOgrenciler}
+                      itemHeight={120}
+                      containerHeight={600}
+                      renderItem={renderOgrenciItem}
+                    />
+                  ) : (
+                    bostOgrenciler.map((ogrenci) => (
+                      <OgrenciCard key={ogrenci.id} ogrenci={ogrenci} />
+                    ))
+                  )}
                   
                   {/* Pagination for Boşta Öğrenciler */}
-                  {bostOgrencilerTotalPages > 1 && (
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between mt-6 space-y-3 md:space-y-0">
-                      <div className="text-xs md:text-sm text-gray-700 text-center md:text-left">
-                        Toplam {bostOgrencilerTotal} öğrenci, sayfa {currentPageBost} / {bostOgrencilerTotalPages}
-                      </div>
-                      <div className="flex items-center justify-center space-x-1 md:space-x-2">
-                        <button
-                          onClick={() => setCurrentPageBost(Math.max(1, currentPageBost - 1))}
-                          disabled={currentPageBost === 1}
-                          className="px-2 md:px-3 py-1 md:py-2 text-xs md:text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <ChevronLeft className="h-3 w-3 md:h-4 md:w-4" />
-                        </button>
-                        
-                        {/* Sayfa numaraları - mobile'da daha az göster */}
-                        {Array.from({ length: Math.min(3, bostOgrencilerTotalPages) }, (_, i) => {
-                          const startPage = Math.max(1, currentPageBost - 1)
-                          const pageNum = startPage + i
-                          if (pageNum > bostOgrencilerTotalPages) return null
-                          
-                          return (
-                            <button
-                              key={pageNum}
-                              onClick={() => setCurrentPageBost(pageNum)}
-                              className={`px-2 md:px-3 py-1 md:py-2 text-xs md:text-sm font-medium rounded-md ${
-                                currentPageBost === pageNum
-                                  ? 'text-indigo-600 bg-indigo-50 border border-indigo-500'
-                                  : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
-                              }`}
-                            >
-                              {pageNum}
-                            </button>
-                          )
-                        })}
-                        
-                        <button
-                          onClick={() => setCurrentPageBost(Math.min(bostOgrencilerTotalPages, currentPageBost + 1))}
-                          disabled={currentPageBost === bostOgrencilerTotalPages}
-                          className="px-2 md:px-3 py-1 md:py-2 text-xs md:text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <ChevronRight className="h-3 w-3 md:h-4 md:w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  <Pagination
+                    currentPage={currentPageBost}
+                    totalPages={bostOgrencilerTotalPages}
+                    onPageChange={setCurrentPageBost}
+                    totalItems={bostOgrencilerTotal}
+                    itemsPerPage={10}
+                  />
                 </>
               )}
             </div>
@@ -1087,190 +923,57 @@ export default function StajYonetimiPage() {
                   <FileText className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-2 text-sm font-medium text-gray-900">Staj bulunamadı</h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    {activeTab === 'aktif' ? 'Henüz aktif staj bulunmuyor.' :
-                     activeTab === 'tamamlandi' ? 'Tamamlanan staj bulunmuyor.' :
-                     activeTab === 'feshedildi' ? 'Feshedilen staj bulunmuyor.' :
-                     activeTab === 'suresi-gecmis' ? 'Süresi geçmiş staj bulunmuyor.' :
+                    {activeTab === 'stajlar' ? 'Henüz staj bulunmuyor.' :
+                     activeTab === 'bast' ? 'Staja başlayan öğrenci bulunmuyor.' :
                      'Staj bulunmuyor.'}
                   </p>
                 </div>
               ) : (
-                paginationData.paginatedStajlar.map((staj) => {
-                  const today = new Date().toISOString().split('T')[0]
-                  const isExpired = staj.status === 'ACTIVE' && staj.endDate && staj.endDate < today
-                  const isVisible = visibleItems.has(staj.id)
-                  
-                  return (
-                    <div
-                      key={staj.id}
-                      ref={(el) => setItemRef(el, staj.id)}
-                      className={`border rounded-lg p-3 md:p-6 ${
-                        isExpired ? 'bg-orange-50 border-orange-200' :
-                        staj.status === 'ACTIVE' ? 'bg-green-50 border-green-200' :
-                        staj.status === 'TERMINATED' ? 'bg-red-50 border-red-200' :
-                        'bg-gray-50 border-gray-200'
-                      }`}
-                    >
-                      {isVisible ? (
-                        <div className="flex flex-col md:flex-row gap-4">
-                          {/* Sol taraf - Bilgiler */}
-                          <div className="flex-1 min-w-0">
-                            <div className="space-y-2">
-                              <div className="space-y-2">
-                                <h3 className="text-base md:text-lg font-medium text-gray-900 break-words">
-                                  {staj.student?.name || 'Bilinmiyor'} {staj.student?.surname || ''}
-                                </h3>
-                                {isExpired && (
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                    Süresi Geçmiş
-                                  </span>
-                                )}
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <div className="text-xs md:text-sm text-gray-600">
-                                  <div className="flex items-center gap-1 mb-1">
-                                    <GraduationCap className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
-                                    <span className="break-words">{staj.student?.className || 'Bilinmiyor'} - No: {staj.student?.number || 'Bilinmiyor'}</span>
-                                  </div>
-                                  <div className="pl-4 break-words">{staj.student?.alan?.name || 'Alan belirtilmemiş'}</div>
-                                </div>
-                                
-                                <div className="flex items-start gap-1 text-xs md:text-sm text-gray-600">
-                                  <Building2 className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0 mt-0.5" />
-                                  <span className="break-words">{staj.company?.name || 'İşletme bilgisi yok'}</span>
-                                </div>
-                                
-                                <div className="flex items-start gap-1 text-xs md:text-sm text-gray-600">
-                                  <UserCheck className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0 mt-0.5" />
-                                  <div className="min-w-0">
-                                    <span className="font-medium">Koordinatör: </span>
-                                    {staj.teacher ? (
-                                      <span className="break-words">
-                                        {`${staj.teacher.name} ${staj.teacher.surname}`}
-                                        {staj.status === 'TERMINATED' && (
-                                          <span className="text-xs text-gray-500 ml-1">(Fesih zamanında)</span>
-                                        )}
-                                      </span>
-                                    ) : (
-                                      <span className="text-orange-600 font-medium">Koordinatör Öğretmen atanmadı</span>
-                                    )}
-                                  </div>
-                                </div>
-                                
-                                <div className="flex items-start gap-1 text-xs md:text-sm text-gray-600">
-                                  <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0 mt-0.5" />
-                                  <span className="break-words leading-relaxed">
-                                    {staj.startDate ? new Date(staj.startDate).toLocaleDateString('tr-TR') : 'Tarih yok'} - {
-                                      staj.status === 'TERMINATED' && staj.terminationDate
-                                        ? new Date(staj.terminationDate).toLocaleDateString('tr-TR') + ' (Fesih)'
-                                        : staj.endDate
-                                          ? new Date(staj.endDate).toLocaleDateString('tr-TR')
-                                          : 'Devam ediyor'
-                                    }
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {/* Sağ taraf - Action Buttons */}
-                          <div className="flex flex-col gap-2 md:min-w-[200px]">
-                            {(staj.status === 'ACTIVE' || isExpired) && (
-                              <>
-                                {/* Tamamla Button */}
-                                <button
-                                  onClick={() => handleTamamlandiOlarakKaydet(staj.id)}
-                                  className="flex items-center justify-center space-x-1 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors text-xs md:text-sm w-full"
-                                >
-                                  <CheckCircle className="h-3 w-3 md:h-4 md:w-4" />
-                                  <span>Tamamla</span>
-                                </button>
-                                
-                                {/* Fesih Et Button */}
-                                <button
-                                  onClick={() => handleFesihEt(staj)}
-                                  className="flex items-center justify-center space-x-1 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition-colors text-xs md:text-sm w-full"
-                                >
-                                  <X className="h-3 w-3 md:h-4 md:w-4" />
-                                  <span>Fesih Et</span>
-                                </button>
-                                
-                                {/* Koordinatör Değiştir Button */}
-                                <button
-                                  onClick={() => handleKoordinatorDegistir(staj)}
-                                  className="flex items-center justify-center space-x-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors text-xs md:text-sm w-full"
-                                >
-                                  <UserCheck className="h-3 w-3 md:h-4 md:w-4" />
-                                  <span>Koordinatör Değiştir</span>
-                                </button>
-                              </>
-                            )}
-                            
-                            {/* Sadece koordinatör değiştirme - completed/terminated stajlar için */}
-                            {(staj.status === 'COMPLETED' || staj.status === 'TERMINATED') && (
-                              <button
-                                onClick={() => handleKoordinatorDegistir(staj)}
-                                className="flex items-center justify-center space-x-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors text-xs md:text-sm w-full"
-                              >
-                                <UserCheck className="h-3 w-3 md:h-4 md:w-4" />
-                                <span>Koordinatör Değiştir</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="h-24 bg-gray-100 animate-pulse rounded-lg" />
-                      )}
-                    </div>
-                  )
-                })
+                /* Virtual scrolling for large internship lists */
+                paginationData.useVirtualScrolling ? (
+                  <VirtualList
+                    items={filteredStajlar}
+                    itemHeight={200}
+                    containerHeight={800}
+                    renderItem={renderStajItem}
+                  />
+                ) : (
+                  paginationData.paginatedStajlar.map((staj) => {
+                    const { today } = dateCalculations
+                    const isExpired = Boolean(staj.status === 'ACTIVE' && staj.endDate && staj.endDate < today)
+                    const isVisible = visibleItems.has(staj.id)
+                    
+                    return (
+                      <div key={staj.id} ref={(el) => setItemRef(el, staj.id)}>
+                        <StajCard
+                          staj={staj}
+                          isExpired={isExpired}
+                          isVisible={isVisible}
+                          onTamamla={handleTamamlandiOlarakKaydet}
+                          onFesih={handleFesihEt}
+                          onKoordinatorDegistir={handleKoordinatorDegistir}
+                        />
+                      </div>
+                    )
+                  })
+                )
               )}
               
-              {/* Pagination for Stajlar */}
-              {(activeTab === 'aktif' || activeTab === 'tamamlandi' || activeTab === 'feshedildi' || activeTab === 'suresi-gecmis') && paginationData.totalPagesStajlar > 1 && (
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between mt-6 space-y-3 md:space-y-0">
-                  <div className="text-xs md:text-sm text-gray-700 text-center md:text-left">
-                    Toplam {paginationData.totalStajlar} staj, sayfa {currentPageStajlar} / {paginationData.totalPagesStajlar}
-                  </div>
-                  <div className="flex items-center justify-center space-x-1 md:space-x-2">
-                    <button
-                      onClick={() => setCurrentPageStajlar(Math.max(1, currentPageStajlar - 1))}
-                      disabled={currentPageStajlar === 1}
-                      className="px-2 md:px-3 py-1 md:py-2 text-xs md:text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <ChevronLeft className="h-3 w-3 md:h-4 md:w-4" />
-                    </button>
-                    
-                    {/* Sayfa numaraları - mobile'da daha az göster */}
-                    {Array.from({ length: Math.min(3, paginationData.totalPagesStajlar) }, (_, i) => {
-                      const startPage = Math.max(1, currentPageStajlar - 1)
-                      const pageNum = startPage + i
-                      if (pageNum > paginationData.totalPagesStajlar) return null
-                      
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setCurrentPageStajlar(pageNum)}
-                          className={`px-2 md:px-3 py-1 md:py-2 text-xs md:text-sm font-medium rounded-md ${
-                            currentPageStajlar === pageNum
-                              ? 'text-indigo-600 bg-indigo-50 border border-indigo-500'
-                              : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      )
-                    })}
-                    
-                    <button
-                      onClick={() => setCurrentPageStajlar(Math.min(paginationData.totalPagesStajlar, currentPageStajlar + 1))}
-                      disabled={currentPageStajlar === paginationData.totalPagesStajlar}
-                      className="px-2 md:px-3 py-1 md:py-2 text-xs md:text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <ChevronRight className="h-3 w-3 md:h-4 md:w-4" />
-                    </button>
-                  </div>
+              {/* Pagination for Stajlar - Only show if not using virtual scrolling */}
+              {(activeTab === 'stajlar' || activeTab === 'bast') && !paginationData.useVirtualScrolling && (
+                <Pagination
+                  currentPage={currentPageStajlar}
+                  totalPages={paginationData.totalPagesStajlar}
+                  onPageChange={setCurrentPageStajlar}
+                  totalItems={paginationData.totalStajlar}
+                  itemsPerPage={itemsPerPage}
+                />
+              )}
+              
+              {/* Virtual scrolling info */}
+              {paginationData.useVirtualScrolling && (
+                <div className="text-center py-4 text-sm text-gray-600">
+                  Toplam {paginationData.totalStajlar} staj - Virtual scrolling aktif
                 </div>
               )}
             </div>
@@ -1289,7 +992,7 @@ export default function StajYonetimiPage() {
           setFesihFormData({
             reason: '',
             notes: '',
-            terminationDate: new Date().toISOString().split('T')[0]
+            terminationDate: dateCalculations.today
           })
         }}
         title="Stajı Fesih Et"
@@ -1313,7 +1016,7 @@ export default function StajYonetimiPage() {
               value={fesihFormData.terminationDate}
               onChange={(e) => setFesihFormData({ ...fesihFormData, terminationDate: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-              max={new Date().toISOString().split('T')[0]}
+              max={dateCalculations.maxDate}
             />
           </div>
 
@@ -1358,7 +1061,7 @@ export default function StajYonetimiPage() {
                 setFesihFormData({
                   reason: '',
                   notes: '',
-                  terminationDate: new Date().toISOString().split('T')[0]
+                  terminationDate: dateCalculations.today
                 })
               }}
               disabled={submitLoading}
@@ -1471,7 +1174,7 @@ export default function StajYonetimiPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Koordinatör Seçin</option>
-              {ogretmenler.map((ogretmen) => (
+              {uniqueOgretmenler.map((ogretmen) => (
                 <option key={ogretmen.id} value={ogretmen.id}>
                   {ogretmen.name} {ogretmen.surname} - {ogretmen.alan?.name || 'Alan bilgisi yok'}
                 </option>
@@ -1598,7 +1301,7 @@ export default function StajYonetimiPage() {
                 disabled={submitLoading}
               >
                 <option value="">Alan Seçin</option>
-                {alanlar.map((alan) => (
+                {uniqueAlanlar.map((alan) => (
                   <option key={alan.id} value={alan.id}>
                     {alan.name}
                   </option>
@@ -1915,4 +1618,6 @@ export default function StajYonetimiPage() {
       )}
     </div>
   )
-}
+})
+
+export default StajYonetimiPage

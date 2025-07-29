@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession, signOut } from 'next-auth/react'
 import { Building2, FileText, LogOut, Loader, User, Receipt, GraduationCap, CheckCircle, Clock, XCircle, Download, Plus, Upload, Trash2, Calendar, Loader2, AlertTriangle, Search, Filter, Bell, Key, ChevronDown, ChevronUp } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import DekontUploadForm from '@/components/ui/DekontUpload'
@@ -40,6 +41,7 @@ const TeacherPanel = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [selectedDekont, setSelectedDekont] = useState<Dekont | null>(null);
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [loading, setLoading] = useState(true);
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [isletmeler, setIsletmeler] = useState<Isletme[]>([]);
@@ -94,6 +96,9 @@ const TeacherPanel = () => {
   // Gecikme uyarı öğrenci listesi collapse state
   const [isGecikmeListExpanded, setIsGecikmeListExpanded] = useState(false);
   
+  // Footer görünürlük state
+  const [showFooter, setShowFooter] = useState(true);
+  
   // Ek dekont uyarı modal state
   const [ekDekontModalOpen, setEkDekontModalOpen] = useState(false);
   const [ekDekontData, setEkDekontData] = useState<{
@@ -103,6 +108,7 @@ const TeacherPanel = () => {
     yil: number;
     mevcutDekontSayisi: number;
   } | null>(null);
+  const [dekontSonGun, setDekontSonGun] = useState(10);
 
   
   // Önceki ay için dekont eksik olan öğrencileri tespit et
@@ -229,109 +235,93 @@ const TeacherPanel = () => {
 
   const eksikDekontOgrenciler = getEksikDekontOgrenciler();
 
-  useEffect(() => {
-    const checkSessionStorage = async () => {
-      const storedOgretmenId = sessionStorage.getItem('ogretmen_id');
-      if (!storedOgretmenId) {
-        router.push('/');
-        return;
-      }
-      
-      // Paralel API çağrıları için optimize edilmiş versiyon
-      await initializeData(storedOgretmenId);
-    };
-    checkSessionStorage();
-  }, [router]);
-
-  const initializeData = async (ogretmenId: string) => {
+  const initializeData = useCallback(async (teacherId: string) => {
     setLoading(true);
     try {
-      // Tüm API çağrılarını paralel olarak başlat
       const [
         teacherResponse,
-        schoolNameResponse
-      ] = await Promise.allSettled([
-        fetch(`/api/admin/teachers/${ogretmenId}`),
-        fetch('/api/system-settings/school-name')
+        settingsResponse,
+        internshipsResponse,
+        dekontlarResponse,
+        belgelerResponse,
+        notificationsResponse
+      ] = await Promise.all([
+        fetch(`/api/admin/teachers/${teacherId}`),
+        fetch('/api/admin/system-settings'),
+        fetch(`/api/admin/teachers/${teacherId}/internships`),
+        fetch(`/api/admin/teachers/${teacherId}/dekontlar`),
+        fetch(`/api/admin/teachers/${teacherId}/belgeler`),
+        fetch(`/api/admin/teachers/${teacherId}/notifications`)
       ]);
 
-      // Teacher data işle
-      if (teacherResponse.status === 'fulfilled' && teacherResponse.value.ok) {
-        const ogretmenData = await teacherResponse.value.json();
-        setTeacher(ogretmenData);
-        setTeacherPin(ogretmenData.pin || '');
+      if (!teacherResponse.ok) throw new Error('Öğretmen bulunamadı');
+      const ogretmenData = await teacherResponse.json();
+      setTeacher(ogretmenData);
+      setTeacherPin(ogretmenData.pin || '');
 
-        // Teacher bağımlı verileri paralel olarak çek
-        const [
-          internshipsResponse,
-          dekontlarResponse,
-          belgelerResponse,
-          notificationsResponse
-        ] = await Promise.allSettled([
-          fetch(`/api/admin/teachers/${ogretmenId}/internships`),
-          fetch(`/api/admin/teachers/${ogretmenId}/dekontlar`),
-          fetch(`/api/admin/teachers/${ogretmenId}/belgeler`),
-          fetch(`/api/admin/teachers/${ogretmenId}/notifications`)
-        ]);
-
-        // Internships data işle
-        if (internshipsResponse.status === 'fulfilled' && internshipsResponse.value.ok) {
-          const groupedIsletmeler = await internshipsResponse.value.json();
-          setIsletmeler(groupedIsletmeler);
-        }
-
-        // Dekontlar data işle
-        if (dekontlarResponse.status === 'fulfilled' && dekontlarResponse.value.ok) {
-          const dekontData = await dekontlarResponse.value.json();
-          setDekontlar(dekontData);
-          setFilteredDekontlar(dekontData);
-        }
-
-        // Belgeler data işle
-        if (belgelerResponse.status === 'fulfilled' && belgelerResponse.value.ok) {
-          const belgeData = await belgelerResponse.value.json();
-          setBelgeler(belgeData);
-          setFilteredBelgeler(belgeData);
-        }
-
-        // Notifications data işle
-        if (notificationsResponse.status === 'fulfilled' && notificationsResponse.value.ok) {
-          const notificationData = await notificationsResponse.value.json();
-          setNotifications(notificationData || []);
-          const unreadNotifications = notificationData?.filter((n: any) => !n.is_read) || [];
-          setUnreadCount(unreadNotifications.length);
-        }
-
-        // PIN değiştirme kontrolü - mustChangePin alanını kontrol et
-        console.log('Öğretmen PIN kontrolü:', {
-          mustChangePin: ogretmenData.mustChangePin
-        });
-        
-        if (ogretmenData.mustChangePin) {
-          console.log('Öğretmen PIN değiştirme modal\'ı açılıyor...');
-          setIsManualPinChange(false); // Otomatik açılma
-          setPinChangeModalOpen(true);
-        }
-      } else {
-        throw new Error('Öğretmen bulunamadı');
+      if (settingsResponse.ok) {
+        const settingsData = await settingsResponse.json();
+        const sonGun = settingsData.find((s: any) => s.key === 'dekont_son_gun');
+        if (sonGun) setDekontSonGun(parseInt(sonGun.value, 10));
       }
 
-      // School name işle
-      if (schoolNameResponse.status === 'fulfilled' && schoolNameResponse.value.ok) {
-        const schoolData = await schoolNameResponse.value.json();
-        if (schoolData.value) {
-          setSchoolName(schoolData.value);
-        }
+      if (internshipsResponse.ok) setIsletmeler(await internshipsResponse.json());
+      if (dekontlarResponse.ok) {
+        const dekontData = await dekontlarResponse.json();
+        setDekontlar(dekontData);
+        setFilteredDekontlar(dekontData);
+      }
+      if (belgelerResponse.ok) {
+        const belgeData = await belgelerResponse.json();
+        setBelgeler(belgeData);
+        setFilteredBelgeler(belgeData);
+      }
+      if (notificationsResponse.ok) {
+        const notificationData = await notificationsResponse.json();
+        setNotifications(notificationData || []);
+        const unreadNotifications = notificationData?.filter((n: any) => !n.is_read) || [];
+        setUnreadCount(unreadNotifications.length);
       }
 
+      // PIN değiştirme kontrolü - mustChangePin alanını kontrol et
+      if (ogretmenData.mustChangePin) {
+        console.log('Öğretmen PIN değiştirme modal\'ı açılıyor (fetchOgretmenById)...');
+        setIsManualPinChange(false); // Otomatik açılma
+        setPinChangeModalOpen(true);
+      }
     } catch (error) {
       console.error('Veri yükleme hatası:', error);
-      sessionStorage.removeItem('ogretmen_id');
+      await signOut({ redirect: false });
       router.push('/');
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
+
+  useEffect(() => {
+    if (status === 'loading') {
+      setLoading(true);
+      return;
+    }
+    if (status === 'unauthenticated' || !session?.user?.teacherId) {
+      router.push('/');
+      return;
+    }
+    
+    initializeData(session.user.teacherId);
+    fetchSchoolName();
+  }, [status, session, router, initializeData]);
+
+  // Footer'ı 3 saniye sonra gizle
+  useEffect(() => {
+    if (!loading) {
+      const timer = setTimeout(() => {
+        setShowFooter(false);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [loading]);
 
   const fetchOgretmenById = async (ogretmenId: string) => {
     try {
@@ -349,10 +339,8 @@ const TeacherPanel = () => {
       fetchOgretmenData(ogretmenData.id);
       fetchNotifications(ogretmenData.id);
       
-      // PIN değiştirme kontrolü - mustChangePin alanını kontrol et
       if (ogretmenData.mustChangePin) {
-        console.log('Öğretmen PIN değiştirme modal\'ı açılıyor (fetchOgretmenById)...');
-        setIsManualPinChange(false); // Otomatik açılma
+        setIsManualPinChange(false);
         setPinChangeModalOpen(true);
       }
     } catch (error) {
@@ -727,8 +715,8 @@ const TeacherPanel = () => {
     return groups;
   };
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('ogretmen_id');
+  const handleLogout = async () => {
+    await signOut({ redirect: false });
     router.push('/');
   };
 
@@ -742,31 +730,63 @@ const TeacherPanel = () => {
       return;
     }
 
-    if (confirm(`'${dekont.ogrenci_ad}' adlı öğrencinin dekontunu kalıcı olarak silmek istediğinizden emin misiniz?`)) {
-      try {
-        setLoading(true);
+    // Modal'ı aç
+    setSelectedDekont(dekont);
+    setDeleteConfirmOpen(true);
+  };
 
-        const response = await fetch(`/api/admin/dekontlar/${dekont.id}`, {
-          method: 'DELETE'
-        });
+  const confirmDekontSil = async () => {
+    if (!selectedDekont) return;
 
-        if (!response.ok) {
-          throw new Error('Dekont silinirken hata oluştu');
-        }
+    try {
+      setLoading(true);
 
-        // State'i güncelle
-        setDekontlar(prevDekontlar => prevDekontlar.filter(d => d.id !== dekont.id));
-        setFilteredDekontlar(prevFiltered => prevFiltered.filter(d => d.id !== dekont.id));
+      const response = await fetch(`/api/admin/dekontlar/${selectedDekont.id}`, {
+        method: 'DELETE'
+      });
 
-      } catch (error: any) {
-        setErrorModal({
-          isOpen: true,
-          title: 'Silme Hatası',
-          message: `Dekont silinirken bir sorun oluştu: ${error.message}`
-        });
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error('Dekont silinirken hata oluştu');
       }
+
+      // State'i güncelle
+      setDekontlar(prevDekontlar => prevDekontlar.filter(d => d.id !== selectedDekont.id));
+      setFilteredDekontlar(prevFiltered => prevFiltered.filter(d => d.id !== selectedDekont.id));
+
+      // Modal'ı kapat
+      setDeleteConfirmOpen(false);
+      setSelectedDekont(null);
+
+      // Başarılı silme modal'ını göster
+      setSuccessModal({
+        isOpen: true,
+        title: 'Başarılı!',
+        message: `${selectedDekont.ogrenci_ad} adlı öğrencinin dekontu başarıyla silindi.`
+      });
+
+      // 3 saniyelik geri sayım başlat
+      setSuccessCountdown(3);
+      const countdownInterval = setInterval(() => {
+        setSuccessCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            setSuccessModal({ isOpen: false, title: '', message: '' });
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        title: 'Silme Hatası',
+        message: `Dekont silinirken bir sorun oluştu: ${error.message}`
+      });
+      setDeleteConfirmOpen(false);
+      setSelectedDekont(null);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -811,7 +831,10 @@ const TeacherPanel = () => {
       
       // FormData'yı hazırla
       submitData.append('staj_id', formData.staj_id || '');
-      submitData.append('miktar', formData.miktar?.toString() || '0');
+      // Miktar değerini doğru şekilde gönder - boş/0 ise gönderme
+      if (formData.miktar !== undefined && formData.miktar !== null && formData.miktar > 0) {
+        submitData.append('miktar', formData.miktar.toString());
+      }
       submitData.append('ay', formData.ay.toString());
       submitData.append('yil', formData.yil.toString());
       submitData.append('aciklama', formData.aciklama || '');
@@ -1020,8 +1043,23 @@ const TeacherPanel = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <Loader className="animate-spin h-12 w-12 text-indigo-600" />
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <div className="flex-1 flex items-center justify-center">
+          <Loader className="animate-spin h-12 w-12 text-indigo-600" />
+        </div>
+        {/* Footer - Loading sırasında sürekli göster */}
+        <footer className="w-full bg-gradient-to-br from-indigo-900 to-indigo-800 text-white py-4">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-center">
+              <div className="flex items-center space-x-2">
+                <div className="font-bold bg-white text-indigo-900 w-6 h-6 flex items-center justify-center rounded-md">
+                  {schoolName.charAt(0)}
+                </div>
+                <span className="text-sm">&copy; {new Date().getFullYear()} {schoolName}</span>
+              </div>
+            </div>
+          </div>
+        </footer>
       </div>
     );
   }
@@ -1205,17 +1243,17 @@ const TeacherPanel = () => {
           {/* Dekont Takip Uyarı Sistemi */}
           {eksikDekontOgrenciler.length > 0 && (
             <div className={`mb-6 rounded-2xl shadow-lg ring-1 ring-black ring-opacity-5 p-6 ${
-              isGecikme()
+              isGecikme(dekontSonGun)
                 ? 'bg-gradient-to-r from-red-50 to-red-100 border-l-4 border-red-500'
-                : isKritikSure()
+                : isKritikSure(dekontSonGun)
                 ? 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-l-4 border-yellow-500'
                 : 'bg-gradient-to-r from-blue-50 to-blue-100 border-l-4 border-blue-500'
             }`}>
               <div className="flex items-start">
                 <div className="flex-shrink-0">
-                  {isGecikme() ? (
+                  {isGecikme(dekontSonGun) ? (
                     <XCircle className="h-6 w-6 text-red-600" />
-                  ) : isKritikSure() ? (
+                  ) : isKritikSure(dekontSonGun) ? (
                     <Clock className="h-6 w-6 text-yellow-600" />
                   ) : (
                     <Calendar className="h-6 w-6 text-blue-600" />
@@ -1223,26 +1261,26 @@ const TeacherPanel = () => {
                 </div>
                 <div className="ml-3 flex-1">
                   <h3 className={`text-lg font-medium ${
-                    isGecikme() ? 'text-red-800' : isKritikSure() ? 'text-yellow-800' : 'text-blue-800'
+                    isGecikme(dekontSonGun) ? 'text-red-800' : isKritikSure(dekontSonGun) ? 'text-yellow-800' : 'text-blue-800'
                   }`}>
-                    {isGecikme()
+                    {isGecikme(dekontSonGun)
                       ? '🚨 GECİKME UYARISI!'
-                      : isKritikSure()
+                      : isKritikSure(dekontSonGun)
                       ? '⏰ KRİTİK SÜRE!'
                       : '📅 Dekont Hatırlatması'
                     }
                   </h3>
                   <div className={`mt-2 text-sm ${
-                    isGecikme() ? 'text-red-700' : isKritikSure() ? 'text-yellow-700' : 'text-blue-700'
+                    isGecikme(dekontSonGun) ? 'text-red-700' : isKritikSure(dekontSonGun) ? 'text-yellow-700' : 'text-blue-700'
                   }`}>
                     <p className="font-medium mb-2">
                       {(() => {
                         const currentDate = new Date();
                         const previousMonthIndex = currentDate.getMonth() === 0 ? 11 : currentDate.getMonth() - 1;
-                        return isGecikme()
+                        return isGecikme(dekontSonGun)
                           ? `${aylar[previousMonthIndex]} ayı dekont yükleme süresi geçti! İşletmeler devlet katkı payı alamayabilir.`
-                          : isKritikSure()
-                          ? `${aylar[previousMonthIndex]} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
+                          : isKritikSure(dekontSonGun)
+                          ? `${aylar[previousMonthIndex]} ayı dekontlarını ayın ${dekontSonGun}'una kadar yüklemelisiniz!`
                           : `${aylar[previousMonthIndex]} ayı için eksik dekontlar var.`;
                       })()}
                     </p>
@@ -1268,8 +1306,8 @@ const TeacherPanel = () => {
                           
                           return (
                             <div key={`${ogrenci.ad}-${ogrenci.soyad}-${ogrenci.isletme_ad}`} className={`p-3 rounded-lg ${
-                              isGecikme() ? 'bg-red-100 border border-red-200' :
-                              isKritikSure() ? 'bg-yellow-100 border border-yellow-200' :
+                              isGecikme(dekontSonGun) ? 'bg-red-100 border border-red-200' :
+                              isKritikSure(dekontSonGun) ? 'bg-yellow-100 border border-yellow-200' :
                               'bg-blue-100 border border-blue-200'
                             }`}>
                               <div className="font-medium text-gray-900">
@@ -1285,8 +1323,8 @@ const TeacherPanel = () => {
                                 <button
                                   onClick={() => handleOpenDekontUpload(fullOgrenci, isletme)}
                                   className={`mt-2 w-full flex items-center justify-center px-2 py-1 text-xs font-medium rounded transition-colors ${
-                                    isGecikme() ? 'bg-red-600 text-white hover:bg-red-700' :
-                                    isKritikSure() ? 'bg-yellow-600 text-white hover:bg-yellow-700' :
+                                    isGecikme(dekontSonGun) ? 'bg-red-600 text-white hover:bg-red-700' :
+                                    isKritikSure(dekontSonGun) ? 'bg-yellow-600 text-white hover:bg-yellow-700' :
                                     'bg-blue-600 text-white hover:bg-blue-700'
                                   }`}
                                 >
@@ -1999,19 +2037,21 @@ const TeacherPanel = () => {
        </div>
      </main>
 
-     {/* Footer */}
-     <footer className="w-full bg-gradient-to-br from-indigo-900 to-indigo-800 text-white py-4 fixed bottom-0 left-0">
-       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-         <div className="flex items-center justify-center">
-           <div className="flex items-center space-x-2">
-             <div className="font-bold bg-white text-indigo-900 w-6 h-6 flex items-center justify-center rounded-md">
-               {schoolName.charAt(0)}
+     {/* Footer - 3 saniye sonra gizlenir */}
+     {showFooter && (
+       <footer className="w-full bg-gradient-to-br from-indigo-900 to-indigo-800 text-white py-4 fixed bottom-0 left-0 transition-opacity duration-500 ease-out">
+         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+           <div className="flex items-center justify-center">
+             <div className="flex items-center space-x-2">
+               <div className="font-bold bg-white text-indigo-900 w-6 h-6 flex items-center justify-center rounded-md">
+                 {schoolName.charAt(0)}
+               </div>
+               <span className="text-sm">&copy; {new Date().getFullYear()} {schoolName}</span>
              </div>
-             <span className="text-sm">&copy; {new Date().getFullYear()} {schoolName}</span>
            </div>
          </div>
-       </div>
-     </footer>
+       </footer>
+     )}
 
      {/* Modals */}
      {isDekontUploadModalOpen && selectedStudent && selectedIsletme && (
@@ -2100,12 +2140,7 @@ const TeacherPanel = () => {
              İptal
            </button>
            <button
-             onClick={() => {
-               if (selectedDekont) {
-                 handleDekontSil(selectedDekont);
-                 setDeleteConfirmOpen(false);
-               }
-             }}
+             onClick={confirmDekontSil}
              className="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
            >
              Sil

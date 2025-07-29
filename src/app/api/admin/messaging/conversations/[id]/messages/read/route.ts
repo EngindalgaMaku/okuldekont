@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { messagingService } from '@/lib/messaging/service'
+import { validateAuthAndRole } from '@/middleware/auth'
 
 interface RouteParams {
   params: Promise<{
@@ -7,12 +8,17 @@ interface RouteParams {
   }>
 }
 
-// POST /api/admin/messaging/conversations/[id]/messages/read - Mark messages as read
+// POST /api/admin/messaging/conversations/[id]/messages/read - Mark messages as read - KRİTİK KORUMA
 export async function POST(request: NextRequest, { params }: RouteParams) {
+  // KRİTİK: Mesaj okuma durumu - Sadece kimlik doğrulanmış kullanıcılar
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'TEACHER', 'COMPANY'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   const { id } = await params
   try {
-    // TODO: Add authentication middleware to get userId
-    const userId = request.headers.get('x-user-id') || 'temp-user-id'
+    const userId = authResult.user?.id || ''
     
     const body = await request.json()
     const messageIds = body.messageIds // Optional: specific message IDs to mark as read

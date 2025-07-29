@@ -116,6 +116,7 @@ export default function AdminDashboard() {
     teacherCount: 0,
     companyCount: 0,
     educationYearCount: 0,
+    currentEducationYear: '',
     dekontStats: {
       total: 0,
       pending: 0,
@@ -213,36 +214,44 @@ export default function AdminDashboard() {
 
   const quickActions = [
     {
-      title: 'Koordinatörlük Yönetimi',
-      description: 'Öğrenci staj süreçlerini koordine edin',
-      icon: Users,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-      href: '/admin/ogretmenler'
-    },
-    {
       title: 'Dekont Yönetimi',
       description: 'Bekleyen dekontları onaylayın',
       icon: FileText,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
+      gradient: 'from-purple-500 via-purple-600 to-indigo-700',
+      hoverGradient: 'from-purple-600 via-purple-700 to-indigo-800',
       href: '/admin/dekontlar'
     },
     {
-      title: 'Analytics Dashboard',
-      description: 'Sistem performansı ve istatistikler',
-      icon: BarChart3,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-      href: '/admin/analytics'
+      title: 'Meslek Alanları',
+      description: 'Meslek alanlarını yönetin',
+      icon: GraduationCap,
+      gradient: 'from-blue-500 via-cyan-600 to-teal-700',
+      hoverGradient: 'from-blue-600 via-cyan-700 to-teal-800',
+      href: '/admin/meslek-alanlari'
     },
     {
-      title: 'İşletme Yönetimi',
+      title: 'İşletmeler',
       description: 'İşletme bilgilerini düzenleyin',
       icon: Building2,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-50',
+      gradient: 'from-emerald-500 via-green-600 to-lime-700',
+      hoverGradient: 'from-emerald-600 via-green-700 to-lime-800',
       href: '/admin/isletmeler'
+    },
+    {
+      title: 'Öğretmenler',
+      description: 'Öğretmen bilgilerini yönetin',
+      icon: Users,
+      gradient: 'from-orange-500 via-red-600 to-pink-700',
+      hoverGradient: 'from-orange-600 via-red-700 to-pink-800',
+      href: '/admin/ogretmenler'
+    },
+    {
+      title: 'Stajlar',
+      description: 'Staj süreçlerini takip edin',
+      icon: Calendar,
+      gradient: 'from-violet-500 via-purple-600 to-fuchsia-700',
+      hoverGradient: 'from-violet-600 via-purple-700 to-fuchsia-800',
+      href: '/admin/stajlar'
     }
   ]
 
@@ -350,71 +359,111 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6 sm:mb-8">
-          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Toplam Dekont</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.total}</p>
-                <p className="text-xs text-green-600 mt-1 hidden sm:block">↗️ Bu ay</p>
+        {/* Dekont İstatistikleri */}
+        <div className="mb-6 sm:mb-8">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900">Dekont İstatistikleri</h3>
+            <Link href="/admin/dekontlar" className="text-xs sm:text-sm text-indigo-600 hover:text-indigo-700">
+              Tümünü Görüntüle →
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6 border-l-4 border-blue-500">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Toplam Dekont</p>
+                  <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.total}</p>
+                  <p className="text-xs text-green-600 mt-1 hidden sm:block">↗️ Bu ay</p>
+                </div>
+                <FileText className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 flex-shrink-0" />
               </div>
-              <FileText className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 flex-shrink-0" />
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6 border-l-4 border-yellow-500">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Bekleyen</p>
+                  <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.pending}</p>
+                  <p className="text-xs text-blue-600 mt-1 hidden sm:block">İncele →</p>
+                </div>
+                <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-600 flex-shrink-0" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6 border-l-4 border-green-500">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Onaylanan</p>
+                  <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.approved}</p>
+                  <p className="text-xs text-green-600 mt-1 hidden sm:block">Bu hafta</p>
+                </div>
+                <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 flex-shrink-0" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6 border-l-4 border-red-500">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Reddedilen</p>
+                  <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.rejected}</p>
+                  <p className="text-xs text-red-600 mt-1 hidden sm:block">Bu hafta</p>
+                </div>
+                <XCircle className="w-6 h-6 sm:w-8 sm:h-8 text-red-600 flex-shrink-0" />
+              </div>
             </div>
           </div>
+        </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Bekleyen</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.pending}</p>
-                <p className="text-xs text-blue-600 mt-1 hidden sm:block">İncele →</p>
-              </div>
-              <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-600 flex-shrink-0" />
-            </div>
+        {/* Sistem İstatistikleri */}
+        <div className="mb-6 sm:mb-8">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900">Sistem İstatistikleri</h3>
           </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Onaylanan</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.approved}</p>
-                <p className="text-xs text-green-600 mt-1 hidden sm:block">Bu hafta</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Toplam Kullanıcı</p>
+                  <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.userCount}</p>
+                  <p className="text-xs text-gray-600 mt-1 hidden sm:block">Aktif kullanıcılar</p>
+                </div>
+                <Users className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-600 flex-shrink-0" />
               </div>
-              <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 flex-shrink-0" />
             </div>
-          </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Reddedilen</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.rejected}</p>
-                <p className="text-xs text-red-600 mt-1 hidden sm:block">Bu hafta</p>
+            <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Öğretmen</p>
+                  <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.teacherCount}</p>
+                  <p className="text-xs text-blue-600 mt-1 hidden sm:block">Yönet →</p>
+                </div>
+                <GraduationCap className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600 flex-shrink-0" />
               </div>
-              <XCircle className="w-6 h-6 sm:w-8 sm:h-8 text-red-600 flex-shrink-0" />
             </div>
-          </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Öğretmen</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.teacherCount}</p>
-                <p className="text-xs text-blue-600 mt-1 hidden sm:block">Yönet →</p>
+            <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">İşletme</p>
+                  <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.companyCount}</p>
+                  <p className="text-xs text-orange-600 mt-1 hidden sm:block">Görüntüle →</p>
+                </div>
+                <Building2 className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600 flex-shrink-0" />
               </div>
-              <Users className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600 flex-shrink-0" />
             </div>
-          </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">İşletme</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.companyCount}</p>
-                <p className="text-xs text-orange-600 mt-1 hidden sm:block">Görüntüle →</p>
+            <div className="bg-white rounded-lg shadow-sm p-3 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Eğitim Yılı</p>
+                  <p className="text-lg sm:text-2xl font-bold text-gray-900">
+                    {stats.currentEducationYear || `${stats.educationYearCount} Dönem`}
+                  </p>
+                  <p className="text-xs text-green-600 mt-1 hidden sm:block">Aktif dönem</p>
+                </div>
+                <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 flex-shrink-0" />
               </div>
-              <Building2 className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600 flex-shrink-0" />
             </div>
           </div>
         </div>
@@ -423,22 +472,39 @@ export default function AdminDashboard() {
         <div className="mb-6 sm:mb-8">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="text-base sm:text-lg font-semibold text-gray-900">Hızlı İşlemler</h3>
-            <button className="text-xs sm:text-sm text-indigo-600 hover:text-indigo-700 hidden sm:block">
-              Tümünü Gör →
-            </button>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-xs sm:text-sm text-gray-600">Canlı</span>
+            </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
             {quickActions.map((action, index) => (
-              <Link key={index} href={action.href} className="bg-white rounded-lg shadow-sm p-4 sm:p-6 hover:shadow-md transition-shadow cursor-pointer block">
-                <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-lg ${action.bgColor} flex items-center justify-center mb-3 sm:mb-4`}>
-                  <action.icon className={`w-4 h-4 sm:w-6 sm:h-6 ${action.color}`} />
+              <Link
+                key={index}
+                href={action.href}
+                className={`group relative overflow-hidden rounded-xl bg-gradient-to-br ${action.gradient} p-4 sm:p-6 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 ease-out cursor-pointer block`}
+                style={{
+                  '--hover-gradient': action.hoverGradient
+                } as React.CSSProperties}
+              >
+                {/* Hover overlay */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${action.hoverGradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}></div>
+                
+                {/* Content */}
+                <div className="relative z-10">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center mb-3 sm:mb-4 group-hover:bg-white/30 transition-colors duration-300">
+                    <action.icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                  </div>
+                  <h4 className="text-xs sm:text-sm font-bold text-white mb-1 sm:mb-2 leading-tight">{action.title}</h4>
+                  <p className="text-xs text-white/80 mb-2 sm:mb-3 hidden sm:block leading-tight">{action.description}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-white/90 font-medium">Başlat</span>
+                    <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-white group-hover:translate-x-1 transition-transform duration-300" />
+                  </div>
                 </div>
-                <h4 className="text-sm sm:text-lg font-semibold text-gray-900 mb-1 sm:mb-2 leading-tight">{action.title}</h4>
-                <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3 hidden sm:block">{action.description}</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm text-indigo-600">Başlat</span>
-                  <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-indigo-600" />
-                </div>
+                
+                {/* Animated shine effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 transform -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out"></div>
               </Link>
             ))}
           </div>

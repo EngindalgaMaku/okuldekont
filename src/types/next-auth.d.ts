@@ -7,6 +7,8 @@ declare module "next-auth" {
       email: string
       role: string
       profile?: any
+      companyId?: string
+      teacherId?: string
     }
   }
 
@@ -15,6 +17,8 @@ declare module "next-auth" {
     email: string
     role: string
     profile?: any
+    companyId?: string
+    teacherId?: string
   }
 }
 

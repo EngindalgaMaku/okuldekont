@@ -3,13 +3,30 @@ import { prisma } from '@/lib/prisma'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { generateDekontFileName, DekontNamingData } from '@/utils/dekontNaming'
+import { validateAuthAndRole } from '@/middleware/auth'
+import { validateFileUpload, generateSecureFileName, quarantineFile } from '@/lib/file-security'
+import { encryptFinancialData, decryptFinancialData } from '@/lib/encryption'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // 🛡️ KRİTİK GÜVENLİK: Authentication kontrolü - SADECE ADMIN
+  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
     const { id } = await params
+    
+    console.log('🛡️ ADMIN SECURITY: Authorized admin accessing company dekontlar:', {
+      adminId: authResult.user?.id,
+      adminEmail: authResult.user?.email,
+      companyId: id,
+      timestamp: new Date().toISOString()
+    })
+
     const dekontlar = await prisma.dekont.findMany({
       where: {
         companyId: id
@@ -31,13 +48,14 @@ export async function GET(
       }
     })
 
+    // Decrypt financial data for admin view
     const transformedDekontlar = dekontlar.map((dekont: any) => ({
       id: dekont.id,
       companyId: dekont.companyId,
       staj_id: dekont.stajId,
       ay: dekont.month,
       yil: dekont.year,
-      miktar: dekont.amount ? parseFloat(dekont.amount.toString()) : 0,
+      miktar: dekont.amount ? Number(decryptFinancialData(dekont.amount.toString())) : 0,
       aciklama: `Payment for ${dekont.student.name} ${dekont.student.surname}`,
       dosya_url: dekont.fileUrl,
       onay_durumu: dekont.status.toLowerCase(),
@@ -67,8 +85,22 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // 🛡️ KRİTİK GÜVENLİK: Authentication kontrolü - SADECE ADMIN
+  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
     const { id: companyId } = await params
+    
+    console.log('🛡️ FILE SECURITY: Starting secure admin company dekont upload:', {
+      adminId: authResult.user?.id,
+      adminEmail: authResult.user?.email,
+      companyId,
+      timestamp: new Date().toISOString()
+    })
+
     const formData = await request.formData()
     
     const stajId = formData.get('staj_id') as string
@@ -116,9 +148,50 @@ export async function POST(
       )
     }
 
-    // Handle file upload to local storage
+    // Handle SECURE file upload to local storage
     let fileUrl = null
     if (dosya && dosya.size > 0) {
+      // 🛡️ KRİTİK GÜVENLİK TARAMASI - Admin company dekont uploads için
+      const securityResult = await validateFileUpload(dosya, {
+        maxSize: 10 * 1024 * 1024, // 10MB for admin uploads
+        allowedTypes: ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'],
+        strictMode: true // Admin uploads için sıkı güvenlik
+      })
+
+      if (!securityResult.safe) {
+        // Güvenli olmayan dosya - quarantine
+        quarantineFile({
+          originalName: dosya.name,
+          adminId: authResult.user?.id,
+          userEmail: authResult.user?.email,
+          companyId
+        }, securityResult.error || 'Security validation failed')
+        
+        console.error('🚨 FILE SECURITY: Malicious admin company dekont blocked:', {
+          fileName: dosya.name,
+          adminId: authResult.user?.id,
+          companyId,
+          error: securityResult.error,
+          timestamp: new Date().toISOString()
+        })
+        
+        return NextResponse.json(
+          { error: securityResult.error },
+          { status: 400 }
+        )
+      }
+
+      // Security warnings varsa logla
+      if (securityResult.warnings && securityResult.warnings.length > 0) {
+        console.warn('⚠️ FILE SECURITY: Admin company dekont warnings:', {
+          fileName: dosya.name,
+          warnings: securityResult.warnings,
+          adminId: authResult.user?.id
+        })
+      }
+
+      console.log('✅ FILE SECURITY: Admin company dekont passed security scan')
+
       try {
         // Create uploads directory if it doesn't exist
         const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'dekontlar')
@@ -133,6 +206,12 @@ export async function POST(
           }
         })
 
+        // Generate SECURE filename with hash
+        const secureFileName = generateSecureFileName(
+          dosya.name,
+          securityResult.fileInfo?.hash || 'unknown'
+        )
+
         // Generate meaningful filename
         const dekontNamingData: DekontNamingData = {
           studentName: staj.student.name,
@@ -143,7 +222,7 @@ export async function POST(
           companyName: staj.company.name,
           month: ay,
           year: yil,
-          originalFileName: dosya.name,
+          originalFileName: secureFileName, // Use secure filename
           isAdditional: existingDekontlar.length > 0,
           additionalIndex: existingDekontlar.length + 1
         }
@@ -159,7 +238,15 @@ export async function POST(
         // Set public URL
         fileUrl = `/uploads/dekontlar/${fileName}`
         
-        console.log('File uploaded successfully:', fileUrl)
+        // Log successful secure upload
+        console.log('✅ FILE SECURITY: Secure admin company dekont upload completed:', {
+          originalName: dosya.name,
+          secureFileName: fileName,
+          fileHash: securityResult.fileInfo?.hash?.substring(0, 16) + '...',
+          adminId: authResult.user?.id,
+          companyId,
+          timestamp: new Date().toISOString()
+        })
       } catch (fileError) {
         console.error('File upload error:', fileError)
         // Continue without file if upload fails
@@ -167,14 +254,17 @@ export async function POST(
       }
     }
 
-    // Create the dekont with conditional teacherId
+    // Encrypt financial data before storage
+    const encryptedAmount = miktar ? encryptFinancialData(miktar.toString()) : null
+
+    // Create the dekont with conditional teacherId and encrypted amount
     const dekontData: any = {
       stajId: stajId,
       studentId: staj.studentId,
       companyId: companyId,
       month: ay,
       year: yil,
-      amount: miktar,
+      amount: encryptedAmount,
       fileUrl: fileUrl,
       status: 'PENDING',
       paymentDate: new Date()
@@ -192,11 +282,11 @@ export async function POST(
     // Student info is already available from staj relation
     const student = staj.student
 
-    // Format response to match frontend expectations
+    // Format response to match frontend expectations with decrypted amount
     const formattedDekont = {
       id: newDekont.id,
       ogrenci_adi: student ? `${student.name} ${student.surname}` : 'Bilinmiyor',
-      miktar: newDekont.amount,
+      miktar: newDekont.amount ? Number(decryptFinancialData(newDekont.amount.toString())) : null,
       odeme_tarihi: newDekont.paymentDate,
       onay_durumu: newDekont.status === 'APPROVED' ? 'onaylandi' :
                   newDekont.status === 'REJECTED' ? 'reddedildi' : 'bekliyor',
@@ -205,7 +295,7 @@ export async function POST(
       ay: newDekont.month,
       yil: newDekont.year,
       staj_id: newDekont.stajId,
-      yukleyen_kisi: 'İşletme',
+      yukleyen_kisi: 'Admin',
       created_at: newDekont.createdAt,
       stajlar: {
         ogrenciler: {

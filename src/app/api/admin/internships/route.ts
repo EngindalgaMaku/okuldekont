@@ -3,8 +3,15 @@ import { prisma } from '@/lib/prisma'
 import { getActiveEducationYearId } from '@/lib/education-year'
 import { auditInternshipCreation } from '@/lib/audit-trail'
 import { getSystemUserId } from '@/lib/system-user'
+import { validateAuthAndRole } from '@/middleware/auth'
 
 export async function GET(request: Request) {
+  // KRİTİK: Staj verileri - SADECE ADMIN ve TEACHER
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'TEACHER'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const studentIds = searchParams.get('studentIds')
@@ -120,6 +127,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // KRİTİK: Staj oluşturma - SADECE ADMIN
+  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
     const { studentId, companyId, teacherId, startDate, endDate, status = 'ACTIVE', performedBy } = await request.json()
 

@@ -15,13 +15,13 @@ export const getCurrentMonth = () => new Date().getMonth() + 1;
 export const getCurrentYear = () => new Date().getFullYear();
 export const getCurrentDay = () => new Date().getDate();
 
-// Gecikme durumunu kontrol et (ayın 10'undan sonra)
-export const isGecikme = () => getCurrentDay() > 10;
+// Gecikme durumunu kontrol et (ayın son gününden sonra)
+export const isGecikme = (sonGun: number = 10) => getCurrentDay() > sonGun;
 
-// Kritik süre kontrolü (ayın 1-10'u arası)
-export const isKritikSure = () => {
+// Kritik süre kontrolü (ayın 1-sonGun arası)
+export const isKritikSure = (sonGun: number = 10) => {
   const day = getCurrentDay();
-  return day >= 1 && day <= 10;
+  return day >= 1 && day <= sonGun;
 };
 
 // Ay isimleri

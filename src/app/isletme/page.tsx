@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession, signOut } from 'next-auth/react'
 import { Building2, Users, FileText, LogOut, User, Upload, Plus, Download, Eye, Search, Filter, Receipt, Loader, GraduationCap, Calendar, CheckCircle, Clock, XCircle, Trash2, Bell, Settings, ChevronDown, ChevronUp } from 'lucide-react'
 import { useEgitimYili } from '@/lib/context/EgitimYiliContext'
 import Modal from '@/components/ui/Modal'
@@ -86,6 +87,7 @@ type ActiveTab = 'ogrenciler' | 'dekontlar' | 'belgeler'
 
 export default function PanelPage() {
   const router = useRouter()
+  const { data: session, status } = useSession()
   const { egitimYili, okulAdi } = useEgitimYili()
   const [isletme, setIsletme] = useState<Isletme | null>(null)
   const [schoolName, setSchoolName] = useState<string>('Okul Adı')
@@ -149,6 +151,8 @@ export default function PanelPage() {
   
   // Gecikme uyarı öğrenci listesi collapse state
   const [isGecikmeListExpanded, setIsGecikmeListExpanded] = useState(false);
+  const [dekontSonGun, setDekontSonGun] = useState(10);
+  const [triggerRefresh, setTriggerRefresh] = useState(0);
 
   // Dekont takip sistemi için yardımcı fonksiyonlar
   const getCurrentMonth = () => new Date().getMonth() + 1;
@@ -185,12 +189,12 @@ export default function PanelPage() {
   };
 
   // Gecikme durumunu kontrol et (ayın 10'undan sonra)
-  const isGecikme = () => getCurrentDay() > 10;
+  const isGecikme = () => getCurrentDay() > dekontSonGun;
   
   // Kritik süre kontrolü (ayın 1-10'u arası)
   const isKritikSure = () => {
     const day = getCurrentDay();
-    return day >= 1 && day <= 10;
+    return day >= 1 && day <= dekontSonGun;
   };
 
   // Öğrencinin başlangıç tarihinden önceki aya kadar olan ayları getir
@@ -325,7 +329,7 @@ export default function PanelPage() {
 
   const fetchSchoolName = async () => {
     try {
-      const response = await fetch('/api/system-settings/school-name');
+      const response = await fetch('/api/system-settings/school-name', { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
         if (data.value) {
@@ -337,119 +341,80 @@ export default function PanelPage() {
     }
   };
 
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true)
-      
-      // Tarayıcı session'ından işletme bilgilerini al
-      const sessionIsletmeId = sessionStorage.getItem('isletme_id')
-      
-      if (!sessionIsletmeId) {
-        console.error('Session\'da işletme ID bulunamadı - giriş yapılmamış')
-        router.push('/')
-        return
-      }
 
-      // Agresif mobil cache-busting stratejisi
-      const timestamp = Date.now()
-      const randomId = Math.random().toString(36).substring(2)
-      const cacheBuster = `?_cb=${timestamp}&_r=${randomId}&_mobile=${navigator.userAgent.includes('Mobile') ? '1' : '0'}&_v=${Math.floor(timestamp/1000)}`
-      
-      const noCacheHeaders = {
-        'Cache-Control': 'no-cache, no-store, must-revalidate, proxy-revalidate, max-age=0',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-        'If-Modified-Since': 'Mon, 26 Jul 1997 05:00:00 GMT',
-        'If-None-Match': '*'
-      };
+  const refreshData = () => setTriggerRefresh(c => c + 1);
 
-      // İşletme verilerini API'dan getir
-      const isletmeResponse = await fetch(`/api/companies/${sessionIsletmeId}${cacheBuster}`, {
-        headers: noCacheHeaders
-      });
-      if (!isletmeResponse.ok) {
-        throw new Error('İşletme verisi getirilemedi');
+  useEffect(() => {
+    const fetchData = async () => {
+      if (status !== 'authenticated' || !session?.user?.companyId) {
+        if (status === 'unauthenticated') {
+          router.push('/');
+        }
+        return;
       }
       
-      const isletmeData = await isletmeResponse.json();
-      setIsletme(isletmeData);
-      
-      // PIN değiştirme kontrolü - mustChangePin alanını kontrol et
-      console.log('İşletme PIN kontrolü:', {
-        mustChangePin: isletmeData.mustChangePin
-      });
-      
-      if (isletmeData.mustChangePin) {
-        console.log('PIN değiştirme modal\'ı açılıyor...');
-        setTimeout(() => {
-          setIsManualPinChange(false); // Otomatik açılma
-          setPinChangeModalOpen(true)
-        }, 1000)
-      }
-      
-      // İşletme bildirimleri getir
-      fetchNotifications(isletmeData.id);
+      setLoading(true);
+      const companyId = session.user.companyId;
 
-      // İşletmenin öğrencilerini getir
-      const studentsResponse = await fetch(`/api/companies/${sessionIsletmeId}/students${cacheBuster}`, {
-        headers: noCacheHeaders
-      });
-      if (studentsResponse.ok) {
-        const studentsData = await studentsResponse.json();
-        setOgrenciler(studentsData);
-      }
+      try {
+        // Moderate cache control - allow short-term caching for better performance
+        const moderateCacheHeaders = {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        };
 
-      // İşletmenin dekontlarını getir
-      const dekontResponse = await fetch(`/api/companies/${sessionIsletmeId}/dekontlar${cacheBuster}`, {
-        headers: noCacheHeaders
-      });
-      if (dekontResponse.ok) {
-        const dekontData = await dekontResponse.json();
-        setDekontlar(dekontData);
-      }
+        const [isletmeResponse, settingsResponse, studentsResponse, dekontResponse, belgeResponse, notificationsResponse] = await Promise.all([
+          fetch(`/api/companies/${companyId}`, { headers: moderateCacheHeaders, credentials: 'include' }),
+          fetch('/api/admin/system-settings', { credentials: 'include' }),
+          fetch(`/api/companies/${companyId}/students`, { headers: moderateCacheHeaders, credentials: 'include' }),
+          fetch(`/api/companies/${companyId}/dekontlar`, { headers: moderateCacheHeaders, credentials: 'include' }),
+          fetch(`/api/companies/${companyId}/documents`, { headers: moderateCacheHeaders, credentials: 'include' }),
+          fetch(`/api/companies/${companyId}/notifications`, { headers: moderateCacheHeaders, credentials: 'include' })
+        ]);
 
-      // İşletmenin belgelerini getir
-      const belgeResponse = await fetch(`/api/companies/${sessionIsletmeId}/documents${cacheBuster}`, {
-        headers: noCacheHeaders
-      });
-      if (belgeResponse.ok) {
-        const belgeData = await belgeResponse.json();
-        setBelgeler(belgeData);
-        setFilteredBelgeler(belgeData);
-      }
+        if (!isletmeResponse.ok) throw new Error('İşletme verisi getirilemedi');
+        const isletmeData = await isletmeResponse.json();
+        setIsletme(isletmeData);
 
-    } catch (error) {
-      console.error('Veri getirme hatası:', error)
-      alert('Veri getirme hatası! Lütfen tekrar giriş yapın.')
-      sessionStorage.removeItem('isletme_id')
-      router.push('/')
-    } finally {
-      setLoading(false)
-    }
-  }, [router])
+        if (settingsResponse.ok) {
+          const settingsData = await settingsResponse.json();
+          const sonGun = settingsData.find((s: any) => s.key === 'dekont_son_gun');
+          if (sonGun) setDekontSonGun(parseInt(sonGun.value, 10));
+        }
 
-  // Bildirimleri getir
-  const fetchNotifications = async (isletmeId: string) => {
-    try {
-      const cacheBuster = `?_t=${Date.now()}&r=${Math.random()}`;
-      const noCacheHeaders = {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      };
-      const response = await fetch(`/api/companies/${isletmeId}/notifications${cacheBuster}`, {
-        headers: noCacheHeaders
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data || []);
-        const unreadNotifications = data?.filter((n: any) => !n.is_read) || [];
-        setUnreadCount(unreadNotifications.length);
+        if (studentsResponse.ok) setOgrenciler(await studentsResponse.json());
+        if (dekontResponse.ok) setDekontlar(await dekontResponse.json());
+        if (belgeResponse.ok) {
+          const belgeData = await belgeResponse.json();
+          setBelgeler(belgeData);
+          setFilteredBelgeler(belgeData);
+        }
+        if (notificationsResponse.ok) {
+            const data = await notificationsResponse.json();
+            setNotifications(data || []);
+            const unreadNotifications = data?.filter((n: any) => !n.is_read) || [];
+            setUnreadCount(unreadNotifications.length);
+        }
+
+        if (isletmeData.mustChangePin) {
+          setTimeout(() => {
+            setIsManualPinChange(false);
+            setPinChangeModalOpen(true);
+          }, 1000);
+        }
+      } catch (error) {
+        console.error('Veri getirme hatası:', error);
+        alert('Veri getirme hatası! Lütfen tekrar giriş yapın.');
+        await signOut({ redirect: false });
+        router.push('/');
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Bildirimler getirme hatası:', error);
-    }
-  };
+    };
+
+    fetchData();
+    fetchSchoolName();
+  }, [status, session, router, triggerRefresh]);
 
   // Bildirimi okundu olarak işaretle
   const markAsRead = async (notificationId: string) => {
@@ -464,7 +429,8 @@ export default function PanelPage() {
         body: JSON.stringify({
           notificationId,
           markAsRead: true
-        })
+        }),
+        credentials: 'include'
       });
 
       if (response.ok) {
@@ -494,7 +460,8 @@ export default function PanelPage() {
         },
         body: JSON.stringify({
           markAllAsRead: true
-        })
+        }),
+        credentials: 'include'
       });
 
       if (response.ok) {
@@ -525,7 +492,8 @@ export default function PanelPage() {
         },
         body: JSON.stringify({
           notificationId
-        })
+        }),
+        credentials: 'include'
       });
 
       if (response.ok) {
@@ -540,12 +508,6 @@ export default function PanelPage() {
       alert('Bir hata oluştu!');
     }
   };
-
-
-  useEffect(() => {
-    fetchData()
-    fetchSchoolName()
-  }, [fetchData])
 
   // Belge filtreleme
   useEffect(() => {
@@ -637,7 +599,8 @@ export default function PanelPage() {
 
       const response = await fetch(`/api/companies/${isletme.id}/documents`, {
         method: 'POST',
-        body: formData
+        body: formData,
+        credentials: 'include'
       });
 
       if (!response.ok) {
@@ -663,7 +626,8 @@ export default function PanelPage() {
 
     try {
       const response = await fetch(`/api/companies/${isletme.id}/documents?belgeId=${belge.id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include'
       });
 
       if (!response.ok) {
@@ -682,9 +646,11 @@ export default function PanelPage() {
 
   const handleDekontEkle = async () => {
     try {
-      console.log('🚀 Dekont yükleme işlemi başlatılıyor...')
+      console.log('🚀 DEKONT UPLOAD: Upload process started')
+      console.log('📊 Initial validation checks...')
 
       if (!selectedOgrenci) {
+        console.error('❌ VALIDATION: No student selected')
         setErrorModal({
           isOpen: true,
           title: 'Öğrenci Seçimi',
@@ -692,8 +658,14 @@ export default function PanelPage() {
         });
         return
       }
+      console.log('✅ VALIDATION: Student selected:', {
+        id: selectedOgrenci.id,
+        name: `${selectedOgrenci.ad} ${selectedOgrenci.soyad}`,
+        staj_id: selectedOgrenci.staj_id
+      })
 
       if (!dekontFormData.dosya) {
+        console.error('❌ VALIDATION: No file selected')
         setErrorModal({
           isOpen: true,
           title: 'Dosya Seçimi',
@@ -702,14 +674,16 @@ export default function PanelPage() {
         return;
       }
 
-      console.log('📁 Seçilen dosya:', {
+      console.log('📁 FILE DETAILS:', {
         name: dekontFormData.dosya.name,
         size: dekontFormData.dosya.size,
-        type: dekontFormData.dosya.type
+        type: dekontFormData.dosya.type,
+        lastModified: new Date(dekontFormData.dosya.lastModified).toISOString()
       })
 
       // Dosya boyutu kontrolü (frontend)
       if (dekontFormData.dosya.size > 10 * 1024 * 1024) {
+        console.error('❌ FILE SIZE: File too large:', dekontFormData.dosya.size)
         setErrorModal({
           isOpen: true,
           title: 'Dosya Boyutu Hatası',
@@ -717,10 +691,12 @@ export default function PanelPage() {
         });
         return;
       }
+      console.log('✅ FILE SIZE: File size acceptable:', dekontFormData.dosya.size, 'bytes')
 
       // Dosya türü kontrolü (frontend)
       const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
       if (!allowedTypes.includes(dekontFormData.dosya.type)) {
+        console.error('❌ FILE TYPE: Invalid file type:', dekontFormData.dosya.type)
         setErrorModal({
           isOpen: true,
           title: 'Dosya Türü Hatası',
@@ -728,8 +704,10 @@ export default function PanelPage() {
         });
         return;
       }
+      console.log('✅ FILE TYPE: File type accepted:', dekontFormData.dosya.type)
 
       if (!isletme) {
+        console.error('❌ VALIDATION: No company data')
         setErrorModal({
           isOpen: true,
           title: 'Hata',
@@ -737,14 +715,26 @@ export default function PanelPage() {
         });
         return;
       }
+      console.log('✅ VALIDATION: Company data available:', {
+        id: isletme.id,
+        name: isletme.ad
+      })
 
       // Tarih validasyonu - öğrenci başlangıç tarihinden önce dekont yüklenemez
       const startDate = new Date(selectedOgrenci.baslangic_tarihi);
       const startYear = startDate.getFullYear();
       const startMonth = startDate.getMonth() + 1;
       
+      console.log('📅 DATE VALIDATION:', {
+        selectedPeriod: `${dekontFormData.ay}/${dekontFormData.yil}`,
+        studentStartDate: startDate.toISOString(),
+        startMonth,
+        startYear
+      })
+      
       if (dekontFormData.yil < startYear ||
           (dekontFormData.yil === startYear && dekontFormData.ay < startMonth)) {
+        console.error('❌ DATE VALIDATION: Date before student start date')
         setErrorModal({
           isOpen: true,
           title: 'Geçersiz Tarih',
@@ -752,6 +742,7 @@ export default function PanelPage() {
         });
         return;
       }
+      console.log('✅ DATE VALIDATION: Period valid for student')
 
       // Mevcut dekont kontrolü
       const mevcutDekontlar = dekontlar.filter(d =>
@@ -760,9 +751,24 @@ export default function PanelPage() {
         String(d.yil) === String(dekontFormData.yil)
       );
 
+      console.log('🔍 EXISTING DEKONT CHECK:', {
+        searchCriteria: {
+          staj_id: selectedOgrenci.staj_id,
+          ay: dekontFormData.ay,
+          yil: dekontFormData.yil
+        },
+        foundCount: mevcutDekontlar.length,
+        existingDekontlar: mevcutDekontlar.map(d => ({
+          id: d.id,
+          status: d.onay_durumu,
+          created_at: d.created_at
+        }))
+      })
+
       // Onaylanmış dekont varsa yükleme yapılamaz
       const onaylanmisDekont = mevcutDekontlar.find(d => d.onay_durumu === 'onaylandi');
       if (onaylanmisDekont) {
+        console.error('❌ BUSINESS LOGIC: Approved dekont exists for this period')
         setErrorModal({
           isOpen: true,
           title: 'Dekont Yüklenemez',
@@ -774,6 +780,7 @@ export default function PanelPage() {
       // Beklemede dekont varsa ek dekont uyarısı göster
       const beklemedeDekont = mevcutDekontlar.find(d => d.onay_durumu === 'bekliyor');
       if (beklemedeDekont) {
+        console.log('⚠️ BUSINESS LOGIC: Pending dekont exists, showing additional dekont modal')
         setEkDekontData({
           ogrenci: selectedOgrenci,
           ay: dekontFormData.ay,
@@ -785,12 +792,13 @@ export default function PanelPage() {
         return;
       }
 
-      console.log('📋 FormData oluşturuluyor...', {
+      console.log('📋 FORM DATA PREPARATION:', {
         staj_id: selectedOgrenci.staj_id,
         ay: dekontFormData.ay,
         yil: dekontFormData.yil,
         aciklama: dekontFormData.aciklama,
-        miktar: dekontFormData.miktar
+        miktar: dekontFormData.miktar,
+        filePresent: !!dekontFormData.dosya
       })
 
       const formData = new FormData();
@@ -801,23 +809,44 @@ export default function PanelPage() {
       formData.append('miktar', dekontFormData.miktar);
       formData.append('dosya', dekontFormData.dosya);
 
-      console.log('🌐 API çağrısı yapılıyor:', `/api/companies/${isletme.id}/dekontlar`)
+      console.log('📤 FORM DATA CONTENTS:')
+      Array.from(formData.entries()).forEach(([key, value]) => {
+        if (value instanceof File) {
+          console.log(`  ${key}: File(${value.name}, ${value.size} bytes, ${value.type})`)
+        } else {
+          console.log(`  ${key}: ${value}`)
+        }
+      })
+
+      const apiUrl = `/api/companies/${isletme.id}/dekontlar`
+      console.log('🌐 API REQUEST:', {
+        method: 'POST',
+        url: apiUrl,
+        credentials: 'include',
+        timestamp: new Date().toISOString()
+      })
 
       // Doğru endpoint'i kullan
-      const response = await fetch(`/api/companies/${isletme.id}/dekontlar`, {
+      const response = await fetch(apiUrl, {
         method: 'POST',
-        body: formData
+        body: formData,
+        credentials: 'include'
       });
 
-      console.log('📡 API yanıtı:', {
+      console.log('📡 API RESPONSE RECEIVED:', {
         status: response.status,
         statusText: response.statusText,
-        ok: response.ok
+        ok: response.ok,
+        url: response.url,
+        headers: Object.fromEntries(response.headers.entries()),
+        timestamp: new Date().toISOString()
       })
 
       // Ek dekont uyarısı (409 status code)
       if (response.status === 409) {
+        console.log('⚠️ API RESPONSE: Additional dekont warning (409)')
         const warningData = await response.json();
+        console.log('📄 409 Response data:', warningData)
         setEkDekontData({
           ogrenci: selectedOgrenci,
           ay: dekontFormData.ay,
@@ -830,13 +859,29 @@ export default function PanelPage() {
       }
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('❌ API hatası:', errorData)
+        console.error('❌ API ERROR: Response not OK')
+        let errorData;
+        try {
+          errorData = await response.json();
+          console.error('📄 Error response data:', errorData)
+        } catch (parseError) {
+          console.error('❌ Failed to parse error response:', parseError)
+          errorData = { error: `HTTP ${response.status}: ${response.statusText}` }
+        }
         throw new Error(errorData.error || 'Dekont yüklenemedi');
       }
 
-      const result = await response.json();
-      console.log('✅ Dekont başarıyla yüklendi:', result)
+      let result;
+      try {
+        result = await response.json();
+        console.log('✅ API SUCCESS: Response parsed successfully')
+        console.log('📄 Success response data:', result)
+      } catch (parseError) {
+        console.error('❌ Failed to parse success response:', parseError)
+        throw new Error('Sunucudan geçersiz yanıt alındı')
+      }
+      
+      console.log('🎯 POST-UPLOAD CLEANUP: Starting cleanup process')
       
       // Modal'ı kapat
       setDekontModalOpen(false);
@@ -855,16 +900,25 @@ export default function PanelPage() {
         };
       });
       
+      console.log('✅ CLEANUP: Form reset completed')
+      
       setSuccessMessage('Dekont başarıyla yüklendi!');
       setSuccessModalOpen(true);
       setActiveTab('dekontlar');
       
       // Veri yenileme - hard refresh yerine veri çekme
-      console.log('🔄 Veri yenileniyor...')
-      await fetchData();
+      console.log('🔄 DATA REFRESH: Starting data refresh...')
+      refreshData();
+      console.log('🎉 DEKONT UPLOAD: Process completed successfully')
       
     } catch (error: any) {
-      console.error('❌ Dekont yükleme hatası:', error)
+      console.error('❌ DEKONT UPLOAD ERROR: Fatal error occurred')
+      console.error('📊 Error details:', {
+        name: error?.name || 'Unknown',
+        message: error?.message || 'Unknown error',
+        stack: error?.stack || 'No stack trace',
+        timestamp: new Date().toISOString()
+      })
       setErrorModal({
         isOpen: true,
         title: 'Dekont Yükleme Hatası',
@@ -930,7 +984,8 @@ export default function PanelPage() {
             try {
               const response = await fetch(`/api/companies/${isletme.id}/dekontlar`, {
                 method: 'POST',
-                body: formData
+                body: formData,
+                credentials: 'include'
               });
 
               console.log('📡 Ek dekont API yanıtı:', {
@@ -954,7 +1009,7 @@ export default function PanelPage() {
               
               // Veri yenileme - hard refresh yerine fetchData
               console.log('🔄 Ek dekont sonrası veri yenileniyor...')
-              await fetchData();
+              refreshData();
               
             } catch (error: any) {
               console.error('❌ Ek dekont yükleme hatası:', error)
@@ -1041,7 +1096,8 @@ export default function PanelPage() {
       })
 
       const response = await fetch(`/api/companies/${isletme.id}/dekontlar?dekontId=${dekont.id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include'
       });
 
       console.log('📡 Dekont silme API yanıtı:', {
@@ -1066,7 +1122,7 @@ export default function PanelPage() {
       
       // Veri yenileme - hard refresh yerine fetchData
       console.log('🔄 Dekont silme sonrası veri yenileniyor...')
-      await fetchData();
+      refreshData();
       
     } catch (error: any) {
       console.error('❌ Dekont silme hatası:', error);
@@ -1142,10 +1198,10 @@ export default function PanelPage() {
     }
   }
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('isletme_id')
-    router.push('/')
-  }
+  const handleLogout = async () => {
+    await signOut({ redirect: false });
+    router.push('/');
+  };
 
   // Sayfa değiştirme fonksiyonu
   const handlePageChange = (pageNumber: number) => {
@@ -1155,12 +1211,34 @@ export default function PanelPage() {
   // Dosya indirme handler'ı
   const handleFileDownload = async (fileUrl: string, fileName: string) => {
     try {
-      // URL'den dosya adını çıkar
-      const urlParts = fileUrl.split('/');
-      const originalFileName = urlParts[urlParts.length - 1];
+      console.log('📥 DOWNLOAD: Starting file download', {
+        fileUrl,
+        fileName,
+        timestamp: new Date().toISOString()
+      });
+
+      // Doğrudan static file URL'sini kullan (Next.js public folder)
+      let downloadUrl = fileUrl;
       
-      // API endpoint'i kullanarak dosyayı indir
-      const downloadUrl = `/api/admin/dekontlar/download/${originalFileName}`;
+      // Eğer URL tam değilse, tam URL oluştur
+      if (!fileUrl.startsWith('http') && !fileUrl.startsWith('/')) {
+        downloadUrl = `/${fileUrl}`;
+      }
+      
+      console.log('🔗 DOWNLOAD: Using URL:', downloadUrl);
+      
+      // Dosyanın varlığını kontrol et
+      const checkResponse = await fetch(downloadUrl, { method: 'HEAD' });
+      if (!checkResponse.ok) {
+        console.error('❌ DOWNLOAD: File not accessible:', {
+          url: downloadUrl,
+          status: checkResponse.status,
+          statusText: checkResponse.statusText
+        });
+        throw new Error(`Dosya erişilemez durumda (${checkResponse.status})`);
+      }
+      
+      console.log('✅ DOWNLOAD: File accessible, starting download');
       
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -1169,8 +1247,10 @@ export default function PanelPage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      
+      console.log('✅ DOWNLOAD: Download initiated successfully');
     } catch (error) {
-      console.error('Dosya indirme hatası:', error);
+      console.error('❌ DOWNLOAD ERROR:', error);
       alert('Dosya indirilemedi. Lütfen tekrar deneyiniz.');
     }
   };
@@ -1423,12 +1503,17 @@ export default function PanelPage() {
                     isGecikme() ? 'text-red-700' : isKritikSure() ? 'text-yellow-700' : 'text-blue-700'
                   }`}>
                     <p className="font-medium mb-2">
-                      {isGecikme()
-                        ? `${aylar[getCurrentMonth() === 1 ? 11 : getCurrentMonth() - 2]} ayı dekont yükleme süresi geçti! Devlet katkı payı alamayabilirsiniz.`
-                        : isKritikSure()
-                        ? `${aylar[getCurrentMonth() === 1 ? 11 : getCurrentMonth() - 2]} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
-                        : `${aylar[getCurrentMonth() === 1 ? 11 : getCurrentMonth() - 2]} ayı için eksik dekontlar var.`
-                      }
+                      {(() => {
+                        const currentDate = new Date();
+                        const previousMonthIndex = currentDate.getMonth() === 0 ? 11 : currentDate.getMonth() - 1;
+                        const previousMonthName = aylar[previousMonthIndex];
+                        
+                        return isGecikme()
+                          ? `${previousMonthName} ayı dekont yükleme süresi geçti! Devlet katkı payı alamayabilirsiniz.`
+                          : isKritikSure()
+                          ? `${previousMonthName} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
+                          : `${previousMonthName} ayı için eksik dekontlar var.`;
+                      })()}
                     </p>
                     <div className="mb-3">
                       <button
@@ -1658,9 +1743,11 @@ export default function PanelPage() {
                   <div className="space-y-6">
                     {/* Student-based grouping */}
                     {Object.entries(groupDekontlarByStudent()).map(([studentName, studentDekontlar]) => {
-                      const pendingCount = getPendingDekontCount(studentName);
-                      const rejectedCount = getRejectedDekontCount(studentName);
-                      const lastMonthStatus = getLastMonthDekontStatus(studentName);
+                      // İlk dekonttan staj_id'yi al
+                      const stajId = String(studentDekontlar[0]?.staj_id || '');
+                      const pendingCount = getPendingDekontCount(stajId);
+                      const rejectedCount = getRejectedDekontCount(stajId);
+                      const lastMonthStatus = getLastMonthDekontStatus(stajId);
                       const isExpanded = expandedGroups[studentName] ?? false; // Default to collapsed
                       
                       return (
@@ -2122,7 +2209,11 @@ export default function PanelPage() {
                 type="file"
                 id="dekont-dosya"
                 accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => setDekontFormData({...dekontFormData, dosya: e.target.files?.[0] || null})}
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  console.log('📁 Dekont dosyası seçildi:', file?.name, file?.size);
+                  setDekontFormData({...dekontFormData, dosya: file});
+                }}
                 className="hidden"
               />
               <label htmlFor="dekont-dosya" className="cursor-pointer">
@@ -2564,7 +2655,7 @@ export default function PanelPage() {
           setPinChangeModalOpen(false);
           setSuccessMessage('PIN başarıyla değiştirildi!');
           setSuccessModalOpen(true);
-          fetchData();
+          refreshData();
           
           // 3 saniyelik geri sayım başlat
           setSuccessCountdown(3);

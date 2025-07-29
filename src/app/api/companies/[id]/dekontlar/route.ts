@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { generateDekontFileName, DekontNamingData } from '@/utils/dekontNaming'
+import { validateAuthAndRole } from '@/middleware/auth'
+import { encryptFinancialData, decryptFinancialData, maskFinancialData } from '@/lib/encryption'
+import { validateFileUpload, generateSecureFileName, quarantineFile } from '@/lib/file-security'
 
 // Next.js cache'ini devre dışı bırak
 export const dynamic = 'force-dynamic';
@@ -12,6 +15,22 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // SADECE ADMIN ve İLGİLİ COMPANY erişebilir
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'COMPANY'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
+  const { id } = await params
+  
+  // Company kullanıcısı sadece kendi verilerine erişebilir
+  if (authResult.user?.role === 'COMPANY' && authResult.user?.id !== id) {
+    return NextResponse.json(
+      { error: 'Bu şirketin verilerine erişim yetkiniz yok' },
+      { status: 403 }
+    )
+  }
+
   try {
     const { id } = await params
     const dekontlar = await prisma.dekont.findMany({
@@ -61,7 +80,7 @@ export async function GET(
       staj_id: dekont.stajId,
       ay: dekont.month,
       yil: dekont.year,
-      miktar: dekont.amount ? parseFloat(dekont.amount.toString()) : null,
+      miktar: dekont.amount ? parseFloat(decryptFinancialData(dekont.amount.toString())) : null,
       aciklama: `${dekont.student.name} ${dekont.student.surname} - ${dekont.month}/${dekont.year}`,
       dosya_url: dekont.fileUrl,
       onay_durumu: dekont.status === 'APPROVED' ? 'onaylandi' :
@@ -102,8 +121,23 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // SADECE ADMIN ve İLGİLİ COMPANY dekont yükleyebilir
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'COMPANY'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
+  const { id: companyId } = await params
+  
+  // Company kullanıcısı sadece kendi verilerine erişebilir
+  if (authResult.user?.role === 'COMPANY' && authResult.user?.id !== companyId) {
+    return NextResponse.json(
+      { error: 'Bu şirket adına dekont yükleme yetkiniz yok' },
+      { status: 403 }
+    )
+  }
+
   try {
-    const { id: companyId } = await params
     const formData = await request.formData()
     
     const stajId = formData.get('staj_id') as string
@@ -186,32 +220,56 @@ export async function POST(
       )
     }
 
-    // Handle file upload to local storage
+    // Handle file upload to local storage with SECURITY SCANNING
     let fileUrl = null
     if (dosya && dosya.size > 0) {
       try {
-        console.log('📁 Dosya yükleme başlıyor:', {
+        console.log('🛡️ FILE SECURITY: Starting secure dekont file upload:', {
           fileName: dosya.name,
           fileSize: dosya.size,
-          fileType: dosya.type
+          fileType: dosya.type,
+          companyId,
+          timestamp: new Date().toISOString()
         })
 
-        // Dosya boyutu kontrolü (max 10MB)
-        if (dosya.size > 10 * 1024 * 1024) {
+        // KRİTİK GÜVENLİK TARAMASI
+        const securityResult = await validateFileUpload(dosya, {
+          maxSize: 10 * 1024 * 1024, // 10MB
+          allowedTypes: ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'],
+          strictMode: true // Dekont dosyaları için sıkı mod
+        })
+
+        if (!securityResult.safe) {
+          // Güvenli olmayan dosya - quarantine
+          quarantineFile({
+            originalName: dosya.name,
+            companyId,
+            userEmail: authResult.user?.email
+          }, securityResult.error || 'Security validation failed')
+          
+          console.error('🚨 FILE SECURITY: Malicious dekont file blocked:', {
+            fileName: dosya.name,
+            companyId,
+            error: securityResult.error,
+            timestamp: new Date().toISOString()
+          })
+          
           return NextResponse.json(
-            { error: 'Dosya boyutu çok büyük (maksimum 10MB)' },
+            { error: securityResult.error },
             { status: 400 }
           )
         }
 
-        // Dosya türü kontrolü
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf']
-        if (!allowedTypes.includes(dosya.type)) {
-          return NextResponse.json(
-            { error: 'Desteklenmeyen dosya türü (sadece PDF, JPG, PNG)' },
-            { status: 400 }
-          )
+        // Security warnings varsa logla
+        if (securityResult.warnings && securityResult.warnings.length > 0) {
+          console.warn('⚠️ FILE SECURITY: Dekont file warnings:', {
+            fileName: dosya.name,
+            warnings: securityResult.warnings,
+            companyId
+          })
         }
+
+        console.log('✅ FILE SECURITY: Dekont file passed security scan')
 
         // Create uploads directory if it doesn't exist
         const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'dekontlar')
@@ -227,17 +285,36 @@ export async function POST(
           }
         })
 
-        // Generate meaningful filename
+        // Generate SECURE filename with hash but preserve extension
+        const originalExtension = dosya.name.split('.').pop()?.toLowerCase() || 'pdf'
+        const secureFileName = generateSecureFileName(
+          dosya.name,
+          securityResult.fileInfo?.hash || 'unknown'
+        )
+        
+        // Get full student data for filename generation
+        const fullStudent = await prisma.student.findUnique({
+          where: { id: staj.studentId },
+          include: {
+            alan: {
+              select: {
+                name: true
+              }
+            }
+          }
+        })
+
+        // Generate meaningful filename for reference with correct extension
         const dekontNamingData: DekontNamingData = {
-          studentName: staj.student.name,
-          studentSurname: staj.student.surname,
-          studentClass: staj.student.className,
-          studentNumber: staj.student.number || undefined,
-          fieldName: staj.student.alan?.name || 'Bilinmeyen',
+          studentName: fullStudent?.name || staj.student.name,
+          studentSurname: fullStudent?.surname || staj.student.surname,
+          studentClass: fullStudent?.className || staj.student.className || 'Bilinmeyen',
+          studentNumber: fullStudent?.number || staj.student.number || undefined,
+          fieldName: fullStudent?.alan?.name || staj.student.alan?.name || 'Bilinmeyen',
           companyName: staj.company.name,
           month: ay,
           year: yil,
-          originalFileName: dosya.name,
+          originalFileName: dosya.name, // Use original filename to preserve extension
           isAdditional: existingDekontlar.length > 0,
           additionalIndex: existingDekontlar.length + 1
         }
@@ -268,7 +345,15 @@ export async function POST(
         // Set public URL
         fileUrl = `/uploads/dekontlar/${fileName}`
         
-        console.log('✅ Dosya yükleme tamamlandı:', fileUrl)
+        // Log successful secure upload
+        console.log('✅ FILE SECURITY: Secure dekont upload completed:', {
+          originalName: dosya.name,
+          secureFileName: fileName,
+          fileHash: securityResult.fileInfo?.hash?.substring(0, 16) + '...',
+          companyId,
+          fileUrl,
+          timestamp: new Date().toISOString()
+        })
       } catch (fileError) {
         console.error('❌ Dosya yükleme hatası:', fileError)
         const errorMessage = fileError instanceof Error ? fileError.message : 'Bilinmeyen hata'
@@ -283,6 +368,16 @@ export async function POST(
         { status: 400 }
       )
     }
+
+    // Encrypt financial data before storing
+    const encryptedAmount = miktar ? encryptFinancialData(miktar.toString()) : null
+    
+    // Mali veri güvenlik logu (maskelenmiş)
+    console.log(`🔒 FINANCIAL: Company dekont amount encrypted`, {
+      originalAmount: maskFinancialData(miktar),
+      companyId,
+      timestamp: new Date().toISOString()
+    })
 
     // Create the dekont - company upload (teacherId = null for proper attribution)
     const newDekont = await prisma.dekont.create({
@@ -299,7 +394,7 @@ export async function POST(
         // Don't connect teacher for company uploads (teacherId will be null)
         month: ay,
         year: yil,
-        amount: miktar,
+        amount: encryptedAmount,
         fileUrl: fileUrl,
         status: 'PENDING',
         paymentDate: new Date()
@@ -309,11 +404,11 @@ export async function POST(
     // Student info is already available from staj relation
     const student = staj.student
 
-    // Format response to match frontend expectations
+    // Format response to match frontend expectations with decrypted amount
     const formattedDekont = {
       id: newDekont.id,
       ogrenci_adi: student ? `${student.name} ${student.surname}` : '',
-      miktar: newDekont.amount,
+      miktar: newDekont.amount ? parseFloat(decryptFinancialData(newDekont.amount.toString())) : null,
       odeme_tarihi: newDekont.paymentDate,
       onay_durumu: newDekont.status === 'APPROVED' ? 'onaylandi' :
                   newDekont.status === 'REJECTED' ? 'reddedildi' : 'bekliyor',
@@ -351,8 +446,23 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // SADECE ADMIN ve İLGİLİ COMPANY silme yapabilir
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'COMPANY'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
+  const { id: companyId } = await params
+  
+  // Company kullanıcısı sadece kendi verilerine erişebilir
+  if (authResult.user?.role === 'COMPANY' && authResult.user?.id !== companyId) {
+    return NextResponse.json(
+      { error: 'Bu şirketin dekontlarını silme yetkiniz yok' },
+      { status: 403 }
+    )
+  }
+
   try {
-    const { id: companyId } = await params
     const { searchParams } = new URL(request.url)
     const dekontId = searchParams.get('dekontId')
 

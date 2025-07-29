@@ -2,11 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { unlink } from 'fs/promises';
 import path from 'path';
+import { validateAuthAndRole } from '@/middleware/auth';
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // 🛡️ KRİTİK GÜVENLİK: Authentication kontrolü - ADMIN ve TEACHER
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'TEACHER'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
   try {
     const { id } = await params;
     

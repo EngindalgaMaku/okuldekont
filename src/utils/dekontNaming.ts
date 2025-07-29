@@ -19,7 +19,11 @@ export interface DekontNamingData {
 /**
  * Turkish karakterleri İngilizce karakterlere çevirir
  */
-function turkishToEnglish(text: string): string {
+function turkishToEnglish(text: string | undefined | null): string {
+  if (!text || typeof text !== 'string') {
+    return ''
+  }
+  
   const turkishMap: { [key: string]: string } = {
     'ç': 'c', 'Ç': 'C',
     'ğ': 'g', 'Ğ': 'G',
@@ -36,7 +40,11 @@ function turkishToEnglish(text: string): string {
 /**
  * Metni dosya ismi için temizler
  */
-export function cleanFileName(text: string): string {
+export function cleanFileName(text: string | undefined | null): string {
+  if (!text || typeof text !== 'string') {
+    return 'bilinmeyen'
+  }
+  
   return turkishToEnglish(text)
     .replace(/[^a-zA-Z0-9]/g, '_')
     .replace(/_+/g, '_')

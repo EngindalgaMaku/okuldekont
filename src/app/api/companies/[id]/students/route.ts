@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateAuthAndRole } from '@/middleware/auth';
 
 // Next.js cache'ini devre dışı bırak
 export const dynamic = 'force-dynamic';
@@ -9,9 +10,30 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // KRİTİK KVKK KORUMA: Şirket öğrenci kişisel verileri - SADECE ADMIN ve İLGİLİ COMPANY
+  const authResult = await validateAuthAndRole(request, ['ADMIN', 'COMPANY'])
+  if (!authResult.success) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
+  const { id } = await params
+  
+  // Company kullanıcısı sadece kendi öğrencilerine erişebilir
+  if (authResult.user?.role === 'COMPANY' && authResult.user?.id !== id) {
+    return NextResponse.json(
+      { error: 'Bu şirketin öğrenci verilerine erişim yetkiniz yok' },
+      { status: 403 }
+    )
+  }
+
+  // KVKK compliance logging
+  console.log(`🔒 KVKK: ${authResult.user?.role} ${authResult.user?.email} accessing company student data`, {
+    companyId: id,
+    timestamp: new Date().toISOString(),
+    action: 'VIEW_COMPANY_STUDENTS'
+  })
+
   try {
-    const { id } = await params;
-    
     if (!id) {
       return NextResponse.json({ error: 'ID gerekli' }, { status: 400 });
     }

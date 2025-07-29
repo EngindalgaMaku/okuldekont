@@ -5,11 +5,28 @@ import bcrypt from 'bcryptjs'
 import { recordPinAttempt, checkSecurityStatus } from './pin-security'
 
 export const authOptions: NextAuthOptions = {
-  debug: process.env.NODE_ENV === 'development',
+  debug: false, // Debug tamamen kapatıldı - performans için
   secret: process.env.NEXTAUTH_SECRET,
   
   // SSL/HTTPS configuration for production
   useSecureCookies: process.env.NODE_ENV === 'production',
+  
+  // Optimized logging - sadece errors ve development'ta diğerleri
+  logger: {
+    error(code, metadata) {
+      console.error('🔥 NextAuth Error:', code, metadata)
+    },
+    warn(code) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('⚠️ NextAuth Warning:', code)
+      }
+    },
+    debug(code, metadata) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🐛 NextAuth Debug:', code, metadata)
+      }
+    }
+  },
   
   providers: [
     CredentialsProvider({
@@ -67,6 +84,10 @@ export const authOptions: NextAuthOptions = {
         userAgent: { label: 'User Agent', type: 'text' }
       },
       async authorize(credentials) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('PIN AUTH: Starting authentication', credentials?.type)
+        }
+        
         if (!credentials?.type || !credentials?.entityId || !credentials?.pin) {
           return null
         }
@@ -80,7 +101,6 @@ export const authOptions: NextAuthOptions = {
           const securityStatus = await checkSecurityStatus(entityType, credentials.entityId)
           
           if (securityStatus.isLocked) {
-            console.log(`${entityType} ${credentials.entityId} is locked until ${securityStatus.lockEndTime}`)
             return null
           }
 
@@ -122,7 +142,7 @@ export const authOptions: NextAuthOptions = {
           }
 
           // PIN denemesini kaydet
-          const attemptResult = await recordPinAttempt(
+          await recordPinAttempt(
             entityType,
             credentials.entityId,
             pinValid,
@@ -131,10 +151,11 @@ export const authOptions: NextAuthOptions = {
           )
 
           if (pinValid) {
-            console.log(`Successful PIN authentication for ${entityType} ${credentials.entityId}`)
+            if (process.env.NODE_ENV === 'development') {
+              console.log(`PIN AUTH: Success for ${entityType} ${credentials.entityId}`)
+            }
             return entityData
           } else {
-            console.log(`Failed PIN authentication for ${entityType} ${credentials.entityId}. ${attemptResult.message}`)
             return null
           }
         } catch (error) {
@@ -150,8 +171,25 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }: any) {
       if (user) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('JWT CALLBACK: Building token for', user.role)
+        }
+        
+        // user.id'yi token.sub'a ata
+        token.sub = user.id
         token.role = user.role
         token.profile = user.profile
+        token.email = user.email
+        token.name = user.name
+        
+        // Company kullanıcıları için companyId'yi ekle
+        if (user.role === 'COMPANY') {
+          token.companyId = user.id
+        }
+        // Teacher kullanıcıları için teacherId'yi ekle
+        if (user.role === 'TEACHER') {
+          token.teacherId = user.id
+        }
       }
       return token
     },
@@ -160,12 +198,19 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.sub
         session.user.role = token.role
         session.user.profile = token.profile
+        // Company ve Teacher ID'lerini session'a aktar
+        if (token.companyId) {
+          session.user.companyId = token.companyId
+        }
+        if (token.teacherId) {
+          session.user.teacherId = token.teacherId
+        }
       }
       return session
     }
   },
   pages: {
-    signIn: '/admin/login'
+    signIn: '/admin/login' // Bu sadece admin için, teacher ve company'de sorun çıkarıyor
   }
 }
 
