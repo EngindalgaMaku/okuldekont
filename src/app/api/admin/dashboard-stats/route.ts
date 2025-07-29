@@ -100,7 +100,7 @@ export async function GET() {
       companyCount,
       educationYearCount,
       currentEducationYear: currentEducationYear ?
-        currentEducationYear.year || `${currentEducationYear.baslangicYili || new Date().getFullYear()}-${currentEducationYear.bitisYili || new Date().getFullYear() + 1}` :
+        currentEducationYear.year || `${currentEducationYear.startDate?.getFullYear() || new Date().getFullYear()}-${currentEducationYear.endDate?.getFullYear() || new Date().getFullYear() + 1}` :
         `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
       dekontStats
     })

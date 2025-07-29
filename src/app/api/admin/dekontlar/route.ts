@@ -244,8 +244,8 @@ export async function POST(request: Request) {
     }
     
     // Dekont yükleme kuralları kontrolü
-    const ayNum = ay ? parseInt(ay) : new Date().getMonth() + 1;
-    const yilNum = yil ? parseInt(yil) : new Date().getFullYear();
+    const ayNum = ay ? ay : new Date().getMonth() + 1;
+    const yilNum = yil ? yil : new Date().getFullYear();
     
     // Tarih validasyonu 1: Mevcut ay ve gelecek aylar için dekont yüklenemez (öğrenciler önceki ayın maaşını alır)
     const currentDate = new Date()
@@ -395,8 +395,8 @@ export async function POST(request: Request) {
       const existingDekontlar = await prisma.dekont.findMany({
         where: {
           stajId: stajId,
-          month: ay ? parseInt(ay) : new Date().getMonth() + 1,
-          year: yil ? parseInt(yil) : new Date().getFullYear()
+          month: ay ? ay : new Date().getMonth() + 1,
+          year: yil ? yil : new Date().getFullYear()
         }
       })
 
@@ -487,8 +487,8 @@ export async function POST(request: Request) {
       studentId: staj.studentId,
       amount: encryptedAmount,
       paymentDate: new Date(),
-      month: ay ? parseInt(ay) : new Date().getMonth() + 1,
-      year: yil ? parseInt(yil) : new Date().getFullYear(),
+      month: ay ? ay : new Date().getMonth() + 1,
+      year: yil ? yil : new Date().getFullYear(),
       status: 'PENDING' as const,
       fileUrl: fileUrl
     }

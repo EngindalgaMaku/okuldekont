@@ -6,7 +6,7 @@ import { ValidationFunctions } from '@/lib/validation'
 // Dekont sil - ADMIN VE TEACHER
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const authResult = await validateAuthAndRole(request, ['ADMIN', 'TEACHER'])
   if (!authResult.success) {
@@ -14,7 +14,7 @@ export async function DELETE(
   }
 
   try {
-    const { id } = params
+    const { id } = await params
 
     if (!id) {
       return NextResponse.json(
