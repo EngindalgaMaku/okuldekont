@@ -21,7 +21,6 @@ interface Alan {
   aktif: boolean
   ogretmen_sayisi: number
   ogrenci_sayisi: number
-  isletme_sayisi: number
 }
 
 // Alan ismine göre icon ve renk döndüren fonksiyon
@@ -452,13 +451,6 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
                           <span className="text-sm font-medium">Öğrenci</span>
                         </div>
                         <span className="text-sm font-bold text-gray-900">{alan.ogrenci_sayisi}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <Building className="h-4 w-4" />
-                          <span className="text-sm font-medium">İşletme</span>
-                        </div>
-                        <span className="text-sm font-bold text-gray-900">{alan.isletme_sayisi}</span>
                       </div>
                     </div>
                     <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>

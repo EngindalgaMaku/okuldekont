@@ -424,7 +424,7 @@ export async function validateAuthAndRole(
 
     console.log(`✅ AUTH SUCCESS: ${userRole} authenticated for ${options.endpoint || 'general'}`, {
       userId: token.sub,
-      endpoint: options.endpoint,
+      endpoint: options.endpoint || 'general',
       timestamp: new Date().toISOString()
     })
 

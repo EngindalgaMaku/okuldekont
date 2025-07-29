@@ -11,7 +11,6 @@ interface Alan {
   aktif: boolean
   ogretmen_sayisi: number
   ogrenci_sayisi: number
-  isletme_sayisi: number
 }
 
 async function getAlanlar(): Promise<Alan[]> {
@@ -41,8 +40,7 @@ async function getAlanlar(): Promise<Alan[]> {
       aciklama: field.description || undefined,
       aktif: field.active,
       ogretmen_sayisi: field._count.teachers,
-      ogrenci_sayisi: field._count.students,
-      isletme_sayisi: companiesCount // This is a rough approximation
+      ogrenci_sayisi: field._count.students
     }))
 
     return transformedFields

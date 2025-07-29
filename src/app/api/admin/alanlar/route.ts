@@ -18,40 +18,15 @@ export async function GET() {
       }
     })
 
-    // Get companies count per field (students' companies grouped by field)
-    const companiesPerField = await Promise.all(
-      fields.map(async (field) => {
-        const distinctCompanies = await prisma.student.findMany({
-          where: {
-            alanId: field.id,
-            companyId: { not: null }
-          },
-          select: {
-            companyId: true
-          },
-          distinct: ['companyId']
-        })
-        return {
-          fieldId: field.id,
-          count: distinctCompanies.length
-        }
-      })
-    )
-
-    // Create a map for easy lookup
-    const companiesMap = new Map(
-      companiesPerField.map(item => [item.fieldId, item.count])
-    )
-
-    // Transform to match expected interface
+    // Transform to match expected interface - removing company count for now
     const transformedFields = fields.map(field => ({
       id: field.id,
       ad: field.name,
       aciklama: field.description,
       aktif: field.active,
       ogretmen_sayisi: field._count.teachers,
-      ogrenci_sayisi: field._count.students,
-      isletme_sayisi: companiesMap.get(field.id) || 0
+      ogrenci_sayisi: field._count.students
+      // isletme_sayisi kaldırıldı - doğru sayı gösterilemiyor
     }))
 
     return NextResponse.json(transformedFields)

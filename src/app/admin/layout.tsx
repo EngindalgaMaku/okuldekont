@@ -53,6 +53,12 @@ const menuItems = [
     description: 'Ödeme ve dekont yönetimi'
   },
   {
+    title: 'Stajlar',
+    icon: GraduationCap,
+    href: '/admin/stajlar',
+    description: 'Öğrenci staj süreçleri ve koordinatörlük yönetimi'
+  },
+  {
     title: 'Araçlar',
     icon: Wrench,
     href: '/admin/araclar',
@@ -345,12 +351,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                             <span className="font-medium">Öğretmenler</span>
                           </Link>
                           <Link
-                            href="/admin/stajlar"
-                            className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-green-50 hover:text-green-700 group transition-colors duration-150"
+                            href="/admin/ogrenciler"
+                            className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-purple-50 hover:text-purple-700 group transition-colors duration-150"
                             onClick={() => setSidebarOpen(false)}
                           >
-                            <GraduationCap className="w-5 h-5 text-gray-400 group-hover:text-green-600" />
-                            <span className="font-medium">Stajlar</span>
+                            <Users className="w-5 h-5 text-gray-400 group-hover:text-purple-600" />
+                            <span className="font-medium">Öğrenciler</span>
                           </Link>
                         </ul>
                       </li>
@@ -560,13 +566,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 </Link>
                 
                 <Link
-                  href="/admin/stajlar"
-                  className="flex items-center gap-x-1 px-2 md:px-3 py-1.5 text-sm font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
-                  title="Staj Yönetimi - Öğrenci staj süreçleri ve koordinatörlük yönetimi"
+                  href="/admin/ogrenciler"
+                  className="flex items-center gap-x-1 px-2 md:px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
+                  title="Öğrenci Yönetimi - Tüm öğrencileri listele, filtrele ve yönet"
                 >
-                  <GraduationCap className="h-4 w-4" />
-                  <span className="hidden md:block">Stajlar</span>
+                  <Users className="h-4 w-4" />
+                  <span className="hidden md:block">Öğrenciler</span>
                 </Link>
+                
               </div>
 
               {/* User dropdown */}

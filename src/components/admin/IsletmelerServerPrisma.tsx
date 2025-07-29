@@ -5,6 +5,7 @@ import { Building2, Search, Filter, Plus, Eye, RefreshCw, ChevronLeft, ChevronRi
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import CompanyQuickPinButton from './CompanyQuickPinButton'
+import IsletmelerClient from './IsletmelerClient'
 import Modal from '@/components/ui/Modal'
 import { toast } from 'react-hot-toast'
 
@@ -148,6 +149,29 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
   useEffect(() => {
     fetchCompanies()
   }, [page, search, filter, perPage])
+
+  // Listen for custom event from IsletmelerClient to open create modal
+  useEffect(() => {
+    const handleOpenCreateModalEvent = () => {
+      setYeniIsletmeFormData({
+        name: '',
+        contact: '',
+        phone: '',
+        email: '',
+        address: '',
+        taxNumber: '',
+        pin: '',
+        usta_ogretici_ad: '',
+        usta_ogretici_telefon: ''
+      })
+      setYeniIsletmeModalOpen(true)
+    }
+
+    window.addEventListener('openCreateModal', handleOpenCreateModalEvent)
+    return () => {
+      window.removeEventListener('openCreateModal', handleOpenCreateModalEvent)
+    }
+  }, [])
 
   useEffect(() => {
     setSearchInput(search)
@@ -521,13 +545,7 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
           <h1 className="text-lg sm:text-2xl font-bold text-gray-900">İşletme Yönetimi</h1>
           <p className="text-gray-600 mt-0.5 sm:mt-1 text-xs sm:text-base">Sistemdeki tüm işletmeleri yönetin</p>
         </div>
-        <button
-          onClick={handleOpenCreateModal}
-          className="inline-flex items-center justify-center px-3 sm:px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 text-sm w-full sm:w-auto"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Yeni İşletme
-        </button>
+        <IsletmelerClient />
       </div>
 
       {/* Filters */}

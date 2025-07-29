@@ -13,7 +13,6 @@ interface Ogretmen {
   email: string | null;
   telefon: string | null;
   ogrenci_sayisi: number;
-  isletme_sayisi: number;
 }
 
 interface Props {
@@ -319,10 +318,6 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
                   <span className="text-gray-500 mr-1">Öğrenci:</span>
                   <span className="font-semibold text-gray-800">{ogretmen.ogrenci_sayisi}</span>
                 </div>
-                <div className="flex items-center text-xs">
-                  <span className="text-gray-500 mr-1">İşletme:</span>
-                  <span className="font-semibold text-gray-800">{ogretmen.isletme_sayisi}</span>
-                </div>
               </div>
             </div>
           ))}
@@ -339,9 +334,6 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
                   </th>
                   <th scope="col" className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Öğrenci Sayısı
-                  </th>
-                  <th scope="col" className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    İşletme Sayısı
                   </th>
                   <th scope="col" className="relative px-3 py-2 sm:px-6 sm:py-3">
                     <span className="sr-only">Detaylar</span>
@@ -380,9 +372,6 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
                     </td>
                     <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-center">
                       <span className="text-xs sm:text-sm font-semibold text-gray-800">{ogretmen.ogrenci_sayisi}</span>
-                    </td>
-                    <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-center">
-                      <span className="text-xs sm:text-sm font-semibold text-gray-800">{ogretmen.isletme_sayisi}</span>
                     </td>
                     <td className="px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-center">
                       <Link
