@@ -62,7 +62,7 @@ const menuItems = [
     title: 'Araçlar',
     icon: Wrench,
     href: '/admin/araclar',
-    description: 'Çıktı ve raporlama araçları'
+    description: 'Raporlama araçları ve geçmiş takip'
   }
 ]
 
@@ -95,6 +95,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [schoolName, setSchoolName] = useState('')
   const [adminUserName, setAdminUserName] = useState<string>('')
+  const [activeEducationYear, setActiveEducationYear] = useState<string>('')
   
   // Tablet ve daha küçük ekranlar için media query
   const isTabletOrSmaller = useMediaQuery('(max-width: 1279px)')
@@ -150,8 +151,27 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     }
   }
 
+  // Aktif eğitim yılını getir
+  const fetchActiveEducationYear = async () => {
+    try {
+      const response = await fetch('/api/admin/education-years/active')
+      if (!response.ok) {
+        console.error('Aktif eğitim yılı getirme hatası:', response.statusText)
+        return
+      }
+      
+      const data = await response.json()
+      if (data?.year) {
+        setActiveEducationYear(data.year)
+      }
+    } catch (error) {
+      console.error('Aktif eğitim yılı getirme hatası:', error)
+    }
+  }
+
   useEffect(() => {
     fetchSchoolName()
+    fetchActiveEducationYear()
   }, [])
 
   useEffect(() => {
@@ -469,6 +489,26 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <nav className="flex flex-1 flex-col">
             <ul role="list" className="flex flex-1 flex-col gap-y-7">
               <li>
+                {/* Aktif Dönem Göstergesi - Sadece sidebar açıkken */}
+                {desktopSidebarOpen && activeEducationYear && (
+                  <div className="px-4 mb-4">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-3">
+                      <label className="block text-xs font-medium text-blue-700 mb-1">
+                        Aktif Dönem
+                      </label>
+                      <select
+                        value={activeEducationYear}
+                        disabled
+                        className="w-full text-sm font-medium text-blue-900 bg-white border border-blue-200 rounded-md px-2 py-1 cursor-not-allowed opacity-75"
+                      >
+                        <option value={activeEducationYear}>
+                          {activeEducationYear} Eğitim Yılı
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
                 <ul role="list" className={classNames(
                   desktopSidebarOpen ? 'px-4' : 'px-2',
                   'space-y-1'

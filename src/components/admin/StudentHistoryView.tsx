@@ -15,6 +15,7 @@ interface StudentHistoryViewProps {
     className: string;
     number?: string;
   } | null;
+  embedded?: boolean; // Add embedded prop
 }
 
 interface TimelineEvent {
@@ -52,7 +53,7 @@ interface HistoryStats {
   currentCompany: string | null;
 }
 
-export default function StudentHistoryView({ isOpen, onClose, student }: StudentHistoryViewProps) {
+export default function StudentHistoryView({ isOpen, onClose, student, embedded = false }: StudentHistoryViewProps) {
   const [loading, setLoading] = useState(false);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [stats, setStats] = useState<HistoryStats | null>(null);
@@ -61,10 +62,10 @@ export default function StudentHistoryView({ isOpen, onClose, student }: Student
   const [timelineExpanded, setTimelineExpanded] = useState(false);
 
   useEffect(() => {
-    if (isOpen && student) {
+    if ((embedded || isOpen) && student) {
       fetchStudentHistory();
     }
-  }, [isOpen, student]);
+  }, [embedded, isOpen, student]);
 
   const fetchStudentHistory = async () => {
     if (!student) return;
@@ -172,126 +173,119 @@ export default function StudentHistoryView({ isOpen, onClose, student }: Student
 
   if (!student) return null;
 
-  return (
-    <>
-      <Modal
-        isOpen={isOpen}
-        onClose={onClose}
-        title={`${student.name} ${student.surname} - Staj Geçmişi`}
-        titleIcon={Calendar}
-      >
-        <div className="space-y-6">
-          {/* Student Info */}
-          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-            <h3 className="text-sm font-medium text-blue-900 mb-2">Öğrenci Bilgileri</h3>
-            <div className="text-sm text-blue-800 grid grid-cols-2 gap-4">
-              <div>
-                <p><span className="font-medium">Ad Soyad:</span> {student.name} {student.surname}</p>
-                <p><span className="font-medium">Sınıf:</span> {student.className}</p>
-              </div>
-              <div>
-                <p><span className="font-medium">No:</span> {student.number || 'Belirtilmemiş'}</p>
-                <p><span className="font-medium">Durum:</span> {stats?.currentCompany ? `${stats.currentCompany}'de` : '-'}</p>
-              </div>
-            </div>
+  const historyContent = (
+    <div className="space-y-6">
+      {/* Student Info */}
+      <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+        <h3 className="text-sm font-medium text-blue-900 mb-2">Öğrenci Bilgileri</h3>
+        <div className="text-sm text-blue-800 grid grid-cols-2 gap-4">
+          <div>
+            <p><span className="font-medium">Ad Soyad:</span> {student.name} {student.surname}</p>
+            <p><span className="font-medium">Sınıf:</span> {student.className}</p>
           </div>
+          <div>
+            <p><span className="font-medium">No:</span> {student.number || 'Belirtilmemiş'}</p>
+            <p><span className="font-medium">Durum:</span> {stats?.currentCompany ? `${stats.currentCompany}'de` : '-'}</p>
+          </div>
+        </div>
+      </div>
 
-          {/* Statistics */}
-          {stats && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-green-50 rounded-lg p-3 text-center border border-green-200">
-                <div className="text-2xl font-bold text-green-700">{stats.totalInternships}</div>
-                <div className="text-xs text-green-600">Toplam Staj</div>
-              </div>
-              <div className="bg-blue-50 rounded-lg p-3 text-center border border-blue-200">
-                <div className="text-2xl font-bold text-blue-700">{stats.activeInternships}</div>
-                <div className="text-xs text-blue-600">Aktif Staj</div>
-              </div>
-              <div className="bg-purple-50 rounded-lg p-3 text-center border border-purple-200">
-                <div className="text-2xl font-bold text-purple-700">{stats.completedInternships}</div>
-                <div className="text-xs text-purple-600">Tamamlanan</div>
-              </div>
-              <div className="bg-red-50 rounded-lg p-3 text-center border border-red-200">
-                <div className="text-2xl font-bold text-red-700">{stats.terminatedInternships}</div>
-                <div className="text-xs text-red-600">Fesih Edilen</div>
-              </div>
-            </div>
-          )}
+      {/* Statistics */}
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-green-50 rounded-lg p-3 text-center border border-green-200">
+            <div className="text-2xl font-bold text-green-700">{stats.totalInternships}</div>
+            <div className="text-xs text-green-600">Toplam Staj</div>
+          </div>
+          <div className="bg-blue-50 rounded-lg p-3 text-center border border-blue-200">
+            <div className="text-2xl font-bold text-blue-700">{stats.activeInternships}</div>
+            <div className="text-xs text-blue-600">Aktif Staj</div>
+          </div>
+          <div className="bg-purple-50 rounded-lg p-3 text-center border border-purple-200">
+            <div className="text-2xl font-bold text-purple-700">{stats.completedInternships}</div>
+            <div className="text-xs text-purple-600">Tamamlanan</div>
+          </div>
+          <div className="bg-red-50 rounded-lg p-3 text-center border border-red-200">
+            <div className="text-2xl font-bold text-red-700">{stats.terminatedInternships}</div>
+            <div className="text-xs text-red-600">Fesih Edilen</div>
+          </div>
+        </div>
+      )}
 
-          {/* Companies */}
-          {stats && stats.companyDetails && stats.companyDetails.length > 0 && (
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
-                <Building2 className="h-4 w-4 mr-1" />
-                Çalışılan Şirketler ({stats.companyDetails.length})
-              </h3>
-              <div className="space-y-3">
-                {stats.companyDetails.map((company, index) => (
-                  <div
-                    key={index}
-                    className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h4 className="text-sm font-medium text-gray-900">{company.name}</h4>
-                        <div className="mt-2 space-y-1">
-                          {company.startDate && (
-                            <p className="text-xs text-green-600 flex items-center">
-                              <CalendarDays className="h-3 w-3 mr-1" />
-                              Başlangıç: {formatDate(company.startDate, false)}
-                            </p>
-                          )}
-                          {company.endDate && (
-                            <p className="text-xs text-blue-600 flex items-center">
-                              <CalendarDays className="h-3 w-3 mr-1" />
-                              Bitiş: {formatDate(company.endDate, false)}
-                            </p>
-                          )}
-                          {company.startDate && company.endDate && (
-                            <p className="text-xs text-gray-600 flex items-center">
-                              <Clock className="h-3 w-3 mr-1" />
-                              Süre: {calculateDuration(company.startDate, company.endDate)}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        company.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
-                        company.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
-                        company.status === 'TERMINATED' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {company.status === 'ACTIVE' ? 'Aktif' :
-                         company.status === 'COMPLETED' ? 'Tamamlandı' :
-                         company.status === 'TERMINATED' ? 'Fesih' : company.status}
-                      </div>
+      {/* Companies */}
+      {stats && stats.companyDetails && stats.companyDetails.length > 0 && (
+        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+          <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+            <Building2 className="h-4 w-4 mr-1" />
+            Çalışılan Şirketler ({stats.companyDetails.length})
+          </h3>
+          <div className="space-y-3">
+            {stats.companyDetails.map((company, index) => (
+              <div
+                key={index}
+                className="bg-white rounded-lg p-3 border border-gray-200 shadow-sm"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium text-gray-900">{company.name}</h4>
+                    <div className="mt-2 space-y-1">
+                      {company.startDate && (
+                        <p className="text-xs text-green-600 flex items-center">
+                          <CalendarDays className="h-3 w-3 mr-1" />
+                          Başlangıç: {formatDate(company.startDate, false)}
+                        </p>
+                      )}
+                      {company.endDate && (
+                        <p className="text-xs text-blue-600 flex items-center">
+                          <CalendarDays className="h-3 w-3 mr-1" />
+                          Bitiş: {formatDate(company.endDate, false)}
+                        </p>
+                      )}
+                      {company.startDate && company.endDate && (
+                        <p className="text-xs text-gray-600 flex items-center">
+                          <Clock className="h-3 w-3 mr-1" />
+                          Süre: {calculateDuration(company.startDate, company.endDate)}
+                        </p>
+                      )}
                     </div>
                   </div>
-                ))}
+                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    company.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                    company.status === 'COMPLETED' ? 'bg-blue-100 text-blue-800' :
+                    company.status === 'TERMINATED' ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {company.status === 'ACTIVE' ? 'Aktif' :
+                     company.status === 'COMPLETED' ? 'Tamamlandı' :
+                     company.status === 'TERMINATED' ? 'Fesih' : company.status}
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            ))}
+          </div>
+        </div>
+      )}
 
-          {/* Timeline Accordion */}
-          <div>
-            <button
-              onClick={() => setTimelineExpanded(!timelineExpanded)}
-              className="w-full flex items-center justify-between p-3 text-left bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <h3 className="text-sm font-medium text-gray-900 flex items-center">
-                <Clock className="h-4 w-4 mr-2" />
-                Zaman Çizelgesi ({timeline.length} kayıt)
-              </h3>
-              {timelineExpanded ? (
-                <ChevronUp className="h-4 w-4 text-gray-500" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-gray-500" />
-              )}
-            </button>
-            
-            {timelineExpanded && (
-              <div className="mt-4">
-                {loading ? (
+      {/* Timeline Accordion */}
+      <div>
+        <button
+          onClick={() => setTimelineExpanded(!timelineExpanded)}
+          className="w-full flex items-center justify-between p-3 text-left bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+        >
+          <h3 className="text-sm font-medium text-gray-900 flex items-center">
+            <Clock className="h-4 w-4 mr-2" />
+            Zaman Çizelgesi ({timeline.length} kayıt)
+          </h3>
+          {timelineExpanded ? (
+            <ChevronUp className="h-4 w-4 text-gray-500" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-gray-500" />
+          )}
+        </button>
+        
+        {timelineExpanded && (
+          <div className="mt-4">
+            {loading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                 <p className="mt-2 text-gray-500">Geçmiş yükleniyor...</p>
@@ -398,18 +392,35 @@ export default function StudentHistoryView({ isOpen, onClose, student }: Student
                 <p>Henüz kayıt bulunamadı</p>
               </div>
             )}
-              </div>
-            )}
           </div>
+        )}
+      </div>
 
-          {/* Actions */}
-          <div className="flex justify-end pt-4 border-t">
-            <Button variant="outline" onClick={onClose}>
-              Kapat
-            </Button>
-          </div>
+      {/* Actions - Only show when not embedded */}
+      {!embedded && (
+        <div className="flex justify-end pt-4 border-t">
+          <Button variant="outline" onClick={onClose}>
+            Kapat
+          </Button>
         </div>
-      </Modal>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      {embedded ? (
+        historyContent
+      ) : (
+        <Modal
+          isOpen={isOpen}
+          onClose={onClose}
+          title={`${student.name} ${student.surname} - Staj Geçmişi`}
+          titleIcon={Calendar}
+        >
+          {historyContent}
+        </Modal>
+      )}
 
       {/* Event Detail Modal */}
       {selectedEvent && (

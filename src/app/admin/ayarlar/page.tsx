@@ -51,12 +51,14 @@ export default function AyarlarPage() {
   const [educationYears, setEducationYears] = useState<any[]>([])
   const [activeEducationYear, setActiveEducationYear] = useState<any>(null)
   const [showEducationYearModal, setShowEducationYearModal] = useState(false)
+  const [showEditEducationYearModal, setShowEditEducationYearModal] = useState(false)
   const [newEducationYear, setNewEducationYear] = useState({
     year: '',
     startDate: '',
     endDate: '',
     active: false
   })
+  const [editingEducationYear, setEditingEducationYear] = useState<any>(null)
   const [educationYearLoading, setEducationYearLoading] = useState(false)
   const [settingsLoading, setSettingsLoading] = useState(true)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
@@ -684,6 +686,50 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
     setEducationYearLoading(false)
   }
 
+  const handleEditEducationYear = (year: any) => {
+    setEditingEducationYear({
+      ...year,
+      startDate: year.startDate ? new Date(year.startDate).toISOString().split('T')[0] : '',
+      endDate: year.endDate ? new Date(year.endDate).toISOString().split('T')[0] : ''
+    })
+    setShowEditEducationYearModal(true)
+  }
+
+  const handleUpdateEducationYear = async () => {
+    if (!editingEducationYear.year.trim()) {
+      alert('Eğitim yılı adı gerekli')
+      return
+    }
+
+    setEducationYearLoading(true)
+    try {
+      const response = await fetch('/api/admin/education-years', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: editingEducationYear.id,
+          year: editingEducationYear.year,
+          startDate: editingEducationYear.startDate,
+          endDate: editingEducationYear.endDate,
+          active: editingEducationYear.active
+        })
+      })
+
+      if (!response.ok) throw new Error('Failed to update education year')
+      
+      await fetchEducationYears()
+      setShowEditEducationYearModal(false)
+      setEditingEducationYear(null)
+      alert('Eğitim yılı başarıyla güncellendi')
+    } catch (error) {
+      console.error('Eğitim yılı güncellenirken hata:', error)
+      alert('Eğitim yılı güncellenemedi')
+    }
+    setEducationYearLoading(false)
+  }
+
   const handleDeleteEducationYear = async (yearId: string) => {
     if (!confirm('Bu eğitim yılını silmek istediğinizden emin misiniz?')) return
 
@@ -1069,13 +1115,13 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                             </div>
                             <div>
                               <div className="text-sm text-green-700">
-                                {activeEducationYear.start_date ? new Date(activeEducationYear.start_date).toLocaleDateString('tr-TR') : '-'}
+                                {activeEducationYear.startDate ? new Date(activeEducationYear.startDate).toLocaleDateString('tr-TR') : '-'}
                               </div>
                               <div className="text-xs text-green-600">Başlangıç</div>
                             </div>
                             <div>
                               <div className="text-sm text-green-700">
-                                {activeEducationYear.end_date ? new Date(activeEducationYear.end_date).toLocaleDateString('tr-TR') : '-'}
+                                {activeEducationYear.endDate ? new Date(activeEducationYear.endDate).toLocaleDateString('tr-TR') : '-'}
                               </div>
                               <div className="text-xs text-green-600">Bitiş</div>
                             </div>
@@ -1684,10 +1730,10 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                           </div>
                           <div className="flex flex-col sm:flex-row sm:space-x-4 text-sm text-gray-600">
                             <span>
-                              Başlangıç: {year.start_date ? new Date(year.start_date).toLocaleDateString('tr-TR') : '-'}
+                              Başlangıç: {year.startDate ? new Date(year.startDate).toLocaleDateString('tr-TR') : '-'}
                             </span>
                             <span>
-                              Bitiş: {year.end_date ? new Date(year.end_date).toLocaleDateString('tr-TR') : '-'}
+                              Bitiş: {year.endDate ? new Date(year.endDate).toLocaleDateString('tr-TR') : '-'}
                             </span>
                             {year.archived && year.archivedAt && (
                               <span className="text-orange-600">
@@ -1707,6 +1753,14 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                               Aktif Yap
                             </button>
                           )}
+                          
+                          <button
+                            onClick={() => handleEditEducationYear(year)}
+                            disabled={educationYearLoading}
+                            className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                          >
+                            Düzenle
+                          </button>
                           
                           {!year.archived ? (
                             <button
@@ -1839,6 +1893,78 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
                   className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {educationYearLoading ? 'Oluşturuluyor...' : 'Oluştur'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Education Year Modal */}
+        {showEditEducationYearModal && editingEducationYear && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Eğitim Yılını Düzenle</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Eğitim Yılı</label>
+                  <input
+                    type="text"
+                    value={editingEducationYear.year}
+                    onChange={(e) => setEditingEducationYear({ ...editingEducationYear, year: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Örn: 2024-2025"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Başlangıç Tarihi</label>
+                  <input
+                    type="date"
+                    value={editingEducationYear.startDate}
+                    onChange={(e) => setEditingEducationYear({ ...editingEducationYear, startDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Bitiş Tarihi</label>
+                  <input
+                    type="date"
+                    value={editingEducationYear.endDate}
+                    onChange={(e) => setEditingEducationYear({ ...editingEducationYear, endDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="editActive"
+                    checked={editingEducationYear.active}
+                    onChange={(e) => setEditingEducationYear({ ...editingEducationYear, active: e.target.checked })}
+                    className="mr-2"
+                  />
+                  <label htmlFor="editActive" className="text-sm text-gray-700">Aktif dönem olarak ayarla</label>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowEditEducationYearModal(false)
+                    setEditingEducationYear(null)
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleUpdateEducationYear}
+                  disabled={educationYearLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {educationYearLoading ? 'Güncelleniyor...' : 'Güncelle'}
                 </button>
               </div>
             </div>

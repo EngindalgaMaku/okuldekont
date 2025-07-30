@@ -22,7 +22,9 @@ import {
   Database,
   Activity,
   X,
-  RefreshCw
+  RefreshCw,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
 
 interface PerformanceData {
@@ -135,11 +137,12 @@ export default function AdminDashboard() {
   })
   
   const [showPerformanceModal, setShowPerformanceModal] = useState(false)
-  const [showPerformanceIndicator, setShowPerformanceIndicator] = useState(true)
+  const [showPerformanceIndicator, setShowPerformanceIndicator] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [schoolName, setSchoolName] = useState('')
   const [activities, setActivities] = useState<any[]>([])
   const [activitiesLoading, setActivitiesLoading] = useState(true)
+  const [activitiesExpanded, setActivitiesExpanded] = useState(false)
 
   useEffect(() => {
     if (status === 'loading') return
@@ -153,6 +156,7 @@ export default function AdminDashboard() {
     fetchDashboardData()
     fetchSchoolName()
     fetchRecentActivities()
+    fetchPerformanceSettings()
   }, [session, status])
 
   const fetchDashboardData = async () => {
@@ -207,9 +211,26 @@ export default function AdminDashboard() {
     }
   }
 
+  const fetchPerformanceSettings = async () => {
+    try {
+      const response = await fetch('/api/system-settings')
+      const data = await response.json()
+      
+      // Find the performance monitoring setting
+      const performanceSetting = data.find((setting: any) => setting.key === 'show_performance_monitoring')
+      const isEnabled = performanceSetting?.value === 'true'
+      
+      setShowPerformanceIndicator(isEnabled)
+    } catch (error) {
+      console.error('Performance settings fetch error:', error)
+      setShowPerformanceIndicator(false)
+    }
+  }
+
   const handleRefresh = () => {
     fetchDashboardData()
     fetchRecentActivities()
+    fetchPerformanceSettings()
   }
 
   const quickActions = [
@@ -344,18 +365,15 @@ export default function AdminDashboard() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <label className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600">
-                <input
-                  type="checkbox"
-                  checked={showPerformanceIndicator}
-                  onChange={(e) => setShowPerformanceIndicator(e.target.checked)}
-                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <span className="hidden sm:inline">Performans göstergesi</span>
-                <span className="sm:hidden">Performans</span>
-              </label>
-            </div>
+            {showPerformanceIndicator && (
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600">
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span className="hidden sm:inline">Performans izleme aktif</span>
+                  <span className="sm:hidden">Performans aktif</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -373,7 +391,7 @@ export default function AdminDashboard() {
                 <div className="min-w-0 flex-1">
                   <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Toplam Dekont</p>
                   <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.total}</p>
-                  <p className="text-xs text-green-600 mt-1 hidden sm:block">↗️ Bu ay</p>
+                  <p className="text-xs text-green-600 mt-1 hidden sm:block">↗️ Son ay</p>
                 </div>
                 <FileText className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 flex-shrink-0" />
               </div>
@@ -395,7 +413,7 @@ export default function AdminDashboard() {
                 <div className="min-w-0 flex-1">
                   <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Onaylanan</p>
                   <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.approved}</p>
-                  <p className="text-xs text-green-600 mt-1 hidden sm:block">Bu hafta</p>
+                  <p className="text-xs text-green-600 mt-1 hidden sm:block">Son ay</p>
                 </div>
                 <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 flex-shrink-0" />
               </div>
@@ -406,7 +424,7 @@ export default function AdminDashboard() {
                 <div className="min-w-0 flex-1">
                   <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">Reddedilen</p>
                   <p className="text-lg sm:text-2xl font-bold text-gray-900">{stats.dekontStats.rejected}</p>
-                  <p className="text-xs text-red-600 mt-1 hidden sm:block">Bu hafta</p>
+                  <p className="text-xs text-red-600 mt-1 hidden sm:block">Son ay</p>
                 </div>
                 <XCircle className="w-6 h-6 sm:w-8 sm:h-8 text-red-600 flex-shrink-0" />
               </div>
@@ -510,43 +528,67 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Recent Activities */}
-        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 mb-4 sm:mb-6">
-          <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900">Son Aktiviteler</h3>
-            <button className="text-xs sm:text-sm text-indigo-600 hover:text-indigo-700 hidden sm:block">
-              Tümünü Gör →
-            </button>
+        {/* Recent Activities - Accordion */}
+        <div className="bg-white rounded-lg shadow-sm mb-4 sm:mb-6">
+          <div
+            className="flex items-center justify-between p-4 sm:p-6 cursor-pointer hover:bg-gray-50 transition-colors duration-200"
+            onClick={() => setActivitiesExpanded(!activitiesExpanded)}
+          >
+            <div className="flex items-center space-x-3">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Son Aktiviteler</h3>
+              {activities.length > 0 && (
+                <span className="bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                  {activities.length}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
+              <button className="text-xs sm:text-sm text-indigo-600 hover:text-indigo-700 hidden sm:block">
+                Tümünü Gör →
+              </button>
+              <div className="transition-transform duration-200">
+                {activitiesExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+            </div>
           </div>
-          <div className="space-y-3 sm:space-y-4">
-            {activitiesLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                <span className="ml-2 text-gray-600">Aktiviteler yükleniyor...</span>
-              </div>
-            ) : activities.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-gray-500">Henüz aktivite bulunmuyor.</p>
-              </div>
-            ) : (
-              activities.map((activity) => (
-                <div key={activity.id} className="flex items-center space-x-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
-                  <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center ${getActivityColor(activity.color)} flex-shrink-0`}>
-                    <div className="w-4 h-4 sm:w-5 sm:h-5">
-                      {getActivityIcon(activity.icon)}
+          
+          {activitiesExpanded && (
+            <div className="px-4 pb-4 sm:px-6 sm:pb-6 border-t border-gray-100">
+              <div className="space-y-3 sm:space-y-4 mt-4">
+                {activitiesLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    <span className="ml-2 text-gray-600">Aktiviteler yükleniyor...</span>
+                  </div>
+                ) : activities.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">Henüz aktivite bulunmuyor.</p>
+                  </div>
+                ) : (
+                  activities.map((activity) => (
+                    <div key={activity.id} className="flex items-center space-x-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                      <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center ${getActivityColor(activity.color)} flex-shrink-0`}>
+                        <div className="w-4 h-4 sm:w-5 sm:h-5">
+                          {getActivityIcon(activity.icon)}
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs sm:text-sm font-medium text-gray-900 truncate">{activity.title}</h4>
+                        <p className="text-xs sm:text-sm text-gray-600 truncate">{activity.description}</p>
+                      </div>
+                      <div className="text-xs text-gray-500 flex-shrink-0">
+                        {activity.time}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-xs sm:text-sm font-medium text-gray-900 truncate">{activity.title}</h4>
-                    <p className="text-xs sm:text-sm text-gray-600 truncate">{activity.description}</p>
-                  </div>
-                  <div className="text-xs text-gray-500 flex-shrink-0">
-                    {activity.time}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

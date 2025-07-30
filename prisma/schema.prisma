@@ -26,6 +26,11 @@ model User {
   internshipHistory     InternshipHistory[]
   teacherAssignments    TeacherAssignmentHistory[] @relation("TeacherAssignmentPerformer")
   
+  // Temporal Relations
+  companyChanges        CompanyHistory[]
+  teacherChanges        TeacherHistory[]
+  studentChanges        StudentHistory[]
+  
   // Messaging Relations
   conversations         ConversationParticipant[]
   sentMessages          Message[]
@@ -79,6 +84,9 @@ model TeacherProfile {
   previousTeacherAssignments TeacherAssignmentHistory[] @relation("PreviousTeacherAssignment")
   pinAttempts                PinAttempt[] @relation("TeacherPinAttempts")
   koordinatorlukProgrami     KoordinatorlukProgrami[]
+  
+  // Temporal Relations
+  teacherHistory             TeacherHistory[]
 
   @@map("teachers")
 }
@@ -118,6 +126,9 @@ model CompanyProfile {
   teacherAssignmentHistory TeacherAssignmentHistory[]
   pinAttempts             PinAttempt[] @relation("CompanyPinAttempts")
   koordinatorlukProgrami  KoordinatorlukProgrami[]
+  
+  // Temporal Relations
+  companyHistory          CompanyHistory[]
 
   @@map("companies")
 }
@@ -134,7 +145,8 @@ model EgitimYili {
   archivedBy  String?
   
   // Relations
-  stajlar Staj[]
+  stajlar           Staj[]
+  studentEnrollments StudentEnrollment[]
   
   @@map("education_years")
 }
@@ -164,7 +176,8 @@ model Class {
   alan Alan @relation(fields: [alanId], references: [id], onDelete: Cascade)
   
   // Relations
-  students Student[]
+  students          Student[]
+  studentEnrollments StudentEnrollment[]
   
   @@map("classes")
 }
@@ -192,9 +205,11 @@ model Student {
   class   Class?          @relation(fields: [classId], references: [id])
   
   // Relations
-  stajlar     Staj[]
-  dekontlar   Dekont[]
-  attendance  Attendance[]
+  stajlar         Staj[]
+  dekontlar       Dekont[]
+  attendance      Attendance[]
+  enrollments     StudentEnrollment[]
+  studentHistory  StudentHistory[]
   
   @@map("students")
 }
@@ -748,4 +763,163 @@ enum NotificationType {
   MENTION
   REACTION
   SYSTEM
+}
+
+// ====================
+// TEMPORAL DATA MODELS
+// ====================
+
+// Student Enrollment History - Tracks which students were in which classes/grades in which education years
+model StudentEnrollment {
+  id              String     @id @default(cuid())
+  studentId       String
+  educationYearId String
+  classId         String?
+  className       String     // 12A, 11B, 9mesem, 10mesem, etc.
+  grade           Int        // 9, 10, 11, 12
+  gradeType       GradeType  @default(NORMAL) // NORMAL, MESEM
+  enrollmentDate  DateTime   @default(now())
+  promotionDate   DateTime?  // When promoted to next grade
+  graduationDate  DateTime?  // For 12th grade students
+  status          EnrollmentStatus @default(ACTIVE)
+  notes           String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  archived        Boolean    @default(false)
+  archivedAt      DateTime?
+  archivedBy      String?
+  
+  // Relations
+  student         Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  educationYear   EgitimYili @relation(fields: [educationYearId], references: [id])
+  class           Class?     @relation(fields: [classId], references: [id])
+  
+  @@unique([studentId, educationYearId]) // One enrollment per student per year
+  @@index([educationYearId, grade])
+  @@index([className])
+  @@index([status])
+  @@map("student_enrollments")
+}
+
+// Company History - Tracks historical changes to company information
+model CompanyHistory {
+  id                       String    @id @default(cuid())
+  companyId                String
+  changeType               CompanyChangeType
+  fieldName                String    // "masterTeacherName", "bankAccountNo", "employeeCount", etc.
+  previousValue            String?   // Previous value as JSON string
+  newValue                 String?   // New value as JSON string
+  validFrom                DateTime  @default(now())
+  validTo                  DateTime?
+  changedBy                String    // User ID who made the change
+  reason                   String?   // Reason for change
+  notes                    String?
+  archived                 Boolean   @default(false)
+  archivedAt               DateTime?
+  archivedBy               String?
+  
+  // Relations
+  company                  CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  changedByUser            User           @relation(fields: [changedBy], references: [id])
+  
+  @@index([companyId, validFrom])
+  @@index([fieldName])
+  @@index([changeType])
+  @@map("company_history")
+}
+
+// Teacher History - Tracks historical changes to teacher information
+model TeacherHistory {
+  id                String         @id @default(cuid())
+  teacherId         String
+  changeType        TeacherChangeType
+  fieldName         String         // "name", "alanId", "position", "phone", etc.
+  previousValue     String?        // Previous value as JSON string
+  newValue          String?        // New value as JSON string
+  validFrom         DateTime       @default(now())
+  validTo           DateTime?
+  changedBy         String         // User ID who made the change
+  reason            String?        // Reason for change
+  notes             String?
+  archived          Boolean        @default(false)
+  archivedAt        DateTime?
+  archivedBy        String?
+  
+  // Relations
+  teacher           TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  changedByUser     User           @relation(fields: [changedBy], references: [id])
+  
+  @@index([teacherId, validFrom])
+  @@index([fieldName])
+  @@index([changeType])
+  @@map("teacher_history")
+}
+
+// New Enums for Temporal Models
+enum GradeType {
+  NORMAL    // Normal high school classes (9A, 10B, 11C, 12A etc.)
+  MESEM     // MESEM classes (9mesem, 10mesem, 11mesem, 12mesem)
+}
+
+enum EnrollmentStatus {
+  ACTIVE        // Currently enrolled
+  PROMOTED      // Promoted to next grade
+  GRADUATED     // Graduated (12th grade completion)
+  TRANSFERRED   // Transferred to another school
+  DROPPED_OUT   // Dropped out
+  SUSPENDED     // Temporarily suspended
+}
+
+enum CompanyChangeType {
+  MASTER_TEACHER_UPDATE    // Usta öğretici değişikliği
+  BANK_ACCOUNT_UPDATE      // Banka hesabı değişikliği
+  EMPLOYEE_COUNT_UPDATE    // Çalışan sayısı değişikliği
+  CONTACT_INFO_UPDATE      // İletişim bilgileri değişikliği
+  ADDRESS_UPDATE           // Adres değişikliği
+  ACTIVITY_FIELD_UPDATE    // Faaliyet alanı değişikliği
+  OTHER_UPDATE             // Diğer değişiklikler
+}
+
+enum TeacherChangeType {
+  PERSONAL_INFO_UPDATE     // Kişisel bilgi değişikliği
+  CONTACT_INFO_UPDATE      // İletişim bilgileri değişikliği
+  FIELD_ASSIGNMENT_UPDATE  // Alan ataması değişikliği
+  POSITION_UPDATE          // Pozisyon değişikliği
+  STATUS_UPDATE            // Aktiflik durumu değişikliği
+  OTHER_UPDATE             // Diğer değişiklikler
+}
+
+// Student History - Tracks historical changes to student personal information
+model StudentHistory {
+  id                String           @id @default(cuid())
+  studentId         String
+  changeType        StudentChangeType
+  fieldName         String           // "name", "phone", "parentPhone", "email", etc.
+  previousValue     String?          // Previous value as JSON string
+  newValue          String?          // New value as JSON string
+  validFrom         DateTime         @default(now())
+  validTo           DateTime?
+  changedBy         String           // User ID who made the change
+  reason            String?          // Reason for change
+  notes             String?
+  archived          Boolean          @default(false)
+  archivedAt        DateTime?
+  archivedBy        String?
+  
+  // Relations
+  student           Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  changedByUser     User             @relation(fields: [changedBy], references: [id])
+  
+  @@index([studentId, validFrom])
+  @@index([fieldName])
+  @@index([changeType])
+  @@map("student_history")
+}
+
+enum StudentChangeType {
+  PERSONAL_INFO_UPDATE     // Kişisel bilgi değişikliği (ad, soyad, TC, doğum tarihi)
+  CONTACT_INFO_UPDATE      // İletişim bilgileri değişikliği (telefon, email)
+  PARENT_INFO_UPDATE       // Veli bilgileri değişikliği
+  SCHOOL_INFO_UPDATE       // Okul bilgileri değişikliği (sınıf, numara)
+  OTHER_UPDATE             // Diğer değişiklikler
 }

@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { User, Plus, Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight, UserPlus, UserMinus, History, Users, Minus, ChevronDown } from 'lucide-react'
+import { User, Plus, Edit, Search, Filter, ChevronLeft, ChevronRight, UserPlus, UserMinus, History, Users, Minus, ChevronDown, Eye } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import StudentAssignmentModal from '@/components/admin/StudentAssignmentModal'
 import StudentHistoryView from '@/components/admin/StudentHistoryView'
+import StudentHistoryModal from '@/components/admin/StudentHistoryModal'
 import { toast } from 'react-hot-toast'
 
 interface Ogrenci {
@@ -81,10 +82,10 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
   // Modal states
   const [ogrenciModalOpen, setOgrenciModalOpen] = useState(false)
   const [topluOgrenciModalOpen, setTopluOgrenciModalOpen] = useState(false)
-  const [editOgrenciModal, setEditOgrenciModal] = useState(false)
-  const [deleteOgrenciModal, setDeleteOgrenciModal] = useState(false)
+  const [viewOgrenciModal, setViewOgrenciModal] = useState(false)
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false)
   const [historyModalOpen, setHistoryModalOpen] = useState(false)
+  const [studentHistoryModalOpen, setStudentHistoryModalOpen] = useState(false)
   const [terminationModalOpen, setTerminationModalOpen] = useState(false)
   const [selectedOgrenci, setSelectedOgrenci] = useState<Ogrenci | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
@@ -110,7 +111,7 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
     terminationDate: new Date().toISOString().split('T')[0]
   })
   
-  // Form data - Kapsamlı 12 alanlı form
+  // Form data - Kapsamlı 11 alanlı form
   const initialFormState = {
     // Kişisel Bilgiler
     ad: '',
@@ -124,7 +125,6 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
     no: '',
     // Veli Bilgileri
     veliAdi: '',
-    veliSoyadi: '',
     veliTelefon: '',
     email: '',
     // Alan
@@ -555,8 +555,8 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
     document.body.removeChild(link)
   }
 
-  // Edit student - fetch full data
-  const handleOgrenciDuzenle = async (ogrenci: Ogrenci) => {
+  // View student - fetch full data
+  const handleOgrenciGoruntule = async (ogrenci: Ogrenci) => {
     setSelectedOgrenci(ogrenci)
     setSubmitLoading(true)
     
@@ -575,7 +575,6 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
           tcKimlik: studentData.tcNo || '',
           telefon: studentData.phone || '',
           veliAdi: studentData.parentName || '',
-          veliSoyadi: '', // studentData.parentSurname || '',
           veliTelefon: studentData.parentPhone || '',
           email: studentData.email || '',
           alanId: studentData.alanId || ogrenci.alanId
@@ -592,7 +591,6 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
           tcKimlik: '',
           telefon: '',
           veliAdi: '',
-          veliSoyadi: '',
           veliTelefon: '',
           email: '',
           alanId: ogrenci.alanId
@@ -610,14 +608,13 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
         tcKimlik: '',
         telefon: '',
         veliAdi: '',
-        veliSoyadi: '',
         veliTelefon: '',
         email: '',
         alanId: ogrenci.alanId
       })
     } finally {
       setSubmitLoading(false)
-      setEditOgrenciModal(true)
+      setViewOgrenciModal(true)
     }
   }
 
@@ -629,36 +626,68 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
     
     setSubmitLoading(true)
     try {
+      // Get current student data for comparison
+      const currentResponse = await fetch(`/api/admin/students/${selectedOgrenci.id}`)
+      let currentData: any = {}
+      
+      if (currentResponse.ok) {
+        currentData = await currentResponse.json()
+      }
+
+      // Prepare update data
+      const updateData = {
+        name: editOgrenciFormData.ad.trim(),
+        surname: editOgrenciFormData.soyad.trim(),
+        number: editOgrenciFormData.no.trim(),
+        className: editOgrenciFormData.sinif,
+        tcNo: editOgrenciFormData.tcKimlik.trim() || null,
+        phone: editOgrenciFormData.telefon.trim() || null,
+        parentName: editOgrenciFormData.veliAdi.trim() || null,
+        parentPhone: editOgrenciFormData.veliTelefon.trim() || null,
+        email: editOgrenciFormData.email.trim() || null
+      }
+
       const response = await fetch(`/api/admin/students/${selectedOgrenci.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: editOgrenciFormData.ad.trim(),
-          surname: editOgrenciFormData.soyad.trim(),
-          number: editOgrenciFormData.no.trim(),
-          className: editOgrenciFormData.sinif,
-          tcNo: editOgrenciFormData.tcKimlik.trim() || null,
-          phone: editOgrenciFormData.telefon.trim() || null,
-          parentName: editOgrenciFormData.veliAdi.trim() || null,
-          parentPhone: editOgrenciFormData.veliTelefon.trim() || null,
-          email: editOgrenciFormData.email.trim() || null
-        })
+        body: JSON.stringify(updateData)
       })
       
       if (!response.ok) {
         const error = await response.json()
         throw new Error(error.message || 'Öğrenci güncellenirken hata oluştu')
       }
+
+      // Create history records for changed fields
+      const fieldMappings = [
+        { current: currentData.name, new: updateData.name, field: 'name', type: 'PERSONAL_INFO_UPDATE' },
+        { current: currentData.surname, new: updateData.surname, field: 'surname', type: 'PERSONAL_INFO_UPDATE' },
+        { current: currentData.number, new: updateData.number, field: 'number', type: 'SCHOOL_INFO_UPDATE' },
+        { current: currentData.className, new: updateData.className, field: 'className', type: 'SCHOOL_INFO_UPDATE' },
+        { current: currentData.tcNo, new: updateData.tcNo, field: 'tcNo', type: 'PERSONAL_INFO_UPDATE' },
+        { current: currentData.phone, new: updateData.phone, field: 'phone', type: 'CONTACT_INFO_UPDATE' },
+        { current: currentData.parentName, new: updateData.parentName, field: 'parentName', type: 'PARENT_INFO_UPDATE' },
+        { current: currentData.parentPhone, new: updateData.parentPhone, field: 'parentPhone', type: 'PARENT_INFO_UPDATE' },
+        { current: currentData.email, new: updateData.email, field: 'email', type: 'CONTACT_INFO_UPDATE' }
+      ]
+
+      // Create history records for each changed field
+      for (const mapping of fieldMappings) {
+        if (mapping.current !== mapping.new) {
+          await createStudentHistoryRecord(
+            selectedOgrenci.id,
+            mapping.field,
+            mapping.current,
+            mapping.new,
+            mapping.type
+          )
+        }
+      }
       
-      // Show success message
-      toast.success('Öğrenci başarıyla güncellendi! Modal 2 saniye sonra kapanacak...')
-      
-      // Auto-close modal after 2 seconds
-      setTimeout(() => {
-        setEditOgrenciModal(false)
-        setSelectedOgrenci(null)
-        fetchOgrenciler(currentPage, searchTerm, selectedAlan, selectedSinif, selectedStatus)
-      }, 2000)
+      // Show success message and close modal
+      toast.success('Öğrenci başarıyla güncellendi!')
+      setViewOgrenciModal(false)
+      fetchOgrenciler(currentPage, searchTerm, selectedAlan, selectedSinif, selectedStatus)
       
     } catch (error: any) {
       toast.error(`Hata: ${error.message}`)
@@ -667,14 +696,14 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
     }
   }
 
-  // Delete student
-  const handleOgrenciSil = (ogrenci: Ogrenci) => {
-    setSelectedOgrenci(ogrenci)
-    setConfirmationText('') // Reset confirmation text
-    setDeleteOgrenciModal(true)
+  // Delete student from modal
+  const handleModalOgrenciSil = () => {
+    if (!selectedOgrenci) return
+    setConfirmationText('')
+    // We'll handle delete confirmation within the modal
   }
 
-  const handleOgrenciSilOnayla = async () => {
+  const handleModalOgrenciSilOnayla = async () => {
     if (!selectedOgrenci || confirmationText !== 'onay') return
     
     setSubmitLoading(true)
@@ -689,7 +718,7 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
       }
       
       toast.success('Öğrenci başarıyla silindi!')
-      setDeleteOgrenciModal(false)
+      setViewOgrenciModal(false)
       setSelectedOgrenci(null)
       setConfirmationText('')
       fetchOgrenciler(currentPage, searchTerm, selectedAlan, selectedSinif, selectedStatus)
@@ -699,6 +728,7 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
       setSubmitLoading(false)
     }
   }
+
 
   // Assignment functions
   const handleOgrenciAta = (ogrenci: Ogrenci) => {
@@ -757,6 +787,39 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
   const handleOgrenciGecmis = (ogrenci: Ogrenci) => {
     setSelectedOgrenci(ogrenci)
     setHistoryModalOpen(true)
+  }
+
+  // Personal history functions
+  const handleOgrenciKisiselGecmis = (ogrenci: Ogrenci) => {
+    setSelectedOgrenci(ogrenci)
+    setStudentHistoryModalOpen(true)
+  }
+
+  // Create history record helper function
+  const createStudentHistoryRecord = async (
+    studentId: string,
+    fieldName: string,
+    previousValue: any,
+    newValue: any,
+    changeType: string = 'PERSONAL_INFO_UPDATE'
+  ) => {
+    try {
+      await fetch('/api/admin/student-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId,
+          changeType,
+          fieldName,
+          previousValue,
+          newValue,
+          changedBy: 'admin-user-temp', // Temporary admin user ID
+          reason: 'Öğrenci bilgileri güncellendi'
+        })
+      })
+    } catch (error) {
+      console.error('History record creation failed:', error)
+    }
   }
 
   // Pagination
@@ -1044,18 +1107,11 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
                             </button>
                           )}
                           <button
-                            onClick={() => handleOgrenciDuzenle(ogrenci)}
+                            onClick={() => handleOgrenciGoruntule(ogrenci)}
                             className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors"
-                            title="Öğrenciyi Düzenle"
+                            title="Öğrenci Detayları"
                           >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleOgrenciSil(ogrenci)}
-                            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Öğrenciyi Sil"
-                          >
-                            <Trash2 className="h-4 w-4" />
+                            <Eye className="h-4 w-4" />
                           </button>
                         </div>
                       </td>
@@ -1089,11 +1145,11 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
                       <History className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => handleOgrenciDuzenle(ogrenci)}
+                      onClick={() => handleOgrenciGoruntule(ogrenci)}
                       className="p-2 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors"
-                      title="Düzenle"
+                      title="Detayları Görüntüle"
                     >
-                      <Edit className="h-4 w-4" />
+                      <Eye className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
@@ -1153,12 +1209,6 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
                       İşletmeye Ata
                     </button>
                   )}
-                  <button
-                    onClick={() => handleOgrenciSil(ogrenci)}
-                    className="px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
                 </div>
               </div>
             ))}
@@ -1415,8 +1465,8 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
                 <label className="block text-sm font-medium text-gray-700 mb-1">Veli Soyadı</label>
                 <input
                   type="text"
-                  value={ogrenciFormData.veliSoyadi}
-                  onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, veliSoyadi: e.target.value })}
+                  value={ogrenciFormData.veliAdi}
+                  onChange={(e) => setOgrenciFormData({ ...ogrenciFormData, veliAdi: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                   placeholder="Veli soyadı"
                 />
@@ -1462,10 +1512,32 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
         </div>
       </Modal>
 
-      {/* Edit Student Modal - Kapsamlı 12 Alanlı Form */}
-      {editOgrenciModal && selectedOgrenci && (
-        <Modal isOpen={editOgrenciModal} onClose={() => setEditOgrenciModal(false)} title="✏️ Öğrenciyi Düzenle">
+      {/* View/Edit Student Modal - Kapsamlı 12 Alanlı Form */}
+      {viewOgrenciModal && selectedOgrenci && (
+        <Modal isOpen={viewOgrenciModal} onClose={() => {
+          setViewOgrenciModal(false)
+          setConfirmationText('')
+        }} title="✏️ Öğrenci Düzenle">
           <div className="space-y-6">
+            {/* Header with History Button */}
+            <div className="flex items-center justify-between pb-4 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {selectedOgrenci.ad} {selectedOgrenci.soyad} - Bilgileri Düzenle
+                </h3>
+                <p className="text-sm text-gray-600">
+                  {selectedOgrenci.sinif} - No: {selectedOgrenci.no}
+                </p>
+              </div>
+              <button
+                onClick={() => handleOgrenciKisiselGecmis(selectedOgrenci)}
+                className="inline-flex items-center px-4 py-2 text-sm bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 shadow-md"
+                title="Kişisel Bilgi Geçmişini Görüntüle"
+              >
+                <History className="h-4 w-4 mr-2" />
+                Kişisel Bilgi Geçmişi
+              </button>
+            </div>
             {/* Kişisel Bilgiler Bölümü */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
               <h3 className="text-lg font-semibold text-blue-800 mb-4 flex items-center">
@@ -1592,17 +1664,7 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
                     value={editOgrenciFormData.veliAdi}
                     onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, veliAdi: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    placeholder="Veli adı"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Veli Soyadı</label>
-                  <input
-                    type="text"
-                    value={editOgrenciFormData.veliSoyadi}
-                    onChange={(e) => setEditOgrenciFormData({ ...editOgrenciFormData, veliSoyadi: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    placeholder="Veli soyadı"
+                    placeholder="Veli adı soyadı"
                   />
                 </div>
                 <div>
@@ -1628,105 +1690,103 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
               </div>
             </div>
 
-            <div className="flex justify-end space-x-3 pt-4 border-t">
-              <button
-                onClick={() => setEditOgrenciModal(false)}
-                className="px-6 py-3 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors font-medium"
-              >
-                ✖️ İptal
-              </button>
-              <button
-                onClick={handleOgrenciGuncelle}
-                disabled={submitLoading}
-                className="px-6 py-3 text-white bg-gradient-to-r from-orange-600 to-red-600 rounded-xl hover:from-orange-700 hover:to-red-700 transition-all duration-200 disabled:opacity-50 font-medium shadow-lg"
-              >
-                {submitLoading ? '⏳ Güncelleniyor...' : '✅ Öğrenci Güncelle'}
-              </button>
-            </div>
+            {confirmationText === '' && (
+              <div className="flex justify-between space-x-3 pt-4 border-t">
+                <button
+                  onClick={() => setViewOgrenciModal(false)}
+                  className="px-6 py-3 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors font-medium"
+                >
+                  ✖️ Kapat
+                </button>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={handleModalOgrenciSil}
+                    className="px-6 py-3 text-white bg-red-600 rounded-xl hover:bg-red-700 transition-colors font-medium"
+                  >
+                    🗑️ Sil
+                  </button>
+                  <button
+                    onClick={handleOgrenciGuncelle}
+                    disabled={submitLoading}
+                    className="px-6 py-3 text-white bg-gradient-to-r from-orange-600 to-red-600 rounded-xl hover:from-orange-700 hover:to-red-700 transition-all duration-200 disabled:opacity-50 font-medium shadow-lg"
+                  >
+                    {submitLoading ? '⏳ Güncelleniyor...' : '✅ Güncelle'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Delete Confirmation Section */}
+            {confirmationText !== '' && (
+              <div className="space-y-4 pt-4 border-t">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="text-red-800 text-sm">
+                    <div className="font-semibold mb-2">⚠️ VERİ KAYBI UYARISI</div>
+                    <div className="mb-2">
+                      <strong>"{selectedOgrenci?.ad} {selectedOgrenci?.soyad}"</strong> adlı öğrenciyi kalıcı olarak silmek üzeresiniz.
+                    </div>
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
+                      <div className="text-yellow-800 text-xs">
+                        <div className="font-semibold mb-1">Bu işlem geri alınamaz ve aşağıdaki veriler kaybolacak:</div>
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>Öğrenci kişisel bilgileri</li>
+                          <li>Staj kayıtları</li>
+                          <li>Dekont geçmişi</li>
+                          <li>İlişkili tüm belgeler</li>
+                        </ul>
+                      </div>
+                    </div>
+                    
+                    <div className="mb-3">
+                      <div className="text-sm font-medium text-gray-700 mb-2">
+                        Silme işlemini onaylamak için aşağıdaki kutuya "<span className="font-bold text-red-600">onay</span>" yazın:
+                      </div>
+                      <input
+                        type="text"
+                        value={confirmationText}
+                        onChange={(e) => setConfirmationText(e.target.value)}
+                        placeholder="onay yazın..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm"
+                        autoComplete="off"
+                      />
+                      {confirmationText && confirmationText !== 'onay' && (
+                        <div className="text-red-500 text-xs mt-1">
+                          Lütfen tam olarak "onay" yazın
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setConfirmationText('')}
+                    disabled={submitLoading}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    onClick={handleModalOgrenciSilOnayla}
+                    disabled={submitLoading || confirmationText !== 'onay'}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {submitLoading ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Siliniyor...</span>
+                      </div>
+                    ) : (
+                      'EVET, SİL'
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </Modal>
       )}
 
-      {/* Delete Confirmation Modal */}
-      <Modal isOpen={deleteOgrenciModal} onClose={() => {
-        setDeleteOgrenciModal(false)
-        setConfirmationText('')
-      }} title="⚠️ ÖNEMLİ: Öğrenci Kaydını Sil">
-        <div className="space-y-4">
-          <div className="space-y-3">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <div className="flex items-center space-x-2">
-                <div className="text-red-600">⚠️</div>
-                <div className="text-red-800 font-semibold">VERİ KAYBI UYARISI</div>
-              </div>
-            </div>
-            <div className="text-gray-700">
-              <strong>"{selectedOgrenci?.ad} {selectedOgrenci?.soyad}"</strong> adlı öğrenciyi kalıcı olarak silmek üzeresiniz.
-            </div>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <div className="text-yellow-800 text-sm">
-                <div className="font-semibold mb-2">Bu işlem geri alınamaz ve aşağıdaki veriler kaybolacak:</div>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>Öğrenci kişisel bilgileri</li>
-                  <li>Staj kayıtları</li>
-                  <li>Dekont geçmişi</li>
-                  <li>İlişkili tüm belgeler</li>
-                </ul>
-              </div>
-            </div>
-            <div className="text-red-600 font-semibold mb-4">
-              Bu işlemi onaylamak için devam etmek istediğinizden emin misiniz?
-            </div>
-            
-            {/* Confirmation Input */}
-            <div className="bg-gray-50 border-2 border-gray-300 rounded-lg p-4">
-              <div className="text-sm font-medium text-gray-700 mb-2">
-                Silme işlemini onaylamak için aşağıdaki kutuya "<span className="font-bold text-red-600">onay</span>" yazın:
-              </div>
-              <input
-                type="text"
-                value={confirmationText}
-                onChange={(e) => setConfirmationText(e.target.value)}
-                placeholder="onay yazın..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                autoComplete="off"
-              />
-              {confirmationText && confirmationText !== 'onay' && (
-                <div className="text-red-500 text-xs mt-1">
-                  Lütfen tam olarak "onay" yazın
-                </div>
-              )}
-            </div>
-          </div>
-          
-          <div className="flex justify-end space-x-3 pt-4 border-t">
-            <button
-              onClick={() => {
-                setDeleteOgrenciModal(false)
-                setConfirmationText('')
-              }}
-              disabled={submitLoading}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-            >
-              İptal
-            </button>
-            <button
-              onClick={handleOgrenciSilOnayla}
-              disabled={submitLoading || confirmationText !== 'onay'}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {submitLoading ? (
-                <div className="flex items-center space-x-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Siliniyor...</span>
-                </div>
-              ) : (
-                'EVET, SİL'
-              )}
-            </button>
-          </div>
-        </div>
-      </Modal>
 
       {/* Student Assignment Modal */}
       <StudentAssignmentModal
@@ -2018,6 +2078,19 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
       <StudentHistoryView
         isOpen={historyModalOpen}
         onClose={() => setHistoryModalOpen(false)}
+        student={selectedOgrenci ? {
+          id: selectedOgrenci.id,
+          name: selectedOgrenci.ad,
+          surname: selectedOgrenci.soyad,
+          className: selectedOgrenci.sinif,
+          number: selectedOgrenci.no
+        } : null}
+      />
+
+      {/* Student Personal History Modal */}
+      <StudentHistoryModal
+        isOpen={studentHistoryModalOpen}
+        onClose={() => setStudentHistoryModalOpen(false)}
         student={selectedOgrenci ? {
           id: selectedOgrenci.id,
           name: selectedOgrenci.ad,

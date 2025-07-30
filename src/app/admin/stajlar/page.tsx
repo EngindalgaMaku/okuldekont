@@ -728,8 +728,16 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
     const { today } = dateCalculations
     
     return stajlar.filter(staj => {
-      // Sadece stajlar tab'ında göster
-      if (activeTab !== 'stajlar') return false
+      // Tab-specific filtering
+      if (activeTab === 'stajlar') {
+        // Tüm stajları göster
+      } else if (activeTab === 'bast') {
+        // Sadece aktif stajları göster (Staja Başlayan Öğrenciler)
+        if (staj.status !== 'ACTIVE') return false
+      } else {
+        // Diğer tab'larda staj gösterme
+        return false
+      }
       
       const searchMatch = searchTerm === '' ||
         staj.student?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||

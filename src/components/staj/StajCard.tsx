@@ -65,11 +65,28 @@ const StajCard = memo(function StajCard({
               <h3 className="text-base md:text-lg font-medium text-gray-900 break-words">
                 {staj.student?.name || 'Bilinmiyor'} {staj.student?.surname || ''}
               </h3>
-              {isExpired && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                  Süresi Geçmiş
-                </span>
-              )}
+              <div className="flex flex-wrap gap-2">
+                {isExpired && staj.status === 'ACTIVE' && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                    Süresi Geçmiş
+                  </span>
+                )}
+                {staj.status === 'COMPLETED' && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    ✅ Staj Tamamlandı
+                  </span>
+                )}
+                {staj.status === 'TERMINATED' && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    ❌ Staj Feshedildi
+                  </span>
+                )}
+                {staj.status === 'CANCELLED' && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    ⏹️ Staj İptal Edildi
+                  </span>
+                )}
+              </div>
             </div>
             
             <div className="space-y-2">
@@ -121,7 +138,7 @@ const StajCard = memo(function StajCard({
         
         {/* Sağ taraf - Action Buttons */}
         <div className="flex flex-col gap-2 md:min-w-[200px]">
-          {(staj.status === 'ACTIVE' || isExpired) && (
+          {staj.status === 'ACTIVE' && !isExpired && (
             <>
               {/* Tamamla Button */}
               <button
@@ -152,14 +169,14 @@ const StajCard = memo(function StajCard({
             </>
           )}
           
-          {/* Sadece koordinatör değiştirme - completed/terminated stajlar için */}
-          {(staj.status === 'COMPLETED' || staj.status === 'TERMINATED') && (
+          {/* Sadece Tamamla butonu - süresi geçmiş aktif stajlar için */}
+          {staj.status === 'ACTIVE' && isExpired && (
             <button
-              onClick={() => onKoordinatorDegistir(staj)}
-              className="flex items-center justify-center space-x-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors text-xs md:text-sm w-full"
+              onClick={() => onTamamla(staj.id)}
+              className="flex items-center justify-center space-x-1 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors text-xs md:text-sm w-full"
             >
-              <UserCheck className="h-3 w-3 md:h-4 md:w-4" />
-              <span>Koordinatör Değiştir</span>
+              <CheckCircle className="h-3 w-3 md:h-4 md:w-4" />
+              <span>Stajı Tamamla</span>
             </button>
           )}
         </div>

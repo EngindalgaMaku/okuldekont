@@ -13,7 +13,8 @@ import {
   Users,
   ClipboardList,
   FileBarChart,
-  FileCheck
+  FileCheck,
+  History
 } from 'lucide-react'
 
 interface Tool {
@@ -28,6 +29,15 @@ interface Tool {
 }
 
 const tools: Tool[] = [
+  {
+    id: 'gecmis-takip',
+    title: 'Geçmiş Takip',
+    description: 'Temporal veri ve geçmiş bilgi yönetimi, değişiklik geçmişi',
+    icon: History,
+    href: '/admin/temporal',
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-50 hover:bg-purple-100'
+  },
   {
     id: 'ogrenci-ucret-dokum',
     title: 'Öğrenci Ücret Dökümü',
@@ -54,16 +64,6 @@ const tools: Tool[] = [
     href: '/admin/gorev-takip',
     color: 'text-indigo-600',
     bgColor: 'bg-indigo-50 hover:bg-indigo-100'
-  },
-  {
-    id: 'istatistik-rapor',
-    title: 'İstatistik Raporu',
-    description: 'Genel sistem istatistikleri ve analiz raporu',
-    icon: BarChart3,
-    href: '/admin/araclar/istatistik-rapor',
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-50 hover:bg-purple-100',
-    disabled: true
   },
   {
     id: 'toplu-belge-indirme',

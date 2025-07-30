@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { User, Mail, Phone, Info, Building2, Send, Bell, Shield, Unlock, BarChart3, Calendar, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
+import { User, Mail, Phone, Info, Building2, Send, Bell, Shield, Unlock, BarChart3, Calendar, Loader2, ChevronDown, ChevronRight, Eye, History } from 'lucide-react'
 import Link from 'next/link'
 import QuickPinButton from './QuickPinButton'
 import Modal from '@/components/ui/Modal'
@@ -356,11 +356,18 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
                        </div>
                       <div className="flex flex-col gap-2 ml-2">
                         <Link
+                          href={`/admin/temporal/teacher-history?teacherId=${ogretmen.id}`}
+                          className="text-purple-600 hover:text-purple-900 p-2 rounded-md hover:bg-purple-50"
+                          title="Öğretmen Geçmişi"
+                        >
+                          <History className="w-4 h-4" />
+                        </Link>
+                        <Link
                           href={`/admin/ogretmenler/${ogretmen.id}`}
                           className="text-blue-600 hover:text-blue-900 p-2 rounded-md hover:bg-blue-50"
                           title="Detayları Görüntüle"
                         >
-                          <Info className="w-4 h-4" />
+                          <Eye className="w-4 h-4" />
                         </Link>
                         <QuickPinButton
                           ogretmen={{
@@ -487,11 +494,18 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
                   <td className="px-6 py-4">
                     <div className="flex justify-center gap-2">
                       <Link
+                        href={`/admin/temporal/teacher-history?teacherId=${ogretmen.id}`}
+                        className="text-purple-600 hover:text-purple-900 p-1 rounded hover:bg-purple-50"
+                        title="Öğretmen Geçmişi"
+                      >
+                        <History className="w-4 h-4" />
+                      </Link>
+                      <Link
                         href={`/admin/ogretmenler/${ogretmen.id}`}
                         className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
                         title="Detayları Görüntüle"
                       >
-                        <Info className="w-4 h-4" />
+                        <Eye className="w-4 h-4" />
                       </Link>
                       <QuickPinButton
                         ogretmen={{

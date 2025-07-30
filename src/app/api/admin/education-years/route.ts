@@ -29,6 +29,18 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { year, startDate, endDate, active } = body
 
+    // Aynı yıl değeriyle kayıt var mı kontrol et (arşivlenenler dahil)
+    const existingYear = await prisma.egitimYili.findUnique({
+      where: { year }
+    })
+
+    if (existingYear) {
+      return NextResponse.json(
+        { error: `${year} eğitim yılı zaten mevcut` },
+        { status: 409 }
+      )
+    }
+
     // Eğer yeni yıl aktif olarak ayarlanıyorsa, diğerlerini pasif yap
     if (active) {
       await prisma.egitimYili.updateMany({

@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Building2, Search, Filter, Plus, Eye, RefreshCw, ChevronLeft, ChevronRight, Shield, Unlock, Send, Bell, User, Phone, Mail, MapPin, Hash, CreditCard, UserPlus, Loader, X, Users, Calendar } from 'lucide-react'
+import { Building2, Search, Filter, Plus, Eye, RefreshCw, ChevronLeft, ChevronRight, Shield, Unlock, Send, Bell, User, Phone, Mail, MapPin, Hash, CreditCard, UserPlus, Loader, X, Users, Calendar, History } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import CompanyQuickPinButton from './CompanyQuickPinButton'
 import IsletmelerClient from './IsletmelerClient'
 import Modal from '@/components/ui/Modal'
+import CompanyHistoryModal from './CompanyHistoryModal'
 import { toast } from 'react-hot-toast'
 
 interface Company {
@@ -107,6 +108,10 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
   const [selectedCompanyStudents, setSelectedCompanyStudents] = useState<any[]>([])
   const [studentsLoading, setStudentsLoading] = useState(false)
   const [selectedCompanyForStudents, setSelectedCompanyForStudents] = useState<Company | null>(null)
+  
+  // Company History Modal States
+  const [companyHistoryModalOpen, setCompanyHistoryModalOpen] = useState(false)
+  const [selectedCompanyForHistory, setSelectedCompanyForHistory] = useState<Company | null>(null)
   
   const router = useRouter()
   
@@ -500,6 +505,12 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
     }
   }
 
+  // Handle company history
+  const handleCompanyHistory = (company: Company) => {
+    setSelectedCompanyForHistory(company)
+    setCompanyHistoryModalOpen(true)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -731,6 +742,13 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                             <Unlock className="h-4 w-4" />
                           </button>
                         )}
+                        <button
+                          onClick={() => handleCompanyHistory(company)}
+                          className="inline-flex items-center p-1.5 text-purple-600 hover:text-purple-900 hover:bg-purple-50 rounded-lg transition-colors"
+                          title="İşletme Geçmişi"
+                        >
+                          <History className="h-4 w-4" />
+                        </button>
                         <CompanyQuickPinButton company={{ id: company.id, name: company.name }} />
                         <Link
                           href={`/admin/isletmeler/${company.id}`}
@@ -850,6 +868,13 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                         <Unlock className="h-3.5 w-3.5" />
                       </button>
                     )}
+                    <button
+                      onClick={() => handleCompanyHistory(company)}
+                      className="p-1.5 text-purple-600 hover:text-purple-900 hover:bg-purple-50 rounded-lg transition-colors flex-shrink-0"
+                      title="İşletme Geçmişi"
+                    >
+                      <History className="h-3.5 w-3.5" />
+                    </button>
                     <CompanyQuickPinButton company={{ id: company.id, name: company.name }} />
                     <Link
                       href={`/admin/isletmeler/${company.id}`}
@@ -1399,6 +1424,15 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
             </div>
           </div>
         </div>
+      )}
+
+      {/* Company History Modal */}
+      {selectedCompanyForHistory && (
+        <CompanyHistoryModal
+          isOpen={companyHistoryModalOpen}
+          onClose={() => setCompanyHistoryModalOpen(false)}
+          company={selectedCompanyForHistory}
+        />
       )}
     </div>
   )
