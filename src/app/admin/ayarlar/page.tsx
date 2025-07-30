@@ -8,10 +8,10 @@ import { AdminManagement } from '@/components/ui/AdminManagement'
 
 export default function AyarlarPage() {
   const router = useRouter()
-  const { adminRole } = useAuth()
+  const { adminRole, adminId } = useAuth()
   const [loading, setLoading] = useState(false)
   const [saveLoading, setSaveLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'genel' | 'admin' | 'backup' | 'pin' | 'cleaning'>('genel')
+  const [activeTab, setActiveTab] = useState<'genel' | 'admin' | 'backup' | 'pin' | 'cleaning' | 'archive'>('genel')
   
   // PIN Reset state
   const [pinResetLoading, setPinResetLoading] = useState(false)
@@ -61,6 +61,18 @@ export default function AyarlarPage() {
   const [settingsLoading, setSettingsLoading] = useState(true)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [successCountdown, setSuccessCountdown] = useState(5)
+
+  // Archive management
+  const [archiveLoading, setArchiveLoading] = useState(false)
+  const [showArchiveModal, setShowArchiveModal] = useState(false)
+  const [archiveAction, setArchiveAction] = useState<'archive' | 'unarchive'>('archive')
+  const [selectedYearForArchive, setSelectedYearForArchive] = useState<any>(null)
+  const [archiveConfirmation, setArchiveConfirmation] = useState('')
+  const [archiveStats, setArchiveStats] = useState({
+    totalYears: 0,
+    archivedYears: 0,
+    activeYears: 0
+  })
 
   // Data cleaning states
   const [testDataCounts, setTestDataCounts] = useState({
@@ -121,6 +133,9 @@ export default function AyarlarPage() {
     }
     if (activeTab === 'cleaning') {
       fetchTestDataCounts()
+    }
+    if (activeTab === 'archive') {
+      fetchArchiveStats()
     }
   }, [activeTab])
 
@@ -773,6 +788,95 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
     }
   }
 
+  // Archive management functions
+  const fetchArchiveStats = async () => {
+    try {
+      const response = await fetch('/api/admin/education-years')
+      if (!response.ok) throw new Error('Failed to fetch education years')
+      const data = await response.json()
+      
+      const stats = {
+        totalYears: data.length,
+        archivedYears: data.filter((year: any) => year.archived).length,
+        activeYears: data.filter((year: any) => !year.archived).length
+      }
+      
+      setArchiveStats(stats)
+    } catch (error) {
+      console.error('Arşiv istatistikleri çekilirken hata:', error)
+    }
+  }
+
+  const handleArchiveClick = (year: any, action: 'archive' | 'unarchive') => {
+    if (year.active && action === 'archive') {
+      alert('Aktif eğitim yılı arşivlenemez. Önce başka bir yılı aktif yapın.')
+      return
+    }
+    
+    setSelectedYearForArchive(year)
+    setArchiveAction(action)
+    setArchiveConfirmation('')
+    setShowArchiveModal(true)
+  }
+
+  const confirmArchiveAction = async () => {
+    const expectedText = archiveAction === 'archive' ? 'ARŞİVLE' : 'GERİ AL'
+    if (archiveConfirmation !== expectedText) {
+      alert(`Lütfen "${expectedText}" yazın`)
+      return
+    }
+
+    if (!adminId) {
+      alert('Admin kimliği bulunamadı. Lütfen tekrar giriş yapın.')
+      return
+    }
+
+    setArchiveLoading(true)
+    try {
+      const response = await fetch(`/api/admin/education-years/${selectedYearForArchive.id}/archive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: archiveAction,
+          adminId: adminId
+        })
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'İşlem başarısız')
+      }
+      
+      const result = await response.json()
+      setShowArchiveModal(false)
+      
+      let message = ''
+      if (archiveAction === 'archive') {
+        message = `"${selectedYearForArchive.year}" eğitim yılı başarıyla arşivlendi!\n\n📊 Arşivlenen Veriler:\n`
+        message += `• Staj Kayıtları: ${result.archivedCounts.stajlar}\n`
+        message += `• Dekont Kayıtları: ${result.archivedCounts.dekontlar}\n`
+        message += `• Geçmiş Kayıtları: ${result.archivedCounts.internshipHistory}\n`
+        message += `\n⚠️ Bu veriler artık normal listelerde görünmeyecek.`
+      } else {
+        message = `"${selectedYearForArchive.year}" eğitim yılı başarıyla arşivden çıkarıldı!\n\n📊 Geri Alınan Veriler:\n`
+        message += `• Staj Kayıtları: ${result.unarchivedCounts.stajlar}\n`
+        message += `• Dekont Kayıtları: ${result.unarchivedCounts.dekontlar}\n`
+        message += `• Geçmiş Kayıtları: ${result.unarchivedCounts.internshipHistory}\n`
+        message += `\n✅ Bu veriler artık normal listelerde görünecek.`
+      }
+      
+      alert(message)
+      fetchEducationYears()
+      fetchArchiveStats()
+    } catch (error: any) {
+      console.error('Arşivleme işlemi hatası:', error)
+      alert(`İşlem sırasında hata: ${error.message}`)
+    }
+    setArchiveLoading(false)
+  }
+
   if (settingsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -820,6 +924,9 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
               </button>
               <button onClick={() => setActiveTab('cleaning')} className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm ${activeTab === 'cleaning' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} text-left sm:text-center`}>
                 <Eraser className="h-4 w-4 inline mr-2" /> Veri Temizleme
+              </button>
+              <button onClick={() => setActiveTab('archive')} className={`py-2 px-1 border-b-2 font-medium text-xs sm:text-sm ${activeTab === 'archive' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} text-left sm:text-center`}>
+                <Calendar className="h-4 w-4 inline mr-2" /> Dönem Arşivi
               </button>
             </nav>
           </div>
@@ -1514,6 +1621,161 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
           </div>
         )}
 
+        {activeTab === 'archive' && (
+          <div className="space-y-6 sm:space-y-8">
+            <div className="bg-white/80 backdrop-blur-lg shadow-xl rounded-2xl border border-indigo-100 p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 space-y-3 sm:space-y-0">
+                <div className="flex items-center">
+                  <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600 mr-2 sm:mr-3" />
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Dönem Arşivi Yönetimi</h2>
+                </div>
+                <button
+                  onClick={() => { fetchEducationYears(); fetchArchiveStats(); }}
+                  disabled={archiveLoading}
+                  className="inline-flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-indigo-700 bg-indigo-100 border border-indigo-300 rounded-xl hover:bg-indigo-200 disabled:opacity-50 w-full sm:w-auto justify-center"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${archiveLoading ? 'animate-spin' : ''}`} />
+                  Yenile
+                </button>
+              </div>
+              
+              {/* Archive Stats */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-3 sm:p-4 border border-blue-200">
+                  <div className="text-lg sm:text-2xl font-bold text-blue-600">{archiveStats.totalYears}</div>
+                  <div className="text-xs sm:text-sm text-blue-700 mt-1">Toplam Dönem</div>
+                </div>
+                <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-3 sm:p-4 border border-green-200">
+                  <div className="text-lg sm:text-2xl font-bold text-green-600">{archiveStats.activeYears}</div>
+                  <div className="text-xs sm:text-sm text-green-700 mt-1">Aktif Dönemler</div>
+                </div>
+                <div className="bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl p-3 sm:p-4 border border-orange-200">
+                  <div className="text-lg sm:text-2xl font-bold text-orange-600">{archiveStats.archivedYears}</div>
+                  <div className="text-xs sm:text-sm text-orange-700 mt-1">Arşivlenen Dönemler</div>
+                </div>
+              </div>
+
+              {/* Education Years List */}
+              {educationYears.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Eğitim Yılları</h3>
+                  <div className="space-y-3">
+                    {educationYears.map((year) => (
+                      <div key={year.id} className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border ${
+                        year.archived
+                          ? 'bg-gray-50 border-gray-200'
+                          : year.active
+                            ? 'bg-green-50 border-green-200'
+                            : 'bg-white border-gray-200'
+                      }`}>
+                        <div className="flex-1 mb-3 sm:mb-0">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <h4 className={`text-lg font-medium ${
+                              year.archived ? 'text-gray-500' : year.active ? 'text-green-900' : 'text-gray-900'
+                            }`}>
+                              {year.year}
+                            </h4>
+                            {year.active && !year.archived && (
+                              <span className="px-2 py-1 text-xs bg-green-200 text-green-800 rounded-full">Aktif</span>
+                            )}
+                            {year.archived && (
+                              <span className="px-2 py-1 text-xs bg-orange-200 text-orange-800 rounded-full">Arşivlenmiş</span>
+                            )}
+                          </div>
+                          <div className="flex flex-col sm:flex-row sm:space-x-4 text-sm text-gray-600">
+                            <span>
+                              Başlangıç: {year.start_date ? new Date(year.start_date).toLocaleDateString('tr-TR') : '-'}
+                            </span>
+                            <span>
+                              Bitiş: {year.end_date ? new Date(year.end_date).toLocaleDateString('tr-TR') : '-'}
+                            </span>
+                            {year.archived && year.archivedAt && (
+                              <span className="text-orange-600">
+                                Arşivleme: {new Date(year.archivedAt).toLocaleDateString('tr-TR')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          {!year.archived && !year.active && (
+                            <button
+                              onClick={() => handleSetActiveEducationYear(year.id)}
+                              disabled={educationYearLoading}
+                              className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                              Aktif Yap
+                            </button>
+                          )}
+                          
+                          {!year.archived ? (
+                            <button
+                              onClick={() => handleArchiveClick(year, 'archive')}
+                              disabled={archiveLoading || (year.active && educationYears.filter(y => !y.archived).length === 1)}
+                              className="px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50"
+                              title={year.active ? 'Aktif dönem arşivlenemez' : 'Dönemi arşivle'}
+                            >
+                              Arşivle
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleArchiveClick(year, 'unarchive')}
+                              disabled={archiveLoading}
+                              className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              Geri Al
+                            </button>
+                          )}
+                          
+                          {!year.active && (
+                            <button
+                              onClick={() => handleDeleteEducationYear(year.id)}
+                              disabled={educationYearLoading}
+                              className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                            >
+                              Sil
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {educationYears.length === 0 && (
+                <div className="text-center py-8">
+                  <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">Henüz eğitim yılı bulunmamaktadır.</p>
+                  <button
+                    onClick={() => setShowEducationYearModal(true)}
+                    className="mt-4 px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  >
+                    İlk Eğitim Yılını Ekle
+                  </button>
+                </div>
+              )}
+
+              {/* Information Box */}
+              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                <div className="flex items-start">
+                  <Database className="h-5 w-5 text-blue-600 mr-2 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium mb-1">Arşivleme Hakkında:</p>
+                    <ul className="list-disc list-inside space-y-1 text-blue-700">
+                      <li>Arşivlenen dönemler normal listelerde görünmez</li>
+                      <li>Arşivleme tüm ilgili verileri (staj, dekont, geçmiş) kapsar</li>
+                      <li>Aktif dönem arşivlenemez, önce başka dönem aktif yapılmalıdır</li>
+                      <li>Arşivlenen veriler geri alınabilir</li>
+                      <li>Arşivleme işlemi veri kaybına neden olmaz</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Education Year Modal */}
         {showEducationYearModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1757,6 +2019,80 @@ ${result.statistics.files_size_mb > 0 ? `• Dosyalar Boyut: ${result.statistics
               <h3 className="text-lg font-medium text-gray-900 mb-2">Yedek Başarıyla Silindi!</h3>
               <p className="text-sm text-gray-600 mb-4">Yedek dosyası sistemden kaldırıldı.</p>
               <p className="text-xs text-gray-500">Bu pencere {backupDeleteCountdown} saniye sonra kapanacak</p>
+            </div>
+          </div>
+        )}
+
+        {/* Archive Confirmation Modal */}
+        {showArchiveModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+              <div className="flex items-center mb-4">
+                <AlertTriangle className="h-6 w-6 text-orange-600 mr-3" />
+                <h3 className="text-lg font-medium text-gray-900">
+                  {archiveAction === 'archive' ? 'Dönem Arşivleme' : 'Arşivden Çıkarma'} Onayı
+                </h3>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-sm text-gray-600 mb-4">
+                  <strong>"{selectedYearForArchive?.year}"</strong> eğitim yılı{' '}
+                  {archiveAction === 'archive' ? 'arşivlenecek' : 'arşivden çıkarılacak'}.
+                  Bu işlem tüm ilgili verileri etkileyecektir.
+                </p>
+                
+                <div className={`border rounded-lg p-3 mb-4 ${
+                  archiveAction === 'archive' ? 'bg-orange-50 border-orange-200' : 'bg-blue-50 border-blue-200'
+                }`}>
+                  <p className={`text-sm font-medium ${
+                    archiveAction === 'archive' ? 'text-orange-800' : 'text-blue-800'
+                  }`}>
+                    {archiveAction === 'archive' ? '⚠️ DİKKAT:' : '💡 BİLGİ:'}
+                  </p>
+                  <p className={`text-sm ${
+                    archiveAction === 'archive' ? 'text-orange-700' : 'text-blue-700'
+                  }`}>
+                    {archiveAction === 'archive'
+                      ? 'Bu dönemdeki tüm staj kayıtları, dekontlar ve geçmiş kayıtları normal listelerde görünmeyecek.'
+                      : 'Bu dönemdeki tüm veriler tekrar normal listelerde görünür hale gelecek.'
+                    }
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Onaylamak için "{archiveAction === 'archive' ? 'ARŞİVLE' : 'GERİ AL'}" yazın:
+                  </label>
+                  <input
+                    type="text"
+                    value={archiveConfirmation}
+                    onChange={(e) => setArchiveConfirmation(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    placeholder={archiveAction === 'archive' ? 'ARŞİVLE' : 'GERİ AL'}
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowArchiveModal(false)}
+                  disabled={archiveLoading}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={confirmArchiveAction}
+                  disabled={archiveLoading || archiveConfirmation !== (archiveAction === 'archive' ? 'ARŞİVLE' : 'GERİ AL')}
+                  className={`px-4 py-2 text-sm font-medium text-white border border-transparent rounded-lg disabled:opacity-50 ${
+                    archiveAction === 'archive'
+                      ? 'bg-orange-600 hover:bg-orange-700'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  {archiveLoading ? 'İşleniyor...' : `Onayla ve ${archiveAction === 'archive' ? 'Arşivle' : 'Geri Al'}`}
+                </button>
+              </div>
             </div>
           </div>
         )}

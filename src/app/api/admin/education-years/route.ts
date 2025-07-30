@@ -5,6 +5,9 @@ import { prisma } from '@/lib/prisma'
 export async function GET() {
   try {
     const educationYears = await prisma.egitimYili.findMany({
+      where: {
+        archived: false // Arşivlenen eğitim yıllarını gizle
+      },
       orderBy: {
         year: 'desc'
       }

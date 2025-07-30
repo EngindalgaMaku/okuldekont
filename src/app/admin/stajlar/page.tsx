@@ -70,6 +70,11 @@ interface Ogretmen {
   alan?: {
     name: string
   } | null
+  educationYear?: {
+    id: string
+    year: string
+    active: boolean
+  } | null
 }
 
 interface Alan {
@@ -124,6 +129,7 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
   const [isletmeler, setIsletmeler] = useState<Isletme[]>([])
   const [ogretmenler, setOgretmenler] = useState<Ogretmen[]>([])
   const [alanlar, setAlanlar] = useState<Alan[]>([])
+  const [egitimYillari, setEgitimYillari] = useState<Array<{ id: string; year: string; active: boolean }>>([])
   const [loading, setLoading] = useState(true)
   const [dataLoading, setDataLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'stajlar' | 'bast' | 'bost'>('stajlar')
@@ -171,6 +177,7 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
   const [filterOgretmen, setFilterOgretmen] = useState('')
   const [filterAlan, setFilterAlan] = useState('')
   const [filterSinif, setFilterSinif] = useState('')
+  const [filterEgitimYili, setFilterEgitimYili] = useState('')
 
   // Pagination states
   const [currentPageStajlar, setCurrentPageStajlar] = useState(1)
@@ -302,12 +309,14 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
         stajData,
         companiesData,
         teachersData,
-        fieldsData
+        fieldsData,
+        educationYearsData
       ] = await Promise.all([
         fetchWithFallback('/api/admin/internships', []),
         fetchWithFallback('/api/admin/companies', []),
         fetchWithFallback('/api/admin/teachers', []),
-        fetchWithFallback('/api/admin/fields', [])
+        fetchWithFallback('/api/admin/fields', []),
+        fetchWithFallback('/api/admin/education-years', [])
       ])
 
       // Safely set data with array checks
@@ -327,6 +336,13 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
       
       setAlanlar(transformedFields)
       
+      // Set education years data safely
+      const safeEducationYearsData = Array.isArray(educationYearsData) ? educationYearsData : []
+      setEgitimYillari(safeEducationYearsData.map((year: any) => ({
+        id: year?.id || '',
+        year: year?.year || '',
+        active: year?.active || false
+      })).filter(year => year.id && year.year))
       
     } catch (error) {
       console.error('Veri yükleme hatası:', error)
@@ -682,6 +698,7 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
   const uniqueAlanlar = useMemo(() => getUniqueById(alanlar), [alanlar])
   const uniqueIsletmeler = useMemo(() => getUniqueById(isletmeler), [isletmeler])
   const uniqueOgretmenler = useMemo(() => getUniqueById(ogretmenler), [ogretmenler])
+  const uniqueEgitimYillari = useMemo(() => getUniqueById(egitimYillari), [egitimYillari])
 
   // Memoized heavy date calculations
   const dateCalculations = useMemo(() => {
@@ -727,10 +744,11 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
          alanlar.find(alan => alan.id === filterAlan)?.name === staj.student.alan.name)
       
       const sinifMatch = filterSinif === '' || staj.student?.className === filterSinif
+      const egitimYiliMatch = filterEgitimYili === '' || staj.educationYearId === filterEgitimYili
       
-      return searchMatch && isletmeMatch && ogretmenMatch && alanMatch && sinifMatch
+      return searchMatch && isletmeMatch && ogretmenMatch && alanMatch && sinifMatch && egitimYiliMatch
     })
-  }, [stajlar, activeTab, searchTerm, filterIsletme, filterOgretmen, filterAlan, filterSinif, alanlar, dateCalculations])
+  }, [stajlar, activeTab, searchTerm, filterIsletme, filterOgretmen, filterAlan, filterSinif, filterEgitimYili, alanlar, dateCalculations])
 
 
 
@@ -738,12 +756,12 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
   useEffect(() => {
     setCurrentPageStajlar(1)
     setVisibleItems(new Set())
-  }, [searchTerm, filterIsletme, filterOgretmen, filterAlan, filterSinif, activeTab])
+  }, [searchTerm, filterIsletme, filterOgretmen, filterAlan, filterSinif, filterEgitimYili, activeTab])
 
   useEffect(() => {
     setCurrentPageBost(1)
     setVisibleItems(new Set())
-  }, [searchTerm, filterAlan, filterSinif, activeTab])
+  }, [searchTerm, filterAlan, filterSinif, filterEgitimYili, activeTab])
 
 
   // Memoized tab counts - ağır hesaplama optimizasyonu
@@ -857,16 +875,20 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
           setFilterIsletme={setFilterIsletme}
           filterOgretmen={filterOgretmen}
           setFilterOgretmen={setFilterOgretmen}
+          filterEgitimYili={filterEgitimYili}
+          setFilterEgitimYili={setFilterEgitimYili}
           uniqueAlanlar={uniqueAlanlar}
           uniqueClassNames={uniqueClassNames}
           uniqueIsletmeler={uniqueIsletmeler}
           uniqueOgretmenler={uniqueOgretmenler}
+          uniqueEgitimYillari={uniqueEgitimYillari}
           onClearAllFilters={useCallback(() => {
             setSearchTerm('')
             setFilterAlan('')
             setFilterSinif('')
             setFilterIsletme('')
             setFilterOgretmen('')
+            setFilterEgitimYili('')
           }, [])}
         />
 

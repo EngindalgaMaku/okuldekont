@@ -15,10 +15,13 @@ interface FilterSectionProps {
   setFilterIsletme: (value: string) => void
   filterOgretmen: string
   setFilterOgretmen: (value: string) => void
+  filterEgitimYili: string
+  setFilterEgitimYili: (value: string) => void
   uniqueAlanlar: Array<{ id: string; name: string }>
   uniqueClassNames: string[]
   uniqueIsletmeler: Array<{ id: string; name: string }>
   uniqueOgretmenler: Array<{ id: string; name: string; surname: string }>
+  uniqueEgitimYillari: Array<{ id: string; year: string; active: boolean; archived?: boolean }>
   onClearAllFilters: () => void
 }
 
@@ -34,13 +37,16 @@ const FilterSection = memo(function FilterSection({
   setFilterIsletme,
   filterOgretmen,
   setFilterOgretmen,
+  filterEgitimYili,
+  setFilterEgitimYili,
   uniqueAlanlar,
   uniqueClassNames,
   uniqueIsletmeler,
   uniqueOgretmenler,
+  uniqueEgitimYillari,
   onClearAllFilters
 }: FilterSectionProps) {
-  const hasActiveFilters = searchTerm || filterAlan || filterSinif || filterIsletme || filterOgretmen
+  const hasActiveFilters = searchTerm || filterAlan || filterSinif || filterIsletme || filterOgretmen || filterEgitimYili
 
   return (
     <div className="p-6 border-b border-gray-200">
@@ -64,7 +70,7 @@ const FilterSection = memo(function FilterSection({
         
         {/* Filtreler */}
         <div className="space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* Alan Filtresi */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -102,6 +108,29 @@ const FilterSection = memo(function FilterSection({
                 ))}
               </select>
             </div>
+
+            {/* Eğitim Yılı Filtresi - Sadece stajlar için */}
+            {activeTab !== 'bost' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Eğitim Yılı
+                </label>
+                <select
+                  value={filterEgitimYili}
+                  onChange={(e) => setFilterEgitimYili(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="">Tüm Dönemler</option>
+                  {uniqueEgitimYillari
+                    .filter((yil) => !yil.archived) // Arşivlenen dönemleri gizle
+                    .map((yil) => (
+                      <option key={yil.id} value={yil.id}>
+                        {yil.year} {yil.active ? '(Aktif)' : ''}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* İşletme ve Öğretmen Filtreleri - Sadece stajlar için */}
@@ -202,6 +231,17 @@ const FilterSection = memo(function FilterSection({
                   Koordinatör: {uniqueOgretmenler.find(o => o.id === filterOgretmen)?.name} {uniqueOgretmenler.find(o => o.id === filterOgretmen)?.surname}
                   <button
                     onClick={() => setFilterOgretmen('')}
+                    className="ml-1 text-indigo-600 hover:text-indigo-800"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {filterEgitimYili && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                  Dönem: {uniqueEgitimYillari.find(y => y.id === filterEgitimYili)?.year}
+                  <button
+                    onClick={() => setFilterEgitimYili('')}
                     className="ml-1 text-indigo-600 hover:text-indigo-800"
                   >
                     <X className="h-3 w-3" />

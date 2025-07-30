@@ -8,6 +8,7 @@ export interface AuthState {
   loading: boolean
   isAdmin: boolean
   adminRole?: string
+  adminId?: string
 }
 
 export function useAuth() {
@@ -16,7 +17,8 @@ export function useAuth() {
     user: null,
     loading: true,
     isAdmin: false,
-    adminRole: undefined
+    adminRole: undefined,
+    adminId: undefined
   })
 
   // Function to map database roles to frontend roles
@@ -41,7 +43,8 @@ export function useAuth() {
         user: null,
         loading: true,
         isAdmin: false,
-        adminRole: undefined
+        adminRole: undefined,
+        adminId: undefined
       })
     } else if (status === 'authenticated' && session?.user) {
       const frontendRole = mapDatabaseRoleToFrontendRole(session.user.role)
@@ -49,14 +52,16 @@ export function useAuth() {
         user: session.user,
         loading: false,
         isAdmin: session.user.role === 'ADMIN',
-        adminRole: frontendRole
+        adminRole: frontendRole,
+        adminId: session.user.role === 'ADMIN' ? session.user.id : undefined
       })
     } else {
       setAuthState({
         user: null,
         loading: false,
         isAdmin: false,
-        adminRole: undefined
+        adminRole: undefined,
+        adminId: undefined
       })
     }
   }, [session, status])

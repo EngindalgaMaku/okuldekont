@@ -124,11 +124,14 @@ model CompanyProfile {
 
 // Core Entities
 model EgitimYili {
-  id        String    @id @default(cuid())
-  year      String    @unique
-  startDate DateTime?
-  endDate   DateTime?
-  active    Boolean   @default(false)
+  id          String    @id @default(cuid())
+  year        String    @unique
+  startDate   DateTime?
+  endDate     DateTime?
+  active      Boolean   @default(false)
+  archived    Boolean   @default(false)
+  archivedAt  DateTime?
+  archivedBy  String?
   
   // Relations
   stajlar Staj[]
@@ -212,6 +215,9 @@ model Staj {
   terminationNotes      String?
   lastModifiedBy        String?
   lastModifiedAt        DateTime?
+  archived              Boolean    @default(false)
+  archivedAt            DateTime?
+  archivedBy            String?
   createdAt             DateTime   @default(now())
   
   student             Student         @relation(fields: [studentId], references: [id])
@@ -243,6 +249,9 @@ model InternshipHistory {
   performedAt   DateTime          @default(now())
   reason        String?
   notes         String?
+  archived      Boolean           @default(false)
+  archivedAt    DateTime?
+  archivedBy    String?
   
   // Relations
   internship    Staj             @relation(fields: [internshipId], references: [id], onDelete: Cascade)
@@ -270,6 +279,9 @@ model Dekont {
   rejectedAt   DateTime?
   rejectReason String?
   fileUrl      String?
+  archived     Boolean      @default(false)
+  archivedAt   DateTime?
+  archivedBy   String?
   createdAt    DateTime     @default(now())
   
   staj      Staj            @relation(fields: [stajId], references: [id])

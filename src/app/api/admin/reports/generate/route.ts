@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const fieldId = searchParams.get('fieldId')
+    const educationYearId = searchParams.get('educationYearId')
 
     if (!type) {
       return NextResponse.json({ error: 'Rapor türü gerekli' }, { status: 400 })
@@ -20,18 +21,23 @@ export async function GET(request: NextRequest) {
     switch (type) {
       case 'staj-fesih':
         reportTitle = 'STAJ FESİH RAPORU'
-        reportData = await getTerminatedInternships(startDate, endDate, fieldId)
+        reportData = await getTerminatedInternships(startDate, endDate, fieldId, educationYearId)
         reportSummary = `${reportData.length} adet staj fesih işlemi`
         break
       case 'staj-atama':
         reportTitle = 'STAJ ATAMA RAPORU'
-        reportData = await getAssignedInternships(startDate, endDate, fieldId)
+        reportData = await getAssignedInternships(startDate, endDate, fieldId, educationYearId)
         reportSummary = `${reportData.length} adet staj atama işlemi`
         break
       case 'koordinator-degisiklik':
         reportTitle = 'KOORDİNATÖR DEĞİŞİKLİK RAPORU'
-        reportData = await getCoordinatorChanges(startDate, endDate, fieldId)
+        reportData = await getCoordinatorChanges(startDate, endDate, fieldId, educationYearId)
         reportSummary = `${reportData.length} adet koordinatör değişikliği`
+        break
+      case 'yillik-ozet':
+        reportTitle = 'YILLIK ÖZET RAPORU'
+        reportData = await getYearlySummary(educationYearId)
+        reportSummary = `${educationYearId ? 'Seçili eğitim yılı' : 'Tüm eğitim yılları'} özet raporu`
         break
       default:
         return NextResponse.json({ error: 'Geçersiz rapor türü' }, { status: 400 })
@@ -47,6 +53,7 @@ export async function GET(request: NextRequest) {
         startDate: startDate || null,
         endDate: endDate || null
       },
+      educationYearId: educationYearId || null,
       totalRecords: reportData.length,
       data: reportData,
       generatedAt: new Date().toISOString()
@@ -58,7 +65,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function getTerminatedInternships(startDate?: string | null, endDate?: string | null, fieldId?: string | null) {
+async function getTerminatedInternships(startDate?: string | null, endDate?: string | null, fieldId?: string | null, educationYearId?: string | null) {
   const where: any = {
     status: 'TERMINATED'
   }
@@ -73,6 +80,10 @@ async function getTerminatedInternships(startDate?: string | null, endDate?: str
     where.student = {
       alanId: fieldId
     }
+  }
+
+  if (educationYearId) {
+    where.educationYearId = educationYearId
   }
 
   const stajlar = await prisma.staj.findMany({
@@ -105,7 +116,7 @@ async function getTerminatedInternships(startDate?: string | null, endDate?: str
   }))
 }
 
-async function getAssignedInternships(startDate?: string | null, endDate?: string | null, fieldId?: string | null) {
+async function getAssignedInternships(startDate?: string | null, endDate?: string | null, fieldId?: string | null, educationYearId?: string | null) {
   const where: any = {
     status: 'ACTIVE'
   }
@@ -120,7 +131,11 @@ async function getAssignedInternships(startDate?: string | null, endDate?: strin
     where.student = {
       alanId: fieldId
     }
-    }
+  }
+
+  if (educationYearId) {
+    where.educationYearId = educationYearId
+  }
 
   const stajlar = await prisma.staj.findMany({
     where,
@@ -150,7 +165,7 @@ async function getAssignedInternships(startDate?: string | null, endDate?: strin
   }))
 }
 
-async function getCoordinatorChanges(startDate?: string | null, endDate?: string | null, fieldId?: string | null) {
+async function getCoordinatorChanges(startDate?: string | null, endDate?: string | null, fieldId?: string | null, educationYearId?: string | null) {
   const where: any = {}
 
   if (startDate || endDate) {
@@ -162,6 +177,18 @@ async function getCoordinatorChanges(startDate?: string | null, endDate?: string
   if (fieldId) {
     where.teacher = {
       alanId: fieldId
+    }
+  }
+
+  // Eğitim yılı filtresi için company üzerinden stajları kontrol et
+  if (educationYearId) {
+    where.company = {
+      ...where.company,
+      Staj: {
+        some: {
+          educationYearId: educationYearId
+        }
+      }
     }
   }
 
@@ -186,4 +213,64 @@ async function getCoordinatorChanges(startDate?: string | null, endDate?: string
     reason: change.reason || 'Belirtilmemiş',
     notes: change.notes || ''
   }))
+}
+
+// Yeni fonksiyon: Yıllık özet raporu
+async function getYearlySummary(educationYearId?: string | null) {
+  const where: any = {}
+  if (educationYearId) {
+    where.educationYearId = educationYearId
+  }
+
+  // Eğitim yılı bilgisini al
+  let educationYear = null
+  if (educationYearId) {
+    educationYear = await prisma.egitimYili.findUnique({
+      where: { id: educationYearId }
+    })
+  }
+
+  // Staj istatistikleri
+  const [
+    totalInternships,
+    activeInternships,
+    completedInternships,
+    terminatedInternships
+  ] = await Promise.all([
+    prisma.staj.count({ where }),
+    prisma.staj.count({ where: { ...where, status: 'ACTIVE' } }),
+    prisma.staj.count({ where: { ...where, status: 'COMPLETED' } }),
+    prisma.staj.count({ where: { ...where, status: 'TERMINATED' } })
+  ])
+
+  // Alan bazlı istatistikler
+  const fieldStats = await prisma.staj.groupBy({
+    by: ['studentId'],
+    where,
+    _count: {
+      id: true
+    }
+  })
+
+  // Şirket bazlı istatistikler
+  const companyStats = await prisma.staj.groupBy({
+    by: ['companyId'],
+    where,
+    _count: {
+      id: true
+    }
+  })
+
+  return [{
+    educationYear: educationYear?.year || 'Tüm Yıllar',
+    totalInternships,
+    activeInternships,
+    completedInternships,
+    terminatedInternships,
+    terminationRate: totalInternships > 0 ? ((terminatedInternships / totalInternships) * 100).toFixed(2) : '0',
+    completionRate: totalInternships > 0 ? ((completedInternships / totalInternships) * 100).toFixed(2) : '0',
+    totalFields: fieldStats.length,
+    totalCompanies: companyStats.length,
+    generatedAt: new Date().toISOString()
+  }]
 }

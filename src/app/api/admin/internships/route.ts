@@ -17,7 +17,9 @@ export async function GET(request: Request) {
     const studentIds = searchParams.get('studentIds')
     const status = searchParams.get('status')
     
-    let whereClause: any = {}
+    let whereClause: any = {
+      archived: false // Arşivlenen stajları gizle
+    }
     
     // Filter by student IDs if provided
     if (studentIds) {

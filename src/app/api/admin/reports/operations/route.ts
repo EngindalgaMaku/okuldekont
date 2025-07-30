@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const fieldId = searchParams.get('fieldId')
     const studentName = searchParams.get('studentName')
     const companyName = searchParams.get('companyName')
+    const educationYearId = searchParams.get('educationYearId')
 
     let operations: any[] = []
     let total = 0
@@ -50,6 +51,10 @@ export async function GET(request: NextRequest) {
         where.company = {
           name: { contains: companyName }
         }
+      }
+
+      if (educationYearId) {
+        where.educationYearId = educationYearId
       }
 
       const stajlar = await prisma.staj.findMany({
@@ -119,6 +124,10 @@ export async function GET(request: NextRequest) {
         where.company = {
           name: { contains: companyName }
         }
+      }
+
+      if (educationYearId) {
+        where.educationYearId = educationYearId
       }
 
       const stajlar = await prisma.staj.findMany({
@@ -213,6 +222,10 @@ export async function GET(request: NextRequest) {
         where.company = {
           name: { contains: companyName }
         }
+      }
+
+      if (educationYearId) {
+        where.educationYearId = educationYearId
       }
 
       const stajlar = await prisma.staj.findMany({
