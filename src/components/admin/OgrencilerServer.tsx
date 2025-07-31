@@ -8,6 +8,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal'
 import StudentAssignmentModal from '@/components/admin/StudentAssignmentModal'
 import StudentHistoryView from '@/components/admin/StudentHistoryView'
 import StudentHistoryModal from '@/components/admin/StudentHistoryModal'
+import OgrencilerPrintClient from '@/components/admin/OgrencilerPrintClient'
 import { toast } from 'react-hot-toast'
 
 interface Ogrenci {
@@ -827,6 +828,21 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
     fetchOgrenciler(page, searchTerm, selectedAlan, selectedSinif, selectedStatus)
   }
 
+  // Convert Ogrenci to Student format for print client
+  const convertOgrenciToStudent = (ogrenci: Ogrenci) => ({
+    id: ogrenci.id,
+    name: ogrenci.ad,
+    surname: ogrenci.soyad,
+    number: ogrenci.no,
+    className: ogrenci.sinif,
+    alanId: ogrenci.alanId,
+    alan: ogrenci.alan,
+    company: ogrenci.company ? {
+      ...ogrenci.company,
+      teacher: ogrenci.company.teacher || undefined
+    } : undefined
+  })
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -840,79 +856,88 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
             Tüm alanlardan öğrencileri görüntüleyin ve yönetin ({totalOgrenciler})
           </p>
         </div>
-        <div className="relative w-full sm:w-auto" ref={dropdownRef}>
-          <button
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="inline-flex items-center justify-center w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-sm"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Öğrenci Ekle</span>
-            <span className="sm:hidden">Ekle</span>
-            <ChevronDown className={`h-4 w-4 ml-2 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
-          </button>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          {/* Print Button */}
+          <OgrencilerPrintClient
+            students={ogrenciler.map(convertOgrenciToStudent)}
+            searchParams={searchParams}
+          />
           
-          {dropdownOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 z-50">
-              <div className="py-2">
-                <button
-                  onClick={() => {
-                    setOgrenciFormData(initialFormState)
-                    setOgrenciModalOpen(true)
-                    setDropdownOpen(false)
-                  }}
-                  className="w-full flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                >
-                  <Plus className="h-4 w-4 mr-3 text-indigo-500" />
-                  <div className="text-left">
-                    <div className="font-medium">Yeni Öğrenci Ekle</div>
-                    <div className="text-xs text-gray-500">Tek öğrenci kayıt formu</div>
-                  </div>
-                </button>
-                <button
-                  onClick={() => {
-                    setTopluOgrenciler([{
-                      ad: '',
-                      soyad: '',
-                      no: '',
-                      sinif: '',
-                      alanId: '',
-                      tcKimlik: '',
-                      telefon: '',
-                      veliAdi: '',
-                      veliTelefon: '',
-                      email: ''
-                    }])
-                    setTopluOgrenciModalOpen(true)
-                    setDropdownOpen(false)
-                  }}
-                  className="w-full flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors"
-                >
-                  <Users className="h-4 w-4 mr-3 text-green-500" />
-                  <div className="text-left">
-                    <div className="font-medium">Toplu Öğrenci Ekle</div>
-                    <div className="text-xs text-gray-500">Manuel form ile birden fazla öğrenci</div>
-                  </div>
-                </button>
-                <button
-                  onClick={() => {
-                    setCsvFile(null)
-                    setCsvPreview([])
-                    setCsvUploadModalOpen(true)
-                    setDropdownOpen(false)
-                  }}
-                  className="w-full flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                >
-                  <svg className="h-4 w-4 mr-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                  </svg>
-                  <div className="text-left">
-                    <div className="font-medium">CSV/Excel Yükleme</div>
-                    <div className="text-xs text-gray-500">Dosyadan toplu öğrenci yükleme</div>
-                  </div>
-                </button>
+          {/* Add Student Dropdown */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="inline-flex items-center justify-center w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-sm"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Öğrenci Ekle</span>
+              <span className="sm:hidden">Ekle</span>
+              <ChevronDown className={`h-4 w-4 ml-2 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {dropdownOpen && (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 z-50">
+                <div className="py-2">
+                  <button
+                    onClick={() => {
+                      setOgrenciFormData(initialFormState)
+                      setOgrenciModalOpen(true)
+                      setDropdownOpen(false)
+                    }}
+                    className="w-full flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                  >
+                    <Plus className="h-4 w-4 mr-3 text-indigo-500" />
+                    <div className="text-left">
+                      <div className="font-medium">Yeni Öğrenci Ekle</div>
+                      <div className="text-xs text-gray-500">Tek öğrenci kayıt formu</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTopluOgrenciler([{
+                        ad: '',
+                        soyad: '',
+                        no: '',
+                        sinif: '',
+                        alanId: '',
+                        tcKimlik: '',
+                        telefon: '',
+                        veliAdi: '',
+                        veliTelefon: '',
+                        email: ''
+                      }])
+                      setTopluOgrenciModalOpen(true)
+                      setDropdownOpen(false)
+                    }}
+                    className="w-full flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors"
+                  >
+                    <Users className="h-4 w-4 mr-3 text-green-500" />
+                    <div className="text-left">
+                      <div className="font-medium">Toplu Öğrenci Ekle</div>
+                      <div className="text-xs text-gray-500">Manuel form ile birden fazla öğrenci</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCsvFile(null)
+                      setCsvPreview([])
+                      setCsvUploadModalOpen(true)
+                      setDropdownOpen(false)
+                    }}
+                    className="w-full flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                  >
+                    <svg className="h-4 w-4 mr-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                    </svg>
+                    <div className="text-left">
+                      <div className="font-medium">CSV/Excel Yükleme</div>
+                      <div className="text-xs text-gray-500">Dosyadan toplu öğrenci yükleme</div>
+                    </div>
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

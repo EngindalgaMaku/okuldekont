@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import CompanyQuickPinButton from './CompanyQuickPinButton'
 import IsletmelerClient from './IsletmelerClient'
+import IsletmelerPrintClient from './IsletmelerPrintClient'
 import Modal from '@/components/ui/Modal'
 import CompanyHistoryModal from './CompanyHistoryModal'
 import { toast } from 'react-hot-toast'
@@ -556,7 +557,10 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
           <h1 className="text-lg sm:text-2xl font-bold text-gray-900">İşletme Yönetimi</h1>
           <p className="text-gray-600 mt-0.5 sm:mt-1 text-xs sm:text-base">Sistemdeki tüm işletmeleri yönetin</p>
         </div>
-        <IsletmelerClient />
+        <div className="flex items-center gap-3">
+          <IsletmelerPrintClient companies={companies} searchParams={searchParams} />
+          <IsletmelerClient />
+        </div>
       </div>
 
       {/* Filters */}

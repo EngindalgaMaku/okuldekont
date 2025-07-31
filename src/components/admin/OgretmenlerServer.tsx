@@ -1,10 +1,11 @@
 import { Suspense } from 'react'
-import { Users, Search, Filter, Plus, Info, Trash2, Building2, User, Mail, Phone, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { Users, Search, Filter, Plus, Info, Trash2, Building2, User, Mail, Phone, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Printer } from 'lucide-react'
 import Link from 'next/link'
 import QuickPinButton from './QuickPinButton'
 import OgretmenlerClient from './OgretmenlerClient'
 import OgretmenlerTableClient from './OgretmenlerTableClient'
 import OgretmenlerFilterClient from './OgretmenlerFilterClient'
+import OgretmenlerPrintClient from './OgretmenlerPrintClient'
 import { fetchOgretmenlerOptimized } from '@/lib/optimized-queries'
 
 interface SearchParams {
@@ -121,7 +122,10 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
             </button>
           </form>
 
-          <OgretmenlerClient />
+          <div className="flex gap-2">
+            <OgretmenlerPrintClient ogretmenler={ogretmenler} searchParams={searchParams} />
+            <OgretmenlerClient />
+          </div>
         </div>
       </div>
 
