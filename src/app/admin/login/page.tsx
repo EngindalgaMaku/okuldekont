@@ -50,6 +50,13 @@ export default function AdminLoginPage() {
     setError('')
     setIsSubmitting(true)
 
+    // Veritabanı bağlantısını kontrol et
+    if (connectionStatus === 'disconnected') {
+      setError('Veritabanı bağlantısı başarısız. Lütfen daha sonra tekrar deneyin.')
+      setIsSubmitting(false)
+      return
+    }
+
     try {
       const result = await signIn('credentials', {
         email,
@@ -81,14 +88,46 @@ export default function AdminLoginPage() {
     }
   }
 
+  // Veritabanı bağlantısı kopuksa sistem kilit ekranını göster
+  if (connectionStatus === 'disconnected') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-red-200">
+          <div className="text-center">
+            <div className="mx-auto w-20 h-20 bg-red-100 rounded-2xl flex items-center justify-center mb-4 shadow-lg border border-red-200">
+              <WifiOff className="w-10 h-10 text-red-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-red-900 mb-2">
+              Sistem Bakımda
+            </h1>
+            <p className="text-red-700 mb-6">
+              Teknik sorunlardan dolayı uygulamaya şu anda ulaşılamıyor.
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+              <div className="flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+                <p className="text-sm text-red-600">
+                  Veritabanı bağlantısı başarısız
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600">
+              Lütfen daha sonra tekrar deneyin veya sistem yöneticisi ile iletişime geçin.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
         <div className="text-center">
           <div className="mx-auto w-20 h-20 bg-white rounded-2xl flex items-center justify-center mb-4 shadow-lg border border-gray-100">
-            <img 
-              src="/images/logo_kucuk.png" 
-              alt="Hüsniye Özdilek Ticaret MTAL Logo" 
+            <img
+              src="/images/logo_kucuk.png"
+              alt="Hüsniye Özdilek Ticaret MTAL Logo"
               className="w-16 h-16 object-contain"
             />
           </div>
@@ -116,7 +155,7 @@ export default function AdminLoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={isSubmitting}
+                disabled={isSubmitting || connectionStatus === 'disconnected'}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
@@ -139,14 +178,15 @@ export default function AdminLoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={isSubmitting}
+                disabled={isSubmitting || connectionStatus === 'disconnected'}
                 className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="Güvenli şifrenizi girin"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                disabled={connectionStatus === 'disconnected'}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {showPassword ? (
                   <EyeOff className="w-4 h-4" />
@@ -168,7 +208,7 @@ export default function AdminLoginPage() {
           
           <button
             type="submit"
-            disabled={isSubmitting || !email || !password}
+            disabled={isSubmitting || !email || !password || connectionStatus === 'disconnected'}
             className="w-full flex justify-center items-center py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
             {isSubmitting ? (
@@ -184,30 +224,6 @@ export default function AdminLoginPage() {
             )}
           </button>
         </form>
-        
-        {/* Connection Status */}
-        <div className="mt-6 pt-4 border-t border-gray-100">
-          <div className="flex items-center justify-center">
-            {connectionStatus === 'checking' ? (
-              <div className="flex items-center text-sm text-gray-500">
-                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400 mr-2"></div>
-                Bağlantı durumu kontrol ediliyor...
-              </div>
-            ) : connectionStatus === 'connected' ? (
-              <div className="flex items-center text-sm text-green-600">
-                <Wifi className="h-4 w-4 mr-2" />
-                <span>
-                  Bağlantı aktif {latency && <span className="text-green-500">({latency}ms)</span>}
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center text-sm text-red-600">
-                <WifiOff className="h-4 w-4 mr-2" />
-                Bağlantı sorunu
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   )

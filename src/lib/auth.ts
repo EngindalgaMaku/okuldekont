@@ -41,35 +41,42 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email
-          },
-          include: {
-            adminProfile: true,
-            teacherProfile: true,
-            companyProfile: true
+        try {
+          // Veritabanı bağlantısını kontrol et
+          const user = await prisma.user.findUnique({
+            where: {
+              email: credentials.email
+            },
+            include: {
+              adminProfile: true,
+              teacherProfile: true,
+              companyProfile: true
+            }
+          })
+
+          if (!user) {
+            return null
           }
-        })
 
-        if (!user) {
+          const isPasswordValid = await bcrypt.compare(
+            credentials.password,
+            user.password
+          )
+
+          if (!isPasswordValid) {
+            return null
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            profile: user.adminProfile || user.teacherProfile || user.companyProfile
+          }
+        } catch (error) {
+          console.error('Database connection failed during authentication:', error)
+          // Veritabanı bağlantısı başarısız olduğunda null döndür
           return null
-        }
-
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          user.password
-        )
-
-        if (!isPasswordValid) {
-          return null
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          profile: user.adminProfile || user.teacherProfile || user.companyProfile
         }
       }
     }),
