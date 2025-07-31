@@ -51,7 +51,7 @@ export default function AdminLoginPage() {
     setIsSubmitting(true)
 
     // Veritabanı bağlantısını kontrol et
-    if (connectionStatus === 'disconnected') {
+    if (connectionStatus !== 'connected') {
       setError('Veritabanı bağlantısı başarısız. Lütfen daha sonra tekrar deneyin.')
       setIsSubmitting(false)
       return
@@ -155,7 +155,7 @@ export default function AdminLoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={isSubmitting || connectionStatus === 'disconnected'}
+                disabled={isSubmitting || connectionStatus !== 'connected'}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
@@ -178,14 +178,14 @@ export default function AdminLoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={isSubmitting || connectionStatus === 'disconnected'}
+                disabled={isSubmitting || connectionStatus !== 'connected'}
                 className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="Güvenli şifrenizi girin"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                disabled={connectionStatus === 'disconnected'}
+                disabled={connectionStatus !== 'connected'}
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {showPassword ? (
@@ -208,7 +208,7 @@ export default function AdminLoginPage() {
           
           <button
             type="submit"
-            disabled={isSubmitting || !email || !password || connectionStatus === 'disconnected'}
+            disabled={isSubmitting || !email || !password || connectionStatus !== 'connected'}
             className="w-full flex justify-center items-center py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
             {isSubmitting ? (
