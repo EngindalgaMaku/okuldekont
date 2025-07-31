@@ -332,6 +332,26 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   <nav className="flex flex-1 flex-col">
                     <ul role="list" className="flex flex-1 flex-col gap-y-7">
                       <li>
+                        {/* Aktif Dönem Göstergesi - Mobil Sidebar */}
+                        {activeEducationYear && (
+                          <div className="px-3 mb-4">
+                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-3">
+                              <label className="block text-xs font-medium text-blue-700 mb-1">
+                                Aktif Dönem
+                              </label>
+                              <select
+                                value={activeEducationYear}
+                                disabled
+                                className="w-full text-sm font-medium text-blue-900 bg-white border border-blue-200 rounded-md px-2 py-1 cursor-not-allowed opacity-75"
+                              >
+                                <option value={activeEducationYear}>
+                                  {activeEducationYear} Eğitim Yılı
+                                </option>
+                              </select>
+                            </div>
+                          </div>
+                        )}
+
                         <ul role="list" className="-mx-2 space-y-1">
                           {menuItems.map((item) => (
                             <div key={item.href} className="space-y-1">
@@ -583,35 +603,52 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <Menu className="h-6 w-6" aria-hidden="true" />
           </button>
 
-          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6 justify-end">
-            <div className="flex items-center gap-x-4 lg:gap-x-6">
+          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6 justify-between">
+            {/* Aktif Dönem Göstergesi - Sadece tablet/mobil için */}
+            {activeEducationYear && (
+              <div className="flex items-center lg:hidden">
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg px-2 sm:px-3 py-1 sm:py-1.5">
+                  <div className="flex items-center gap-x-1 sm:gap-x-2">
+                    <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-blue-700 hidden sm:block">Aktif Dönem</p>
+                      <p className="text-xs sm:text-sm font-semibold text-blue-900 truncate">
+                        <span className="sm:hidden">Dönem: </span>{activeEducationYear}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-x-2 lg:gap-x-6">
               {/* Quick Portal Links */}
               <div className="flex items-center gap-x-1 md:gap-x-2">
                 <Link
                   href="/admin/isletmeler"
-                  className="flex items-center gap-x-1 px-2 md:px-3 py-1.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors"
+                  className="flex items-center gap-x-1 px-1.5 sm:px-2 md:px-3 py-1.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors"
                   title="İşletme Yönetimi - Tüm işletmeleri listele, filtrele ve yönet"
                 >
-                  <Building2 className="h-4 w-4" />
-                  <span className="hidden md:block">İşletmeler</span>
+                  <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:block text-xs sm:text-sm">İşletmeler</span>
                 </Link>
                 
                 <Link
                   href="/admin/ogretmenler"
-                  className="flex items-center gap-x-1 px-2 md:px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                  className="flex items-center gap-x-1 px-1.5 sm:px-2 md:px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
                   title="Öğretmen Yönetimi - Tüm öğretmenleri listele, filtrele ve yönet"
                 >
-                  <UserCheck className="h-4 w-4" />
-                  <span className="hidden md:block">Öğretmenler</span>
+                  <UserCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:block text-xs sm:text-sm">Öğretmenler</span>
                 </Link>
                 
                 <Link
                   href="/admin/ogrenciler"
-                  className="flex items-center gap-x-1 px-2 md:px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
+                  className="flex items-center gap-x-1 px-1.5 sm:px-2 md:px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
                   title="Öğrenci Yönetimi - Tüm öğrencileri listele, filtrele ve yönet"
                 >
-                  <Users className="h-4 w-4" />
-                  <span className="hidden md:block">Öğrenciler</span>
+                  <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:block text-xs sm:text-sm">Öğrenciler</span>
                 </Link>
                 
               </div>
