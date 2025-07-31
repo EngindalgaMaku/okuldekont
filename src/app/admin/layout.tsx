@@ -603,10 +603,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <Menu className="h-6 w-6" aria-hidden="true" />
           </button>
 
-          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6 justify-between">
+          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6 justify-end">
             {/* Aktif Dönem Göstergesi - Sadece tablet/mobil için */}
             {activeEducationYear && (
-              <div className="flex items-center lg:hidden">
+              <div className="flex items-center lg:hidden absolute left-4">
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg px-2 sm:px-3 py-1 sm:py-1.5">
                   <div className="flex items-center gap-x-1 sm:gap-x-2">
                     <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600 flex-shrink-0" />
@@ -771,7 +771,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </div>
 
         <main className="py-10">
-          <div className="px-4 sm:px-6 lg:px-8">
+          <div className="px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
             {children}
           </div>
         </main>
