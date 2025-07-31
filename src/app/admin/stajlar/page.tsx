@@ -123,6 +123,10 @@ const createGetUniqueById = () => {
 const getUniqueById = createGetUniqueById()
 const StajYonetimiPage = memo(function StajYonetimiPage() {
   const [stajlar, setStajlar] = useState<Staj[]>([])
+  const [stajlarTotal, setStajlarTotal] = useState(0)
+  const [stajlarTotalPages, setStajlarTotalPages] = useState(0)
+  const [allStajlarCount, setAllStajlarCount] = useState(0)
+  const [activeStajlarCount, setActiveStajlarCount] = useState(0)
   const [bostOgrenciler, setBostOgrenciler] = useState<Ogrenci[]>([])
   const [bostOgrencilerTotal, setBostOgrencilerTotal] = useState(0)
   const [bostOgrencilerTotalPages, setBostOgrencilerTotalPages] = useState(0)
@@ -198,13 +202,16 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
     fetchData()
   }, [])
 
-  // Tab değiştiğinde veya filtreler değiştiğinde boşta olan öğrencileri fetch et
+  // Tab değiştiğinde stajlar ve boşta olan öğrencileri fetch et
   useEffect(() => {
     if (activeTab === 'bost') {
       setCurrentPageBost(1) // Reset page
       fetchBostOgrenciler(1)
+    } else if (activeTab === 'stajlar' || activeTab === 'bast') {
+      setCurrentPageStajlar(1) // Reset page
+      fetchStajlar(1)
     }
-  }, [activeTab, filterAlan, filterSinif, searchTerm])
+  }, [activeTab, filterAlan, filterSinif, searchTerm, filterIsletme, filterOgretmen, filterEgitimYili])
 
   // Boşta olan öğrenciler pagination
   useEffect(() => {
@@ -212,6 +219,13 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
       fetchBostOgrenciler(currentPageBost)
     }
   }, [currentPageBost])
+
+  // Stajlar pagination
+  useEffect(() => {
+    if (activeTab === 'stajlar' || activeTab === 'bast') {
+      fetchStajlar(currentPageStajlar)
+    }
+  }, [currentPageStajlar])
 
   // Intersection Observer setup for lazy loading
   useEffect(() => {
@@ -306,26 +320,29 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
       }
 
       const [
-        stajData,
         companiesData,
         teachersData,
         fieldsData,
         educationYearsData
       ] = await Promise.all([
-        fetchWithFallback('/api/admin/internships', []),
         fetchWithFallback('/api/admin/companies', []),
         fetchWithFallback('/api/admin/teachers', []),
         fetchWithFallback('/api/admin/fields', []),
         fetchWithFallback('/api/admin/education-years', [])
       ])
 
-      // Safely set data with array checks
-      const actualStajData = stajData?.data || stajData
-      setStajlar(Array.isArray(actualStajData) ? actualStajData : [])
+      // Fetch stajlar separately for initial load (will be updated by fetchStajlar)
+      await fetchStajlar(1)
       
-      const safeStajData = Array.isArray(actualStajData) ? actualStajData : []
-      setIsletmeler(Array.isArray(companiesData) ? companiesData : [])
-      setOgretmenler(Array.isArray(teachersData) ? teachersData : [])
+      // Fetch tab counts
+      await fetchTabCounts()
+      
+      // Handle different response formats for companies and teachers
+      const actualCompaniesData = companiesData?.data || companiesData
+      const actualTeachersData = teachersData?.ogretmenler || teachersData?.data || teachersData
+      
+      setIsletmeler(Array.isArray(actualCompaniesData) ? actualCompaniesData : [])
+      setOgretmenler(Array.isArray(actualTeachersData) ? actualTeachersData : [])
       
       // Transform fields data safely
       const safeFieldsData = Array.isArray(fieldsData) ? fieldsData : []
@@ -348,6 +365,10 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
       console.error('Veri yükleme hatası:', error)
       // Set empty arrays as fallback
       setStajlar([])
+      setStajlarTotal(0)
+      setStajlarTotalPages(0)
+      setAllStajlarCount(0)
+      setActiveStajlarCount(0)
       setBostOgrenciler([])
       setIsletmeler([])
       setOgretmenler([])
@@ -362,6 +383,67 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
       setDataLoading(false)
     }
   }, [showToast])
+
+  // Separate function to fetch stajlar with pagination
+  const fetchStajlar = useCallback(async (page: number = 1) => {
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: itemsPerPage.toString()
+      })
+      
+      // Add filters to API call
+      if (filterIsletme) params.append('companyId', filterIsletme)
+      if (filterOgretmen) params.append('teacherId', filterOgretmen)
+      if (filterEgitimYili) params.append('educationYearId', filterEgitimYili)
+      if (activeTab === 'bast') {
+        params.append('status', 'ACTIVE')
+      }
+      
+      const response = await fetch(`/api/admin/internships?${params.toString()}`)
+      if (response.ok) {
+        const data = await response.json()
+        const stajData = data.data || []
+        const pagination = data.pagination || {}
+        
+        setStajlar(Array.isArray(stajData) ? stajData : [])
+        setStajlarTotal(pagination.totalCount || 0)
+        setStajlarTotalPages(pagination.totalPages || 0)
+        
+        return data
+      }
+      return { data: [], pagination: { totalCount: 0, totalPages: 0 } }
+    } catch (error) {
+      console.error('Stajlar fetch hatası:', error)
+      setStajlar([])
+      setStajlarTotal(0)
+      setStajlarTotalPages(0)
+      return { data: [], pagination: { totalCount: 0, totalPages: 0 } }
+    }
+  }, [itemsPerPage, filterIsletme, filterOgretmen, filterEgitimYili, activeTab])
+
+  // Separate function to fetch tab counts
+  const fetchTabCounts = useCallback(async () => {
+    try {
+      // Fetch total internships count
+      const allResponse = await fetch('/api/admin/internships?page=1&limit=1')
+      if (allResponse.ok) {
+        const allData = await allResponse.json()
+        setAllStajlarCount(allData.pagination?.totalCount || 0)
+      }
+
+      // Fetch active internships count
+      const activeResponse = await fetch('/api/admin/internships?page=1&limit=1&status=ACTIVE')
+      if (activeResponse.ok) {
+        const activeData = await activeResponse.json()
+        setActiveStajlarCount(activeData.pagination?.totalCount || 0)
+      }
+    } catch (error) {
+      console.error('Tab counts fetch hatası:', error)
+      setAllStajlarCount(0)
+      setActiveStajlarCount(0)
+    }
+  }, [])
 
   const handleTutarsizlikKontrol = async () => {
     setTutarsizlikLoading(true)
@@ -720,43 +802,27 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
     return Array.from(new Set(classNames)).sort()
   }, [activeTab, bostOgrenciler, stajlar])
 
-  // Memoized filtreleme mantığı - performans optimizasyonu
+  // Basitleştirilmiş filtreleme mantığı - backend'de filtreleme yapıldığı için sadece client-side search ve alan filtreleri
   const filteredStajlar = useMemo(() => {
     if (!Array.isArray(stajlar)) {
       return []
     }
-    const { today } = dateCalculations
     
     return stajlar.filter(staj => {
-      // Tab-specific filtering
-      if (activeTab === 'stajlar') {
-        // Tüm stajları göster
-      } else if (activeTab === 'bast') {
-        // Sadece aktif stajları göster (Staja Başlayan Öğrenciler)
-        if (staj.status !== 'ACTIVE') return false
-      } else {
-        // Diğer tab'larda staj gösterme
-        return false
-      }
-      
       const searchMatch = searchTerm === '' ||
         staj.student?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         staj.student?.surname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         staj.company?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-      
-      const isletmeMatch = filterIsletme === '' || staj.companyId === filterIsletme
-      const ogretmenMatch = filterOgretmen === '' || staj.teacherId === filterOgretmen
       
       const alanMatch = filterAlan === '' ||
         (staj.student?.alan?.name &&
          alanlar.find(alan => alan.id === filterAlan)?.name === staj.student.alan.name)
       
       const sinifMatch = filterSinif === '' || staj.student?.className === filterSinif
-      const egitimYiliMatch = filterEgitimYili === '' || staj.educationYearId === filterEgitimYili
       
-      return searchMatch && isletmeMatch && ogretmenMatch && alanMatch && sinifMatch && egitimYiliMatch
+      return searchMatch && alanMatch && sinifMatch
     })
-  }, [stajlar, activeTab, searchTerm, filterIsletme, filterOgretmen, filterAlan, filterSinif, filterEgitimYili, alanlar, dateCalculations])
+  }, [stajlar, searchTerm, filterAlan, filterSinif, alanlar])
 
 
 
@@ -772,41 +838,24 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
   }, [searchTerm, filterAlan, filterSinif, filterEgitimYili, activeTab])
 
 
-  // Memoized tab counts - ağır hesaplama optimizasyonu
+  // Memoized tab counts - backend'den ayrı fetch ile hesapla
   const tabCounts = useMemo(() => {
-    const safeStajlar = Array.isArray(stajlar) ? stajlar : []
-    const { today } = dateCalculations
-    
-    const bastOgrenciler = safeStajlar.filter(s => s.status === 'ACTIVE')
-    
     return {
-      stajlar: safeStajlar.length,
-      bast: bastOgrenciler.length,
+      stajlar: stajlarTotal, // Toplam staj sayısı
+      bast: activeTab === 'bast' ? stajlarTotal : filteredStajlar.filter(s => s.status === 'ACTIVE').length, // Aktif stajlar
       bost: bostOgrencilerTotal
     }
-  }, [stajlar, bostOgrencilerTotal, dateCalculations])
+  }, [stajlarTotal, bostOgrencilerTotal, filteredStajlar, activeTab])
 
-  // Memoized pagination hesaplamaları - sadece stajlar için
+  // Memoized pagination hesaplamaları - backend pagination bilgilerini kullan
   const paginationData = useMemo(() => {
-    const totalStajlar = filteredStajlar.length
-    const totalPagesStajlar = Math.ceil(totalStajlar / itemsPerPage)
-
-    const startIndexStajlar = (currentPageStajlar - 1) * itemsPerPage
-    const endIndexStajlar = startIndexStajlar + itemsPerPage
-    const paginatedStajlar = filteredStajlar.slice(startIndexStajlar, endIndexStajlar)
-
-    // Büyük listeler için virtual scrolling kullan
-    const useVirtualScrolling = totalStajlar > 50
-
     return {
-      totalStajlar,
-      totalPagesStajlar,
-      startIndexStajlar,
-      endIndexStajlar,
-      paginatedStajlar,
-      useVirtualScrolling
+      totalStajlar: stajlarTotal,
+      totalPagesStajlar: stajlarTotalPages,
+      paginatedStajlar: filteredStajlar, // Backend'den gelen veriler zaten sayfalanmış
+      useVirtualScrolling: false // Normal pagination kullanıyoruz
     }
-  }, [filteredStajlar, currentPageStajlar, itemsPerPage])
+  }, [stajlarTotal, stajlarTotalPages, filteredStajlar])
 
   // Virtual list render function
   const renderStajItem = useCallback((staj: any, index: number) => {
@@ -959,38 +1008,29 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
                   </p>
                 </div>
               ) : (
-                /* Virtual scrolling for large internship lists */
-                paginationData.useVirtualScrolling ? (
-                  <VirtualList
-                    items={filteredStajlar}
-                    itemHeight={200}
-                    containerHeight={800}
-                    renderItem={renderStajItem}
-                  />
-                ) : (
-                  paginationData.paginatedStajlar.map((staj) => {
-                    const { today } = dateCalculations
-                    const isExpired = Boolean(staj.status === 'ACTIVE' && staj.endDate && staj.endDate < today)
-                    const isVisible = visibleItems.has(staj.id)
-                    
-                    return (
-                      <div key={staj.id} ref={(el) => setItemRef(el, staj.id)}>
-                        <StajCard
-                          staj={staj}
-                          isExpired={isExpired}
-                          isVisible={isVisible}
-                          onTamamla={handleTamamlandiOlarakKaydet}
-                          onFesih={handleFesihEt}
-                          onKoordinatorDegistir={handleKoordinatorDegistir}
-                        />
-                      </div>
-                    )
-                  })
-                )
+                /* Normal pagination - backend'den sayfalanmış veriler */
+                paginationData.paginatedStajlar.map((staj) => {
+                  const { today } = dateCalculations
+                  const isExpired = Boolean(staj.status === 'ACTIVE' && staj.endDate && staj.endDate < today)
+                  const isVisible = visibleItems.has(staj.id)
+                  
+                  return (
+                    <div key={staj.id} ref={(el) => setItemRef(el, staj.id)}>
+                      <StajCard
+                        staj={staj}
+                        isExpired={isExpired}
+                        isVisible={isVisible}
+                        onTamamla={handleTamamlandiOlarakKaydet}
+                        onFesih={handleFesihEt}
+                        onKoordinatorDegistir={handleKoordinatorDegistir}
+                      />
+                    </div>
+                  )
+                })
               )}
               
-              {/* Pagination for Stajlar - Only show if not using virtual scrolling */}
-              {(activeTab === 'stajlar' || activeTab === 'bast') && !paginationData.useVirtualScrolling && (
+              {/* Pagination for Stajlar */}
+              {(activeTab === 'stajlar' || activeTab === 'bast') && (
                 <Pagination
                   currentPage={currentPageStajlar}
                   totalPages={paginationData.totalPagesStajlar}
@@ -998,13 +1038,6 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
                   totalItems={paginationData.totalStajlar}
                   itemsPerPage={itemsPerPage}
                 />
-              )}
-              
-              {/* Virtual scrolling info */}
-              {paginationData.useVirtualScrolling && (
-                <div className="text-center py-4 text-sm text-gray-600">
-                  Toplam {paginationData.totalStajlar} staj - Virtual scrolling aktif
-                </div>
               )}
             </div>
           )}

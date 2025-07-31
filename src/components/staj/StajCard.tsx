@@ -1,7 +1,7 @@
 'use client'
 
-import { memo } from 'react'
-import { Building2, UserCheck, Calendar, GraduationCap, CheckCircle, X } from 'lucide-react'
+import { memo, useState, useRef, useEffect } from 'react'
+import { Building2, UserCheck, Calendar, GraduationCap, CheckCircle, X, User, Clock, MapPin, Award, MoreVertical, Settings } from 'lucide-react'
 
 interface StajCardProps {
   staj: {
@@ -46,140 +46,213 @@ const StajCard = memo(function StajCard({
   onFesih,
   onKoordinatorDegistir
 }: StajCardProps) {
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   if (!isVisible) {
-    return <div className="h-24 bg-gray-100 animate-pulse rounded-lg" />
+    return <div className="h-48 bg-gradient-to-r from-gray-200 to-gray-300 animate-pulse rounded-2xl shadow-sm" />
   }
 
+  // Status configuration
+  const statusConfig = {
+    ACTIVE: {
+      gradient: isExpired ? 'from-orange-500 to-red-500' : 'from-emerald-500 to-teal-600',
+      bg: isExpired ? 'bg-orange-50' : 'bg-emerald-50',
+      border: isExpired ? 'border-orange-200' : 'border-emerald-200',
+      badge: isExpired ? 'bg-orange-500' : 'bg-emerald-500',
+      text: isExpired ? 'Süresi Geçmiş' : 'Aktif Staj',
+      icon: isExpired ? '⚠️' : '🚀'
+    },
+    COMPLETED: {
+      gradient: 'from-blue-500 to-purple-600',
+      bg: 'bg-blue-50',
+      border: 'border-blue-200',
+      badge: 'bg-blue-500',
+      text: 'Tamamlandı',
+      icon: '✅'
+    },
+    TERMINATED: {
+      gradient: 'from-red-500 to-pink-600',
+      bg: 'bg-red-50',
+      border: 'border-red-200',
+      badge: 'bg-red-500',
+      text: 'Feshedildi',
+      icon: '❌'
+    },
+    CANCELLED: {
+      gradient: 'from-gray-500 to-slate-600',
+      bg: 'bg-gray-50',
+      border: 'border-gray-200',
+      badge: 'bg-gray-500',
+      text: 'İptal Edildi',
+      icon: '⏹️'
+    }
+  }
+
+  const status = statusConfig[staj.status]
+  const studentName = staj.student ? `${staj.student.name} ${staj.student.surname}` : 'Bilinmiyor'
+  const studentInitials = studentName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+
   return (
-    <div className={`border rounded-lg p-3 md:p-6 ${
-      isExpired ? 'bg-orange-50 border-orange-200' :
-      staj.status === 'ACTIVE' ? 'bg-green-50 border-green-200' :
-      staj.status === 'TERMINATED' ? 'bg-red-50 border-red-200' :
-      'bg-gray-50 border-gray-200'
-    }`}>
-      <div className="flex flex-col md:flex-row gap-4">
-        {/* Sol taraf - Bilgiler */}
-        <div className="flex-1 min-w-0">
-          <div className="space-y-2">
-            <div className="space-y-2">
-              <h3 className="text-base md:text-lg font-medium text-gray-900 break-words">
-                {staj.student?.name || 'Bilinmiyor'} {staj.student?.surname || ''}
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {isExpired && staj.status === 'ACTIVE' && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                    Süresi Geçmiş
-                  </span>
-                )}
-                {staj.status === 'COMPLETED' && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    ✅ Staj Tamamlandı
-                  </span>
-                )}
-                {staj.status === 'TERMINATED' && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                    ❌ Staj Feshedildi
-                  </span>
-                )}
-                {staj.status === 'CANCELLED' && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                    ⏹️ Staj İptal Edildi
-                  </span>
-                )}
-              </div>
+    <div className={`group relative overflow-hidden rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 ${status.bg} ${status.border} border-2`}>
+      {/* Gradient Header */}
+      <div className={`h-2 bg-gradient-to-r ${status.gradient}`}></div>
+      
+      <div className="p-6">
+        {/* Header with Avatar and Status */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            {/* Student Avatar */}
+            <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${status.gradient} flex items-center justify-center text-white font-bold text-sm shadow-lg`}>
+              {studentInitials}
             </div>
             
-            <div className="space-y-2">
-              <div className="text-xs md:text-sm text-gray-600">
-                <div className="flex items-center gap-1 mb-1">
-                  <GraduationCap className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
-                  <span className="break-words">{staj.student?.className || 'Bilinmiyor'} - No: {staj.student?.number || 'Bilinmiyor'}</span>
-                </div>
-                <div className="pl-4 break-words">{staj.student?.alan?.name || 'Alan belirtilmemiş'}</div>
-              </div>
-              
-              <div className="flex items-start gap-1 text-xs md:text-sm text-gray-600">
-                <Building2 className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0 mt-0.5" />
-                <span className="break-words">{staj.company?.name || 'İşletme bilgisi yok'}</span>
-              </div>
-              
-              <div className="flex items-start gap-1 text-xs md:text-sm text-gray-600">
-                <UserCheck className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0 mt-0.5" />
-                <div className="min-w-0">
-                  <span className="font-medium">Koordinatör: </span>
-                  {staj.teacher ? (
-                    <span className="break-words">
-                      {`${staj.teacher.name} ${staj.teacher.surname}`}
-                      {staj.status === 'TERMINATED' && (
-                        <span className="text-xs text-gray-500 ml-1">(Fesih zamanında)</span>
-                      )}
-                    </span>
-                  ) : (
-                    <span className="text-orange-600 font-medium">Koordinatör Öğretmen atanmadı</span>
-                  )}
-                </div>
-              </div>
-              
-              <div className="flex items-start gap-1 text-xs md:text-sm text-gray-600">
-                <Calendar className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0 mt-0.5" />
-                <span className="break-words leading-relaxed">
-                  {staj.startDate ? new Date(staj.startDate).toLocaleDateString('tr-TR') : 'Tarih yok'} - {
-                    staj.status === 'TERMINATED' && staj.terminationDate
-                      ? new Date(staj.terminationDate).toLocaleDateString('tr-TR') + ' (Fesih)'
-                      : staj.endDate
-                        ? new Date(staj.endDate).toLocaleDateString('tr-TR')
-                        : 'Devam ediyor'
-                  }
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 leading-tight">
+                {studentName}
+              </h3>
+              <div className="flex items-center space-x-2 mt-1">
+                <GraduationCap className="h-4 w-4 text-gray-500" />
+                <span className="text-sm text-gray-600 font-medium">
+                  {staj.student?.className} • No: {staj.student?.number}
                 </span>
               </div>
             </div>
           </div>
-        </div>
-        
-        {/* Sağ taraf - Action Buttons */}
-        <div className="flex flex-col gap-2 md:min-w-[200px]">
-          {staj.status === 'ACTIVE' && !isExpired && (
-            <>
-              {/* Tamamla Button */}
-              <button
-                onClick={() => onTamamla(staj.id)}
-                className="flex items-center justify-center space-x-1 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors text-xs md:text-sm w-full"
-              >
-                <CheckCircle className="h-3 w-3 md:h-4 md:w-4" />
-                <span>Tamamla</span>
-              </button>
-              
-              {/* Fesih Et Button */}
-              <button
-                onClick={() => onFesih(staj)}
-                className="flex items-center justify-center space-x-1 bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition-colors text-xs md:text-sm w-full"
-              >
-                <X className="h-3 w-3 md:h-4 md:w-4" />
-                <span>Fesih Et</span>
-              </button>
-              
-              {/* Koordinatör Değiştir Button */}
-              <button
-                onClick={() => onKoordinatorDegistir(staj)}
-                className="flex items-center justify-center space-x-1 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors text-xs md:text-sm w-full"
-              >
-                <UserCheck className="h-3 w-3 md:h-4 md:w-4" />
-                <span>Koordinatör Değiştir</span>
-              </button>
-            </>
-          )}
           
-          {/* Sadece Tamamla butonu - süresi geçmiş aktif stajlar için */}
-          {staj.status === 'ACTIVE' && isExpired && (
-            <button
-              onClick={() => onTamamla(staj.id)}
-              className="flex items-center justify-center space-x-1 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors text-xs md:text-sm w-full"
-            >
-              <CheckCircle className="h-3 w-3 md:h-4 md:w-4" />
-              <span>Stajı Tamamla</span>
-            </button>
-          )}
+          {/* Status Badge and Actions */}
+          <div className="flex items-center space-x-2">
+            <div className={`px-3 py-1 rounded-full text-white text-xs font-medium ${status.badge} shadow-sm flex items-center space-x-1`}>
+              <span>{status.icon}</span>
+              <span>{status.text}</span>
+            </div>
+            
+            {/* Actions Dropdown */}
+            {staj.status === 'ACTIVE' && (
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  className="p-2 rounded-full hover:bg-white/20 transition-colors duration-200 group"
+                  title="İşlemler"
+                >
+                  <MoreVertical className="h-5 w-5 text-gray-600 group-hover:text-gray-800" />
+                </button>
+                
+                {dropdownOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50 animate-in slide-in-from-top-2 duration-200">
+                    <button
+                      onClick={() => {
+                        onTamamla(staj.id)
+                        setDropdownOpen(false)
+                      }}
+                      className="w-full px-4 py-3 text-left flex items-center space-x-3 hover:bg-emerald-50 hover:text-emerald-700 transition-colors text-sm font-medium"
+                    >
+                      <CheckCircle className="h-4 w-4 text-emerald-600" />
+                      <span>Stajı Tamamla</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        onKoordinatorDegistir(staj)
+                        setDropdownOpen(false)
+                      }}
+                      className="w-full px-4 py-3 text-left flex items-center space-x-3 hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm font-medium"
+                    >
+                      <UserCheck className="h-4 w-4 text-blue-600" />
+                      <span>Koordinatör Değiştir</span>
+                    </button>
+                    
+                    <div className="border-t border-gray-100 my-1"></div>
+                    
+                    <button
+                      onClick={() => {
+                        onFesih(staj)
+                        setDropdownOpen(false)
+                      }}
+                      className="w-full px-4 py-3 text-left flex items-center space-x-3 hover:bg-red-50 hover:text-red-700 transition-colors text-sm font-medium"
+                    >
+                      <X className="h-4 w-4 text-red-600" />
+                      <span>Stajı Fesih Et</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Content Grid */}
+        <div className="space-y-4">
+          {/* Department/Field */}
+          <div className="bg-white/70 rounded-xl p-3 border border-white/50">
+            <div className="flex items-center space-x-2">
+              <Award className="h-4 w-4 text-indigo-600" />
+              <span className="text-sm font-medium text-gray-700">Alan</span>
+            </div>
+            <p className="text-gray-900 font-semibold mt-1">
+              {staj.student?.alan?.name || 'Alan belirtilmemiş'}
+            </p>
+          </div>
+
+          {/* Company */}
+          <div className="bg-white/70 rounded-xl p-3 border border-white/50">
+            <div className="flex items-center space-x-2">
+              <Building2 className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-medium text-gray-700">İşletme</span>
+            </div>
+            <p className="text-gray-900 font-semibold mt-1 flex items-center">
+              <MapPin className="h-3 w-3 text-gray-500 mr-1" />
+              {staj.company?.name || 'İşletme bilgisi yok'}
+            </p>
+          </div>
+
+          {/* Coordinator */}
+          <div className="bg-white/70 rounded-xl p-3 border border-white/50">
+            <div className="flex items-center space-x-2">
+              <UserCheck className="h-4 w-4 text-emerald-600" />
+              <span className="text-sm font-medium text-gray-700">Koordinatör</span>
+            </div>
+            <p className="text-gray-900 font-semibold mt-1">
+              {staj.teacher ? (
+                `${staj.teacher.name} ${staj.teacher.surname}`
+              ) : (
+                <span className="text-orange-600">Atanmamış</span>
+              )}
+            </p>
+          </div>
+
+          {/* Duration */}
+          <div className="bg-white/70 rounded-xl p-3 border border-white/50">
+            <div className="flex items-center space-x-2">
+              <Clock className="h-4 w-4 text-purple-600" />
+              <span className="text-sm font-medium text-gray-700">Staj Süresi</span>
+            </div>
+            <p className="text-gray-900 font-semibold mt-1">
+              {staj.startDate ? new Date(staj.startDate).toLocaleDateString('tr-TR') : 'Başlangıç yok'} 
+              <span className="text-gray-500 mx-2">→</span>
+              {staj.status === 'TERMINATED' && staj.terminationDate
+                ? `${new Date(staj.terminationDate).toLocaleDateString('tr-TR')} (Fesih)`
+                : staj.endDate
+                  ? new Date(staj.endDate).toLocaleDateString('tr-TR')
+                  : 'Devam ediyor'}
+            </p>
+          </div>
+        </div>
+
       </div>
     </div>
   )

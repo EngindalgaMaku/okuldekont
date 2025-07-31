@@ -16,6 +16,17 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const studentIds = searchParams.get('studentIds')
     const status = searchParams.get('status')
+    const companyId = searchParams.get('companyId')
+    const teacherId = searchParams.get('teacherId')
+    const educationYearId = searchParams.get('educationYearId')
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '10')
+    
+    
+    // Validate pagination parameters
+    const validPage = Math.max(1, page)
+    const validLimit = Math.min(Math.max(1, limit), 100) // Max 100 items per page
+    const skip = (validPage - 1) * validLimit
     
     let whereClause: any = {
       archived: false // Arşivlenen stajları gizle
@@ -32,7 +43,29 @@ export async function GET(request: Request) {
       whereClause.status = status
     }
     
-    // Get internships with related data
+    // Filter by company if provided
+    if (companyId) {
+      whereClause.companyId = companyId
+    }
+    
+    // Filter by teacher if provided
+    if (teacherId) {
+      whereClause.teacherId = teacherId
+    }
+    
+    // Filter by education year if provided
+    if (educationYearId) {
+      whereClause.educationYearId = educationYearId
+    }
+    
+    // Get total count for pagination
+    const totalCount = await prisma.staj.count({
+      where: whereClause
+    })
+    
+    const totalPages = Math.ceil(totalCount / validLimit)
+    
+    // Get internships with related data and pagination
     const internships = await prisma.staj.findMany({
       where: whereClause,
       include: {
@@ -47,7 +80,9 @@ export async function GET(request: Request) {
       },
       orderBy: {
         createdAt: 'desc'
-      }
+      },
+      skip,
+      take: validLimit
     })
 
     // Transform data to match expected interface with teacher history support
@@ -117,7 +152,15 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      data: transformedInternships
+      data: transformedInternships,
+      pagination: {
+        currentPage: validPage,
+        totalPages,
+        totalCount,
+        limit: validLimit,
+        hasNextPage: validPage < totalPages,
+        hasPreviousPage: validPage > 1
+      }
     })
   } catch (error) {
     console.error('Internships fetch error:', error)
