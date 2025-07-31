@@ -270,8 +270,8 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
           </div>
         )}
 
-        {/* Mobile Card View */}
-        <div className="block md:hidden">
+        {/* Mobile and Tablet Card View */}
+        <div className="block lg:hidden">
           <div className="p-3 bg-gray-50 border-b">
             <label className="flex items-center">
               <input
@@ -362,13 +362,6 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
                         >
                           <History className="w-4 h-4" />
                         </Link>
-                        <Link
-                          href={`/admin/ogretmenler/${ogretmen.id}`}
-                          className="text-blue-600 hover:text-blue-900 p-2 rounded-md hover:bg-blue-50"
-                          title="Detayları Görüntüle"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Link>
                         <QuickPinButton
                           ogretmen={{
                             id: ogretmen.id,
@@ -376,6 +369,13 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
                             soyad: ogretmen.soyad
                           }}
                         />
+                        <Link
+                          href={`/admin/ogretmenler/${ogretmen.id}`}
+                          className="text-blue-600 hover:text-blue-900 p-2 rounded-md hover:bg-blue-50"
+                          title="Detayları Görüntüle"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Link>
                       </div>
                     </div>
                   </div>
@@ -386,7 +386,7 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
         </div>
 
         {/* Desktop Table View */}
-        <div className="hidden md:block overflow-x-auto">
+        <div className="hidden lg:block overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -500,13 +500,6 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
                       >
                         <History className="w-4 h-4" />
                       </Link>
-                      <Link
-                        href={`/admin/ogretmenler/${ogretmen.id}`}
-                        className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
-                        title="Detayları Görüntüle"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Link>
                       <QuickPinButton
                         ogretmen={{
                           id: ogretmen.id,
@@ -514,6 +507,13 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
                           soyad: ogretmen.soyad
                         }}
                       />
+                      <Link
+                        href={`/admin/ogretmenler/${ogretmen.id}`}
+                        className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
+                        title="Detayları Görüntüle"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Link>
                     </div>
                   </td>
                 </tr>

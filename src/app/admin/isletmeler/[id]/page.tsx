@@ -209,6 +209,17 @@ export default function IsletmeDetayPage() {
     belgeler: false
   })
 
+  // Data loading states for lazy loading
+  const [dataLoaded, setDataLoaded] = useState({
+    company: false,
+    internships: false,
+    companyFields: false,
+    fields: false,
+    documents: false,
+    dekontlar: false,
+    availableStudents: false
+  })
+
   const [company, setCompany] = useState<Company | null>(null)
   const [internships, setInternships] = useState<Internship[]>([])
   const [companyFields, setCompanyFields] = useState<FieldData[]>([])
@@ -238,6 +249,7 @@ export default function IsletmeDetayPage() {
   const [teacherAssignmentLoading, setTeacherAssignmentLoading] = useState(false)
   const [securityStatus, setSecurityStatus] = useState<any>(null)
   const [unlockLoading, setUnlockLoading] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
 
   const [formData, setFormData] = useState({
     name: '',
@@ -277,12 +289,48 @@ export default function IsletmeDetayPage() {
     notes: ''
   })
 
-  const toggleSection = (section: keyof typeof openSections) => {
+  const toggleSection = async (section: keyof typeof openSections) => {
+    const isOpening = !openSections[section]
+    
     setOpenSections(prev => ({
       ...prev,
       [section]: !prev[section]
     }))
+
+    // Lazy load data when accordion opens
+    if (isOpening) {
+      switch (section) {
+        case 'ogrenciler':
+          if (!dataLoaded.internships) {
+            await fetchInternships()
+            setDataLoaded(prev => ({ ...prev, internships: true }))
+          }
+          break
+        case 'alanlar':
+          if (!dataLoaded.companyFields) {
+            await Promise.all([
+              fetchCompanyFields(),
+              fetchFields()
+            ])
+            setDataLoaded(prev => ({ ...prev, companyFields: true, fields: true }))
+          }
+          break
+        case 'belgeler':
+          if (!dataLoaded.documents) {
+            await Promise.all([
+              fetchDocuments(),
+              fetchDekontlar()
+            ])
+            setDataLoaded(prev => ({ ...prev, documents: true, dekontlar: true }))
+          }
+          break
+      }
+    }
   }
+
+  // Cache system for API responses
+  const cacheRef = useRef<Record<string, { data: any; timestamp: number }>>({})
+  const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
   // Debounced input handler to prevent focus loss
   const formRef = useRef(formData)
@@ -316,8 +364,47 @@ export default function IsletmeDetayPage() {
     }
   }, [])
 
-  // Fetch company information
+  // Cache helper functions
+  const getCachedData = (key: string) => {
+    const cached = cacheRef.current[key]
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      return cached.data
+    }
+    return null
+  }
+
+  const setCachedData = (key: string, data: any) => {
+    cacheRef.current[key] = {
+      data,
+      timestamp: Date.now()
+    }
+  }
+
+  // Fetch company information with cache
   async function fetchCompany() {
+    const cacheKey = `company-${companyId}`
+    const cachedData = getCachedData(cacheKey)
+    
+    if (cachedData) {
+      setCompany(cachedData)
+      setFormData({
+        name: cachedData.name || '',
+        address: cachedData.address || '',
+        phone: cachedData.phone || '',
+        email: cachedData.email || '',
+        contact: cachedData.contact || '',
+        pin: cachedData.pin || '',
+        activityField: cachedData.activityField || '',
+        taxNumber: cachedData.taxNumber || '',
+        bankAccountNo: cachedData.bankAccountNo || '',
+        employeeCount: cachedData.employeeCount || '',
+        stateContributionRequest: cachedData.stateContributionRequest || '',
+        masterTeacherName: cachedData.masterTeacherName || '',
+        masterTeacherPhone: cachedData.masterTeacherPhone || ''
+      })
+      return
+    }
+
     try {
       const response = await fetch(`/api/admin/companies/${companyId}`)
       const data = await response.json()
@@ -327,6 +414,7 @@ export default function IsletmeDetayPage() {
         return
       }
 
+      setCachedData(cacheKey, data)
       setCompany(data)
       setFormData({
         name: data.name || '',
@@ -363,8 +451,16 @@ export default function IsletmeDetayPage() {
     }
   }
 
-  // Fetch internships and students
+  // Fetch internships and students with cache
   async function fetchInternships() {
+    const cacheKey = `internships-${companyId}`
+    const cachedData = getCachedData(cacheKey)
+    
+    if (cachedData) {
+      setInternships(cachedData)
+      return
+    }
+
     try {
       const response = await fetch(`/api/admin/companies/${companyId}/internships`)
       const data = await response.json()
@@ -374,6 +470,7 @@ export default function IsletmeDetayPage() {
         return
       }
 
+      setCachedData(cacheKey, data || [])
       setInternships(data || [])
     } catch (error) {
       console.error('Internship fetch error:', error)
@@ -467,15 +564,9 @@ export default function IsletmeDetayPage() {
 
   useEffect(() => {
     if (companyId) {
-      Promise.all([
-        fetchCompany(),
-        fetchInternships(), 
-        fetchCompanyFields(),
-        fetchFields(),
-        fetchDocuments(),
-        fetchDekontlar(),
-        fetchAvailableStudents()
-      ]).then(() => {
+      // Only load essential data on initial page load
+      fetchCompany().then(() => {
+        setDataLoaded(prev => ({ ...prev, company: true }))
         setLoading(false)
       })
     }
@@ -523,6 +614,15 @@ export default function IsletmeDetayPage() {
     }
   }
 
+  // Handle student modal opening with lazy loading
+  const handleOpenStudentModal = async () => {
+    if (!dataLoaded.availableStudents) {
+      await fetchAvailableStudents()
+      setDataLoaded(prev => ({ ...prev, availableStudents: true }))
+    }
+    setStudentModalOpen(true)
+  }
+
   // Add student (select from existing students)
   const handleAddStudent = async () => {
     try {
@@ -558,6 +658,7 @@ export default function IsletmeDetayPage() {
       
       // Refresh data
       await Promise.all([fetchInternships(), fetchAvailableStudents()])
+      setDataLoaded(prev => ({ ...prev, internships: true, availableStudents: true }))
     } catch (error) {
       console.error('General internship creation error:', error)
       toast.error('Staj eklerken beklenmeyen bir hata oluştu!')
@@ -639,6 +740,12 @@ export default function IsletmeDetayPage() {
   const handleDeleteCompany = async () => {
     if (!company) return
 
+    // Check confirmation text
+    if (deleteConfirmText !== company.name) {
+      toast.error('İşletme adını doğru yazmadınız!')
+      return
+    }
+
     setIsDeleting(true)
     try {
       const response = await fetch(`/api/admin/companies/${company.id}`, {
@@ -656,6 +763,7 @@ export default function IsletmeDetayPage() {
       toast.error(`Hata: ${error.message}`)
     } finally {
       setIsDeleting(false)
+      setDeleteConfirmText('')
     }
   }
 
@@ -1264,8 +1372,8 @@ export default function IsletmeDetayPage() {
             <div className="pt-4 space-y-6">
               <div className="flex justify-between items-center">
                 <p className="text-sm text-gray-600">Toplam {internships.length} öğrenci bu işletmede staj yapıyor</p>
-                <button 
-                  onClick={() => setStudentModalOpen(true)}
+                <button
+                  onClick={handleOpenStudentModal}
                   className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
                 >
                   <Plus className="h-4 w-4 mr-2" />
@@ -1646,7 +1754,10 @@ export default function IsletmeDetayPage() {
       {/* Delete Company Modal */}
       <Modal
         isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
+        onClose={() => {
+          setDeleteModalOpen(false)
+          setDeleteConfirmText('')
+        }}
         title="İşletmeyi Sil"
       >
         <div className="space-y-6">
@@ -1690,32 +1801,62 @@ export default function IsletmeDetayPage() {
             </div>
           </div>
 
-          <div className="text-center">
-            <p className="text-lg font-semibold text-gray-900 mb-2">
-              "{company?.name}" işletmesini silmek istediğinizden emin misiniz?
-            </p>
-            <p className="text-sm text-gray-600">
-              Bu işlemi onaylamak için aşağıdaki "KALICI OLARAK SİL" butonuna tıklayın.
-            </p>
+          <div className="space-y-4">
+            <div className="text-center">
+              <p className="text-lg font-semibold text-gray-900 mb-2">
+                "{company?.name}" işletmesini silmek istediğinizden emin misiniz?
+              </p>
+              <p className="text-sm text-gray-600 mb-4">
+                Bu işlemi onaylamak için aşağıya işletme adını tam olarak yazın.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Silme işlemini onaylamak için "<strong>{company?.name}</strong>" yazın:
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder={`${company?.name} yazın`}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                autoComplete="off"
+              />
+              {deleteConfirmText && deleteConfirmText !== company?.name && (
+                <p className="text-sm text-red-600 mt-1">
+                  İşletme adı eşleşmiyor. Tam olarak "{company?.name}" yazmalısınız.
+                </p>
+              )}
+              {deleteConfirmText === company?.name && (
+                <p className="text-sm text-green-600 mt-1">
+                  ✓ İşletme adı doğrulandı. Silme butonu aktif edildi.
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="flex justify-end space-x-3 pt-4 border-t">
             <button
-              onClick={() => setDeleteModalOpen(false)}
+              onClick={() => {
+                setDeleteModalOpen(false)
+                setDeleteConfirmText('')
+              }}
               className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              disabled={isDeleting}
             >
               İptal Et
             </button>
             <button
               onClick={handleDeleteCompany}
-              disabled={isDeleting}
-              className="px-6 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:from-red-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              disabled={isDeleting || deleteConfirmText !== company?.name}
+              className="px-6 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:from-red-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center"
             >
               {isDeleting ? (
-                <div className="flex items-center">
+                <>
                   <Loader className="animate-spin h-4 w-4 mr-2" />
                   Siliniyor...
-                </div>
+                </>
               ) : (
                 <>
                   <Trash2 className="h-4 w-4 mr-2" />

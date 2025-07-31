@@ -88,7 +88,7 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2 sm:gap-3">
-            <Users className="hidden sm:block h-6 w-6 sm:h-8 sm:w-8 text-blue-500" />
+            <Users className="hidden md:block h-6 w-6 sm:h-8 sm:w-8 text-blue-500" />
             Öğretmen Yönetimi
           </h1>
           <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-2 w-fit">
@@ -110,12 +110,12 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
                 name="search"
                 defaultValue={searchParams.search || ''}
                 placeholder="Öğretmen ara..."
-                className="pl-10 pr-4 py-2 w-full sm:w-64 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+                className="pl-10 pr-4 py-2 w-full md:w-64 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
               />
             </div>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto text-sm sm:text-base"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full md:w-auto text-sm"
             >
               Ara
             </button>

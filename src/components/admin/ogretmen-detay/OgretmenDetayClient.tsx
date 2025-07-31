@@ -22,6 +22,7 @@ interface Ogretmen {
   email: string | null;
   telefon: string | null;
   aktif?: boolean;
+  pin?: string;
 }
 interface Staj {
   id: string;
@@ -137,7 +138,7 @@ export default function OgretmenDetayClient({
           <TabButton id="detaylar" label="Öğrenci Listesi" icon={User} activeTab={activeTab} onClick={handleTabChange} />
           <TabButton id="program" label="Haftalık Program" icon={Clock} activeTab={activeTab} onClick={handleTabChange} />
           <TabButton id="dekontlar" label="Dekontlar" icon={Receipt} activeTab={activeTab} onClick={handleTabChange} />
-          <TabButton id="ayarlar" label="Ayarlar" icon={Settings} activeTab={activeTab} onClick={handleTabChange} />
+          <TabButton id="ayarlar" label="Temel Bilgiler" icon={Settings} activeTab={activeTab} onClick={handleTabChange} />
         </nav>
       </div>
 
@@ -474,6 +475,7 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
     const [loading, setLoading] = useState(false)
     const [lockStatus, setLockStatus] = useState<any>(null)
     const [lockStatusLoading, setLockStatusLoading] = useState(false)
+    const [currentPin, setCurrentPin] = useState('')
     
     // Accordion state management - all sections start closed
     const [sectionsOpen, setSectionsOpen] = useState({
@@ -530,7 +532,20 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
 
     useEffect(() => {
         fetchLockStatus();
+        fetchCurrentPin();
     }, []);
+
+    const fetchCurrentPin = async () => {
+        try {
+            const response = await fetch(`/api/admin/teachers/${ogretmen.id}`);
+            if (response.ok) {
+                const data = await response.json();
+                setCurrentPin(data.pin || '');
+            }
+        } catch (error) {
+            console.error('PIN fetch error:', error);
+        }
+    };
 
     const handlePinAta = async () => {
         if (!pinForm.pin || pinForm.pin.length !== 4 || pinForm.pin !== pinForm.confirmPin) {
@@ -552,6 +567,7 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
                 toast.success('PIN başarıyla atandı.');
                 setPinModalOpen(false);
                 setPinForm({ pin: '', confirmPin: '' });
+                await fetchCurrentPin(); // PIN'i yeniden yükle
             } else {
                 const errorData = await response.json();
                 toast.error(errorData.error || 'PIN atanırken hata oluştu.');
@@ -768,14 +784,32 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
                 </button>
                 {sectionsOpen.accountManagement && (
                     <div className="px-4 pb-4 border-t border-gray-200">
-                        <div className="mt-4">
-                            <button
-                                onClick={() => setPinModalOpen(true)}
-                                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                            >
-                                <Key className="h-4 w-4" />
-                                PIN Ata/Değiştir
-                            </button>
+                        <div className="mt-4 space-y-3">
+                            {currentPin && (
+                                <div className="flex items-center gap-3 p-3 bg-gray-100 rounded-lg border">
+                                    <Key className="h-5 w-5 text-gray-600" />
+                                    <div className="flex-1">
+                                        <span className="text-sm font-medium text-gray-700">Mevcut PIN:</span>
+                                        <span className="ml-2 font-mono text-lg text-gray-900">{currentPin}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => setPinModalOpen(true)}
+                                        className="flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                                    >
+                                        <Key className="h-4 w-4" />
+                                        Değiştir
+                                    </button>
+                                </div>
+                            )}
+                            {!currentPin && (
+                                <button
+                                    onClick={() => setPinModalOpen(true)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                                >
+                                    <Key className="h-4 w-4" />
+                                    PIN Ata
+                                </button>
+                            )}
                         </div>
                     </div>
                 )}
@@ -911,10 +945,11 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
             <div>
                 <button
                     onClick={() => setDeleteModal(true)}
-                    className="flex items-center justify-center p-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    className="flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"
                     title="Öğretmeni Kalıcı Olarak Sil"
                 >
-                    <Trash2 className="h-5 w-5" />
+                    <Trash2 className="h-5 w-5 text-red-500" />
+                    <span className="text-sm font-medium">Öğretmeni Sil</span>
                 </button>
             </div>
 

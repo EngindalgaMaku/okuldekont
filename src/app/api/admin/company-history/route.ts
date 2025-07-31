@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
 
     // İstatistik modu
     if (stats === 'true') {
-      const total = await (prisma as any).companyHistory.count();
-      const recent = await (prisma as any).companyHistory.count({
+      const total = await prisma.companyHistory.count();
+      const recent = await prisma.companyHistory.count({
         where: {
-          createdAt: {
+          validFrom: {
             gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Son 7 gün
           }
         }
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
 
     const [companyHistory, totalCount] = await Promise.all([
-      (prisma as any).companyHistory.findMany({
+      prisma.companyHistory.findMany({
         where: whereClause,
         include: {
           company: {
@@ -114,29 +114,27 @@ export async function GET(request: NextRequest) {
           }
         },
         orderBy: [
-          { validFrom: 'desc' },
-          { createdAt: 'desc' }
+          { validFrom: 'desc' }
         ],
         skip: offset,
         take: limit
       }),
-      (prisma as any).companyHistory.count({ where: whereClause })
+      prisma.companyHistory.count({ where: whereClause })
     ]);
 
-    // Response formatını sayfaların beklediği format ile uyumlu hale getir
+    // Response formatını CompanyHistoryModal'ın beklediği format ile uyumlu hale getir
     const formattedHistory = companyHistory.map((record: any) => ({
       id: record.id,
-      company_id: record.companyId,
-      company_name: record.company?.name || 'Bilinmiyor',
-      change_type: record.changeType,
-      changed_field: record.fieldName,
-      old_value: record.previousValue,
-      new_value: record.newValue,
-      valid_from: record.validFrom,
-      valid_to: record.validTo,
-      description: record.reason || record.notes,
-      changed_by: record.changedByUser?.adminProfile?.name || record.changedByUser?.email || 'Bilinmiyor',
-      created_at: record.createdAt
+      companyId: record.companyId,
+      changeType: record.changeType,
+      fieldName: record.fieldName,
+      previousValue: record.previousValue,
+      newValue: record.newValue,
+      validFrom: record.validFrom.toISOString(),
+      validTo: record.validTo?.toISOString() || null,
+      changedBy: record.changedByUser?.adminProfile?.name || record.changedByUser?.email || 'Bilinmiyor',
+      reason: record.reason,
+      createdAt: record.validFrom.toISOString()
     }));
 
     return NextResponse.json({
@@ -180,7 +178,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Aynı alan için önceki kaydın validTo'sunu güncelle
-    const previousRecord = await (prisma as any).companyHistory.findFirst({
+    const previousRecord = await prisma.companyHistory.findFirst({
       where: {
         companyId,
         fieldName,
@@ -195,14 +193,14 @@ export async function POST(request: NextRequest) {
     const result = await prisma.$transaction(async (tx) => {
       // Önceki kaydın validTo'sunu güncelle
       if (previousRecord) {
-        await (tx as any).companyHistory.update({
+        await tx.companyHistory.update({
           where: { id: previousRecord.id },
           data: { validTo: now }
         });
       }
 
       // Yeni kayıt oluştur
-      const newRecord = await (tx as any).companyHistory.create({
+      const newRecord = await tx.companyHistory.create({
         data: {
           companyId,
           changeType: changeType as CompanyChangeType,

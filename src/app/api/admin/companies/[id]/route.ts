@@ -61,28 +61,114 @@ export async function PUT(
     const { id } = await params
     const data = await request.json()
     
-    const updatedCompany = await prisma.companyProfile.update({
-      where: {
-        id,
-      },
-      data: {
-        name: data.name,
-        address: data.address,
-        phone: data.phone,
-        email: data.email,
-        contact: data.contact,
-        pin: data.pin,
-        taxNumber: data.taxNumber,
-        activityField: data.activityField,
-        bankAccountNo: data.bankAccountNo,
-        employeeCount: data.employeeCount,
-        stateContributionRequest: data.stateContributionRequest,
-        masterTeacherName: data.masterTeacherName,
-        masterTeacherPhone: data.masterTeacherPhone,
-      },
+    // Get current company data for comparison
+    const currentCompany = await prisma.companyProfile.findUnique({
+      where: { id }
     })
 
-    return NextResponse.json(updatedCompany)
+    if (!currentCompany) {
+      return NextResponse.json({ error: 'İşletme bulunamadı' }, { status: 404 })
+    }
+
+    // Compare and track changes
+    const changes: Array<{
+      fieldName: string
+      changeType: string
+      previousValue: any
+      newValue: any
+    }> = []
+
+    // Define fields to track
+    const fieldsToTrack = [
+      { field: 'name', changeType: 'CONTACT_INFO_UPDATE' },
+      { field: 'address', changeType: 'ADDRESS_UPDATE' },
+      { field: 'phone', changeType: 'CONTACT_INFO_UPDATE' },
+      { field: 'email', changeType: 'CONTACT_INFO_UPDATE' },
+      { field: 'contact', changeType: 'CONTACT_INFO_UPDATE' },
+      { field: 'pin', changeType: 'OTHER_UPDATE' },
+      { field: 'taxNumber', changeType: 'OTHER_UPDATE' },
+      { field: 'activityField', changeType: 'ACTIVITY_FIELD_UPDATE' },
+      { field: 'bankAccountNo', changeType: 'BANK_ACCOUNT_UPDATE' },
+      { field: 'employeeCount', changeType: 'EMPLOYEE_COUNT_UPDATE' },
+      { field: 'stateContributionRequest', changeType: 'OTHER_UPDATE' },
+      { field: 'masterTeacherName', changeType: 'MASTER_TEACHER_UPDATE' },
+      { field: 'masterTeacherPhone', changeType: 'MASTER_TEACHER_UPDATE' }
+    ]
+
+    // Check for changes
+    fieldsToTrack.forEach(({ field, changeType }) => {
+      const currentValue = (currentCompany as any)[field]
+      const newValue = data[field]
+      
+      if (currentValue !== newValue) {
+        changes.push({
+          fieldName: field,
+          changeType,
+          previousValue: currentValue,
+          newValue: newValue
+        })
+      }
+    })
+
+    // Update company and create history records in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Update the company
+      const updatedCompany = await tx.companyProfile.update({
+        where: { id },
+        data: {
+          name: data.name,
+          address: data.address,
+          phone: data.phone,
+          email: data.email,
+          contact: data.contact,
+          pin: data.pin,
+          taxNumber: data.taxNumber,
+          activityField: data.activityField,
+          bankAccountNo: data.bankAccountNo,
+          employeeCount: data.employeeCount,
+          stateContributionRequest: data.stateContributionRequest,
+          masterTeacherName: data.masterTeacherName,
+          masterTeacherPhone: data.masterTeacherPhone,
+        },
+      })
+
+      // Create history records for changes
+      if (changes.length > 0) {
+        const now = new Date()
+        
+        for (const change of changes) {
+          // Close previous record for this field
+          await tx.companyHistory.updateMany({
+            where: {
+              companyId: id,
+              fieldName: change.fieldName,
+              validTo: null
+            },
+            data: { validTo: now }
+          })
+
+          // Create new history record
+          await tx.companyHistory.create({
+            data: {
+              companyId: id,
+              changeType: change.changeType as any,
+              fieldName: change.fieldName,
+              previousValue: change.previousValue ? String(change.previousValue) : null,
+              newValue: change.newValue ? String(change.newValue) : null,
+              validFrom: now,
+              changedBy: 'cmdbwoyma0001qva4qnz7qde5', // TODO: Get actual admin ID from session
+              reason: 'Admin tarafından güncellendi'
+            }
+          })
+        }
+      }
+
+      return updatedCompany
+    })
+
+    console.log(`Company updated: ${changes.length} changes tracked for company ${id}`)
+
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Error updating company:', error)
     return NextResponse.json({ error: 'Failed to update company' }, { status: 500 })

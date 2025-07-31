@@ -143,26 +143,18 @@ export default function CompanyHistoryModal({ isOpen, onClose, company }: Compan
     <Modal isOpen={isOpen} onClose={onClose} title="">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-gray-200">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
-              <Building2 className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                İşletme Geçmişi
-              </h3>
-              <p className="text-sm text-gray-600">
-                {company.name} - Bilgi Değişiklik Kayıtları
-              </p>
-            </div>
+        <div className="flex items-center space-x-3 pb-4 border-b border-gray-200">
+          <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
+            <Building2 className="h-5 w-5 text-white" />
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">
+              İşletme Geçmişi
+            </h3>
+            <p className="text-sm text-gray-600">
+              {company.name} - Bilgi Değişiklik Kayıtları
+            </p>
+          </div>
         </div>
 
         {/* Filters */}
