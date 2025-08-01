@@ -40,10 +40,9 @@ export default function DatabaseStatus({ className = '', showText = true }: Data
   useEffect(() => {
     checkDatabaseConnection()
     
-    // Recheck every 30 seconds
-    const interval = setInterval(checkDatabaseConnection, 30000)
-    
-    return () => clearInterval(interval)
+    // Polling disabled - no real-time updates needed
+    // const interval = setInterval(checkDatabaseConnection, 30000)
+    // return () => clearInterval(interval)
   }, [])
 
   const getStatusColor = () => {
@@ -125,6 +124,7 @@ export function DatabaseStatusHeader() {
     }
 
     checkConnection()
+    // Polling disabled for header version
   }, [])
 
   return (

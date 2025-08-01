@@ -40,9 +40,9 @@ export default function AdminLoginPage() {
 
     checkConnection()
     
-    // Check connection every 30 seconds
-    const interval = setInterval(checkConnection, 30000)
-    return () => clearInterval(interval)
+    // Polling disabled - no real-time updates needed
+    // const interval = setInterval(checkConnection, 30000)
+    // return () => clearInterval(interval)
   }, [])
 
   const handleLogin = async (e: React.FormEvent) => {

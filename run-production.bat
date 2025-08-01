@@ -1,0 +1,6 @@
+@echo off
+echo Building Next.js application...
+npm run build
+echo.
+echo Starting production server...
+npm start

@@ -148,34 +148,10 @@ export default function OgretmenlerTableClient({ ogretmenler }: Props) {
     }
   }
 
-  // Fetch security statuses for all teachers
-  useEffect(() => {
-    const fetchSecurityStatuses = async () => {
-      const statuses: Record<string, any> = {}
-      await Promise.all(
-        ogretmenler.map(async (ogretmen) => {
-          try {
-            const response = await fetch('/api/admin/security/status', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ entityType: 'teacher', entityId: ogretmen.id })
-            })
-            if (response.ok) {
-              const status = await response.json()
-              statuses[ogretmen.id] = status
-            }
-          } catch (error) {
-            // Ignore errors for individual teachers
-          }
-        })
-      )
-      setSecurityStatuses(statuses)
-    }
-
-    if (ogretmenler.length > 0) {
-      fetchSecurityStatuses()
-    }
-  }, [ogretmenler])
+  // Security status kontrollerini devre dışı bırak - gereksiz
+  // useEffect(() => {
+  //   // Security status kontrolleri kaldırıldı
+  // }, [ogretmenler])
 
   // Handle unlock teacher
   const handleUnlockTeacher = async (teacherId: string) => {

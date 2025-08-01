@@ -434,15 +434,14 @@ export default function IsletmeDetayPage() {
 
       // Fetch security status
       try {
-        const response = await fetch('/api/admin/security/status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entityType: 'company', entityId: data.id })
+        // Security status kontrolü devre dışı bırakıldı
+        const response = { ok: false } // Dummy response
+        // Security status kontrolü devre dışı - varsayılan değer
+        setSecurityStatus({
+          isLocked: false,
+          remainingAttempts: 4,
+          canAttempt: true
         })
-        if (response.ok) {
-          const securityData = await response.json()
-          setSecurityStatus(securityData)
-        }
       } catch (securityError) {
         console.error('Security status fetch error:', securityError)
       }
@@ -842,16 +841,12 @@ export default function IsletmeDetayPage() {
       toast.success('İşletme bloğu başarıyla açıldı!')
       
       // Refresh security status
-      const statusResponse = await fetch('/api/admin/security/status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entityType: 'company', entityId: companyId })
+      // Security status refresh devre dışı bırakıldı
+      setSecurityStatus({
+        isLocked: false,
+        remainingAttempts: 4,
+        canAttempt: true
       })
-      
-      if (statusResponse.ok) {
-        const securityData = await statusResponse.json()
-        setSecurityStatus(securityData)
-      }
     } catch (error: any) {
       toast.error(`Hata: ${error.message}`)
     } finally {

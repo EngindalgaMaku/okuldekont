@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { User, Users, Building2, Mail, Phone, ChevronRight, Plus, Key } from 'lucide-react'
+import { User, Users, Building2, Mail, Phone, ChevronRight, Plus, Key, CreditCard } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'react-hot-toast'
 import Modal from '@/components/ui/Modal'
@@ -29,11 +29,23 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
     surname: '',
     phone: '',
     email: '',
-    pin: '1234'
+    pin: '1234',
+    tcNo: '',
+    position: ''
   })
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
+    
+    // TC No için sadece rakam
+    if (name === 'tcNo') {
+      const numericValue = value.replace(/\D/g, '')
+      if (numericValue.length <= 11) {
+        setFormData(prev => ({ ...prev, [name]: numericValue }))
+      }
+      return
+    }
+    
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
@@ -60,6 +72,11 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
       toast.error('PIN 4 haneli olmalıdır')
       return
     }
+    
+    if (formData.tcNo && formData.tcNo.length !== 11) {
+      toast.error('TC Kimlik No 11 haneli olmalıdır')
+      return
+    }
 
     setLoading(true)
     
@@ -72,9 +89,11 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
         body: JSON.stringify({
           name: formData.name.trim(),
           surname: formData.surname.trim(),
+          tcNo: formData.tcNo.trim() || null,
           phone: formData.phone.trim() || null,
           email: formData.email.trim() || null,
           pin: formData.pin.trim(),
+          position: formData.position || null,
           alanId: alanId // Alan ID'si otomatik olarak set ediliyor
         }),
       })
@@ -83,7 +102,7 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
         const newTeacher = await response.json()
         toast.success('Öğretmen başarıyla eklendi')
         setIsAddModalOpen(false)
-        setFormData({ name: '', surname: '', phone: '', email: '', pin: '1234' })
+        setFormData({ name: '', surname: '', phone: '', email: '', pin: '1234', tcNo: '', position: '' })
         // Sayfayı yenile
         window.location.reload()
       } else {
@@ -107,7 +126,7 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
           <p className="mt-1 text-xs sm:text-sm text-gray-500">Bu alana henüz öğretmen atanmamış.</p>
           <button
             onClick={() => {
-              setFormData({ name: '', surname: '', phone: '', email: '', pin: '1234' })
+              setFormData({ name: '', surname: '', phone: '', email: '', pin: '1234', tcNo: '', position: '' })
               setIsAddModalOpen(true)
             }}
             className="mt-4 inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
@@ -119,7 +138,7 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
         <Modal
           isOpen={isAddModalOpen}
           onClose={() => {
-            setFormData({ name: '', surname: '', phone: '', email: '', pin: '1234' })
+            setFormData({ name: '', surname: '', phone: '', email: '', pin: '1234', tcNo: '', position: '' })
             setIsAddModalOpen(false)
           }}
           title={`${alanAd} Alanına Öğretmen Ekle`}
@@ -142,28 +161,59 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">İsim *</label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="İsim"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    required
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="İsim"
+                  />
+                </div>
               </div>
               <div>
                 <label htmlFor="surname" className="block text-sm font-medium text-gray-700 mb-2">Soyisim *</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    id="surname"
+                    name="surname"
+                    value={formData.surname}
+                    onChange={handleInputChange}
+                    required
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Soyisim"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* TC No */}
+            <div>
+              <label htmlFor="tcNo" className="block text-sm font-medium text-gray-700 mb-2">TC Kimlik No</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <CreditCard className="h-5 w-5 text-gray-400" />
+                </div>
                 <input
                   type="text"
-                  id="surname"
-                  name="surname"
-                  value={formData.surname}
+                  id="tcNo"
+                  name="tcNo"
+                  value={formData.tcNo}
                   onChange={handleInputChange}
-                  required
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Soyisim"
+                  maxLength={11}
+                  inputMode="numeric"
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="12345678901"
                 />
               </div>
             </div>
@@ -172,29 +222,39 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">E-posta</label>
-                <input
-                  type="email"
-                  id="teacher-email-field"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  autoComplete="new-password"
-                  data-form-type="other"
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="ornek@email.com"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="email"
+                    id="teacher-email-field"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    autoComplete="new-password"
+                    data-form-type="other"
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="ornek@email.com"
+                  />
+                </div>
               </div>
               <div>
                 <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">Telefon</label>
-                <input
-                  type="tel"
-                  id="phone"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="05xx xxx xx xx"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Phone className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="05xx xxx xx xx"
+                  />
+                </div>
               </div>
             </div>
 
@@ -225,6 +285,46 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
               <p className="mt-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
                 <span className="font-medium">⚠️ Not:</span> Varsayılan PIN (1234) seçilirse, öğretmen ilk girişte PIN'ini değiştirmek zorunda bırakılır.
               </p>
+            </div>
+  
+            {/* Position */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Görev</label>
+              <div className="space-y-2">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="position"
+                    value="alan_sefi"
+                    checked={formData.position === 'alan_sefi'}
+                    onChange={handleInputChange}
+                    className="mr-3 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-sm text-gray-700">Alan Şefi</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="position"
+                    value="atolye_sefi"
+                    checked={formData.position === 'atolye_sefi'}
+                    onChange={handleInputChange}
+                    className="mr-3 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-sm text-gray-700">Atölye Şefi</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="position"
+                    value=""
+                    checked={formData.position === ''}
+                    onChange={handleInputChange}
+                    className="mr-3 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-sm text-gray-700">Öğretmen (Görev Yok)</span>
+                </label>
+              </div>
             </div>
 
             {/* Submit Buttons */}
@@ -266,7 +366,7 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
         <div className="flex justify-end">
           <button
             onClick={() => {
-              setFormData({ name: '', surname: '', phone: '', email: '', pin: '1234' })
+              setFormData({ name: '', surname: '', phone: '', email: '', pin: '1234', tcNo: '', position: '' })
               setIsAddModalOpen(true)
             }}
             className="inline-flex items-center px-3 py-2 sm:px-4 sm:py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
@@ -393,7 +493,7 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => {
-          setFormData({ name: '', surname: '', phone: '', email: '', pin: '1234' })
+          setFormData({ name: '', surname: '', phone: '', email: '', pin: '1234', tcNo: '', position: '' })
           setIsAddModalOpen(false)
         }}
         title={`${alanAd} Alanına Öğretmen Ekle`}
@@ -416,28 +516,59 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">İsim *</label>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                required
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="İsim"
-              />
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  required
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="İsim"
+                />
+              </div>
             </div>
             <div>
               <label htmlFor="surname" className="block text-sm font-medium text-gray-700 mb-2">Soyisim *</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  id="surname"
+                  name="surname"
+                  value={formData.surname}
+                  onChange={handleInputChange}
+                  required
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Soyisim"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* TC No */}
+          <div>
+            <label htmlFor="tcNo" className="block text-sm font-medium text-gray-700 mb-2">TC Kimlik No</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <CreditCard className="h-5 w-5 text-gray-400" />
+              </div>
               <input
                 type="text"
-                id="surname"
-                name="surname"
-                value={formData.surname}
+                id="tcNo"
+                name="tcNo"
+                value={formData.tcNo}
                 onChange={handleInputChange}
-                required
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Soyisim"
+                maxLength={11}
+                inputMode="numeric"
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="12345678901"
               />
             </div>
           </div>
@@ -446,29 +577,39 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">E-posta</label>
-              <input
-                type="email"
-                id="teacher-email-field-2"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                autoComplete="new-password"
-                data-form-type="other"
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="ornek@email.com"
-              />
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="email"
+                  id="teacher-email-field-2"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  autoComplete="new-password"
+                  data-form-type="other"
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="ornek@email.com"
+                />
+              </div>
             </div>
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">Telefon</label>
-              <input
-                type="tel"
-                id="phone"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="05xx xxx xx xx"
-              />
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Phone className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="05xx xxx xx xx"
+                />
+              </div>
             </div>
           </div>
 
@@ -499,6 +640,46 @@ export default function OgretmenlerTab({ ogretmenler, alanId, alanAd }: Props) {
             <p className="mt-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
               <span className="font-medium">⚠️ Not:</span> Varsayılan PIN (1234) seçilirse, öğretmen ilk girişte PIN'ini değiştirmek zorunda bırakılır.
             </p>
+          </div>
+
+          {/* Position */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">Görev</label>
+            <div className="space-y-2">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="position"
+                  value="alan_sefi"
+                  checked={formData.position === 'alan_sefi'}
+                  onChange={handleInputChange}
+                  className="mr-3 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="text-sm text-gray-700">Alan Şefi</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="position"
+                  value="atolye_sefi"
+                  checked={formData.position === 'atolye_sefi'}
+                  onChange={handleInputChange}
+                  className="mr-3 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="text-sm text-gray-700">Atölye Şefi</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="position"
+                  value=""
+                  checked={formData.position === ''}
+                  onChange={handleInputChange}
+                  className="mr-3 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="text-sm text-gray-700">Öğretmen (Görev Yok)</span>
+              </label>
+            </div>
           </div>
 
           {/* Submit Buttons */}

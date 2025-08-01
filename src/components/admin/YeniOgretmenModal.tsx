@@ -142,8 +142,11 @@ export default function YeniOgretmenModal({ isOpen, onClose, onSuccess }: YeniOg
 
   const handleSuccessModalClose = () => {
     setShowSuccessModal(false)
-    onSuccess()
-    onClose()
+    // Delay callbacks to prevent React render conflict
+    setTimeout(() => {
+      onSuccess()
+      onClose()
+    }, 100)
   }
 
   return (

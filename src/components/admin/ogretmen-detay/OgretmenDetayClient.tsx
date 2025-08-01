@@ -503,22 +503,15 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
     const fetchLockStatus = async () => {
         setLockStatusLoading(true);
         try {
-            const response = await fetch('/api/admin/security/status', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ entityType: 'teacher', entityId: ogretmen.id })
-            });
+            // Security status kontrolü devre dışı bırakıldı
+            const response = { ok: false }; // Dummy response
             
-            if (response.ok) {
-                const securityData = await response.json();
-                setLockStatus(securityData);
-            } else {
-                setLockStatus({
-                    isLocked: false,
-                    remainingAttempts: 4,
-                    canAttempt: true
-                });
-            }
+            // Security status kontrolü devre dışı - varsayılan değer
+            setLockStatus({
+                isLocked: false,
+                remainingAttempts: 4,
+                canAttempt: true
+            });
         } catch (error) {
             console.error('Lock status fetch error:', error);
             setLockStatus({

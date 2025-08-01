@@ -1,66 +1,35 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Güvenlik için harici domainleri belirt
-  images: {
-    domains: ['localhost', 'ozdilek.run.place'],
-  },
-  
-  // SSL ve HTTPS yapılandırması
-  async headers() {
-    return [
-      {
-        source: '/api/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET,OPTIONS,PATCH,DELETE,POST,PUT' },
-          { key: 'Access-Control-Allow-Headers', value: 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization' },
-          // SSL güvenlik headers
-          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-XSS-Protection', value: '1; mode=block' },
-        ],
-      },
-      {
-        source: '/uploads/:path*',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-        ],
-      },
-      {
-        source: '/:path*',
-        headers: [
-          // Production'da HTTPS zorunlu
-          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-XSS-Protection', value: '1; mode=block' },
-        ],
-      },
-    ]
-  },
-  
-  // Production'da HTTPS redirect
-  async redirects() {
-    if (process.env.NODE_ENV === 'production') {
-      return [
-        {
-          source: '/:path*',
-          has: [
-            {
-              type: 'header',
-              key: 'x-forwarded-proto',
-              value: 'http',
-            },
-          ],
-          destination: 'https://ozdilek.run.place/:path*',
-          permanent: true,
-        },
-      ]
+  // Completely disable dev features that use socket.io
+  webpack: (config, { dev, isServer }) => {
+    if (dev) {
+      // Disable all watching and polling
+      config.watchOptions = {
+        poll: false,
+        ignored: /node_modules/,
+        aggregateTimeout: 300,
+      }
+      
+      // Disable HMR completely
+      config.plugins = config.plugins.filter(plugin => {
+        return !(plugin.constructor.name === 'HotModuleReplacementPlugin')
+      })
     }
-    return []
+    
+    return config
   },
+  
+  // Disable all development features
+  experimental: {
+    webpackBuildWorker: false,
+  },
+  
+  // Override dev server settings
+  ...(process.env.NODE_ENV === 'development' && {
+    // Force production-like behavior
+    productionBrowserSourceMaps: false,
+    optimizeFonts: false,
+  }),
 }
 
-module.exports = nextConfig;
+module.exports = nextConfig

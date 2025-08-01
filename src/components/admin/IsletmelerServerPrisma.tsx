@@ -184,34 +184,10 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
     setFilterInput(filter)
   }, [search, filter])
 
-  // Fetch security statuses for all companies
-  useEffect(() => {
-    const fetchSecurityStatuses = async () => {
-      const statuses: Record<string, any> = {}
-      await Promise.all(
-        companies.map(async (company) => {
-          try {
-            const response = await fetch('/api/admin/security/status', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ entityType: 'company', entityId: company.id })
-            })
-            if (response.ok) {
-              const status = await response.json()
-              statuses[company.id] = status
-            }
-          } catch (error) {
-            // Ignore errors for individual companies
-          }
-        })
-      )
-      setSecurityStatuses(statuses)
-    }
-
-    if (companies.length > 0) {
-      fetchSecurityStatuses()
-    }
-  }, [companies])
+  // Security status kontrollerini devre dışı bırak - gereksiz
+  // useEffect(() => {
+  //   // Security status kontrolleri kaldırıldı
+  // }, [companies])
 
   // Handle unlock company
   const handleUnlockCompany = async (companyId: string) => {
