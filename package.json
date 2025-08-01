@@ -6,7 +6,7 @@
     "node": "22"
   },
   "scripts": {
-    "dev": "cross-env NEXT_DISABLE_HMR=true next dev -H 0.0.0.0",
+    "dev": "next dev -H 0.0.0.0",
     "dev-simple": "next dev -H 0.0.0.0 --turbo=false",
     "build": "next build",
     "start": "next start",

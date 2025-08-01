@@ -13,9 +13,12 @@ import {
   Users,
   Building,
   GraduationCap,
-  AlertCircle
+  AlertCircle,
+  Upload
 } from 'lucide-react'
 import Link from 'next/link'
+import EditableCell from '@/components/ui/EditableCell'
+import BulkAttendanceUpload from '@/components/ui/BulkAttendanceUpload'
 
 interface DekontData {
   id: string
@@ -88,6 +91,8 @@ export default function OgrenciUcretDokumPage() {
   const [alanlar, setAlanlar] = useState<Alan[]>([])
   const [ogretmenler, setOgretmenler] = useState<Ogretmen[]>([])
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
+  const [isUpdating, setIsUpdating] = useState<string | null>(null) // Track which student is being updated
+  const [showBulkUpload, setShowBulkUpload] = useState(false)
   
   // Seçilebilir ayları hesapla
   const getSelectableMonths = (): SelectableMonth[] => {
@@ -362,6 +367,64 @@ export default function OgrenciUcretDokumPage() {
     }))
   }
 
+  // Auto-save function for attendance updates
+  const handleAttendanceUpdate = async (studentId: string, field: 'working_days' | 'absent_days', newValue: number) => {
+    try {
+      setIsUpdating(studentId)
+      
+      const response = await fetch('/api/admin/araclar/ogrenci-ucret-dokum', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          studentId,
+          month: parseInt(filters.ay),
+          year: currentYear,
+          [field]: newValue
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Güncelleme başarısız')
+      }
+
+      const result = await response.json()
+      
+      // Update local state with new calculated values
+      setFilteredDekontlar(prev => prev.map(dekont => {
+        if (dekont.id === studentId) {
+          return {
+            ...dekont,
+            working_days: result.data.working_days,
+            absent_days: result.data.absent_days,
+            calculated_amount: result.data.calculated_amount
+          }
+        }
+        return dekont
+      }))
+
+      setDekontlar(prev => prev.map(dekont => {
+        if (dekont.id === studentId) {
+          return {
+            ...dekont,
+            working_days: result.data.working_days,
+            absent_days: result.data.absent_days,
+            calculated_amount: result.data.calculated_amount
+          }
+        }
+        return dekont
+      }))
+
+    } catch (error) {
+      console.error('Güncelleme hatası:', error)
+      throw error // Re-throw for EditableCell to handle
+    } finally {
+      setIsUpdating(null)
+    }
+  }
+
   const getStatusText = (status: string) => {
     switch (status) {
       case 'APPROVED':
@@ -431,6 +494,14 @@ export default function OgrenciUcretDokumPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowBulkUpload(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              title="Excel/CSV ile toplu devamsızlık yükleme - Tüm öğrenciler için kullanılabilir"
+            >
+              <Upload className="w-4 h-4" />
+              Toplu Yükle
+            </button>
             <button
               onClick={handlePrint}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -613,11 +684,35 @@ export default function OgrenciUcretDokumPage() {
                       <td className="border border-gray-300 print:border-black px-2 py-1 text-xs">{dekont.ogrenci_ad}</td>
                       <td className="border border-gray-300 print:border-black px-2 py-1 text-xs">{dekont.koordinator_ogretmen}</td>
                       <td className="border border-gray-300 print:border-black px-2 py-1 text-xs">{dekont.isletme_ad}</td>
-                      <td className="border border-gray-300 print:border-black px-2 py-1 text-xs text-center">
-                        {dekont.working_days || 0}
+                      <td className="border border-gray-300 print:border-black px-2 py-1 text-xs text-center print:hover:bg-white">
+                        <div className="print:hidden">
+                          <EditableCell
+                            value={dekont.working_days || 0}
+                            onSave={(newValue) => handleAttendanceUpdate(dekont.id, 'working_days', newValue)}
+                            min={0}
+                            max={31}
+                            disabled={isUpdating === dekont.id}
+                            placeholder="0"
+                          />
+                        </div>
+                        <div className="hidden print:block">
+                          {dekont.working_days || 0}
+                        </div>
                       </td>
-                      <td className="border border-gray-300 print:border-black px-2 py-1 text-xs text-center">
-                        {dekont.absent_days || 0}
+                      <td className="border border-gray-300 print:border-black px-2 py-1 text-xs text-center print:hover:bg-white">
+                        <div className="print:hidden">
+                          <EditableCell
+                            value={dekont.absent_days || 0}
+                            onSave={(newValue) => handleAttendanceUpdate(dekont.id, 'absent_days', newValue)}
+                            min={0}
+                            max={31}
+                            disabled={isUpdating === dekont.id}
+                            placeholder="0"
+                          />
+                        </div>
+                        <div className="hidden print:block">
+                          {dekont.absent_days || 0}
+                        </div>
                       </td>
                       <td className="border border-gray-300 print:border-black px-2 py-1 text-xs text-right">
                         {dekont.calculated_amount ? `${dekont.calculated_amount.toFixed(2)} TL` : (dekont.miktar ? `${dekont.miktar.toFixed(2)} TL` : '0.00 TL')}
@@ -656,6 +751,17 @@ export default function OgrenciUcretDokumPage() {
           </div>
         </div>
       </div>
+
+      {/* Bulk Upload Modal */}
+      {showBulkUpload && (
+        <BulkAttendanceUpload
+          isOpen={showBulkUpload}
+          onClose={() => setShowBulkUpload(false)}
+          onUploadComplete={fetchDekontlar}
+          month={parseInt(filters.ay)}
+          year={currentYear}
+        />
+      )}
     </div>
   )
 }

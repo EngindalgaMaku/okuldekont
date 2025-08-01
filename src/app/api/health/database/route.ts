@@ -3,24 +3,22 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    const startTime = performance.now()
+    const startTime = Date.now()
     
-    // Simple health check - try to get one record from a basic table
-    await prisma.systemSetting.findFirst({
-      select: { id: true },
-      take: 1
-    })
+    // Simple database query to check connection
+    await prisma.$queryRaw`SELECT 1`
     
-    const endTime = performance.now()
-    const responseTime = Math.round(endTime - startTime)
+    const endTime = Date.now()
+    const latency = endTime - startTime
     
     return NextResponse.json({
       status: 'connected',
-      latency: responseTime,
+      latency: latency,
       timestamp: new Date().toISOString()
     })
   } catch (error) {
     console.error('Database health check failed:', error)
+    
     return NextResponse.json(
       {
         status: 'disconnected',
