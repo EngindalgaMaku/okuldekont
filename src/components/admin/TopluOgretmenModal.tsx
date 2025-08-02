@@ -63,24 +63,29 @@ export default function TopluOgretmenModal({ isOpen, onClose, onSuccess }: Toplu
     }
   }
 
-  const downloadTemplate = () => {
-    // CSV template oluştur
-    const csvContent = [
-      'ad,soyad,tcNo,telefon,email,pin,alan,position',
-      'Ahmet,Yılmaz,12345678901,05551234567,ahmet@example.com,1234,Bilgisayar,alan_sefi',
-      'Fatma,Öztürk,,05559876543,fatma@example.com,1234,Elektronik,atolye_sefi',
-      'Mehmet,Kaya,98765432101,05555555555,,1234,Makine,'
-    ].join('\n')
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', 'ogretmen_sablonu.csv')
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  const downloadTemplate = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/admin/teachers/template')
+      if (!response.ok) {
+        throw new Error('Şablon indirilemedi')
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'ogretmen_sablon.xlsx'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success('Şablon başarıyla indirildi!')
+    } catch (error) {
+      console.error('Template download error:', error)
+      toast.error('Şablon indirilirken bir hata oluştu.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -270,11 +275,23 @@ export default function TopluOgretmenModal({ isOpen, onClose, onSuccess }: Toplu
         isOpen={showSuccessModal}
         onClose={handleSuccessModalClose}
         title="Toplu Ekleme Tamamlandı!"
-        message={uploadResults ? 
-          `${uploadResults.successful} öğretmen başarıyla eklendi.${uploadResults.failed > 0 ? ` ${uploadResults.failed} kayıt başarısız oldu.` : ''}` :
-          'Öğretmenler başarıyla eklendi!'
+        message={
+          uploadResults ? (
+            <span>
+              <strong>{uploadResults.successful}</strong> öğretmen başarıyla eklendi.
+              {uploadResults.failed > 0 && (
+                <span className="text-red-600">
+                  {' '}
+                  <strong>{uploadResults.failed}</strong> kayıt eklenemedi.
+                </span>
+              )}
+            </span>
+          ) : (
+            'Öğretmenler başarıyla eklendi!'
+          )
         }
-        countdown={5}
+        errors={uploadResults?.errors}
+        countdown={uploadResults && uploadResults.failed > 0 ? 15 : 5}
       />
     </>
   )

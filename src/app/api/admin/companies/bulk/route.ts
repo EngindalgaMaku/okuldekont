@@ -61,6 +61,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Dosyada veri bulunamadı' }, { status: 400 })
     }
 
+    // Get existing companies for validation
+    const existingCompanies = await prisma.companyProfile.findMany({
+      select: { name: true, taxNumber: true }
+    })
+    const existingCompanyNames = new Set(
+      existingCompanies.map(c => c.name.toLowerCase())
+    )
+    const existingTaxNumbers = new Set(
+      existingCompanies.map(c => c.taxNumber).filter(Boolean)
+    )
+
     const results = {
       successful: 0,
       failed: 0,
@@ -73,10 +84,20 @@ export async function POST(request: Request) {
       const rowNumber = i + 2 // +2 because of header and 0-based index
 
       try {
+        const name = row.name?.trim()
+        const contact = row.contact?.trim()
+
         // Validate required fields
-        if (!row.name || !row.contact) {
+        if (!name || !contact) {
           results.failed++
           results.errors.push(`Satır ${rowNumber}: İşletme adı ve yetkili kişi zorunludur`)
+          continue
+        }
+
+        // Check for duplicate company name (case-insensitive)
+        if (existingCompanyNames.has(name.toLowerCase())) {
+          results.failed++
+          results.errors.push(`Satır ${rowNumber}: İşletme adı "${name}" zaten kullanımda`)
           continue
         }
 
@@ -110,37 +131,18 @@ export async function POST(request: Request) {
         }
 
         // Validate tax number if provided
-        if (row.taxNumber && row.taxNumber.trim()) {
-          const taxNumber = row.taxNumber.toString().trim()
+        const taxNumber = row.taxNumber?.toString().trim()
+        if (taxNumber) {
           if (taxNumber.length !== 10 || !/^\d{10}$/.test(taxNumber)) {
             results.failed++
             results.errors.push(`Satır ${rowNumber}: Vergi numarası 10 haneli rakam olmalıdır`)
             continue
           }
-
-          // Check if tax number already exists
-          const existingTaxNumber = await prisma.companyProfile.findFirst({
-            where: { taxNumber: taxNumber }
-          })
-
-          if (existingTaxNumber) {
+          if (existingTaxNumbers.has(taxNumber)) {
             results.failed++
             results.errors.push(`Satır ${rowNumber}: Vergi numarası "${taxNumber}" zaten kullanımda`)
             continue
           }
-        }
-
-        // Check if company name already exists
-        const existingCompany = await prisma.companyProfile.findFirst({
-          where: {
-            name: row.name.trim()
-          }
-        })
-
-        if (existingCompany) {
-          results.failed++
-          results.errors.push(`Satır ${rowNumber}: İşletme adı "${row.name}" zaten kullanımda`)
-          continue
         }
 
         // Generate PIN if not provided
@@ -149,12 +151,12 @@ export async function POST(request: Request) {
         // Create company
         await prisma.companyProfile.create({
           data: {
-            name: row.name.trim(),
-            contact: row.contact.trim(),
+            name: name,
+            contact: contact,
             phone: row.phone?.trim() || null,
             email: row.email?.trim() || null,
             address: row.address?.trim() || null,
-            taxNumber: row.taxNumber?.toString().trim() || null,
+            taxNumber: taxNumber || null,
             pin: finalPin,
             masterTeacherName: row.usta_ogretici_ad?.trim() || null,
             masterTeacherPhone: row.usta_ogretici_telefon?.trim() || null,
@@ -162,10 +164,18 @@ export async function POST(request: Request) {
         })
 
         results.successful++
+        // Add to sets to prevent duplicates within the same file
+        existingCompanyNames.add(name.toLowerCase())
+        if (taxNumber) existingTaxNumbers.add(taxNumber)
 
       } catch (error: any) {
         results.failed++
-        results.errors.push(`Satır ${rowNumber}: ${error.message}`)
+        if (error.code === 'P2002') {
+            const target = error.meta?.target || ['Bilinmeyen alan']
+            results.errors.push(`Satır ${rowNumber}: Benzersizlik ihlali - ${target.join(', ')} zaten mevcut.`)
+        } else {
+            results.errors.push(`Satır ${rowNumber}: Beklenmedik bir hata oluştu - ${error.message}`)
+        }
       }
     }
 

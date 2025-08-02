@@ -61,10 +61,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Dosyada veri bulunamadı' }, { status: 400 })
     }
 
-    // Get all areas for mapping
-    const alanlar = await prisma.alan.findMany({
-      select: { id: true, name: true }
-    })
+    // Get all areas and existing teachers for mapping and validation
+    const [alanlar, existingTeachers] = await Promise.all([
+      prisma.alan.findMany({ select: { id: true, name: true } }),
+      prisma.teacherProfile.findMany({ select: { name: true, surname: true, tcNo: true } })
+    ])
+    const existingTeacherNames = new Set(
+      existingTeachers.map(t => `${t.name.toLowerCase()} ${t.surname.toLowerCase()}`)
+    )
+    const existingTcs = new Set(existingTeachers.map(t => t.tcNo).filter(Boolean))
 
     const results = {
       successful: 0,
@@ -78,10 +83,21 @@ export async function POST(request: Request) {
       const rowNumber = i + 2 // +2 because of header and 0-based index
 
       try {
+        const ad = row.ad?.trim()
+        const soyad = row.soyad?.trim()
+
         // Validate required fields
-        if (!row.ad || !row.soyad) {
+        if (!ad || !soyad) {
           results.failed++
           results.errors.push(`Satır ${rowNumber}: Ad ve soyad zorunludur`)
+          continue
+        }
+
+        // Check for duplicate name and surname
+        const fullName = `${ad.toLowerCase()} ${soyad.toLowerCase()}`
+        if (existingTeacherNames.has(fullName)) {
+          results.failed++
+          results.errors.push(`Satır ${rowNumber}: "${ad} ${soyad}" adında bir öğretmen zaten mevcut.`)
           continue
         }
 
@@ -109,23 +125,30 @@ export async function POST(request: Request) {
 
         // Set default PIN if not provided
         const pin = row.pin || '1234'
-        if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+        if (String(pin).length !== 4 || !/^\d{4}$/.test(String(pin))) {
           results.failed++
           results.errors.push(`Satır ${rowNumber}: PIN 4 haneli rakam olmalıdır`)
           continue
         }
 
         // Validate TC No if provided
-        if (row.tcNo && (row.tcNo.length !== 11 || !/^\d{11}$/.test(row.tcNo))) {
+        const tcNo = row.tcNo?.trim()
+        if (tcNo && (tcNo.length !== 11 || !/^\d{11}$/.test(tcNo))) {
           results.failed++
           results.errors.push(`Satır ${rowNumber}: TC Kimlik No 11 haneli rakam olmalıdır`)
           continue
         }
+        
+        if (tcNo && existingTcs.has(tcNo)) {
+          results.failed++
+          results.errors.push(`Satır ${rowNumber}: TC Kimlik No "${tcNo}" zaten kullanımda`)
+          continue
+        }
 
         // Create user first
-        const userEmail = row.email?.trim() || `${row.ad.toLowerCase()}.${row.soyad.toLowerCase()}@okul.local`
+        const userEmail = row.email?.trim() || `${ad.toLowerCase()}.${soyad.toLowerCase()}@okul.local`
         
-        // Check if user already exists
+        // Check if user email already exists
         const existingUser = await prisma.user.findUnique({
           where: { email: userEmail }
         })
@@ -134,19 +157,6 @@ export async function POST(request: Request) {
           results.failed++
           results.errors.push(`Satır ${rowNumber}: Email "${userEmail}" zaten kullanımda`)
           continue
-        }
-
-        // Check if TC No already exists
-        if (row.tcNo) {
-          const existingTc = await prisma.teacherProfile.findUnique({
-            where: { tcNo: row.tcNo }
-          })
-
-          if (existingTc) {
-            results.failed++
-            results.errors.push(`Satır ${rowNumber}: TC Kimlik No "${row.tcNo}" zaten kullanımda`)
-            continue
-          }
         }
 
         const user = await prisma.user.create({
@@ -160,12 +170,12 @@ export async function POST(request: Request) {
         // Create teacher profile
         await prisma.teacherProfile.create({
           data: {
-            name: row.ad.trim(),
-            surname: row.soyad.trim(),
-            tcNo: row.tcNo?.trim() || null,
+            name: ad,
+            surname: soyad,
+            tcNo: tcNo || null,
             phone: row.telefon?.trim() || null,
             email: row.email?.trim() || null,
-            pin: pin,
+            pin: String(pin),
             alanId: alanId,
             position: position || null,
             userId: user.id
@@ -173,10 +183,19 @@ export async function POST(request: Request) {
         })
 
         results.successful++
+        // Add to sets to prevent duplicates within the same file
+        existingTeacherNames.add(fullName)
+        if (tcNo) existingTcs.add(tcNo)
 
       } catch (error: any) {
         results.failed++
-        results.errors.push(`Satır ${rowNumber}: ${error.message}`)
+        // Prisma validation errors are more specific
+        if (error.code === 'P2002') {
+            const target = error.meta?.target || ['Bilinmeyen alan']
+            results.errors.push(`Satır ${rowNumber}: Benzersizlik ihlali - ${target.join(', ')} zaten mevcut.`)
+        } else {
+            results.errors.push(`Satır ${rowNumber}: Beklenmedik bir hata oluştu - ${error.message}`)
+        }
       }
     }
 

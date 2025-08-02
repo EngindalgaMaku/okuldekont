@@ -63,24 +63,29 @@ export default function TopluIsletmeModal({ isOpen, onClose, onSuccess }: TopluI
     }
   }
 
-  const downloadTemplate = () => {
-    // CSV template oluştur
-    const csvContent = [
-      'name,contact,phone,email,address,taxNumber,pin,usta_ogretici_ad,usta_ogretici_telefon',
-      'ABC Teknoloji Ltd.,Ahmet Yılmaz,05551234567,info@abc.com,"Ankara Caddesi No:123 Çankaya/Ankara",1234567890,1234,Mehmet Kaya,05559876543',
-      'XYZ İnşaat A.Ş.,Fatma Öztürk,05339876543,iletisim@xyz.com,"İstanbul Sokak No:456 Kadıköy/İstanbul",,1234,Ali Demir,05557778899',
-      'DEF Makine San.,Mustafa Kara,05425555555,info@def.com,"İzmir Bulvarı No:789 Konak/İzmir",9876543210,,,',
-    ].join('\n')
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', 'isletme_sablonu.csv')
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  const downloadTemplate = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/admin/companies/template')
+      if (!response.ok) {
+        throw new Error('Şablon indirilemedi')
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'isletme_sablon.xlsx'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success('Şablon başarıyla indirildi!')
+    } catch (error) {
+      console.error('Template download error:', error)
+      toast.error('Şablon indirilirken bir hata oluştu.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -271,11 +276,23 @@ export default function TopluIsletmeModal({ isOpen, onClose, onSuccess }: TopluI
         isOpen={showSuccessModal}
         onClose={handleSuccessModalClose}
         title="Toplu Ekleme Tamamlandı!"
-        message={uploadResults ? 
-          `${uploadResults.successful} işletme başarıyla eklendi.${uploadResults.failed > 0 ? ` ${uploadResults.failed} kayıt başarısız oldu.` : ''}` :
-          'İşletmeler başarıyla eklendi!'
+        message={
+          uploadResults ? (
+            <span>
+              <strong>{uploadResults.successful}</strong> işletme başarıyla eklendi.
+              {uploadResults.failed > 0 && (
+                <span className="text-red-600">
+                  {' '}
+                  <strong>{uploadResults.failed}</strong> kayıt eklenemedi.
+                </span>
+              )}
+            </span>
+          ) : (
+            'İşletmeler başarıyla eklendi!'
+          )
         }
-        countdown={5}
+        errors={uploadResults?.errors}
+        countdown={uploadResults && uploadResults.failed > 0 ? 15 : 5}
       />
     </>
   )

@@ -14,7 +14,8 @@ import {
   ClipboardList,
   FileBarChart,
   FileCheck,
-  History
+  History,
+  TestTube2
 } from 'lucide-react'
 
 interface Tool {

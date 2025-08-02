@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import path from 'path';
+import { fork } from 'child_process';
 
 // OCR Analiz Sonucu Interface
 export interface OCRResult {
@@ -52,18 +53,55 @@ export async function preprocessImage(buffer: Buffer): Promise<Buffer> {
   }
 }
 
-// Ana OCR fonksiyonu - Geçici olarak devre dışı
-export async function performOCR(imageBuffer: Buffer): Promise<OCRResult> {
-  console.log('⚠️ OCR: Tesseract.js geçici olarak devre dışı - placeholder data döndürülüyor');
-  
-  // Placeholder OCR sonucu
-  return {
-    text: 'OCR geçici olarak devre dışı. AI analiz sistemi beklenmedik verilerle çalışmaya devam ediyor.',
-    confidence: 75,
-    words: [],
-    lines: []
-  };
+// Ana OCR fonksiyonu - Ayrı bir süreçte çalışır
+export function performOCR(imageBuffer: Buffer): Promise<OCRResult> {
+  return new Promise((resolve, reject) => {
+    console.log('OCR: Forking a new process for Tesseract.js...');
+    const workerPath = path.join(process.cwd(), 'scripts', 'ocr-worker.js');
+    const child = fork(workerPath, [], { stdio: 'inherit' });
+
+    child.on('message', (message: any) => {
+      if (message.error) {
+        console.error('OCR: Child process returned an error:', message.error);
+        reject(new Error(message.error));
+      } else if (message.result) {
+        console.log(`OCR: Child process completed with confidence: ${message.result.confidence}`);
+        const data = message.result;
+        // Tesseract.js'in çıktısını kendi OCRResult formatımıza dönüştür
+        resolve({
+          text: data.text || '',
+          confidence: data.confidence || 0,
+          words: (data.words || []).map((w: any) => ({
+            text: w.text,
+            confidence: w.confidence,
+            bbox: { x0: w.bbox.x0, y0: w.bbox.y0, x1: w.bbox.x1, y1: w.bbox.y1 }
+          })),
+          lines: (data.lines || []).map((l: any) => ({
+            text: l.text,
+            confidence: l.confidence,
+            bbox: { x0: l.bbox.x0, y0: l.bbox.y0, x1: l.bbox.x1, y1: l.bbox.y1 }
+          })),
+        });
+      }
+      child.kill(); // Kill the process after receiving the message
+    });
+
+    child.on('error', (err) => {
+      console.error('OCR: Failed to start child process.', err);
+      reject(err);
+    });
+
+    child.on('exit', (code) => {
+      if (code !== 0) {
+        console.log(`OCR: Child process exited with code ${code}`);
+      }
+    });
+
+    // Send the image buffer to the child process
+    child.send({ imageBuffer });
+  });
 }
+
 
 // PDF'den görüntü çıkarma (Şimdilik devre dışı - native bağımlılık sorunu)
 export async function convertPdfToImage(pdfBuffer: Buffer): Promise<Buffer> {

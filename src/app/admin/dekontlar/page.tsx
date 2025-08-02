@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, memo } from 'react'
-import { Eye, Download, Check, X, Filter, Search, Calendar, Trash2, Loader, Brain, FileSearch, AlertTriangle, Shield, MoreVertical, ChevronDown } from 'lucide-react'
+import { Eye, Download, Check, X, Filter, Search, Calendar, Trash2, Loader, AlertTriangle, Shield, MoreVertical, ChevronDown } from 'lucide-react'
 
 interface Dekont {
   id: string
@@ -20,12 +20,6 @@ interface Dekont {
   red_nedeni: string | null
   yukleyen_kisi: string
   created_at: string
-  // Yeni analiz alanları
-  isAnalyzed?: boolean
-  reliabilityScore?: number
-  analyzedAt?: string
-  aiAnalysisResult?: any
-  securityFlags?: any[]
 }
 
 // Güvenli tarih formatlama yardımcısı
@@ -101,10 +95,6 @@ export default function DekontlarPage() {
   const [bulkAction, setBulkAction] = useState<string>('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
-  const [analyzingDekont, setAnalyzingDekont] = useState<string | null>(null)
-  const [showAnalysisModal, setShowAnalysisModal] = useState(false)
-  const [selectedAnalysis, setSelectedAnalysis] = useState<any>(null)
-  const [bulkAnalyzing, setBulkAnalyzing] = useState(false)
   const [showImageModal, setShowImageModal] = useState(false)
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
   const [selectedImageName, setSelectedImageName] = useState<string>('')
@@ -195,66 +185,11 @@ export default function DekontlarPage() {
     )
   }, [])
 
-  // Toplu analiz fonksiyonu
-  const analyzeBatch = useCallback(async () => {
-    if (selectedIds.length === 0) {
-      setWarningMessage('Lütfen analiz edilecek dekontları seçin')
-      setShowWarningModal(true)
-      return
-    }
-
-    if (selectedIds.length > 20) {
-      setWarningMessage('Toplu analiz için maksimum 20 dekont seçilebilir')
-      setShowWarningModal(true)
-      return
-    }
-
-    try {
-      setBulkAnalyzing(true)
-      
-      const response = await fetch('/api/admin/dekontlar/analyze/batch', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          dekontIds: selectedIds
-        })
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        await fetchDekontlar() // Listeyi yenile
-        
-        const summary = result.summary
-        setWarningMessage(`Toplu analiz tamamlandı!\n\nİşlenen: ${summary.successful}/${summary.totalRequested}\nOrtalama güvenirlik: ${Math.round(summary.averageReliability * 100)}%\n\nÖneriler:\n- Onayla: ${summary.recommendations.approve}\n- Reddet: ${summary.recommendations.reject}\n- Manuel İnceleme: ${summary.recommendations.manualReview}`)
-        setShowWarningModal(true)
-        
-        setSelectedIds([])
-      } else {
-        const errorData = await response.json()
-        setWarningMessage(`Toplu analiz hatası: ${errorData.error || 'Bilinmeyen hata'}`)
-        setShowWarningModal(true)
-      }
-    } catch (error) {
-      console.error('Toplu analiz hatası:', error)
-      setWarningMessage('Toplu analiz sırasında bir hata oluştu')
-      setShowWarningModal(true)
-    } finally {
-      setBulkAnalyzing(false)
-    }
-  }, [selectedIds, fetchDekontlar])
-
   const handleBulkAction = useCallback(async () => {
     if (selectedIds.length === 0 || !bulkAction) return
 
     if (bulkAction === 'DELETE') {
       setShowBulkDeleteModal(true)
-      return
-    }
-
-    if (bulkAction === 'ANALYZE') {
-      await analyzeBatch()
       return
     }
 
@@ -272,7 +207,7 @@ export default function DekontlarPage() {
     } finally {
       setIsProcessing(false)
     }
-  }, [selectedIds, bulkAction, analyzeBatch])
+  }, [selectedIds, bulkAction])
 
   const handleBulkDelete = useCallback(async () => {
     setIsProcessing(true)
@@ -401,11 +336,9 @@ export default function DekontlarPage() {
     setShowApproveModal(false)
     setShowDeleteModal(false)
     setShowApprovedDeleteWarning(false)
-    setShowAnalysisModal(false)
     setShowImageModal(false)
     setShowWarningModal(false)
     setSelectedDekont(null)
-    setSelectedAnalysis(null)
     setSelectedImageUrl(null)
     setSelectedImageName('')
     setWarningMessage('')
@@ -495,68 +428,6 @@ export default function DekontlarPage() {
 
   const closeDropdown = useCallback(() => {
     setOpenDropdown(null)
-  }, [])
-
-  // AI Analiz fonksiyonu
-  const analyzeDekont = useCallback(async (dekontId: string, fileUrl?: string | null) => {
-    // Resim dosyası değilse uyarı göster
-    if (fileUrl && !isImageFile(fileUrl)) {
-      setWarningMessage('AI Analizi sadece resim dosyaları için kullanılabilir. PDF ve diğer dosya türleri desteklenmemektedir.')
-      setShowWarningModal(true)
-      return
-    }
-
-    try {
-      setAnalyzingDekont(dekontId)
-      
-      const response = await fetch(`/api/admin/dekontlar/${dekontId}/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        await fetchDekontlar() // Listeyi yenile
-        
-        // Analiz sonuçlarını göster
-        setSelectedAnalysis({
-          analysis: result.analysis,
-          reliability: result.analysis.overallReliability,
-          analyzedAt: new Date().toISOString()
-        })
-        setShowAnalysisModal(true)
-      } else {
-        const errorData = await response.json()
-        setWarningMessage(`Analiz hatası: ${errorData.error || 'Bilinmeyen hata'}`)
-        setShowWarningModal(true)
-      }
-    } catch (error) {
-      console.error('Analiz hatası:', error)
-      setWarningMessage('Analiz sırasında bir hata oluştu')
-      setShowWarningModal(true)
-    } finally {
-      setAnalyzingDekont(null)
-    }
-  }, [fetchDekontlar])
-
-
-  // Analiz sonuçlarını görüntüle
-  const viewAnalysis = useCallback((dekont: Dekont) => {
-    if (!dekont.aiAnalysisResult) {
-      setWarningMessage('Bu dekont henüz analiz edilmemiş')
-      setShowWarningModal(true)
-      return
-    }
-    
-    setSelectedAnalysis({
-      dekont,
-      analysis: dekont.aiAnalysisResult,
-      reliability: dekont.reliabilityScore,
-      analyzedAt: dekont.analyzedAt
-    })
-    setShowAnalysisModal(true)
   }, [])
 
   // Extract current page data from memoized pagination
@@ -653,22 +524,19 @@ export default function DekontlarPage() {
               >
                 <option value="">İşlem Seçin</option>
                 <option value="APPROVED">Toplu Onayla</option>
-                <option value="ANALYZE">AI Analiz</option>
                 <option value="DELETE">Toplu Sil</option>
               </select>
               <button
                 onClick={handleBulkAction}
-                disabled={!bulkAction || isProcessing || bulkAnalyzing}
+                disabled={!bulkAction || isProcessing}
                 className="flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {(isProcessing || bulkAnalyzing) ? (
+                {isProcessing ? (
                   <Loader className="h-4 w-4 mr-2 animate-spin" />
-                ) : bulkAction === 'ANALYZE' ? (
-                  <Brain className="h-4 w-4 mr-2" />
                 ) : (
                   <Check className="h-4 w-4 mr-2" />
                 )}
-                {bulkAnalyzing ? 'Analiz Ediliyor...' : 'Uygula'}
+                Uygula
               </button>
             </div>
           </div>
@@ -771,19 +639,6 @@ export default function DekontlarPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end gap-3">
-                      {/* Analiz Durumu Göstergesi */}
-                      {dekont.isAnalyzed && dekont.reliabilityScore !== undefined && (
-                        <div className="flex items-center">
-                          <div className={`w-2 h-2 rounded-full mr-1 ${
-                            dekont.reliabilityScore > 0.7 ? 'bg-green-500' :
-                            dekont.reliabilityScore > 0.4 ? 'bg-yellow-500' : 'bg-red-500'
-                          }`}></div>
-                          <span className="text-xs text-gray-600">
-                            {Math.round(dekont.reliabilityScore * 100)}%
-                          </span>
-                        </div>
-                      )}
-                      
                       {/* İşlemler Dropdown */}
                       <div className="relative">
                         <button
@@ -818,36 +673,6 @@ export default function DekontlarPage() {
                                       {isPreviewableFile(dekont.dosya_url!) ? <Eye className="h-4 w-4 mr-3" /> : <Download className="h-4 w-4 mr-3" />}
                                       {isPreviewableFile(dekont.dosya_url!) ? (isImageFile(dekont.dosya_url!) ? 'Resmi Görüntüle' : 'PDF Önizle') : 'Dosyayı İndir'}
                                     </button>
-                                    
-                                    {/* AI Analiz */}
-                                    {dekont.isAnalyzed ? (
-                                      <button
-                                        onClick={() => {
-                                          viewAnalysis(dekont)
-                                          closeDropdown()
-                                        }}
-                                        className="flex items-center w-full px-4 py-2 text-sm text-purple-700 hover:bg-purple-50"
-                                      >
-                                        <FileSearch className="h-4 w-4 mr-3" />
-                                        Analiz Sonuçları
-                                      </button>
-                                    ) : (
-                                      <button
-                                        onClick={() => {
-                                          analyzeDekont(dekont.id, dekont.dosya_url)
-                                          closeDropdown()
-                                        }}
-                                        disabled={analyzingDekont === dekont.id}
-                                        className="flex items-center w-full px-4 py-2 text-sm text-purple-700 hover:bg-purple-50 disabled:opacity-50"
-                                      >
-                                        {analyzingDekont === dekont.id ? (
-                                          <Loader className="h-4 w-4 mr-3 animate-spin" />
-                                        ) : (
-                                          <Brain className="h-4 w-4 mr-3" />
-                                        )}
-                                        AI Analizi Yap
-                                      </button>
-                                    )}
                                     
                                     <div className="border-t border-gray-100 my-1"></div>
                                   </>
@@ -940,15 +765,14 @@ export default function DekontlarPage() {
                 >
                   <option value="">İşlem Seçin</option>
                   <option value="APPROVED">Toplu Onayla</option>
-                  <option value="ANALYZE">AI Analiz</option>
                   <option value="DELETE">Toplu Sil</option>
                 </select>
                 <button
                   onClick={handleBulkAction}
-                  disabled={!bulkAction || isProcessing || bulkAnalyzing}
+                  disabled={!bulkAction || isProcessing}
                   className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {(isProcessing || bulkAnalyzing) ? <Loader className="h-4 w-4 animate-spin" /> : 'Uygula'}
+                  {isProcessing ? <Loader className="h-4 w-4 animate-spin" /> : 'Uygula'}
                 </button>
               </div>
             </div>
@@ -1056,24 +880,6 @@ export default function DekontlarPage() {
               )}
             </div>
 
-            {/* Analiz Durumu (Mobil) */}
-            {dekont.isAnalyzed && dekont.reliabilityScore !== undefined && (
-              <div className="px-4 py-2 border-t border-gray-100">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">AI Analiz Sonucu:</span>
-                  <div className="flex items-center">
-                    <div className={`w-3 h-3 rounded-full mr-2 ${
-                      dekont.reliabilityScore > 0.7 ? 'bg-green-500' :
-                      dekont.reliabilityScore > 0.4 ? 'bg-yellow-500' : 'bg-red-500'
-                    }`}></div>
-                    <span className="text-sm font-medium text-gray-900">
-                      {Math.round(dekont.reliabilityScore * 100)}% Güvenilir
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Card Actions */}
             <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 rounded-b-lg">
               <div className="flex items-center justify-between gap-3">
@@ -1095,34 +901,6 @@ export default function DekontlarPage() {
 
                 {/* Action Buttons */}
                 <div className="flex gap-2">
-                  {/* AI Analiz Butonu - Mobil */}
-                  {dekont.dosya_url && dekont.dosya_url.trim() !== '' && (
-                    <>
-                      {dekont.isAnalyzed ? (
-                        <button
-                          onClick={() => viewAnalysis(dekont)}
-                          className="p-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                          title="Analiz Sonuçlarını Görüntüle"
-                        >
-                          <FileSearch className="h-4 w-4" />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => analyzeDekont(dekont.id, dekont.dosya_url)}
-                          disabled={analyzingDekont === dekont.id}
-                          className="p-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
-                          title="OCR ve AI Analizi Yap"
-                        >
-                          {analyzingDekont === dekont.id ? (
-                            <Loader className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Brain className="h-4 w-4" />
-                          )}
-                        </button>
-                      )}
-                    </>
-                  )}
-                  
                   {dekont.onay_durumu === 'bekliyor' && (
                     <>
                       <button
@@ -1508,206 +1286,6 @@ export default function DekontlarPage() {
                   className="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-6 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   Anladım
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Analiz Sonuçları Modal */}
-      {showAnalysisModal && selectedAnalysis && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">AI Analiz Sonuçları</h3>
-                <button
-                  onClick={closeModals}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-              
-              <div className="space-y-6">
-                {/* Genel Bilgiler */}
-                {selectedAnalysis.dekont && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h4 className="font-medium text-gray-900 mb-2">Dekont Bilgileri</h4>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-600">Öğrenci:</span>
-                        <span className="ml-2 font-medium">{selectedAnalysis.dekont.ogrenci_ad}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">İşletme:</span>
-                        <span className="ml-2 font-medium">{selectedAnalysis.dekont.isletme_ad}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Dönem:</span>
-                        <span className="ml-2 font-medium">{MONTHS[selectedAnalysis.dekont.ay - 1]} {selectedAnalysis.dekont.yil}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Analiz Tarihi:</span>
-                        <span className="ml-2 font-medium">{selectedAnalysis.analyzedAt ? formatDate(selectedAnalysis.analyzedAt) : '-'}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Güvenilirlik Skoru */}
-                <div className="bg-white border rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 mb-3">Genel Güvenilirlik Skoru</h4>
-                  <div className="flex items-center">
-                    <div className="flex-1">
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>Güvenilirlik</span>
-                        <span className="font-medium">{Math.round((selectedAnalysis.reliability || 0) * 100)}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-3">
-                        <div
-                          className={`h-3 rounded-full ${
-                            (selectedAnalysis.reliability || 0) > 0.7 ? 'bg-green-500' :
-                            (selectedAnalysis.reliability || 0) > 0.4 ? 'bg-yellow-500' : 'bg-red-500'
-                          }`}
-                          style={{ width: `${Math.round((selectedAnalysis.reliability || 0) * 100)}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div className={`ml-4 px-3 py-1 rounded-full text-sm font-medium ${
-                      (selectedAnalysis.reliability || 0) > 0.7 ? 'bg-green-100 text-green-800' :
-                      (selectedAnalysis.reliability || 0) > 0.4 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {(selectedAnalysis.reliability || 0) > 0.7 ? 'Güvenilir' :
-                       (selectedAnalysis.reliability || 0) > 0.4 ? 'Dikkatli İnceleme' : 'Şüpheli'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* OCR Sonuçları */}
-                {selectedAnalysis.analysis?.ocrResult && (
-                  <div className="bg-white border rounded-lg p-4">
-                    <h4 className="font-medium text-gray-900 mb-3">Veri Çıkarma Sonuçları</h4>
-                    
-                    {/* Çıkarılan Veriler */}
-                    {selectedAnalysis.analysis.ocrResult.extractedData && (
-                      <div className="mb-4">
-                        <h5 className="font-medium text-gray-800 mb-2">Çıkarılan Veriler</h5>
-                        <div className="bg-gray-50 rounded p-3 text-sm">
-                          <pre className="whitespace-pre-wrap text-gray-700">
-                            {JSON.stringify(selectedAnalysis.analysis.ocrResult.extractedData, null, 2)}
-                          </pre>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Ham Metin Verisi */}
-                    {selectedAnalysis.analysis.ocrResult.text && (
-                      <div>
-                        <h5 className="font-medium text-gray-800 mb-2">Ham Metin Verisi</h5>
-                        <div className="bg-gray-50 rounded p-3 text-sm max-h-40 overflow-y-auto">
-                          <pre className="whitespace-pre-wrap text-gray-600">
-                            {selectedAnalysis.analysis.ocrResult.text}
-                          </pre>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* AI Analiz Sonuçları */}
-                {selectedAnalysis.analysis?.aiAnalysis && (
-                  <div className="bg-white border rounded-lg p-4">
-                    <h4 className="font-medium text-gray-900 mb-3">AI Analiz Sonuçları</h4>
-                    
-                    {/* Doğrulama Sonuçları */}
-                    {selectedAnalysis.analysis.aiAnalysis.validation && (
-                      <div className="mb-4">
-                        <h5 className="font-medium text-gray-800 mb-2">Doğrulama Sonuçları</h5>
-                        <div className="grid grid-cols-2 gap-4">
-                          {Object.entries(selectedAnalysis.analysis.aiAnalysis.validation).map(([key, value]) => (
-                            <div key={key} className="flex justify-between items-center">
-                              <span className="text-sm text-gray-600 capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
-                              <span className={`text-sm font-medium ${
-                                value === true ? 'text-green-600' :
-                                value === false ? 'text-red-600' : 'text-yellow-600'
-                              }`}>
-                                {value === true ? '✓' : value === false ? '✗' : '?'}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Güvenlik Uyarıları */}
-                    {selectedAnalysis.analysis.aiAnalysis.securityFlags && selectedAnalysis.analysis.aiAnalysis.securityFlags.length > 0 && (
-                      <div className="mb-4">
-                        <h5 className="font-medium text-gray-800 mb-2">Güvenlik Uyarıları</h5>
-                        <div className="space-y-2">
-                          {selectedAnalysis.analysis.aiAnalysis.securityFlags.map((flag: any, index: number) => (
-                            <div key={index} className="flex items-start p-2 bg-red-50 border border-red-200 rounded">
-                              <AlertTriangle className="h-4 w-4 text-red-500 mr-2 mt-0.5 flex-shrink-0" />
-                              <div className="text-sm">
-                                <div className="font-medium text-red-800">{flag.type}</div>
-                                <div className="text-red-700">{flag.message}</div>
-                                {flag.severity && (
-                                  <div className="text-xs text-red-600 mt-1">Önem: {flag.severity}</div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* AI Önerisi */}
-                    {selectedAnalysis.analysis.aiAnalysis.recommendation && (
-                      <div>
-                        <h5 className="font-medium text-gray-800 mb-2">AI Önerisi</h5>
-                        <div className={`p-3 rounded-lg border ${
-                          selectedAnalysis.analysis.aiAnalysis.recommendation === 'approve' ? 'bg-green-50 border-green-200' :
-                          selectedAnalysis.analysis.aiAnalysis.recommendation === 'reject' ? 'bg-red-50 border-red-200' :
-                          'bg-yellow-50 border-yellow-200'
-                        }`}>
-                          <div className={`font-medium ${
-                            selectedAnalysis.analysis.aiAnalysis.recommendation === 'approve' ? 'text-green-800' :
-                            selectedAnalysis.analysis.aiAnalysis.recommendation === 'reject' ? 'text-red-800' :
-                            'text-yellow-800'
-                          }`}>
-                            {selectedAnalysis.analysis.aiAnalysis.recommendation === 'approve' ? 'Onaylanabilir' :
-                             selectedAnalysis.analysis.aiAnalysis.recommendation === 'reject' ? 'Reddedilmeli' :
-                             'Manuel İnceleme Gerekli'}
-                          </div>
-                          {selectedAnalysis.analysis.aiAnalysis.reasoningSummary && (
-                            <div className="text-sm mt-1 text-gray-700">
-                              {selectedAnalysis.analysis.aiAnalysis.reasoningSummary}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Ham Analiz Verisi (Geliştiriciler için) */}
-                <details className="bg-gray-50 rounded-lg p-4">
-                  <summary className="font-medium text-gray-900 cursor-pointer">Ham Analiz Verisi (Geliştiriciler İçin)</summary>
-                  <div className="mt-3 text-sm">
-                    <pre className="whitespace-pre-wrap text-gray-600 bg-white p-3 rounded border overflow-auto max-h-64">
-                      {JSON.stringify(selectedAnalysis.analysis, null, 2)}
-                    </pre>
-                  </div>
-                </details>
-              </div>
-
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={closeModals}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-                >
-                  Kapat
                 </button>
               </div>
             </div>
