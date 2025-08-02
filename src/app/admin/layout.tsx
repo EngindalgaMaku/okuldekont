@@ -237,7 +237,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <div className="text-center">
           <div className="mx-auto w-56 h-24 bg-white rounded-2xl flex items-center justify-center mb-4 p-4 shadow-lg border">
             <img
-              src="/images/logo2.png"
+              src="/images/logo2.jpg"
               alt="K-Panel Logo"
               className="h-16 w-42 object-contain animate-pulse"
             />
@@ -324,7 +324,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
                   <div className="flex items-center justify-center px-4 py-6 border-b border-gray-200">
                     <img
-                      src="/images/logo2.png"
+                      src="/images/logo2.jpg"
                       alt="K-Panel Logo"
                       className="h-16 w-42 object-contain"
                     />
@@ -498,7 +498,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             desktopSidebarOpen ? 'h-24 py-4' : 'h-16 py-2'
           )}>
             <img
-              src={desktopSidebarOpen ? "/images/logo2.png" : "/images/logo_kucuk.png"}
+              src={desktopSidebarOpen ? "/images/logo2.jpg" : "/images/logo_kucuk.png"}
               alt="K-Panel Logo"
               className={classNames(
                 desktopSidebarOpen ? 'h-20 w-52' : 'h-12 w-12',

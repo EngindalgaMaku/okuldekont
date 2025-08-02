@@ -55,6 +55,8 @@ interface SearchParams {
 interface PrintConfigProps {
   students: Student[]
   searchParams: SearchParams
+  isDropdownItem?: boolean
+  onClose?: () => void
 }
 
 interface PrintOptions {
@@ -74,7 +76,12 @@ interface PrintOptions {
   customSubtitle: string
 }
 
-export default function OgrencilerPrintClient({ students, searchParams }: PrintConfigProps) {
+export default function OgrencilerPrintClient({
+  students,
+  searchParams,
+  isDropdownItem = false,
+  onClose
+}: PrintConfigProps) {
   const [printModalOpen, setPrintModalOpen] = useState(false)
   const [printOptions, setPrintOptions] = useState<PrintOptions>({
     includeBasicInfo: true,
@@ -565,16 +572,34 @@ export default function OgrencilerPrintClient({ students, searchParams }: PrintC
     }
   }, [printModalOpen])
 
+  const handleOpenModal = () => {
+    setPrintModalOpen(true)
+    if (onClose) onClose()
+  }
+
   return (
     <>
-      <button
-        onClick={() => setPrintModalOpen(true)}
-        className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
-        title="Öğrenci listesini yazdır"
-      >
-        <Printer className="h-4 w-4 mr-2" />
-        Yazdır
-      </button>
+      {isDropdownItem ? (
+        <button
+          onClick={handleOpenModal}
+          className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-600 transition-colors flex items-center gap-3"
+        >
+          <Printer className="w-4 h-4 text-purple-500" />
+          <div>
+            <div className="font-medium">Listeyi Yazdır</div>
+            <div className="text-xs text-gray-500">Öğrenci listesini yazdır</div>
+          </div>
+        </button>
+      ) : (
+        <button
+          onClick={() => setPrintModalOpen(true)}
+          className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+          title="Öğrenci listesini yazdır"
+        >
+          <Printer className="h-4 w-4 mr-2" />
+          Yazdır
+        </button>
+      )}
 
       <Modal
         isOpen={printModalOpen}

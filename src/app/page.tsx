@@ -460,7 +460,7 @@ export default function LoginPage() {
             <div className="text-center">
                 <div className="mx-auto w-48 h-36 flex items-center justify-center mb-4">
                   <img
-                    src="/images/logo2.png"
+                    src="/images/logo2.jpg"
                     alt="Logo"
                     className="h-36 w-48 object-contain"
                   />
