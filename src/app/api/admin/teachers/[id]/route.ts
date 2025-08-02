@@ -22,6 +22,8 @@ export async function GET(
         mustChangePin: true,
         email: true,
         phone: true,
+        tcNo: true,
+        position: true,
         alanId: true,
         alan: {
           select: {
@@ -63,6 +65,8 @@ export async function PUT(
         surname: true,
         email: true,
         phone: true,
+        tcNo: true,
+        position: true,
         alanId: true,
         alan: {
           select: {
@@ -133,6 +137,26 @@ export async function PUT(
         });
       }
 
+      if (body.tcNo !== undefined && body.tcNo !== currentTeacher.tcNo) {
+        changes.push({
+          fieldName: 'tcNo',
+          changeType: 'PERSONAL_INFO_UPDATE',
+          previousValue: currentTeacher.tcNo,
+          newValue: body.tcNo,
+          reason: 'TC Kimlik No güncellendi'
+        });
+      }
+
+      if (body.position !== undefined && body.position !== currentTeacher.position) {
+        changes.push({
+          fieldName: 'position',
+          changeType: 'POSITION_UPDATE',
+          previousValue: currentTeacher.position,
+          newValue: body.position,
+          reason: 'Görevi güncellendi'
+        });
+      }
+
       // Geçmiş kayıtlarını oluştur
       for (const change of changes) {
         console.log('Creating history record for:', change);
@@ -173,10 +197,20 @@ export async function PUT(
         }
       }
 
+      // Güvenli güncelleme için data nesnesi oluştur
+      const dataToUpdate: any = {};
+      if (body.name) dataToUpdate.name = body.name;
+      if (body.surname) dataToUpdate.surname = body.surname;
+      if (body.email !== undefined) dataToUpdate.email = body.email;
+      if (body.phone !== undefined) dataToUpdate.phone = body.phone;
+      if (body.tcNo !== undefined) dataToUpdate.tcNo = body.tcNo;
+      if (body.position !== undefined) dataToUpdate.position = body.position;
+      if (body.alanId) dataToUpdate.alanId = body.alanId;
+
       // Öğretmeni güncelle
       const updatedTeacher = await tx.teacherProfile.update({
         where: { id },
-        data: body,
+        data: dataToUpdate,
         select: {
           id: true,
           name: true,
@@ -185,6 +219,8 @@ export async function PUT(
           mustChangePin: true,
           email: true,
           phone: true,
+          tcNo: true,
+          position: true,
           alanId: true,
           alan: {
             select: {

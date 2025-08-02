@@ -42,6 +42,9 @@ interface SearchParams {
 interface PrintConfigProps {
   companies: Company[]
   searchParams: SearchParams
+  externalPrintModalOpen?: boolean
+  onExternalClose?: () => void
+  hideButton?: boolean
 }
 
 interface PrintOptions {
@@ -61,8 +64,18 @@ interface PrintOptions {
   customSubtitle: string
 }
 
-export default function IsletmelerPrintClient({ companies, searchParams }: PrintConfigProps) {
-  const [printModalOpen, setPrintModalOpen] = useState(false)
+export default function IsletmelerPrintClient({
+  companies,
+  searchParams,
+  externalPrintModalOpen,
+  onExternalClose,
+  hideButton = false
+}: PrintConfigProps) {
+  const [internalPrintModalOpen, setInternalPrintModalOpen] = useState(false)
+  
+  // Use external state if provided, otherwise use internal state
+  const printModalOpen = externalPrintModalOpen !== undefined ? externalPrintModalOpen : internalPrintModalOpen
+  const setPrintModalOpen = onExternalClose ? onExternalClose : setInternalPrintModalOpen
   const [printOptions, setPrintOptions] = useState<PrintOptions>({
     includeBasicInfo: true,
     includeContactInfo: true,
@@ -518,7 +531,11 @@ export default function IsletmelerPrintClient({ companies, searchParams }: Print
         }
       }
     }
-    setPrintModalOpen(false)
+    if (onExternalClose) {
+      onExternalClose()
+    } else {
+      setInternalPrintModalOpen(false)
+    }
   }
 
   // Modal açıldığında tüm işletmeleri getir
@@ -530,18 +547,32 @@ export default function IsletmelerPrintClient({ companies, searchParams }: Print
 
   return (
     <>
-      <button
-        onClick={() => setPrintModalOpen(true)}
-        className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-        title="İşletme listesini yazdır"
-      >
-        <Printer className="h-4 w-4 mr-2" />
-        Yazdır
-      </button>
+      {!hideButton && (
+        <button
+          onClick={() => {
+            if (onExternalClose) {
+              // External control case - this shouldn't be called when hideButton is true
+            } else {
+              setInternalPrintModalOpen(true)
+            }
+          }}
+          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+          title="İşletme listesini yazdır"
+        >
+          <Printer className="h-4 w-4 mr-2" />
+          Yazdır
+        </button>
+      )}
 
       <Modal
         isOpen={printModalOpen}
-        onClose={() => setPrintModalOpen(false)}
+        onClose={() => {
+          if (onExternalClose) {
+            onExternalClose()
+          } else {
+            setInternalPrintModalOpen(false)
+          }
+        }}
         title="Yazdırma Ayarları"
       >
         <div className="space-y-6">

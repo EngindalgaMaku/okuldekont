@@ -243,7 +243,15 @@ export async function fetchOgretmenDetayOptimized(ogretmenId: string) {
     // Get teacher with alan
     const teacher = await prisma.teacherProfile.findUnique({
       where: { id: ogretmenId },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        surname: true,
+        email: true,
+        phone: true,
+        tcNo: true,
+        position: true,
+        alanId: true,
         alan: {
           select: {
             name: true
@@ -406,6 +414,8 @@ export async function fetchOgretmenDetayOptimized(ogretmenId: string) {
       soyad: teacher.surname,
       email: teacher.email,
       telefon: teacher.phone,
+      tcNo: teacher.tcNo,
+      position: teacher.position,
       alan_id: teacher.alanId,
       alanlar: teacher.alan ? { ad: teacher.alan.name } : null,
       stajlar: transformedStajlar,

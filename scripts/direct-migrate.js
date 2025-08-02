@@ -1,92 +1,79 @@
-const { Pool } = require('pg')
-const fs = require('fs')
-const path = require('path')
+const mysql = require('mysql2/promise');
+const fs = require('fs');
+const path = require('path');
 
 // .env dosyasını projenin kök dizininden yükle
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') })
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 // Veritabanı bağlantı bilgilerini .env dosyasından al
-const dbHost = process.env.SUPABASE_DB_HOST
-const dbPassword = process.env.SUPABASE_DB_PASSWORD
-const dbUser = 'postgres' // Supabase'de varsayılan kullanıcı
-const dbName = 'postgres' // Supabase'de varsayılan veritabanı
-const dbPort = 5432 // Supabase'de varsayılan port
+const dbUrl = process.env.DATABASE_URL;
 
-if (!dbHost || !dbPassword) {
-  console.error('SUPABASE_DB_HOST ve SUPABASE_DB_PASSWORD environment değişkenleri gerekli!')
-  process.exit(1)
+if (!dbUrl) {
+  console.error('DATABASE_URL environment değişkeni gerekli!');
+  process.exit(1);
 }
 
-const connectionString = `postgres://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`
-
-const pool = new Pool({
-  connectionString,
-})
-
 // Migration dosyalarını okuma fonksiyonu
-async function readMigrationFiles() {
-  const migrationsDir = path.join(__dirname, '../supabase/migrations')
-  const files = fs.readdirSync(migrationsDir)
-    .filter(file => file.endsWith('.sql'))
-    .sort()
+async function readMigrationFiles(migrationName) {
+  const migrationsDir = path.join(__dirname, '../prisma/migrations', migrationName);
+  const sqlFilePath = path.join(migrationsDir, 'migration.sql');
 
-  const migrations = []
-  for (const file of files) {
-    const content = fs.readFileSync(path.join(migrationsDir, file), 'utf8')
-    migrations.push({
-      name: file,
-      content: content
-    })
+  if (!fs.existsSync(sqlFilePath)) {
+    console.error(`Migration dosyası bulunamadı: ${sqlFilePath}`);
+    process.exit(1);
   }
-  return migrations
+
+  const content = fs.readFileSync(sqlFilePath, 'utf8');
+  return {
+    name: migrationName,
+    content: content,
+  };
 }
 
 async function runMigrations() {
-  let client
+  let connection;
   try {
-    console.log('🚀 Veritabanına bağlanılıyor...')
-    client = await pool.connect()
-    console.log('✅ Veritabanı bağlantısı başarılı.')
-    console.log('🚀 Migration başlatılıyor...')
-    
-    const migrations = await readMigrationFiles()
-    let successCount = 0
-    let failedCount = 0
-    
-    for (const migration of migrations) {
-      if (migration.content.trim().length === 0) {
-        console.log(`\n📄 ${migration.name} boş, geçiliyor.`)
-        continue
-      }
+    console.log('🚀 Veritabanına bağlanılıyor...');
+    connection = await mysql.createConnection(dbUrl);
+    console.log('✅ Veritabanı bağlantısı başarılı.');
 
-      console.log(`\n📄 Migration çalıştırılıyor: ${migration.name}`)
+    // Komut satırı argümanını doğru al (node, script.js, arg1)
+    const migrationName = process.argv;
+    if (!migrationName) {
+      console.error('Lütfen bir migrasyon adı belirtin. Kullanım: node scripts/direct-migrate.js <migration_folder_name>');
+      process.exit(1);
+    }
+
+    console.log(`🚀 Migration başlatılıyor: ${migrationName}`);
+    const migration = await readMigrationFiles(migrationName);
+
+    if (migration.content.trim().length === 0) {
+      console.log(`\n📄 ${migration.name} boş, geçiliyor.`);
+    } else {
+      console.log(`\n📄 Migration çalıştırılıyor: ${migration.name}`);
       try {
-        await client.query(migration.content)
-        console.log(`   ✅ Başarılı: ${migration.name}`)
-        successCount++
+        // SQL içeriğini noktalı virgüllere göre ayırarak her bir ifadeyi ayrı ayrı çalıştır
+        const statements = migration.content.split(';').filter(s => s.trim().length > 0);
+        for (const statement of statements) {
+          await connection.query(statement);
+        }
+        console.log(`   ✅ Başarılı: ${migration.name}`);
       } catch (error) {
-        console.error(`   ❌ Hata (${migration.name}):`, error.message)
-        failedCount++
+        console.error(`   ❌ Hata (${migration.name}):`, error.message);
       }
     }
-    
-    console.log('='.repeat(50))
-    if (failedCount === 0) {
-      console.log(`\n🎉 Tüm migration işlemleri başarılı! (${successCount} dosya)`)
-    } else {
-      console.log(`\n⚠️ ${successCount} başarılı, ${failedCount} başarısız.`)
-      console.log('📋 Lütfen yukarıdaki hataları kontrol edin.')
-    }
-    
+
+    console.log('='.repeat(50));
+    console.log(`\n🎉 Migration işlemi tamamlandı!`);
+
   } catch (error) {
-    console.error('❌ Kritik Hata:', error.message)
+    console.error('❌ Kritik Hata:', error.message);
   } finally {
-    if (client) {
-      await client.release()
-      console.log('\n🔌 Veritabanı bağlantısı kapatıldı.')
+    if (connection) {
+      await connection.end();
+      console.log('\n🔌 Veritabanı bağlantısı kapatıldı.');
     }
-    await pool.end()
   }
 }
 
-runMigrations()
+runMigrations();

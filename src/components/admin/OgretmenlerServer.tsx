@@ -2,10 +2,9 @@ import { Suspense } from 'react'
 import { Users, Search, Filter, Plus, Info, Trash2, Building2, User, Mail, Phone, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Printer } from 'lucide-react'
 import Link from 'next/link'
 import QuickPinButton from './QuickPinButton'
-import OgretmenlerClient from './OgretmenlerClient'
 import OgretmenlerTableClient from './OgretmenlerTableClient'
 import OgretmenlerFilterClient from './OgretmenlerFilterClient'
-import OgretmenlerPrintClient from './OgretmenlerPrintClient'
+import OgretmenlerActions from './OgretmenlerActions'
 import { fetchOgretmenlerOptimized } from '@/lib/optimized-queries'
 
 interface SearchParams {
@@ -123,8 +122,7 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
           </form>
 
           <div className="flex gap-2">
-            <OgretmenlerPrintClient ogretmenler={ogretmenler} searchParams={searchParams} />
-            <OgretmenlerClient />
+            <OgretmenlerActions ogretmenler={ogretmenler} searchParams={searchParams} />
           </div>
         </div>
       </div>
@@ -151,7 +149,13 @@ export default async function OgretmenlerServer({ searchParams }: Props) {
               )}
             </p>
             <div className="mt-6">
-              <OgretmenlerClient />
+              <Link
+                href="/admin/ogretmenler/yeni"
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Yeni Öğretmen Ekle
+              </Link>
             </div>
           </div>
         </div>

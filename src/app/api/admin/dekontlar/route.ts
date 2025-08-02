@@ -76,31 +76,45 @@ export async function GET(request: Request) {
     };
 
     // Format data to match frontend interface with decrypted financial data
-    const formattedData = rawData.map(dekont => ({
-      id: dekont.id,
-      isletme_ad: dekont.company?.name || dekont.staj?.company?.name || 'Bilinmiyor',
-      koordinator_ogretmen: dekont.company?.teacher ? `${dekont.company.teacher.name} ${dekont.company.teacher.surname}` :
-                           (dekont.staj?.teacher ? `${dekont.staj.teacher.name} ${dekont.staj.teacher.surname}` : 'Bilinmiyor'),
-      ogrenci_ad: dekont.staj?.student ? `${dekont.staj.student.name} ${dekont.staj.student.surname}` : 'Bilinmiyor',
-      ogrenci_sinif: dekont.staj?.student?.className || '',
-      ogrenci_no: dekont.staj?.student?.number || '',
-      miktar: dekont.amount ? Number(decryptFinancialData(dekont.amount.toString())) : null,
-      odeme_tarihi: dekont.paymentDate.toISOString(),
-      onay_durumu: statusMapping[dekont.status] || dekont.status,
-      ay: dekont.month,
-      yil: dekont.year,
-      dosya_url: dekont.fileUrl,
-      aciklama: dekont.rejectReason,
-      red_nedeni: dekont.rejectReason,
-      yukleyen_kisi: dekont.teacher
-        ? `${dekont.teacher.name} ${dekont.teacher.surname} (Öğretmen)`
-        : (dekont.company?.contact
-          ? `${dekont.company.contact} (İşletme)`
-          : (dekont.staj?.company?.contact
-            ? `${dekont.staj.company.contact} (İşletme)`
-            : 'İşletme')),
-      created_at: dekont.createdAt.toISOString()
-    }))
+    const formattedData = rawData.map(dekont => {
+      // Type assertion for new analysis fields until Prisma client is fully regenerated
+      const dekontWithAnalysis = dekont as any;
+      
+      return {
+        id: dekont.id,
+        isletme_ad: dekont.company?.name || dekont.staj?.company?.name || 'Bilinmiyor',
+        koordinator_ogretmen: dekont.company?.teacher ? `${dekont.company.teacher.name} ${dekont.company.teacher.surname}` :
+                             (dekont.staj?.teacher ? `${dekont.staj.teacher.name} ${dekont.staj.teacher.surname}` : 'Bilinmiyor'),
+        ogrenci_ad: dekont.staj?.student ? `${dekont.staj.student.name} ${dekont.staj.student.surname}` : 'Bilinmiyor',
+        ogrenci_sinif: dekont.staj?.student?.className || '',
+        ogrenci_no: dekont.staj?.student?.number || '',
+        miktar: dekont.amount ? Number(decryptFinancialData(dekont.amount.toString())) : null,
+        odeme_tarihi: dekont.paymentDate.toISOString(),
+        onay_durumu: statusMapping[dekont.status] || dekont.status,
+        ay: dekont.month,
+        yil: dekont.year,
+        dosya_url: dekont.fileUrl,
+        aciklama: dekont.rejectReason,
+        red_nedeni: dekont.rejectReason,
+        yukleyen_kisi: dekont.teacher
+          ? `${dekont.teacher.name} ${dekont.teacher.surname} (Öğretmen)`
+          : (dekont.company?.contact
+            ? `${dekont.company.contact} (İşletme)`
+            : (dekont.staj?.company?.contact
+              ? `${dekont.staj.company.contact} (İşletme)`
+              : 'İşletme')),
+        created_at: dekont.createdAt.toISOString(),
+        // OCR ve AI Analiz Alanları - Type assertion kullanarak erişim
+        isAnalyzed: dekontWithAnalysis.isAnalyzed || false,
+        reliabilityScore: dekontWithAnalysis.reliabilityScore || null,
+        analyzedAt: dekontWithAnalysis.analyzedAt?.toISOString() || null,
+        analyzedBy: dekontWithAnalysis.analyzedBy || null,
+        aiAnalysisResult: dekontWithAnalysis.aiAnalysisResult || null,
+        ocrAnalysisResult: dekontWithAnalysis.ocrAnalysisResult || null,
+        securityFlags: dekontWithAnalysis.securityFlags || null,
+        extractedData: dekontWithAnalysis.extractedData || null
+      };
+    })
 
     return NextResponse.json({ data: formattedData })
   } catch (error) {

@@ -278,26 +278,36 @@ model InternshipHistory {
 }
 
 model Dekont {
-  id           String       @id @default(cuid())
-  stajId       String
-  companyId    String
-  teacherId    String?
-  studentId    String
-  amount       Decimal?     @db.Decimal(10, 2)
-  paymentDate  DateTime
-  month        Int
-  year         Int
-  status       DekontStatus @default(PENDING)
-  approvedBy   String?
-  approvedAt   DateTime?
-  rejectedBy   String?
-  rejectedAt   DateTime?
-  rejectReason String?
-  fileUrl      String?
-  archived     Boolean      @default(false)
-  archivedAt   DateTime?
-  archivedBy   String?
-  createdAt    DateTime     @default(now())
+  id                  String       @id @default(cuid())
+  stajId              String
+  companyId           String
+  teacherId           String?
+  studentId           String
+  amount              Decimal?     @db.Decimal(10, 2)
+  paymentDate         DateTime
+  month               Int
+  year                Int
+  status              DekontStatus @default(PENDING)
+  approvedBy          String?
+  approvedAt          DateTime?
+  rejectedBy          String?
+  rejectedAt          DateTime?
+  rejectReason        String?
+  fileUrl             String?
+  archived            Boolean      @default(false)
+  archivedAt          DateTime?
+  archivedBy          String?
+  createdAt           DateTime     @default(now())
+  
+  // OCR ve AI Analiz Alanları
+  ocrAnalysisResult   Json?        // OCR sonuçları ve AI analiz verileri
+  reliabilityScore    Float?       // 0-1 arası güvenirlik skoru
+  aiAnalysisResult    Json?        // AI analiz sonuçları (fraud detection, authenticity check)
+  isAnalyzed          Boolean      @default(false)
+  analyzedAt          DateTime?
+  analyzedBy          String?      // Analizi yapan kullanıcı
+  securityFlags       Json?        // Güvenlik uyarıları ve flagler
+  extractedData       Json?        // OCR'dan çıkarılan yapılandırılmış veri
   
   staj      Staj            @relation(fields: [stajId], references: [id])
   company   CompanyProfile  @relation(fields: [companyId], references: [id])

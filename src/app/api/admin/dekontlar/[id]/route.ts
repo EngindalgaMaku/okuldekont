@@ -32,57 +32,86 @@ export async function DELETE(
       )
     }
 
-    // Önce dekontun var olup olmadığını kontrol et
-    const existingDekont = await prisma.dekont.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        status: true,
-        staj: {
-          select: {
-            student: {
-              select: {
-                name: true,
-                surname: true
+    // Transaction ile atomic delete işlemi
+    const result = await prisma.$transaction(async (tx) => {
+      // Önce dekontun var olup olmadığını ve durumunu kontrol et
+      const existingDekont = await tx.dekont.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          status: true,
+          staj: {
+            select: {
+              student: {
+                select: {
+                  name: true,
+                  surname: true
+                }
               }
             }
           }
         }
+      })
+
+      if (!existingDekont) {
+        throw new Error('DEKONT_NOT_FOUND')
       }
-    })
 
-    if (!existingDekont) {
-      return NextResponse.json(
-        { error: 'Dekont bulunamadı' },
-        { status: 404 }
-      )
-    }
+      // Onaylanmış dekontları silmeyi engelle
+      if (existingDekont.status === 'APPROVED') {
+        throw new Error('APPROVED_DEKONT_DELETE_DENIED')
+      }
 
-    // Onaylanmış dekontları silmeyi engelle
-    if (existingDekont.status === 'APPROVED') {
-      return NextResponse.json(
-        { error: 'Onaylanmış dekontlar silinemez' },
-        { status: 403 }
-      )
-    }
+      // Dekontı sil
+      await tx.dekont.delete({
+        where: { id }
+      })
 
-    await prisma.dekont.delete({
-      where: { id }
+      return existingDekont
     })
 
     console.log(`✅ DEKONT DELETE: Successful deletion by ${authResult.user?.role}`, {
       dekontId: id,
-      studentName: existingDekont.staj?.student ? `${existingDekont.staj.student.name} ${existingDekont.staj.student.surname}` : 'Unknown',
+      studentName: result.staj?.student ? `${result.staj.student.name} ${result.staj.student.surname}` : 'Unknown',
       userId: authResult.user?.id,
       timestamp: new Date().toISOString()
     })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       message: 'Dekont başarıyla silindi'
     })
   } catch (error) {
     console.error('Dekont silinirken hata:', error)
+    
+    // Özel hata durumlarını yakala
+    if (error instanceof Error) {
+      if (error.message === 'DEKONT_NOT_FOUND') {
+        return NextResponse.json(
+          { error: 'Dekont bulunamadı' },
+          { status: 404 }
+        )
+      }
+      
+      if (error.message === 'APPROVED_DEKONT_DELETE_DENIED') {
+        return NextResponse.json(
+          { error: 'Onaylanmış dekontlar silinemez' },
+          { status: 403 }
+        )
+      }
+    }
+
+    // MySQL race condition hatası için özel mesaj
+    if (error && typeof error === 'object' && 'message' in error) {
+      const errorMessage = String(error.message)
+      if (errorMessage.includes('Record has changed since last read')) {
+        return NextResponse.json(
+          { error: 'Dekont başka bir işlem tarafından değiştirildi. Lütfen sayfayı yenileyin ve tekrar deneyin.' },
+          { status: 409 }
+        )
+      }
+    }
+    
     return NextResponse.json(
       { error: 'Dekont silinirken bir hata oluştu' },
       { status: 500 }

@@ -23,6 +23,8 @@ interface Ogretmen {
   telefon: string | null;
   aktif?: boolean;
   pin?: string;
+  tcNo?: string;
+  position?: string;
 }
 interface Staj {
   id: string;
@@ -469,7 +471,12 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
     const [pinForm, setPinForm] = useState({ pin: '', confirmPin: '' })
     const [showPin, setShowPin] = useState(false)
     const [contactForm, setContactForm] = useState({ email: ogretmen.email || '', telefon: ogretmen.telefon || '' })
-    const [basicInfoForm, setBasicInfoForm] = useState({ ad: ogretmen.ad, soyad: ogretmen.soyad })
+    const [basicInfoForm, setBasicInfoForm] = useState({
+      ad: ogretmen.ad,
+      soyad: ogretmen.soyad,
+      tcNo: ogretmen.tcNo || '',
+      position: ogretmen.position || ''
+    })
     const [deleteModal, setDeleteModal] = useState(false)
     const [deleteConfirmText, setDeleteConfirmText] = useState('')
     const [loading, setLoading] = useState(false)
@@ -497,8 +504,13 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
     // Update forms when ogretmen data changes
     useEffect(() => {
         setContactForm({ email: ogretmen.email || '', telefon: ogretmen.telefon || '' })
-        setBasicInfoForm({ ad: ogretmen.ad, soyad: ogretmen.soyad })
-    }, [ogretmen.email, ogretmen.telefon, ogretmen.ad, ogretmen.soyad])
+        setBasicInfoForm({
+          ad: ogretmen.ad,
+          soyad: ogretmen.soyad,
+          tcNo: ogretmen.tcNo || '',
+          position: ogretmen.position || ''
+        })
+    }, [ogretmen])
 
     const fetchLockStatus = async () => {
         setLockStatusLoading(true);
@@ -616,20 +628,22 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
                 },
                 body: JSON.stringify({
                     name: basicInfoForm.ad.trim(),
-                    surname: basicInfoForm.soyad.trim()
+                    surname: basicInfoForm.soyad.trim(),
+                    tcNo: basicInfoForm.tcNo.trim(),
+                    position: basicInfoForm.position.trim()
                 }),
             });
             
             if (response.ok) {
-                toast.success('Ad ve soyad güncellendi.');
+                toast.success('Temel bilgiler güncellendi.');
                 setEditModeBasicInfo(false);
                 onUpdate();
             } else {
                 const errorData = await response.json();
-                toast.error(errorData.error || 'Ad ve soyad güncellenirken hata oluştu.');
+                toast.error(errorData.error || 'Temel bilgiler güncellenirken hata oluştu.');
             }
         } catch (error) {
-            toast.error('Ad ve soyad güncellenirken hata oluştu.');
+            toast.error('Temel bilgiler güncellenirken hata oluştu.');
         }
         setLoading(false);
     }
@@ -708,25 +722,50 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
                         </div>
                         {editModeBasicInfo ? (
                             <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Ad</label>
+                                        <input
+                                            type="text"
+                                            value={basicInfoForm.ad}
+                                            onChange={e => setBasicInfoForm({...basicInfoForm, ad: e.target.value})}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Soyad</label>
+                                        <input
+                                            type="text"
+                                            value={basicInfoForm.soyad}
+                                            onChange={e => setBasicInfoForm({...basicInfoForm, soyad: e.target.value})}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700">Ad</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">TC Kimlik No</label>
                                     <input
                                         type="text"
-                                        value={basicInfoForm.ad}
-                                        onChange={e => setBasicInfoForm({...basicInfoForm, ad: e.target.value})}
-                                        className="w-full p-2 border rounded"
+                                        value={basicInfoForm.tcNo}
+                                        onChange={e => setBasicInfoForm({...basicInfoForm, tcNo: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                        maxLength={11}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700">Soyad</label>
-                                    <input
-                                        type="text"
-                                        value={basicInfoForm.soyad}
-                                        onChange={e => setBasicInfoForm({...basicInfoForm, soyad: e.target.value})}
-                                        className="w-full p-2 border rounded"
-                                    />
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Görevi</label>
+                                    <select
+                                        value={basicInfoForm.position}
+                                        onChange={e => setBasicInfoForm({...basicInfoForm, position: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white"
+                                    >
+                                        <option value="">Seçiniz...</option>
+                                        <option value="Alan Şefi">Alan Şefi</option>
+                                        <option value="Atölye Şefi">Atölye Şefi</option>
+                                        <option value="Diğer">Diğer</option>
+                                    </select>
                                 </div>
-                                <div className="flex justify-end gap-2">
+                                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                                     <button
                                         onClick={() => setEditModeBasicInfo(false)}
                                         className="px-4 py-2 border rounded"
@@ -743,12 +782,16 @@ const AyarlarTab = ({ ogretmen, onUpdate }: { ogretmen: Ogretmen, onUpdate: () =
                                 </div>
                             </div>
                         ) : (
-                            <div className="space-y-2">
-                                <p className="text-sm text-gray-700"><span className="font-medium">Ad:</span> {ogretmen.ad}</p>
-                                <p className="text-sm text-gray-700"><span className="font-medium">Soyad:</span> {ogretmen.soyad}</p>
-                                <p className="text-sm text-gray-700">
-                                    <span className="font-medium">Durum:</span>
-                                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                            <div className="space-y-3 text-sm text-gray-800">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+                                    <p><span className="font-medium text-gray-600">Ad:</span> {ogretmen.ad}</p>
+                                    <p><span className="font-medium text-gray-600">Soyad:</span> {ogretmen.soyad}</p>
+                                    <p><span className="font-medium text-gray-600">TC Kimlik No:</span> {ogretmen.tcNo || 'Belirtilmemiş'}</p>
+                                    <p><span className="font-medium text-gray-600">Görevi:</span> {ogretmen.position || 'Belirtilmemiş'}</p>
+                                </div>
+                                <p>
+                                    <span className="font-medium text-gray-600">Durum:</span>
+                                    <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full ${
                                         (ogretmen.aktif ?? true)
                                             ? 'bg-green-100 text-green-800'
                                             : 'bg-red-100 text-red-800'

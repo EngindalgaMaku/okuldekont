@@ -1415,35 +1415,20 @@ const TeacherPanel = () => {
                           background: styles.background
                         }}
                       >
-                        {/* Company Type Badge */}
-                        {isletme.company_type && (
-                          <div className="absolute top-4 right-4">
-                            <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-                              isletme.company_type === 'tech' ? 'bg-blue-100 text-blue-800' :
-                              isletme.company_type === 'accounting' ? 'bg-green-100 text-green-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {isletme.company_type === 'tech' ? '💻 Teknoloji' :
-                               isletme.company_type === 'accounting' ? '📊 Muhasebe' :
-                               '🏢 Diğer'}
-                            </span>
-                          </div>
-                        )}
+                        {/* Belgeler butonu - sağ üst köşe */}
+                        <div className="absolute top-4 right-4">
+                          <button
+                            onClick={() => handleBelgeYukle(isletme)}
+                            className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                            title="Belgeler"
+                          >
+                            <FileText className="h-4 w-4 mr-1.5" />
+                            Belgeler
+                          </button>
+                        </div>
 
                         <div className="flex items-center">
-                          <div
-                            className="h-12 w-12 rounded-xl flex items-center justify-center border-2 hidden sm:block"
-                            style={{
-                              backgroundColor: styles.iconBg,
-                              borderColor: styles.iconColor + '40'
-                            }}
-                          >
-                            <Building2
-                              className="h-6 w-6"
-                              style={{ color: styles.iconColor }}
-                            />
-                          </div>
-                          <div className="sm:ml-4 flex-1 pr-16 sm:pr-20">
+                          <div className="flex-1 pr-16 sm:pr-20">
                             <h3 className="text-lg font-bold text-gray-900 flex flex-col sm:flex-row sm:items-center sm:gap-2">
                               <span className="break-words">{isletme.ad}</span>
                               {isletme.total_students && (
@@ -1452,22 +1437,23 @@ const TeacherPanel = () => {
                                 </span>
                               )}
                             </h3>
-                            <p className="text-sm text-gray-600 font-medium">
-                              👤 Yetkili: {isletme.yukleyen_kisi}
-                            </p>
+                            <div className="text-sm text-gray-600 font-medium space-y-1">
+                              <p>👤 Yetkili: {isletme.yukleyen_kisi}</p>
+                              {isletme.telefon && (
+                                <p className="flex items-center gap-1">
+                                  📞 Telefon:
+                                  <a
+                                    href={`tel:${isletme.telefon}`}
+                                    className="text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
+                                    title={`${isletme.yukleyen_kisi} - ${isletme.telefon}'u ara`}
+                                  >
+                                    {isletme.telefon}
+                                  </a>
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
-                    
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        onClick={() => handleBelgeYukle(isletme)}
-                        className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                        title="Belgeler"
-                      >
-                        <FileText className="h-4 w-4 mr-1.5" />
-                        Belgeler
-                      </button>
-                    </div>
                     
                     <div className="mt-4 space-y-3">
                       <button
@@ -1522,8 +1508,7 @@ const TeacherPanel = () => {
                                       <div className="px-2 py-1 bg-green-50 text-green-700 rounded-md font-medium">
                                         {ogrenci.alan || 'Alan bilgisi yok'}
                                       </div>
-                                      <div className="flex items-center gap-1 text-gray-500">
-                                        <Calendar className="h-3 w-3" />
+                                      <div className="text-gray-500">
                                         <span>Başlangıç: {new Date(ogrenci.baslangic_tarihi).toLocaleDateString('tr-TR')}</span>
                                       </div>
                                     </div>

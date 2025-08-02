@@ -15,6 +15,8 @@ async function getOgretmenData(ogretmenId: string) {
         soyad: data.soyad,
         email: data.email,
         telefon: data.telefon,
+        tcNo: data.tcNo ?? undefined,
+        position: data.position ?? undefined,
         alan: data.alanlar
       },
       stajlar: data.stajlar || [],

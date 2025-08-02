@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, memo } from 'react'
-import { Eye, Download, Check, X, Filter, Search, Calendar, Trash2, Loader } from 'lucide-react'
+import { Eye, Download, Check, X, Filter, Search, Calendar, Trash2, Loader, Brain, FileSearch, AlertTriangle, Shield, MoreVertical, ChevronDown } from 'lucide-react'
 
 interface Dekont {
   id: string
@@ -20,6 +20,12 @@ interface Dekont {
   red_nedeni: string | null
   yukleyen_kisi: string
   created_at: string
+  // Yeni analiz alanları
+  isAnalyzed?: boolean
+  reliabilityScore?: number
+  analyzedAt?: string
+  aiAnalysisResult?: any
+  securityFlags?: any[]
 }
 
 // Güvenli tarih formatlama yardımcısı
@@ -39,6 +45,24 @@ const formatDate = (dateString: string | null | undefined): string => {
 const formatCurrency = (amount: number | null | undefined): string => {
   if (amount === null || amount === undefined || isNaN(amount)) return '-'
   return `₺${amount.toLocaleString('tr-TR')}`
+}
+
+// Dosya tipini kontrol eden fonksiyonlar
+const isImageFile = (fileUrl: string | null): boolean => {
+  if (!fileUrl) return false
+  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
+  const lowerCaseUrl = fileUrl.toLowerCase()
+  return imageExtensions.some(ext => lowerCaseUrl.includes(ext))
+}
+
+const isPdfFile = (fileUrl: string | null): boolean => {
+  if (!fileUrl) return false
+  const lowerCaseUrl = fileUrl.toLowerCase()
+  return lowerCaseUrl.includes('.pdf')
+}
+
+const isPreviewableFile = (fileUrl: string | null): boolean => {
+  return isImageFile(fileUrl) || isPdfFile(fileUrl)
 }
 
 const MONTHS = [
@@ -70,12 +94,23 @@ export default function DekontlarPage() {
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [showApproveModal, setShowApproveModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showApprovedDeleteWarning, setShowApprovedDeleteWarning] = useState(false)
   const [selectedDekont, setSelectedDekont] = useState<Dekont | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkAction, setBulkAction] = useState<string>('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
+  const [analyzingDekont, setAnalyzingDekont] = useState<string | null>(null)
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false)
+  const [selectedAnalysis, setSelectedAnalysis] = useState<any>(null)
+  const [bulkAnalyzing, setBulkAnalyzing] = useState(false)
+  const [showImageModal, setShowImageModal] = useState(false)
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
+  const [selectedImageName, setSelectedImageName] = useState<string>('')
+  const [showWarningModal, setShowWarningModal] = useState(false)
+  const [warningMessage, setWarningMessage] = useState('')
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
 
   // Memoized fetch function - prevents re-creation on every render
   const fetchDekontlar = useCallback(async () => {
@@ -160,11 +195,66 @@ export default function DekontlarPage() {
     )
   }, [])
 
+  // Toplu analiz fonksiyonu
+  const analyzeBatch = useCallback(async () => {
+    if (selectedIds.length === 0) {
+      setWarningMessage('Lütfen analiz edilecek dekontları seçin')
+      setShowWarningModal(true)
+      return
+    }
+
+    if (selectedIds.length > 20) {
+      setWarningMessage('Toplu analiz için maksimum 20 dekont seçilebilir')
+      setShowWarningModal(true)
+      return
+    }
+
+    try {
+      setBulkAnalyzing(true)
+      
+      const response = await fetch('/api/admin/dekontlar/analyze/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dekontIds: selectedIds
+        })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        await fetchDekontlar() // Listeyi yenile
+        
+        const summary = result.summary
+        setWarningMessage(`Toplu analiz tamamlandı!\n\nİşlenen: ${summary.successful}/${summary.totalRequested}\nOrtalama güvenirlik: ${Math.round(summary.averageReliability * 100)}%\n\nÖneriler:\n- Onayla: ${summary.recommendations.approve}\n- Reddet: ${summary.recommendations.reject}\n- Manuel İnceleme: ${summary.recommendations.manualReview}`)
+        setShowWarningModal(true)
+        
+        setSelectedIds([])
+      } else {
+        const errorData = await response.json()
+        setWarningMessage(`Toplu analiz hatası: ${errorData.error || 'Bilinmeyen hata'}`)
+        setShowWarningModal(true)
+      }
+    } catch (error) {
+      console.error('Toplu analiz hatası:', error)
+      setWarningMessage('Toplu analiz sırasında bir hata oluştu')
+      setShowWarningModal(true)
+    } finally {
+      setBulkAnalyzing(false)
+    }
+  }, [selectedIds, fetchDekontlar])
+
   const handleBulkAction = useCallback(async () => {
     if (selectedIds.length === 0 || !bulkAction) return
 
     if (bulkAction === 'DELETE') {
       setShowBulkDeleteModal(true)
+      return
+    }
+
+    if (bulkAction === 'ANALYZE') {
+      await analyzeBatch()
       return
     }
 
@@ -177,11 +267,12 @@ export default function DekontlarPage() {
       setBulkAction('')
     } catch (error) {
       console.error('Toplu işlem hatası:', error)
-      alert('Toplu işlem sırasında bir hata oluştu')
+      setWarningMessage('Toplu işlem sırasında bir hata oluştu')
+      setShowWarningModal(true)
     } finally {
       setIsProcessing(false)
     }
-  }, [selectedIds, bulkAction])
+  }, [selectedIds, bulkAction, analyzeBatch])
 
   const handleBulkDelete = useCallback(async () => {
     setIsProcessing(true)
@@ -194,7 +285,8 @@ export default function DekontlarPage() {
       setShowBulkDeleteModal(false)
     } catch (error) {
       console.error('Toplu silme hatası:', error)
-      alert('Toplu silme sırasında bir hata oluştu')
+      setWarningMessage('Toplu silme sırasında bir hata oluştu')
+      setShowWarningModal(true)
     } finally {
       setIsProcessing(false)
     }
@@ -239,11 +331,13 @@ export default function DekontlarPage() {
         setRejectReason('')
       } else {
         console.error('Dekont güncelleme hatası')
-        alert('Dekont güncellenirken bir hata oluştu')
+        setWarningMessage('Dekont güncellenirken bir hata oluştu')
+        setShowWarningModal(true)
       }
     } catch (error) {
       console.error('Dekont durumu güncellenirken hata:', error)
-      alert('Dekont durumu güncellenirken bir hata oluştu')
+      setWarningMessage('Dekont durumu güncellenirken bir hata oluştu')
+      setShowWarningModal(true)
     }
   }, [fetchDekontlar])
 
@@ -257,13 +351,19 @@ export default function DekontlarPage() {
         await fetchDekontlar() // Refresh the list
         setShowDeleteModal(false)
         setSelectedDekont(null)
+      } else if (response.status === 403) {
+        // Onaylanmış dekont silme hatası - şık modal göster
+        setShowDeleteModal(false)
+        setShowApprovedDeleteWarning(true)
       } else {
         console.error('Dekont silme hatası')
-        alert('Dekont silinirken bir hata oluştu')
+        setWarningMessage('Dekont silinirken bir hata oluştu')
+        setShowWarningModal(true)
       }
     } catch (error) {
       console.error('Dekont silinirken hata:', error)
-      alert('Dekont silinirken bir hata oluştu')
+      setWarningMessage('Dekont silinirken bir hata oluştu')
+        setShowWarningModal(true)
     }
   }, [fetchDekontlar])
 
@@ -300,8 +400,24 @@ export default function DekontlarPage() {
     setShowRejectModal(false)
     setShowApproveModal(false)
     setShowDeleteModal(false)
+    setShowApprovedDeleteWarning(false)
+    setShowAnalysisModal(false)
+    setShowImageModal(false)
+    setShowWarningModal(false)
     setSelectedDekont(null)
+    setSelectedAnalysis(null)
+    setSelectedImageUrl(null)
+    setSelectedImageName('')
+    setWarningMessage('')
     setRejectReason('')
+    setOpenDropdown(null)
+  }, [])
+
+  // Resim modalını açma fonksiyonu
+  const openImageModal = useCallback((fileUrl: string, filename: string) => {
+    setSelectedImageUrl(fileUrl)
+    setSelectedImageName(filename)
+    setShowImageModal(true)
   }, [])
 
   // Memoized download function
@@ -312,7 +428,8 @@ export default function DekontlarPage() {
       const actualFilename = urlParts[urlParts.length - 1]
       
       if (!actualFilename) {
-        alert('Dosya adı bulunamadı')
+        setWarningMessage('Dosya adı bulunamadı')
+        setShowWarningModal(true)
         return
       }
 
@@ -321,11 +438,14 @@ export default function DekontlarPage() {
       
       if (!response.ok) {
         if (response.status === 404) {
-          alert('Dosya bulunamadı')
+          setWarningMessage('Dosya bulunamadı')
+          setShowWarningModal(true)
         } else if (response.status === 401) {
-          alert('Bu işlem için yetkiniz yok')
+          setWarningMessage('Bu işlem için yetkiniz yok')
+          setShowWarningModal(true)
         } else {
-          alert('Dosya indirilemedi')
+          setWarningMessage('Dosya indirilemedi')
+          setShowWarningModal(true)
         }
         return
       }
@@ -346,9 +466,19 @@ export default function DekontlarPage() {
       
     } catch (error) {
       console.error('Download error:', error)
-      alert('Dosya indirme sırasında bir hata oluştu')
+      setWarningMessage('Dosya indirme sırasında bir hata oluştu')
+      setShowWarningModal(true)
     }
   }, [])
+
+  // Dosya görüntüleme/indirme işlemi
+  const handleFileAction = useCallback((fileUrl: string, filename: string) => {
+    if (isPreviewableFile(fileUrl)) {
+      openImageModal(fileUrl, filename)
+    } else {
+      downloadFile(fileUrl, filename)
+    }
+  }, [openImageModal, downloadFile])
 
   // Memoized filter clear handler
   const clearFilters = useCallback(() => {
@@ -356,6 +486,77 @@ export default function DekontlarPage() {
     setSelectedMonth('all')
     setSelectedYear('all')
     setSearchTerm('')
+  }, [])
+
+  // Dropdown handlers
+  const toggleDropdown = useCallback((dekontId: string) => {
+    setOpenDropdown(openDropdown === dekontId ? null : dekontId)
+  }, [openDropdown])
+
+  const closeDropdown = useCallback(() => {
+    setOpenDropdown(null)
+  }, [])
+
+  // AI Analiz fonksiyonu
+  const analyzeDekont = useCallback(async (dekontId: string, fileUrl?: string | null) => {
+    // Resim dosyası değilse uyarı göster
+    if (fileUrl && !isImageFile(fileUrl)) {
+      setWarningMessage('AI Analizi sadece resim dosyaları için kullanılabilir. PDF ve diğer dosya türleri desteklenmemektedir.')
+      setShowWarningModal(true)
+      return
+    }
+
+    try {
+      setAnalyzingDekont(dekontId)
+      
+      const response = await fetch(`/api/admin/dekontlar/${dekontId}/analyze`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        await fetchDekontlar() // Listeyi yenile
+        
+        // Analiz sonuçlarını göster
+        setSelectedAnalysis({
+          analysis: result.analysis,
+          reliability: result.analysis.overallReliability,
+          analyzedAt: new Date().toISOString()
+        })
+        setShowAnalysisModal(true)
+      } else {
+        const errorData = await response.json()
+        setWarningMessage(`Analiz hatası: ${errorData.error || 'Bilinmeyen hata'}`)
+        setShowWarningModal(true)
+      }
+    } catch (error) {
+      console.error('Analiz hatası:', error)
+      setWarningMessage('Analiz sırasında bir hata oluştu')
+      setShowWarningModal(true)
+    } finally {
+      setAnalyzingDekont(null)
+    }
+  }, [fetchDekontlar])
+
+
+  // Analiz sonuçlarını görüntüle
+  const viewAnalysis = useCallback((dekont: Dekont) => {
+    if (!dekont.aiAnalysisResult) {
+      setWarningMessage('Bu dekont henüz analiz edilmemiş')
+      setShowWarningModal(true)
+      return
+    }
+    
+    setSelectedAnalysis({
+      dekont,
+      analysis: dekont.aiAnalysisResult,
+      reliability: dekont.reliabilityScore,
+      analyzedAt: dekont.analyzedAt
+    })
+    setShowAnalysisModal(true)
   }, [])
 
   // Extract current page data from memoized pagination
@@ -452,19 +653,22 @@ export default function DekontlarPage() {
               >
                 <option value="">İşlem Seçin</option>
                 <option value="APPROVED">Toplu Onayla</option>
+                <option value="ANALYZE">AI Analiz</option>
                 <option value="DELETE">Toplu Sil</option>
               </select>
               <button
                 onClick={handleBulkAction}
-                disabled={!bulkAction || isProcessing}
+                disabled={!bulkAction || isProcessing || bulkAnalyzing}
                 className="flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isProcessing ? (
+                {(isProcessing || bulkAnalyzing) ? (
                   <Loader className="h-4 w-4 mr-2 animate-spin" />
+                ) : bulkAction === 'ANALYZE' ? (
+                  <Brain className="h-4 w-4 mr-2" />
                 ) : (
                   <Check className="h-4 w-4 mr-2" />
                 )}
-                Uygula
+                {bulkAnalyzing ? 'Analiz Ediliyor...' : 'Uygula'}
               </button>
             </div>
           </div>
@@ -566,43 +770,139 @@ export default function DekontlarPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end gap-2">
-                      {dekont.dosya_url && dekont.dosya_url.trim() !== '' ? (
+                    <div className="flex items-center justify-end gap-3">
+                      {/* Analiz Durumu Göstergesi */}
+                      {dekont.isAnalyzed && dekont.reliabilityScore !== undefined && (
+                        <div className="flex items-center">
+                          <div className={`w-2 h-2 rounded-full mr-1 ${
+                            dekont.reliabilityScore > 0.7 ? 'bg-green-500' :
+                            dekont.reliabilityScore > 0.4 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}></div>
+                          <span className="text-xs text-gray-600">
+                            {Math.round(dekont.reliabilityScore * 100)}%
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* İşlemler Dropdown */}
+                      <div className="relative">
                         <button
-                          onClick={() => downloadFile(dekont.dosya_url!, `dekont-${dekont.ogrenci_ad.replace(/\s+/g, '_')}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.pdf`)}
-                          className="text-blue-600 hover:text-blue-900 p-1 transition-colors"
-                          title="Dosyayı İndir"
+                          onClick={() => toggleDropdown(dekont.id)}
+                          className="flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                          title="İşlemler"
                         >
-                          <Download className="h-4 w-4" />
+                          <MoreVertical className="h-4 w-4" />
                         </button>
-                      ) : (
-                        <span className="text-gray-400 text-xs">Dosya yok</span>
-                      )}
-                      {dekont.onay_durumu === 'bekliyor' && (
-                        <>
-                          <button
-                            onClick={() => handleApprove(dekont)}
-                            className="text-green-600 hover:text-green-900 p-1 transition-colors"
-                            title="Onayla"
-                          >
-                            <Check className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleReject(dekont)}
-                            className="text-red-600 hover:text-red-900 p-1 transition-colors"
-                            title="Reddet"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </>
-                      )}
-                      <button
-                        onClick={() => handleDelete(dekont)}
-                        className="text-red-600 hover:text-red-900 p-1 transition-colors"
-                        title="Sil"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                        
+                        {/* Dropdown Menu */}
+                        {openDropdown === dekont.id && (
+                          <>
+                            {/* Backdrop to close dropdown */}
+                            <div
+                              className="fixed inset-0 z-10"
+                              onClick={closeDropdown}
+                            ></div>
+                            
+                            <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-20">
+                              <div className="py-1">
+                                {/* Dosya İşlemleri */}
+                                {dekont.dosya_url && dekont.dosya_url.trim() !== '' ? (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        handleFileAction(dekont.dosya_url!, `dekont-${dekont.ogrenci_ad.replace(/\s+/g, '_')}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.${isImageFile(dekont.dosya_url!) ? 'jpg' : 'pdf'}`)
+                                        closeDropdown()
+                                      }}
+                                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                      {isPreviewableFile(dekont.dosya_url!) ? <Eye className="h-4 w-4 mr-3" /> : <Download className="h-4 w-4 mr-3" />}
+                                      {isPreviewableFile(dekont.dosya_url!) ? (isImageFile(dekont.dosya_url!) ? 'Resmi Görüntüle' : 'PDF Önizle') : 'Dosyayı İndir'}
+                                    </button>
+                                    
+                                    {/* AI Analiz */}
+                                    {dekont.isAnalyzed ? (
+                                      <button
+                                        onClick={() => {
+                                          viewAnalysis(dekont)
+                                          closeDropdown()
+                                        }}
+                                        className="flex items-center w-full px-4 py-2 text-sm text-purple-700 hover:bg-purple-50"
+                                      >
+                                        <FileSearch className="h-4 w-4 mr-3" />
+                                        Analiz Sonuçları
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => {
+                                          analyzeDekont(dekont.id, dekont.dosya_url)
+                                          closeDropdown()
+                                        }}
+                                        disabled={analyzingDekont === dekont.id}
+                                        className="flex items-center w-full px-4 py-2 text-sm text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+                                      >
+                                        {analyzingDekont === dekont.id ? (
+                                          <Loader className="h-4 w-4 mr-3 animate-spin" />
+                                        ) : (
+                                          <Brain className="h-4 w-4 mr-3" />
+                                        )}
+                                        AI Analizi Yap
+                                      </button>
+                                    )}
+                                    
+                                    <div className="border-t border-gray-100 my-1"></div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="px-4 py-2 text-sm text-gray-400">
+                                      Dosya bulunamadı
+                                    </div>
+                                    <div className="border-t border-gray-100 my-1"></div>
+                                  </>
+                                )}
+                                
+                                {/* Onay İşlemleri */}
+                                {dekont.onay_durumu === 'bekliyor' && (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        handleApprove(dekont)
+                                        closeDropdown()
+                                      }}
+                                      className="flex items-center w-full px-4 py-2 text-sm text-green-700 hover:bg-green-50"
+                                    >
+                                      <Check className="h-4 w-4 mr-3" />
+                                      Onayla
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        handleReject(dekont)
+                                        closeDropdown()
+                                      }}
+                                      className="flex items-center w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                                    >
+                                      <X className="h-4 w-4 mr-3" />
+                                      Reddet
+                                    </button>
+                                    <div className="border-t border-gray-100 my-1"></div>
+                                  </>
+                                )}
+                                
+                                {/* Sil */}
+                                <button
+                                  onClick={() => {
+                                    handleDelete(dekont)
+                                    closeDropdown()
+                                  }}
+                                  className="flex items-center w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-3" />
+                                  Sil
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -640,14 +940,15 @@ export default function DekontlarPage() {
                 >
                   <option value="">İşlem Seçin</option>
                   <option value="APPROVED">Toplu Onayla</option>
+                  <option value="ANALYZE">AI Analiz</option>
                   <option value="DELETE">Toplu Sil</option>
                 </select>
                 <button
                   onClick={handleBulkAction}
-                  disabled={!bulkAction || isProcessing}
+                  disabled={!bulkAction || isProcessing || bulkAnalyzing}
                   className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {isProcessing ? <Loader className="h-4 w-4 animate-spin" /> : 'Uygula'}
+                  {(isProcessing || bulkAnalyzing) ? <Loader className="h-4 w-4 animate-spin" /> : 'Uygula'}
                 </button>
               </div>
             </div>
@@ -755,17 +1056,35 @@ export default function DekontlarPage() {
               )}
             </div>
 
+            {/* Analiz Durumu (Mobil) */}
+            {dekont.isAnalyzed && dekont.reliabilityScore !== undefined && (
+              <div className="px-4 py-2 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">AI Analiz Sonucu:</span>
+                  <div className="flex items-center">
+                    <div className={`w-3 h-3 rounded-full mr-2 ${
+                      dekont.reliabilityScore > 0.7 ? 'bg-green-500' :
+                      dekont.reliabilityScore > 0.4 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}></div>
+                    <span className="text-sm font-medium text-gray-900">
+                      {Math.round(dekont.reliabilityScore * 100)}% Güvenilir
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Card Actions */}
             <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 rounded-b-lg">
               <div className="flex items-center justify-between gap-3">
-                {/* Download Button - Prominent */}
+                {/* File Action Button - Prominent */}
                 {dekont.dosya_url && dekont.dosya_url.trim() !== '' ? (
                   <button
-                    onClick={() => downloadFile(dekont.dosya_url!, `dekont-${dekont.ogrenci_ad.replace(/\s+/g, '_')}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.pdf`)}
+                    onClick={() => handleFileAction(dekont.dosya_url!, `dekont-${dekont.ogrenci_ad.replace(/\s+/g, '_')}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.${isImageFile(dekont.dosya_url!) ? 'jpg' : 'pdf'}`)}
                     className="flex-1 flex items-center justify-center px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    <Download className="h-4 w-4 mr-2" />
-                    Dosyayı İndir
+                    {isPreviewableFile(dekont.dosya_url!) ? <Eye className="h-4 w-4 mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+                    {isPreviewableFile(dekont.dosya_url!) ? (isImageFile(dekont.dosya_url!) ? 'Resmi Görüntüle' : 'PDF Önizle') : 'Dosyayı İndir'}
                   </button>
                 ) : (
                   <div className="flex-1 flex items-center justify-center px-4 py-2.5 bg-gray-100 text-gray-500 text-sm rounded-lg">
@@ -776,6 +1095,34 @@ export default function DekontlarPage() {
 
                 {/* Action Buttons */}
                 <div className="flex gap-2">
+                  {/* AI Analiz Butonu - Mobil */}
+                  {dekont.dosya_url && dekont.dosya_url.trim() !== '' && (
+                    <>
+                      {dekont.isAnalyzed ? (
+                        <button
+                          onClick={() => viewAnalysis(dekont)}
+                          className="p-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                          title="Analiz Sonuçlarını Görüntüle"
+                        >
+                          <FileSearch className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => analyzeDekont(dekont.id, dekont.dosya_url)}
+                          disabled={analyzingDekont === dekont.id}
+                          className="p-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                          title="OCR ve AI Analizi Yap"
+                        >
+                          {analyzingDekont === dekont.id ? (
+                            <Loader className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Brain className="h-4 w-4" />
+                          )}
+                        </button>
+                      )}
+                    </>
+                  )}
+                  
                   {dekont.onay_durumu === 'bekliyor' && (
                     <>
                       <button
@@ -1103,6 +1450,386 @@ export default function DekontlarPage() {
                   className="w-full sm:w-auto inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                 >
                   İptal
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Onaylanmış Dekont Silme Uyarısı Modal */}
+      {showApprovedDeleteWarning && selectedDekont && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center">
+                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-orange-100">
+                  <Shield className="h-6 w-6 text-orange-600" />
+                </div>
+              </div>
+              <div className="mt-3 text-center">
+                <h3 className="text-lg font-medium text-gray-900">Onaylanmış Dekont</h3>
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600 mb-4">
+                    <strong>{selectedDekont.ogrenci_ad}</strong> öğrencisinin <strong>{MONTHS[selectedDekont.ay - 1]} {selectedDekont.yil}</strong> dekontunu silemezsiniz.
+                  </p>
+                  
+                  <div className="mt-4 bg-orange-50 rounded-lg p-4 border border-orange-200">
+                    <div className="flex items-start">
+                      <AlertTriangle className="h-5 w-5 text-orange-500 mt-0.5 mr-2 flex-shrink-0" />
+                      <div className="text-orange-800">
+                        <strong>Güvenlik Koruması</strong>
+                        <p className="text-sm mt-1 text-left">
+                          Onaylanmış dekontlar sistem güvenliği nedeniyle silinemez. Bu dekontun silinmesi gerekiyorsa:
+                        </p>
+                        <ul className="text-sm mt-2 text-left space-y-1">
+                          <li>• Önce dekontun onayını iptal edin</li>
+                          <li>• Sonra silme işlemini gerçekleştirin</li>
+                          <li>• Veya sistem yöneticisi ile iletişime geçin</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 bg-gray-50 rounded-lg p-3">
+                    <div className="text-sm text-gray-700">
+                      <div><strong>İşletme:</strong> {selectedDekont.isletme_ad}</div>
+                      {selectedDekont.miktar && (
+                        <div><strong>Tutar:</strong> {formatCurrency(selectedDekont.miktar)}</div>
+                      )}
+                      <div><strong>Durum:</strong> <span className="text-green-600 font-medium">Onaylandı</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5 flex justify-center">
+                <button
+                  onClick={closeModals}
+                  className="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-6 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Anladım
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Analiz Sonuçları Modal */}
+      {showAnalysisModal && selectedAnalysis && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">AI Analiz Sonuçları</h3>
+                <button
+                  onClick={closeModals}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              
+              <div className="space-y-6">
+                {/* Genel Bilgiler */}
+                {selectedAnalysis.dekont && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="font-medium text-gray-900 mb-2">Dekont Bilgileri</h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600">Öğrenci:</span>
+                        <span className="ml-2 font-medium">{selectedAnalysis.dekont.ogrenci_ad}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">İşletme:</span>
+                        <span className="ml-2 font-medium">{selectedAnalysis.dekont.isletme_ad}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Dönem:</span>
+                        <span className="ml-2 font-medium">{MONTHS[selectedAnalysis.dekont.ay - 1]} {selectedAnalysis.dekont.yil}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Analiz Tarihi:</span>
+                        <span className="ml-2 font-medium">{selectedAnalysis.analyzedAt ? formatDate(selectedAnalysis.analyzedAt) : '-'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Güvenilirlik Skoru */}
+                <div className="bg-white border rounded-lg p-4">
+                  <h4 className="font-medium text-gray-900 mb-3">Genel Güvenilirlik Skoru</h4>
+                  <div className="flex items-center">
+                    <div className="flex-1">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Güvenilirlik</span>
+                        <span className="font-medium">{Math.round((selectedAnalysis.reliability || 0) * 100)}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div
+                          className={`h-3 rounded-full ${
+                            (selectedAnalysis.reliability || 0) > 0.7 ? 'bg-green-500' :
+                            (selectedAnalysis.reliability || 0) > 0.4 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}
+                          style={{ width: `${Math.round((selectedAnalysis.reliability || 0) * 100)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    <div className={`ml-4 px-3 py-1 rounded-full text-sm font-medium ${
+                      (selectedAnalysis.reliability || 0) > 0.7 ? 'bg-green-100 text-green-800' :
+                      (selectedAnalysis.reliability || 0) > 0.4 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {(selectedAnalysis.reliability || 0) > 0.7 ? 'Güvenilir' :
+                       (selectedAnalysis.reliability || 0) > 0.4 ? 'Dikkatli İnceleme' : 'Şüpheli'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* OCR Sonuçları */}
+                {selectedAnalysis.analysis?.ocrResult && (
+                  <div className="bg-white border rounded-lg p-4">
+                    <h4 className="font-medium text-gray-900 mb-3">Veri Çıkarma Sonuçları</h4>
+                    
+                    {/* Çıkarılan Veriler */}
+                    {selectedAnalysis.analysis.ocrResult.extractedData && (
+                      <div className="mb-4">
+                        <h5 className="font-medium text-gray-800 mb-2">Çıkarılan Veriler</h5>
+                        <div className="bg-gray-50 rounded p-3 text-sm">
+                          <pre className="whitespace-pre-wrap text-gray-700">
+                            {JSON.stringify(selectedAnalysis.analysis.ocrResult.extractedData, null, 2)}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Ham Metin Verisi */}
+                    {selectedAnalysis.analysis.ocrResult.text && (
+                      <div>
+                        <h5 className="font-medium text-gray-800 mb-2">Ham Metin Verisi</h5>
+                        <div className="bg-gray-50 rounded p-3 text-sm max-h-40 overflow-y-auto">
+                          <pre className="whitespace-pre-wrap text-gray-600">
+                            {selectedAnalysis.analysis.ocrResult.text}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* AI Analiz Sonuçları */}
+                {selectedAnalysis.analysis?.aiAnalysis && (
+                  <div className="bg-white border rounded-lg p-4">
+                    <h4 className="font-medium text-gray-900 mb-3">AI Analiz Sonuçları</h4>
+                    
+                    {/* Doğrulama Sonuçları */}
+                    {selectedAnalysis.analysis.aiAnalysis.validation && (
+                      <div className="mb-4">
+                        <h5 className="font-medium text-gray-800 mb-2">Doğrulama Sonuçları</h5>
+                        <div className="grid grid-cols-2 gap-4">
+                          {Object.entries(selectedAnalysis.analysis.aiAnalysis.validation).map(([key, value]) => (
+                            <div key={key} className="flex justify-between items-center">
+                              <span className="text-sm text-gray-600 capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
+                              <span className={`text-sm font-medium ${
+                                value === true ? 'text-green-600' :
+                                value === false ? 'text-red-600' : 'text-yellow-600'
+                              }`}>
+                                {value === true ? '✓' : value === false ? '✗' : '?'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Güvenlik Uyarıları */}
+                    {selectedAnalysis.analysis.aiAnalysis.securityFlags && selectedAnalysis.analysis.aiAnalysis.securityFlags.length > 0 && (
+                      <div className="mb-4">
+                        <h5 className="font-medium text-gray-800 mb-2">Güvenlik Uyarıları</h5>
+                        <div className="space-y-2">
+                          {selectedAnalysis.analysis.aiAnalysis.securityFlags.map((flag: any, index: number) => (
+                            <div key={index} className="flex items-start p-2 bg-red-50 border border-red-200 rounded">
+                              <AlertTriangle className="h-4 w-4 text-red-500 mr-2 mt-0.5 flex-shrink-0" />
+                              <div className="text-sm">
+                                <div className="font-medium text-red-800">{flag.type}</div>
+                                <div className="text-red-700">{flag.message}</div>
+                                {flag.severity && (
+                                  <div className="text-xs text-red-600 mt-1">Önem: {flag.severity}</div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* AI Önerisi */}
+                    {selectedAnalysis.analysis.aiAnalysis.recommendation && (
+                      <div>
+                        <h5 className="font-medium text-gray-800 mb-2">AI Önerisi</h5>
+                        <div className={`p-3 rounded-lg border ${
+                          selectedAnalysis.analysis.aiAnalysis.recommendation === 'approve' ? 'bg-green-50 border-green-200' :
+                          selectedAnalysis.analysis.aiAnalysis.recommendation === 'reject' ? 'bg-red-50 border-red-200' :
+                          'bg-yellow-50 border-yellow-200'
+                        }`}>
+                          <div className={`font-medium ${
+                            selectedAnalysis.analysis.aiAnalysis.recommendation === 'approve' ? 'text-green-800' :
+                            selectedAnalysis.analysis.aiAnalysis.recommendation === 'reject' ? 'text-red-800' :
+                            'text-yellow-800'
+                          }`}>
+                            {selectedAnalysis.analysis.aiAnalysis.recommendation === 'approve' ? 'Onaylanabilir' :
+                             selectedAnalysis.analysis.aiAnalysis.recommendation === 'reject' ? 'Reddedilmeli' :
+                             'Manuel İnceleme Gerekli'}
+                          </div>
+                          {selectedAnalysis.analysis.aiAnalysis.reasoningSummary && (
+                            <div className="text-sm mt-1 text-gray-700">
+                              {selectedAnalysis.analysis.aiAnalysis.reasoningSummary}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Ham Analiz Verisi (Geliştiriciler için) */}
+                <details className="bg-gray-50 rounded-lg p-4">
+                  <summary className="font-medium text-gray-900 cursor-pointer">Ham Analiz Verisi (Geliştiriciler İçin)</summary>
+                  <div className="mt-3 text-sm">
+                    <pre className="whitespace-pre-wrap text-gray-600 bg-white p-3 rounded border overflow-auto max-h-64">
+                      {JSON.stringify(selectedAnalysis.analysis, null, 2)}
+                    </pre>
+                  </div>
+                </details>
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={closeModals}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                >
+                  Kapat
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Modal */}
+      {showImageModal && selectedImageUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+          <div className="relative max-w-4xl w-full bg-white rounded-lg shadow-xl">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">
+                {isPdfFile(selectedImageUrl) ? 'PDF Önizleyici' : 'Dekont Görüntüleyici'}
+              </h3>
+              <div className="flex items-center gap-2">
+                {/* Download Button */}
+                <button
+                  onClick={() => downloadFile(selectedImageUrl, selectedImageName)}
+                  className="flex items-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+                  title="İndir"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  İndir
+                </button>
+                {/* Close Button */}
+                <button
+                  onClick={closeModals}
+                  className="text-gray-400 hover:text-gray-600 p-1"
+                  title="Kapat"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="p-4">
+              <div className="flex justify-center">
+                {isPdfFile(selectedImageUrl) ? (
+                  <iframe
+                    src={selectedImageUrl}
+                    className="w-full h-[70vh] rounded-lg shadow-md border"
+                    title="PDF Önizleyici"
+                    onError={(e) => {
+                      const target = e.target as HTMLIFrameElement;
+                      target.style.display = 'none';
+                      const errorDiv = document.createElement('div');
+                      errorDiv.className = 'flex items-center justify-center h-64 bg-gray-100 rounded-lg border';
+                      errorDiv.innerHTML = '<div class="text-center text-gray-500"><div class="mb-2">PDF yüklenemedi</div><div class="text-sm">Dosya bozuk olabilir veya tarayıcınız PDF önizlemeyi desteklemiyor olabilir</div></div>';
+                      target.parentNode?.insertBefore(errorDiv, target);
+                    }}
+                  />
+                ) : (
+                  <img
+                    src={selectedImageUrl}
+                    alt="Dekont"
+                    className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-md"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const errorDiv = document.createElement('div');
+                      errorDiv.className = 'flex items-center justify-center h-64 bg-gray-100 rounded-lg';
+                      errorDiv.innerHTML = '<div class="text-center text-gray-500"><div class="mb-2">Resim yüklenemedi</div><div class="text-sm">Dosya bozuk olabilir veya desteklenmeyen bir format olabilir</div></div>';
+                      target.parentNode?.insertBefore(errorDiv, target);
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 rounded-b-lg">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  {selectedImageName}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => downloadFile(selectedImageUrl, selectedImageName)}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    İndir
+                  </button>
+                  <button
+                    onClick={closeModals}
+                    className="px-4 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 transition-colors"
+                  >
+                    Kapat
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Warning Modal */}
+      {showWarningModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center">
+                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100">
+                  <AlertTriangle className="h-6 w-6 text-yellow-600" />
+                </div>
+              </div>
+              <div className="mt-3 text-center">
+                <h3 className="text-lg font-medium text-gray-900">Bilgilendirme</h3>
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600">
+                    {warningMessage}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-5 flex justify-center">
+                <button
+                  onClick={closeModals}
+                  className="inline-flex justify-center rounded-md border border-transparent shadow-sm px-6 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Anladım
                 </button>
               </div>
             </div>

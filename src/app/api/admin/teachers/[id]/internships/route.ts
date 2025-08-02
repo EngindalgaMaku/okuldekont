@@ -22,7 +22,8 @@ export async function GET(
           select: {
             id: true,
             name: true,
-            contact: true
+            contact: true,
+            phone: true
           }
         },
         student: {
@@ -69,6 +70,7 @@ export async function GET(
           id: company.id,
           ad: company.name,
           yukleyen_kisi: company.contact || 'Bilinmiyor',
+          telefon: company.phone || null,
           ogrenciler: [],
           // Visual distinction metadata
           company_type: company.name.toLowerCase().includes('teknoloji') ? 'tech' :

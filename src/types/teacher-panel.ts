@@ -15,6 +15,7 @@ export interface Isletme {
   ad: string;
   ogrenciler: Ogrenci[];
   yukleyen_kisi: string;
+  telefon?: string | null;
   company_type?: 'tech' | 'accounting' | 'other';
   total_students?: number;
   color_scheme?: {
