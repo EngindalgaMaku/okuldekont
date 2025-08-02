@@ -91,7 +91,7 @@ export async function POST(req: Request) {
       orderBy.name = 'asc' // Default sort
     }
 
-    const students = await prisma.studentProfile.findMany({
+    const students = await prisma.student.findMany({
       where: whereClause,
       include: {
         alan: {
