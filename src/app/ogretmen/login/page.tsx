@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
-import { User, Lock, Building, ChevronDown, Loader, AlertTriangle, Search } from 'lucide-react'
+import { User, ChevronDown, Loader, AlertTriangle, Search } from 'lucide-react'
+
 import PinPad from '@/components/ui/PinPad'
 
 interface Ogretmen {
@@ -144,15 +145,15 @@ export default function OgretmenLoginPage() {
 
   const handlePinSubmit = async () => {
     if (isLoggingIn) return;
-    
+
     setIsLoggingIn(true);
     setPinError('');
 
-    // Check maintenance mode before login attempt
+    // Maintenance re-check before login
     try {
-      const response = await fetch('/api/maintenance')
+      const response = await fetch('/api/maintenance');
       if (response.ok) {
-        const { isMaintenanceMode: currentMaintenanceStatus } = await response.json()
+        const { isMaintenanceMode: currentMaintenanceStatus } = await response.json();
         if (currentMaintenanceStatus) {
           setPinError('Sistem şu anda bakım modunda. Giriş yapılamaz.');
           setIsLoggingIn(false);
@@ -160,10 +161,10 @@ export default function OgretmenLoginPage() {
         }
       }
     } catch (error) {
-      console.error('Maintenance check failed during login:', error)
-      // Continue with login if maintenance check fails
+      console.error('Maintenance check failed during login:', error);
+      // Proceed even if maintenance check fails here
     }
-    
+
     if (!selectedOgretmen) {
       setPinError('Lütfen bir öğretmen seçin');
       setIsLoggingIn(false);
@@ -176,17 +177,12 @@ export default function OgretmenLoginPage() {
       return;
     }
 
-    // PIN güvenlik kontrolü
+    // PIN security check
     try {
       const securityResponse = await fetch('/api/auth/pin-security/check', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          entityType: 'teacher',
-          entityId: selectedOgretmen.id,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entityType: 'teacher', entityId: selectedOgretmen.id }),
       });
 
       if (securityResponse.ok) {
@@ -202,7 +198,7 @@ export default function OgretmenLoginPage() {
       }
     } catch (error) {
       console.error('Security check failed:', error);
-      // Continue with login if security check fails
+      // Proceed even if security check fails
     }
 
     try {
@@ -215,38 +211,31 @@ export default function OgretmenLoginPage() {
         redirect: false,
       });
 
-      if (result?.error) {
-        setPinError('Hatalı PIN kodu girdiniz veya hesabınız bloke edilmiştir.');
-        setIsLoggingIn(false);
-      } else if (result?.ok) {
+      if (result?.ok) {
         router.push('/ogretmen/panel');
-      } else {
-        setPinError('Bilinmeyen bir hata oluştu.');
-        setIsLoggingIn(false);
+        return;
       }
+
+      const errorMessage = result?.error
+        ? 'Hatalı PIN kodu girdiniz veya hesabınız bloke edilmiştir.'
+        : 'Bilinmeyen bir hata oluştu.';
+      setPinError(errorMessage);
     } catch (error) {
       console.error('Login error:', error);
       setPinError('Giriş sırasında beklenmeyen bir hata oluştu.');
+    } finally {
       setIsLoggingIn(false);
     }
   };
 
-  // Loading state for maintenance check
-  if (maintenanceCheckLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+  return (
+    <div className="min-h-[100dvh] bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      {maintenanceCheckLoading ? (
         <div className="bg-white p-8 rounded-xl shadow-lg">
           <Loader className="h-8 w-8 animate-spin text-blue-500 mx-auto" />
           <p className="text-gray-600 mt-4 text-center">Sistem kontrol ediliyor...</p>
         </div>
-      </div>
-    )
-  }
-
-  // Maintenance mode display
-  if (isMaintenanceMode) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4">
+      ) : isMaintenanceMode ? (
         <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
           <div className="p-8">
             <div className="text-center mb-8">
@@ -288,168 +277,166 @@ export default function OgretmenLoginPage() {
             </div>
           </div>
         </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="p-8">
-          <div className="text-center mb-8">
-            <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <User className="h-8 w-8 text-blue-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Öğretmen Girişi</h1>
-            <p className="text-gray-600">Öğretmen adınızı arayın ve PIN kodunuzu girin</p>
-          </div>
-          
-          <div className="space-y-6">
-          {/* Öğretmen Seçimi */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Öğretmen Seçin
-            </label>
-            <div className="relative">
-              {/* Arama input'u */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value)
-                    setIsDropdownOpen(true)
-                    if (e.target.value === '') {
-                      resetSelection()
-                    }
-                  }}
-                  onFocus={() => {
-                    setIsDropdownOpen(true)
-                    if (searchTerm.length >= 2) {
-                      searchOgretmenler(searchTerm)
-                    }
-                  }}
-                  onBlur={() => {
-                    // Timeout ile kapat ki item seçimi çalışsın
-                    setTimeout(() => setIsDropdownOpen(false), 150)
-                  }}
-                  placeholder="Öğretmen adı yazın (min. 2 karakter)..."
-                  className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center">
-                  {isSearching && (
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent mr-2"></div>
-                  )}
-                  <ChevronDown
-                    className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`}
-                  />
-                </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+          <div className="p-8">
+            <div className="text-center mb-8">
+              <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <User className="h-8 w-8 text-blue-600" />
               </div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Öğretmen Girişi</h1>
+              <p className="text-gray-600">Öğretmen adınızı arayın ve PIN kodunuzu girin</p>
+            </div>
 
-              {/* Seçilen öğretmen gösterimi */}
-              {selectedOgretmen && (
-                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-blue-700">
-                      <User className="h-4 w-4" />
-                      {selectedOgretmen.name} {selectedOgretmen.surname}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        resetSelection()
-                        setPinError('')
+            <div className="space-y-6">
+              {/* Öğretmen Seçimi */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Öğretmen Seçin
+                </label>
+                <div className="relative">
+                  {/* Arama input'u */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => {
+                        setSearchTerm(e.target.value)
+                        setIsDropdownOpen(true)
+                        if (e.target.value === '') {
+                          resetSelection()
+                        }
                       }}
-                      className="text-blue-600 hover:text-blue-800 text-sm"
-                    >
-                      Değiştir
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Arama sonuçları */}
-              {isDropdownOpen && (searchResults.length > 0 || isSearching || (searchTerm.length >= 2 && searchResults.length === 0)) && (
-                <div className="absolute z-10 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  {isSearching ? (
-                    <div className="px-4 py-3 text-gray-500 text-center">
-                      <div className="flex items-center justify-center">
+                      onFocus={() => {
+                        setIsDropdownOpen(true)
+                        if (searchTerm.length >= 2) {
+                          searchOgretmenler(searchTerm)
+                        }
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => setIsDropdownOpen(false), 150)
+                      }}
+                      placeholder="Öğretmen adı yazın (min. 2 karakter)..."
+                      className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      inputMode="search"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center">
+                      {isSearching && (
                         <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent mr-2"></div>
-                        Aranıyor...
+                      )}
+                      <ChevronDown
+                        className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Seçilen öğretmen gösterimi */}
+                  {selectedOgretmen && (
+                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-2 text-blue-700">
+                          <User className="h-4 w-4" />
+                          {selectedOgretmen.name} {selectedOgretmen.surname}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            resetSelection()
+                            setPinError('')
+                          }}
+                          className="text-blue-600 hover:text-blue-800 text-sm"
+                        >
+                          Değiştir
+                        </button>
                       </div>
                     </div>
-                  ) : searchResults.length > 0 ? (
-                    searchResults.map((ogretmen) => (
-                      <button
-                        key={ogretmen.id}
-                        type="button"
-                        onClick={() => handleItemSelect(ogretmen)}
-                        className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none flex items-center gap-2 border-b border-gray-100 last:border-b-0"
-                      >
-                        <User className="h-4 w-4 text-gray-400" />
-                        <div>
-                          <div className="font-medium text-gray-900">{ogretmen.name} {ogretmen.surname}</div>
+                  )}
+
+                  {/* Arama sonuçları */}
+                  {isDropdownOpen && (searchResults.length > 0 || isSearching || (searchTerm.length >= 2 && searchResults.length === 0)) && (
+                    <div className="absolute z-10 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {isSearching ? (
+                        <div className="px-4 py-3 text-gray-500 text-center">
+                          <div className="flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent mr-2"></div>
+                            Aranıyor...
+                          </div>
                         </div>
-                      </button>
-                    ))
-                  ) : searchTerm.length >= 2 ? (
-                    <div className="px-4 py-3 text-gray-500 text-center">
-                      <div className="flex flex-col items-center">
-                        <Search className="h-8 w-8 text-gray-300 mb-2" />
-                        <span>"{searchTerm}" için sonuç bulunamadı</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="px-4 py-3 text-gray-400 text-center text-sm">
-                      Arama yapmak için en az 2 karakter yazın
+                      ) : searchResults.length > 0 ? (
+                        searchResults.map((ogretmen) => (
+                          <button
+                            key={ogretmen.id}
+                            type="button"
+                            onClick={() => handleItemSelect(ogretmen)}
+                            className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none flex items-center gap-2 border-b border-gray-100 last:border-b-0"
+                          >
+                            <User className="h-4 w-4 text-gray-400" />
+                            <div>
+                              <div className="font-medium text-gray-900">{ogretmen.name} {ogretmen.surname}</div>
+                            </div>
+                          </button>
+                        ))
+                      ) : searchTerm.length >= 2 ? (
+                        <div className="px-4 py-3 text-gray-500 text-center">
+                          <div className="flex flex-col items-center">
+                            <Search className="h-8 w-8 text-gray-300 mb-2" />
+                            <span>"{searchTerm}" için sonuç bulunamadı</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="px-4 py-3 text-gray-400 text-center text-sm">
+                          Arama yapmak için en az 2 karakter yazın
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* PIN Pad */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-4 text-center">
+                  PIN Kodunuzu Girin
+                </label>
+                <PinPad
+                  value={pinInput}
+                  onChange={(value: string) => {
+                    setPinInput(value)
+                    setPinError('')
+                  }}
+                  maxLength={4}
+                  disabled={!selectedOgretmen || isLoggingIn}
+                />
+              </div>
+
+              {pinError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3" role="alert" aria-live="assertive">
+                  <p className="text-red-600 text-sm">{pinError}</p>
+                </div>
+              )}
+
+              {isLoggingIn && (
+                <div className="flex items-center justify-center space-x-2 text-blue-600 p-3">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+                  <span className="text-sm">Giriş yapılıyor...</span>
+                </div>
               )}
             </div>
-          </div>
 
-            {/* PIN Pad */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-4 text-center">
-                PIN Kodunuzu Girin
-              </label>
-              <PinPad
-                value={pinInput}
-                onChange={(value) => {
-                  setPinInput(value)
-                  setPinError('')
-                }}
-                maxLength={4}
-                disabled={!selectedOgretmen || isLoggingIn}
-              />
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => router.push('/')}
+                className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                ← Ana sayfaya dön
+              </button>
             </div>
-
-            {pinError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-red-600 text-sm">{pinError}</p>
-              </div>
-            )}
-
-            {isLoggingIn && (
-              <div className="flex items-center justify-center space-x-2 text-blue-600 p-3">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
-                <span className="text-sm">Giriş yapılıyor...</span>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => router.push('/')}
-              className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              ← Ana sayfaya dön
-            </button>
           </div>
         </div>
-      </div>
+      )}
     </div>
-  )
-} 
+  );
+}

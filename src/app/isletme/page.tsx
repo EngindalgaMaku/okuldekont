@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { Building2, Users, FileText, LogOut, User, Upload, Plus, Download, Eye, Search, Filter, Receipt, Loader, GraduationCap, Calendar, CheckCircle, Clock, XCircle, Trash2, Bell, Settings, ChevronDown, ChevronUp } from 'lucide-react'
 import { useEgitimYili } from '@/lib/context/EgitimYiliContext'
@@ -85,13 +85,16 @@ interface Notification {
 
 type ActiveTab = 'ogrenciler' | 'dekontlar' | 'belgeler'
 
-export default function PanelPage() {
+function PanelPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+
   const { data: session, status } = useSession()
   const { egitimYili, okulAdi } = useEgitimYili()
   const [isletme, setIsletme] = useState<Isletme | null>(null)
   const [schoolName, setSchoolName] = useState<string>('Okul Adı')
   const [activeTab, setActiveTab] = useState<ActiveTab>('ogrenciler')
+
   const [ogrenciler, setOgrenciler] = useState<Ogrenci[]>([])
   const [dekontlar, setDekontlar] = useState<Dekont[]>([])
   const [belgeler, setBelgeler] = useState<Belge[]>([])
@@ -343,6 +346,20 @@ export default function PanelPage() {
 
 
   const refreshData = () => setTriggerRefresh(c => c + 1);
+
+  useEffect(() => {
+    // URL'deki tab parametresi ile state'i senkronize et ve varsayılanı ayarla
+    const tabParam = (searchParams?.get('tab') || '').toLowerCase();
+    const validTabs = ['ogrenciler', 'dekontlar', 'belgeler'] as const;
+    if (!tabParam || !validTabs.includes(tabParam as any)) {
+      router.replace('/isletme?tab=ogrenciler', { scroll: false });
+      setActiveTab('ogrenciler');
+      return;
+    }
+    if (tabParam !== activeTab) {
+      setActiveTab(tabParam as ActiveTab);
+    }
+  }, [searchParams, router, activeTab])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1367,7 +1384,7 @@ export default function PanelPage() {
               
               <button
                 onClick={handleLogout}
-                className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
+                className="hidden md:flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
                 title="Çıkış Yap"
               >
                 <LogOut className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
@@ -1377,7 +1394,7 @@ export default function PanelPage() {
 
           {/* Tabs */}
           <div className="mt-6 sm:mt-8">
-            <nav className="-mb-px flex space-x-0.5 sm:space-x-4" aria-label="Tabs">
+            <nav className="-mb-px hidden md:flex space-x-0.5 sm:space-x-4" aria-label="Tabs">
               {[
                 { id: 'ogrenciler', icon: Users, label: 'Öğrenciler', count: ogrenciler.length },
                 { id: 'dekontlar', icon: Receipt, label: 'Dekontlar', count: dekontlar.length },
@@ -1388,7 +1405,7 @@ export default function PanelPage() {
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as ActiveTab)}
+                    onClick={() => router.push(`/isletme?tab=${tab.id}`, { scroll: false })}
                     className={`
                       group relative min-w-0 flex-1 overflow-hidden py-1.5 sm:py-3 px-1 sm:px-6 rounded-t-xl text-xs sm:text-sm font-medium text-center hover:bg-white hover:bg-opacity-10 transition-all duration-200
                       ${isActive
@@ -1471,12 +1488,12 @@ export default function PanelPage() {
 
           {/* Dekont Takip Uyarı Sistemi */}
           {eksikDekontOgrenciler.length > 0 && (
-            <div className={`mb-4 sm:mb-6 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-black ring-opacity-5 p-4 sm:p-6 ${
+            <div className={`sticky top-2 z-30 md:static md:top-auto mb-4 sm:mb-6 rounded-2xl shadow-md sm:shadow-lg ring-1 ring-black/5 p-3 sm:p-6 ${
               isGecikme()
-                ? 'bg-gradient-to-r from-red-50 to-red-100 border-l-4 border-red-500'
+                ? 'bg-gradient-to-r from-red-50 to-red-100 border-l-2 sm:border-l-4 border-red-400 sm:border-red-500'
                 : isKritikSure()
-                ? 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-l-4 border-yellow-500'
-                : 'bg-gradient-to-r from-blue-50 to-blue-100 border-l-4 border-blue-500'
+                ? 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-l-2 sm:border-l-4 border-yellow-500'
+                : 'bg-gradient-to-r from-blue-50 to-blue-100 border-l-2 sm:border-l-4 border-blue-500'
             }`}>
               <div className="flex items-start">
                 <div className="flex-shrink-0">
@@ -1489,17 +1506,17 @@ export default function PanelPage() {
                   )}
                 </div>
                 <div className="ml-2 sm:ml-3 flex-1">
-                  <h3 className={`text-base sm:text-lg font-medium ${
+                  <h3 className={`text-sm sm:text-lg font-semibold ${
                     isGecikme() ? 'text-red-800' : isKritikSure() ? 'text-yellow-800' : 'text-blue-800'
                   }`}>
                     {isGecikme()
-                      ? '🚨 GECİKME UYARISI!'
+                      ? '🚨 Gecikme Uyarısı'
                       : isKritikSure()
-                      ? '⏰ KRİTİK SÜRE!'
+                      ? '⏰ Kritik Süre'
                       : '📅 Dekont Hatırlatması'
                     }
                   </h3>
-                  <div className={`mt-2 text-xs sm:text-sm ${
+                  <div className={`mt-1.5 sm:mt-2 text-[11px] sm:text-sm ${
                     isGecikme() ? 'text-red-700' : isKritikSure() ? 'text-yellow-700' : 'text-blue-700'
                   }`}>
                     <p className="font-medium mb-2">
@@ -2715,5 +2732,13 @@ export default function PanelPage() {
         </div>
       </Modal>
     </div>
+  )
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center text-gray-600">Yükleniyor...</div>}>
+      <PanelPage />
+    </Suspense>
   )
 }

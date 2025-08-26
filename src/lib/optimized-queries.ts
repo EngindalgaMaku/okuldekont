@@ -1,4 +1,5 @@
 import { prisma } from './prisma'
+import { getActiveEducationYearId } from './education-year'
 
 // Robust dekont fetching that works with Prisma ORM
 export async function fetchDekontlarOptimized(page: number = 1, itemsPerPage: number = 20, filters: any = {}) {
@@ -131,12 +132,17 @@ export async function fetchOgretmenlerOptimized(searchParams: any) {
       }
     }
 
+    // Scope statistics to the active education year
+    const activeEducationYearId = await getActiveEducationYearId()
+
     // Get statistics for each teacher
     const teacherIds = teachers.map((t: any) => t.id)
     const stajlarStats = await prisma.staj.groupBy({
       by: ['teacherId'],
       where: {
-        teacherId: { in: teacherIds }
+        teacherId: { in: teacherIds },
+        educationYearId: activeEducationYearId,
+        archived: false
       },
       _count: {
         id: true
@@ -146,7 +152,9 @@ export async function fetchOgretmenlerOptimized(searchParams: any) {
     const companyStats = await prisma.staj.groupBy({
       by: ['teacherId', 'companyId'],
       where: {
-        teacherId: { in: teacherIds }
+        teacherId: { in: teacherIds },
+        educationYearId: activeEducationYearId,
+        archived: false
       },
       _count: {
         companyId: true
@@ -264,6 +272,9 @@ export async function fetchOgretmenDetayOptimized(ogretmenId: string) {
       throw new Error('Öğretmen bulunamadı')
     }
 
+    // Scope to active education year
+    const activeEducationYearId = await getActiveEducationYearId()
+
     // Get teacher assignment changes where this teacher was previously assigned
     const teacherChanges = await prisma.teacherAssignmentHistory.findMany({
       where: {
@@ -277,21 +288,19 @@ export async function fetchOgretmenDetayOptimized(ogretmenId: string) {
 
     const changedCompanyIds = teacherChanges.map(tc => tc.companyId)
 
-    // Get stajlar with related data (including all statuses)
+    // Get stajlar with related data (limited to active education year)
     const stajlar = await prisma.staj.findMany({
       where: {
-        OR: [
-          { teacherId: ogretmenId },
+        AND: [
+          { educationYearId: activeEducationYearId },
+          { archived: false },
           {
-            company: {
-              teacherId: ogretmenId
-            }
-          },
-          // Include stajlar from companies where this teacher was previously coordinator
-          {
-            companyId: {
-              in: changedCompanyIds
-            }
+            OR: [
+              { teacherId: ogretmenId },
+              { company: { teacherId: ogretmenId } },
+              // Include stajlar from companies where this teacher was previously coordinator
+              { companyId: { in: changedCompanyIds } }
+            ]
           }
         ]
       },

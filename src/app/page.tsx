@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
+
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { ChevronDownIcon, MagnifyingGlassIcon, BuildingOfficeIcon, AcademicCapIcon } from '@heroicons/react/24/outline'
@@ -248,8 +250,11 @@ export default function LoginPage() {
           }
         }, 1000)
       } else {
-        // Handle error
-        const errorMessage = result?.error || 'Hatalı PIN kodu veya sistem hatası'
+        // Handle error - map technical codes to friendly messages
+        const errorMessage =
+          result?.error === 'CredentialsSignin'
+            ? 'PIN kodu hatalı veya hesabınız bloke edilmiş olabilir.'
+            : result?.error || 'Hatalı PIN kodu veya sistem hatası'
         setPinError(errorMessage)
         showToast({
           type: 'error',
@@ -340,6 +345,9 @@ export default function LoginPage() {
             }}
             className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
             placeholder={placeholder}
+            inputMode="search"
+            autoComplete="off"
+            spellCheck={false}
           />
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center">
             {isSearching && (
@@ -425,7 +433,7 @@ export default function LoginPage() {
         />
         
         {pinError && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg" role="alert" aria-live="assertive">
             <p className="text-sm text-red-600 text-center">{pinError}</p>
           </div>
         )}
@@ -452,20 +460,32 @@ export default function LoginPage() {
             )}
         </div>
     </div>
-  )
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
+    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
             <div className="text-center">
-                <div className="mx-auto w-48 h-36 flex items-center justify-center mb-4">
-                  <img
-                    src="/images/logo2.jpg"
-                    alt="Logo"
-                    className="h-36 w-48 object-contain"
+                <div className="mx-auto mb-3 flex items-center justify-center gap-3">
+                  <Image
+                    src="/images/edu-logo.svg"
+                    alt="Eğitim Logosu"
+                    width={56}
+                    height={56}
+                    priority
+                    className="rounded-md drop-shadow-sm"
                   />
+                  <div className="text-left">
+                    <div className="text-lg font-bold tracking-tight text-slate-900">K‑PANEL</div>
+                    <div className="text-xs sm:text-sm font-medium text-slate-600">Koordinatörlük Takip Uygulaması</div>
+                  </div>
                 </div>
-                <p className="text-gray-600 mt-1">{okulAdi}</p>
+                <div className="mt-1">
+                  <h2 className="text-2xl font-semibold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600">
+                    {okulAdi}
+                  </h2>
+                  <div className="mx-auto mt-2 h-1 w-20 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500/90" />
+                </div>
             </div>
             
             {step === 1 && (
@@ -498,7 +518,7 @@ export default function LoginPage() {
                     {renderSmartAutoComplete()}
                     
                     {pinError && step === 1 && (
-                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg" role="alert" aria-live="assertive">
                         <p className="text-sm text-red-600 text-center">{pinError}</p>
                       </div>
                     )}

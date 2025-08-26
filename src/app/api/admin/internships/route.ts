@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     const status = searchParams.get('status')
     const companyId = searchParams.get('companyId')
     const teacherId = searchParams.get('teacherId')
-    const educationYearId = searchParams.get('educationYearId')
+    const educationYearIdParam = searchParams.get('educationYearId')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
     
@@ -53,10 +53,9 @@ export async function GET(request: Request) {
       whereClause.teacherId = teacherId
     }
     
-    // Filter by education year if provided
-    if (educationYearId) {
-      whereClause.educationYearId = educationYearId
-    }
+    // Filter by education year: use provided param or default to active year
+    const effectiveEducationYearId = educationYearIdParam || await getActiveEducationYearId()
+    whereClause.educationYearId = effectiveEducationYearId
     
     // Get total count for pagination
     const totalCount = await prisma.staj.count({

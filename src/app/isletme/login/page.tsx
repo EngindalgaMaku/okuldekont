@@ -333,7 +333,7 @@ export default function IsletmeLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-100 flex items-center justify-center p-4">
+    <div className="min-h-[100dvh] bg-gradient-to-br from-orange-50 to-amber-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
         <div className="p-8">
           <div className="text-center mb-8">
@@ -341,122 +341,118 @@ export default function IsletmeLoginPage() {
               <Building className="h-8 w-8 text-orange-600" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">İşletme Girişi</h1>
-            <p className="text-gray-600">İşletme adınızı arayın ve PIN kodunuzu girin</p>
+            <p className="text-gray-600">İşletme adını arayın ve PIN kodunuzu girin</p>
           </div>
-          
-          <div className="space-y-6">
-          {/* İşletme Seçimi */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              İşletme Seçin
-            </label>
-            <div className="relative">
-              {/* Arama input'u */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value)
-                    setIsDropdownOpen(true)
-                    if (e.target.value === '') {
-                      resetSelection()
-                    }
-                  }}
-                  onFocus={() => {
-                    setIsDropdownOpen(true)
-                    if (searchTerm.length >= 2) {
-                      searchIsletmeler(searchTerm)
-                    }
-                  }}
-                  onBlur={() => {
-                    // Timeout ile kapat ki item seçimi çalışsın
-                    setTimeout(() => setIsDropdownOpen(false), 150)
-                  }}
-                  placeholder="İşletme adı yazın (min. 2 karakter)..."
-                  className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                />
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center">
-                  {isSearching && (
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-orange-500 border-t-transparent mr-2"></div>
-                  )}
-                  <ChevronDown
-                    className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`}
-                  />
-                </div>
-              </div>
 
-              {/* Seçilen işletme gösterimi */}
-              {selectedIsletme && (
-                <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-orange-700">
-                      <Building className="h-4 w-4" />
-                      <div>
-                        <div className="font-medium">{selectedIsletme.name}</div>
-                        {selectedIsletme.contact && (
-                          <div className="text-xs text-orange-600">{selectedIsletme.contact}</div>
-                        )}
-                      </div>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
+          <div className="space-y-6">
+            {/* İşletme Seçimi */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                İşletme Seçin
+              </label>
+              <div className="relative">
+                {/* Arama input'u */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value)
+                      setIsDropdownOpen(true)
+                      if (e.target.value === '') {
                         resetSelection()
-                        setPinError('')
-                      }}
-                      className="text-orange-600 hover:text-orange-800 text-sm"
-                    >
-                      Değiştir
-                    </button>
+                      }
+                    }}
+                    onFocus={() => {
+                      setIsDropdownOpen(true)
+                      if (searchTerm.length >= 2) {
+                        searchIsletmeler(searchTerm)
+                      }
+                    }}
+                    onBlur={() => {
+                      // Timeout ile kapat ki item seçimi çalışsın
+                      setTimeout(() => setIsDropdownOpen(false), 150)
+                    }}
+                    placeholder="İşletme adı yazın (min. 2 karakter)..."
+                    className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    inputMode="search"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center">
+                    {isSearching && (
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-orange-500 border-t-transparent mr-2"></div>
+                    )}
+                    <ChevronDown
+                      className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`}
+                    />
                   </div>
                 </div>
-              )}
 
-              {/* Arama sonuçları */}
-              {isDropdownOpen && (searchResults.length > 0 || isSearching || (searchTerm.length >= 2 && searchResults.length === 0)) && (
-                <div className="absolute z-10 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  {isSearching ? (
-                    <div className="px-4 py-3 text-gray-500 text-center">
-                      <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-orange-500 border-t-transparent mr-2"></div>
-                        Aranıyor...
-                      </div>
-                    </div>
-                  ) : searchResults.length > 0 ? (
-                    searchResults.map((isletme) => (
+                {/* Seçilen işletme gösterimi */}
+                {selectedIsletme && (
+                  <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 text-orange-700">
+                        <Building className="h-4 w-4" />
+                        {selectedIsletme.name}
+                      </span>
                       <button
-                        key={isletme.id}
                         type="button"
-                        onClick={() => handleItemSelect(isletme)}
-                        className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none flex items-center gap-2 border-b border-gray-100 last:border-b-0"
+                        onClick={() => {
+                          resetSelection()
+                          setPinError('')
+                        }}
+                        className="text-orange-600 hover:text-orange-800 text-sm"
                       >
-                        <Building className="h-4 w-4 text-gray-400" />
-                        <div>
-                          <div className="font-medium text-gray-900">{isletme.name}</div>
-                          {isletme.contact && (
-                            <div className="text-sm text-gray-500">{isletme.contact}</div>
-                          )}
-                        </div>
+                        Değiştir
                       </button>
-                    ))
-                  ) : searchTerm.length >= 2 ? (
-                    <div className="px-4 py-3 text-gray-500 text-center">
-                      <div className="flex flex-col items-center">
-                        <Search className="h-8 w-8 text-gray-300 mb-2" />
-                        <span>"{searchTerm}" için sonuç bulunamadı</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Arama sonuçları */}
+                {isDropdownOpen && (searchResults.length > 0 || isSearching || (searchTerm.length >= 2 && searchResults.length === 0)) && (
+                  <div className="absolute z-10 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {isSearching ? (
+                      <div className="px-4 py-3 text-gray-500 text-center">
+                        <div className="flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-orange-500 border-t-transparent mr-2"></div>
+                          Aranıyor...
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="px-4 py-3 text-gray-400 text-center text-sm">
-                      Arama yapmak için en az 2 karakter yazın
-                    </div>
-                  )}
-                </div>
-              )}
+                    ) : searchResults.length > 0 ? (
+                      searchResults.map((isletme) => (
+                        <button
+                          key={isletme.id}
+                          type="button"
+                          onClick={() => handleItemSelect(isletme)}
+                          className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none flex items-center gap-2 border-b border-gray-100 last:border-b-0"
+                        >
+                          <Building className="h-4 w-4 text-gray-400" />
+                          <div>
+                            <div className="font-medium text-gray-900">{isletme.name}</div>
+                          </div>
+                        </button>
+                      ))
+                    ) : searchTerm.length >= 2 ? (
+                      <div className="px-4 py-3 text-gray-500 text-center">
+                        <div className="flex flex-col items-center">
+                          <Search className="h-8 w-8 text-gray-300 mb-2" />
+                          <span>"{searchTerm}" için sonuç bulunamadı</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="px-4 py-3 text-gray-400 text-center text-sm">
+                        Arama yapmak için en az 2 karakter yazın
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
 
             {/* PIN Pad */}
             <div>
@@ -475,7 +471,7 @@ export default function IsletmeLoginPage() {
             </div>
 
             {pinError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3" role="alert" aria-live="assertive">
                 <p className="text-red-600 text-sm">{pinError}</p>
               </div>
             )}

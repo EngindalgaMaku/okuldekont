@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateAuthAndRole } from '@/middleware/auth';
+import { getActiveEducationYearId } from '@/lib/education-year';
 
 // Next.js cache'ini devre dışı bırak
 export const dynamic = 'force-dynamic';
@@ -34,15 +35,21 @@ export async function GET(
   })
 
   try {
+    const { searchParams } = new URL(request.url)
+    const educationYearIdParam = searchParams.get('educationYearId')
+    const educationYearId = educationYearIdParam || await getActiveEducationYearId()
+
     if (!id) {
       return NextResponse.json({ error: 'ID gerekli' }, { status: 400 });
     }
 
-    // Şirketin öğrencilerini getir
+    // Şirketin öğrencilerini getir (aktif eğitim yılına göre filtreli)
     const students = await prisma.staj.findMany({
       where: {
         companyId: id,
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        educationYearId: educationYearId,
+        archived: false
       },
       include: {
         student: {

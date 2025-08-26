@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { validateAuthAndRole } from '@/middleware/auth'
+import { getActiveEducationYearId } from '@/lib/education-year'
 
 export async function GET(request: NextRequest) {
   // Auth check
@@ -18,6 +19,9 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || ''
     const itemsPerPage = 12
     const skip = (page - 1) * itemsPerPage
+
+    // Active education year scope
+    const activeEducationYearId = await getActiveEducationYearId()
 
     // Build where clause
     const whereClause: any = {}
@@ -62,7 +66,9 @@ export async function GET(request: NextRequest) {
         case 'active':
           whereClause.stajlar = {
             some: {
-              status: 'ACTIVE'
+              status: 'ACTIVE',
+              educationYearId: activeEducationYearId,
+              archived: false
             }
           }
           break
@@ -77,7 +83,9 @@ export async function GET(request: NextRequest) {
             {
               stajlar: {
                 none: {
-                  status: 'ACTIVE'
+                  status: 'ACTIVE',
+                  educationYearId: activeEducationYearId,
+                  archived: false
                 }
               }
             }
@@ -86,14 +94,18 @@ export async function GET(request: NextRequest) {
         case 'terminated':
           whereClause.stajlar = {
             some: {
-              status: 'TERMINATED'
+              status: 'TERMINATED',
+              educationYearId: activeEducationYearId,
+              archived: false
             }
           }
           break
         case 'completed':
           whereClause.stajlar = {
             some: {
-              status: 'COMPLETED'
+              status: 'COMPLETED',
+              educationYearId: activeEducationYearId,
+              archived: false
             }
           }
           break
@@ -117,30 +129,11 @@ export async function GET(request: NextRequest) {
               name: true
             }
           },
-          company: {
-            select: {
-              id: true,
-              name: true,
-              contact: true,
-              teacher: {
-                select: {
-                  id: true,
-                  name: true,
-                  surname: true,
-                  alanId: true,
-                  alan: {
-                    select: {
-                      id: true,
-                      name: true
-                    }
-                  }
-                }
-              }
-            }
-          },
           stajlar: {
             where: {
-              status: 'ACTIVE'
+              status: 'ACTIVE',
+              educationYearId: activeEducationYearId,
+              archived: false
             },
             select: {
               id: true,
@@ -200,9 +193,9 @@ export async function GET(request: NextRequest) {
 
     // Transform data to match expected format
     const transformedStudents = students.map((student) => {
-      // Use active internship if available, otherwise fall back to student.company
+      // Use active internship if available
       const activeInternship = student.stajlar?.[0]
-      const currentCompany = activeInternship?.company || student.company
+      const currentCompany = activeInternship?.company
       const coordinatorTeacher = activeInternship?.teacher || currentCompany?.teacher
 
       return {

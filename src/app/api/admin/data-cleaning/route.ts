@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import fs from 'fs/promises'
+import path from 'path'
 
 // Demo/seed verilerini temizleme endpoint'i
 export async function DELETE(request: NextRequest) {
@@ -19,6 +21,7 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const cleaningType = searchParams.get('type') || 'demo'
     const confirmToken = searchParams.get('confirm')
+    const dryRun = searchParams.get('dryRun') === '1' || searchParams.get('dry_run') === '1'
 
     // Güvenlik token kontrolü
     if (confirmToken !== 'CONFIRM_DATA_CLEANING_2025') {
@@ -37,6 +40,9 @@ export async function DELETE(request: NextRequest) {
     if (cleaningType === 'demo' || cleaningType === 'all') {
       // Demo verilerini temizle
       result = await cleanDemoData()
+    } else if (cleaningType === 'production_reset') {
+      // Uygulamaya geçiş: sistem ayarları ve temel tanımlar hariç her şeyi sil
+      result = await cleanProductionData(dryRun)
     } else if (cleaningType === 'students') {
       // Sadece öğrenci verilerini temizle
       result = await cleanStudentData()
@@ -49,6 +55,9 @@ export async function DELETE(request: NextRequest) {
     } else if (cleaningType === 'files') {
       // Sadece dosyaları temizle
       result = await cleanFileData()
+    } else if (cleaningType === 'files_on_disk') {
+      // public/uploads altındaki gerçek dosyaları temizle (DRY-RUN destekli)
+      result = await cleanFilesOnDisk(dryRun)
     } else {
       return NextResponse.json(
         { error: 'Geçersiz temizleme tipi' },
@@ -203,6 +212,117 @@ async function cleanDemoData() {
   }
 }
 
+// Uygulamaya geçiş için tam temizlik (sistem ayarları ve temel tanımlar korunur)
+async function cleanProductionData(dryRun: boolean) {
+  const deletedCounts: Record<string, number> = {}
+
+  // Korunacaklar:
+  // - Eğitim yılları ve aktif yıl bilgisi
+  // - Alanlar (fields) ve sınıflar (classes)
+  // - Admin kullanıcı(lar) ve sistem ayarları
+
+  // Silinecek işlemsel veriler:
+  // - dekont, belge, gorevBelgesi
+  // - staj
+  // - student
+  // - companyProfile
+  // - teacherProfile (admin olmayanlar)
+  // - user (admin olmayanlar)
+
+  try {
+    if (dryRun) {
+      const counts = await prisma.$transaction([
+        prisma.dekont.count(),
+        prisma.belge.count(),
+        prisma.gorevBelgesi.count(),
+        prisma.attendance.count(),
+        prisma.staj.count(),
+        prisma.studentEnrollment.count(),
+        prisma.studentHistory.count(),
+        prisma.student.count(),
+        prisma.companyProfile.count(),
+        prisma.teacherProfile.count({ where: { user: { role: { not: 'ADMIN' } } } }),
+        prisma.message.count({ where: { sender: { role: { not: 'ADMIN' } } } }),
+        prisma.user.count({ where: { role: { not: 'ADMIN' } } })
+      ])
+
+      deletedCounts.dekontlar = counts[0]
+      deletedCounts.belgeler = counts[1]
+      deletedCounts.gorevBelgeleri = counts[2]
+      deletedCounts.attendance = counts[3]
+      deletedCounts.stajlar = counts[4]
+      deletedCounts.ogrenciKayitlari = counts[5]
+      deletedCounts.ogrenciGecmis = counts[6]
+      deletedCounts.ogrenciler = counts[7]
+      deletedCounts.isletmeler = counts[8]
+      deletedCounts.ogretmenler = counts[9]
+      deletedCounts.mesajlar = counts[10]
+      deletedCounts.kullanicilar = counts[11]
+
+      return {
+        success: true,
+        message: 'DRY-RUN: Üretim sıfırlama ile silinecek kayıt sayıları',
+        deletedCounts
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // 1) İşlemsel belgeler/ekler
+      const dekont = await tx.dekont.deleteMany({})
+      deletedCounts.dekontlar = dekont.count
+
+      const belge = await tx.belge.deleteMany({})
+      deletedCounts.belgeler = belge.count
+
+      const gorevBelgesi = await tx.gorevBelgesi.deleteMany({})
+      deletedCounts.gorevBelgeleri = gorevBelgesi.count
+
+      // 2) Öğrenciye bağımlı kayıtlar (FK ihlali olmaması için önce bunları sil)
+      const attendance = await tx.attendance.deleteMany({})
+      deletedCounts.attendance = attendance.count
+
+      // 3) Öğrenci yıl kayıtları ve öğrenci geçmişi
+      const enrollments = await tx.studentEnrollment.deleteMany({})
+      deletedCounts.ogrenciKayitlari = enrollments.count
+
+      const studentHistory = await tx.studentHistory.deleteMany({})
+      deletedCounts.ogrenciGecmis = studentHistory.count
+
+      // 4) Stajlar (InternshipHistory, Belge ilişkileri CASCADE ile gider)
+      const staj = await tx.staj.deleteMany({})
+      deletedCounts.stajlar = staj.count
+
+      // 5) Öğrenciler
+      const students = await tx.student.deleteMany({})
+      deletedCounts.ogrenciler = students.count
+
+      // 6) İşletmeler
+      const companies = await tx.companyProfile.deleteMany({})
+      deletedCounts.isletmeler = companies.count
+
+      // 7) Öğretmen profilleri (Admin user’a bağlı öğretmenler korunur)
+      const teachers = await tx.teacherProfile.deleteMany({ where: { user: { role: { not: 'ADMIN' } } } })
+      deletedCounts.ogretmenler = teachers.count
+
+      // 8) Messaging: admin olmayan kullanıcıların mesajlarını sil (FK için)
+      const messages = await tx.message.deleteMany({ where: { sender: { role: { not: 'ADMIN' } } } })
+      deletedCounts.mesajlar = messages.count
+
+      // 9) Kullanıcılar (admin olmayanlar)
+      const users = await tx.user.deleteMany({ where: { role: { not: 'ADMIN' } } })
+      deletedCounts.kullanicilar = users.count
+    })
+
+    return {
+      success: true,
+      message: 'Üretim geçişi için veriler başarıyla temizlendi (temel tanımlar ve sistem ayarları korundu)',
+      deletedCounts
+    }
+  } catch (error: any) {
+    throw new Error(`Üretim temizliği sırasında hata: ${error.message}`)
+  }
+}
+
 // Sadece öğrenci verilerini temizle
 async function cleanStudentData() {
   const deletedCounts: Record<string, number> = {}
@@ -344,7 +464,7 @@ async function cleanTeacherData() {
   }
 }
 
-// Sadece dosyaları temizle
+// Sadece dosyaları (DB) temizle
 async function cleanFileData() {
   const deletedCounts: Record<string, number> = {}
 
@@ -393,6 +513,63 @@ async function cleanFileData() {
     }
   } catch (error: any) {
     throw new Error(`Dosyalar temizlenirken hata: ${error.message}`)
+  }
+}
+
+// Disk üzerindeki upload dosyalarını temizle (DRY-RUN destekli)
+async function cleanFilesOnDisk(dryRun: boolean) {
+  const uploadsRoot = path.join(process.cwd(), 'public', 'uploads')
+  const targets = [
+    path.join(uploadsRoot, 'belgeler'),
+    path.join(uploadsRoot, 'dekontlar')
+  ]
+
+  let deletedCounts: Record<string, number> = {}
+  let bytesFreedTotal = 0
+
+  const safeListDir = async (dir: string) => {
+    try {
+      const entries = await fs.readdir(dir)
+      return entries
+    } catch {
+      return []
+    }
+  }
+
+  for (const dir of targets) {
+    const entries = await safeListDir(dir)
+    let count = 0
+    for (const name of entries) {
+      if (name === '.gitkeep') continue
+      const full = path.join(dir, name)
+      try {
+        const st = await fs.stat(full)
+        if (dryRun) {
+          count += 1
+          if (st.isFile()) bytesFreedTotal += st.size
+        } else {
+          if (st.isDirectory()) {
+            await fs.rm(full, { recursive: true, force: true })
+          } else {
+            await fs.unlink(full)
+            bytesFreedTotal += st.size
+          }
+          count += 1
+        }
+      } catch {
+        // ignore individual entry errors
+      }
+    }
+    deletedCounts[path.basename(dir)] = count
+  }
+
+  return {
+    success: true,
+    message: dryRun
+      ? 'DRY-RUN: Diskte silinecek upload dosyaları sayıldı'
+      : 'Diskteki upload dosyaları temizlendi',
+    deletedCounts,
+    bytesFreed: dryRun ? undefined : bytesFreedTotal
   }
 }
 

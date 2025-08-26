@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getActiveEducationYearId } from '@/lib/education-year'
 
 // Next.js cache'ini devre dışı bırak
 export const dynamic = 'force-dynamic';
@@ -11,11 +12,32 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    
+    const { searchParams } = new URL(request.url)
+    const educationYearIdParam = searchParams.get('educationYearId')
+    const educationYearId = educationYearIdParam || await getActiveEducationYearId()
+
+    // Determine date window for the selected education year
+    const year = await prisma.egitimYili.findUnique({ where: { id: educationYearId } })
+    if (!year) {
+      return NextResponse.json({ error: 'Eğitim yılı bulunamadı' }, { status: 400 })
+    }
+
+    // Compute upper bound: prefer endDate; fallback to next year's startDate if available
+    let upperBound: Date | undefined = year.endDate || undefined
+    if (!upperBound && year.startDate) {
+      const nextYear = await prisma.egitimYili.findFirst({
+        where: { startDate: { gt: year.startDate } },
+        orderBy: { startDate: 'asc' }
+      })
+      if (nextYear?.startDate) upperBound = nextYear.startDate
+    }
+
     const notifications = await prisma.notification.findMany({
       where: {
         recipient_id: id,
-        recipient_type: 'isletme'
+        recipient_type: 'isletme',
+        ...(year.startDate ? { created_at: { gte: year.startDate } } : {}),
+        ...(upperBound ? { created_at: { gte: year.startDate as Date, lt: upperBound } } : {})
       },
       orderBy: {
         created_at: 'desc'

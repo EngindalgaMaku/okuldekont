@@ -58,7 +58,7 @@ export default function PinPad({
   ]
 
   return (
-    <div className={`space-y-3 sm:space-y-6 ${className}`}>
+    <div className={`space-y-3 sm:space-y-6 [-webkit-tap-highlight-color:transparent] [touch-action:manipulation] ${className}`}>
       {/* PIN Display */}
       <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-3 sm:p-6">
         <div className="text-center mb-2 sm:mb-4">
@@ -90,8 +90,9 @@ export default function PinPad({
                     type="button"
                     onClick={handleClear}
                     disabled={disabled || value.length === 0}
-                    className="h-10 sm:h-14 bg-red-100 text-red-600 rounded-lg sm:rounded-xl font-semibold text-sm sm:text-lg hover:bg-red-200 active:bg-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    className="h-10 sm:h-14 min-w-[44px] min-h-[44px] bg-red-100 text-red-600 rounded-lg sm:rounded-xl font-semibold text-sm sm:text-lg hover:bg-red-200 active:bg-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
                     title="Temizle"
+                    aria-label="Temizle"
                   >
                     C
                   </button>
@@ -104,8 +105,9 @@ export default function PinPad({
                     type="button"
                     onClick={handleBackspace}
                     disabled={disabled || value.length === 0}
-                    className="h-10 sm:h-14 bg-yellow-100 text-yellow-600 rounded-lg sm:rounded-xl font-semibold hover:bg-yellow-200 active:bg-yellow-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    className="h-10 sm:h-14 min-w-[44px] min-h-[44px] bg-yellow-100 text-yellow-600 rounded-lg sm:rounded-xl font-semibold hover:bg-yellow-200 active:bg-yellow-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2"
                     title="Geri sil"
+                    aria-label="Geri sil"
                   >
                     <Delete className="h-4 w-4 sm:h-5 sm:w-5" />
                   </button>
@@ -122,7 +124,8 @@ export default function PinPad({
                 type="button"
                 onClick={() => handleNumberClick(number)}
                 disabled={disabled || value.length >= maxLength}
-                className="h-10 sm:h-14 bg-blue-100 text-blue-900 rounded-lg sm:rounded-xl font-bold text-lg sm:text-xl hover:bg-blue-200 active:bg-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="h-10 sm:h-14 min-w-[44px] min-h-[44px] bg-blue-100 text-blue-900 rounded-lg sm:rounded-xl font-bold text-lg sm:text-xl hover:bg-blue-200 active:bg-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                aria-label={`Rakam ${number}`}
               >
                 {number}
               </button>

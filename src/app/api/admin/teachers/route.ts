@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { getActiveEducationYearId } from '@/lib/education-year'
 
 export async function POST(request: Request) {
   try {
@@ -113,6 +114,7 @@ export async function GET(request: Request) {
 
     // TUM ogretmenleri isletme ve ogrenci detaylari ile getir
     console.log('TUM ogretmenleri isletme/ogrenci detaylari ile getiriliyor...')
+    const activeYearId = await getActiveEducationYearId()
     
     const ogretmenler = await prisma.teacherProfile.findMany({
       include: {
@@ -124,6 +126,10 @@ export async function GET(request: Request) {
         },
         // Schema'daki doğru field isimleri:
         stajlar: {
+          where: {
+            educationYearId: activeYearId,
+            archived: false
+          },
           include: {
             student: {
               include: {
@@ -144,6 +150,14 @@ export async function GET(request: Request) {
           }
         },
         companies: {
+          where: {
+            stajlar: {
+              some: {
+                educationYearId: activeYearId,
+                archived: false
+              }
+            }
+          },
           select: {
             id: true,
             name: true

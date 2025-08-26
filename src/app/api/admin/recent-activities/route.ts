@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getActiveEducationYearId } from '@/lib/education-year'
 
 export async function GET() {
   try {
@@ -11,10 +12,19 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Determine active education year
+    const activeEducationYearId = await getActiveEducationYearId()
+
     // Get recent dekont activities
     const recentDekonts = await prisma.dekont.findMany({
       take: 5,
       orderBy: { createdAt: 'desc' },
+      where: {
+        archived: false,
+        staj: {
+          educationYearId: activeEducationYearId
+        }
+      },
       select: {
         id: true,
         status: true,
@@ -39,6 +49,12 @@ export async function GET() {
     const recentInternshipHistory = await prisma.internshipHistory.findMany({
       take: 5,
       orderBy: { performedAt: 'desc' },
+      where: {
+        archived: false,
+        internship: {
+          educationYearId: activeEducationYearId
+        }
+      },
       select: {
         id: true,
         action: true,
@@ -65,6 +81,15 @@ export async function GET() {
     const recentTeacherAssignments = await prisma.teacherAssignmentHistory.findMany({
       take: 3,
       orderBy: { assignedAt: 'desc' },
+      where: {
+        company: {
+          stajlar: {
+            some: {
+              educationYearId: activeEducationYearId
+            }
+          }
+        }
+      },
       select: {
         id: true,
         assignedAt: true,
@@ -89,7 +114,23 @@ export async function GET() {
       where: {
         status: {
           in: ['APPROVED', 'REJECTED']
-        }
+        },
+        OR: [
+          {
+            relatedInternship: {
+              educationYearId: activeEducationYearId
+            }
+          },
+          {
+            company: {
+              stajlar: {
+                some: {
+                  educationYearId: activeEducationYearId
+                }
+              }
+            }
+          }
+        ]
       },
       select: {
         id: true,

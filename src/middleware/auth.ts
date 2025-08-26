@@ -20,7 +20,8 @@ const publicRoutes = [
   '/ogretmen/login',
   '/isletme/login',
   '/admin/login',
-  '/api/maintenance-check'
+  '/api/maintenance-check',
+  '/api/maintenance'
 ]
 
 // API routes that require specific roles

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import {
   FileCheck,
   CheckCircle,
@@ -211,270 +211,272 @@ export default function BelgeIslemleriPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-gradient-to-br from-teal-100 to-cyan-100 rounded-xl">
-            <FileCheck className="w-6 h-6 text-teal-600" />
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>}>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-gradient-to-br from-teal-100 to-cyan-100 rounded-xl">
+              <FileCheck className="w-6 h-6 text-teal-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Belge İşlemleri</h1>
+              <p className="text-gray-600">
+                Öğretmen ve işletme panellerinden yüklenen belgelerin onay/red işlemleri
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Belge İşlemleri</h1>
-            <p className="text-gray-600">
-              Öğretmen ve işletme panellerinden yüklenen belgelerin onay/red işlemleri
-            </p>
+
+          {/* Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-yellow-600" />
+                <span className="text-yellow-800 font-medium">Bekleyen</span>
+              </div>
+              <p className="text-2xl font-bold text-yellow-900 mt-1">{pendingCount}</p>
+            </div>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <span className="text-green-800 font-medium">Onaylanan</span>
+              </div>
+              <p className="text-2xl font-bold text-green-900 mt-1">{approvedCount}</p>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <XCircle className="w-5 h-5 text-red-600" />
+                <span className="text-red-800 font-medium">Reddedilen</span>
+              </div>
+              <p className="text-2xl font-bold text-red-900 mt-1">{rejectedCount}</p>
+            </div>
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-purple-600" />
+                <span className="text-purple-800 font-medium">Toplam</span>
+              </div>
+              <p className="text-2xl font-bold text-purple-900 mt-1">{belgeler.length}</p>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Belge adı, türü, öğretmen veya işletme ara..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+              />
+            </div>
+
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as StatusType)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+            >
+              <option value="all">Tüm Durumlar</option>
+              <option value="PENDING">Bekliyor</option>
+              <option value="APPROVED">Onaylandı</option>
+              <option value="REJECTED">Reddedildi</option>
+            </select>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-yellow-600" />
-              <span className="text-yellow-800 font-medium">Bekleyen</span>
-            </div>
-            <p className="text-2xl font-bold text-yellow-900 mt-1">{pendingCount}</p>
-          </div>
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              <span className="text-green-800 font-medium">Onaylanan</span>
-            </div>
-            <p className="text-2xl font-bold text-green-900 mt-1">{approvedCount}</p>
-          </div>
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-center gap-2">
-              <XCircle className="w-5 h-5 text-red-600" />
-              <span className="text-red-800 font-medium">Reddedilen</span>
-            </div>
-            <p className="text-2xl font-bold text-red-900 mt-1">{rejectedCount}</p>
-          </div>
-          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+        {/* Belgeler */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-4 border-b border-gray-200">
             <div className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-purple-600" />
-              <span className="text-purple-800 font-medium">Toplam</span>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Belgeler ({filteredBelgeler.length})
+              </h2>
             </div>
-            <p className="text-2xl font-bold text-purple-900 mt-1">{belgeler.length}</p>
           </div>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Belge adı, türü, öğretmen veya işletme ara..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-            />
-          </div>
-
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StatusType)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-          >
-            <option value="all">Tüm Durumlar</option>
-            <option value="PENDING">Bekliyor</option>
-            <option value="APPROVED">Onaylandı</option>
-            <option value="REJECTED">Reddedildi</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Belgeler */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-purple-600" />
-            <h2 className="text-lg font-semibold text-gray-900">
-              Belgeler ({filteredBelgeler.length})
-            </h2>
-          </div>
-        </div>
-        
-        <div className="divide-y divide-gray-200">
-          {filteredBelgeler.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p>Filtreye uygun belge bulunamadı.</p>
-            </div>
-          ) : (
-            filteredBelgeler.map((belge) => (
-              <div key={belge.id} className="p-4 hover:bg-gray-50">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getStatusBadgeClass(belge.status)}`}>
-                        {getStatusIcon(belge.status)}
-                        {getStatusText(belge.status)}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        {new Date(belge.createdAt).toLocaleDateString('tr-TR')}
-                      </span>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-600">İşletme:</span>
-                        <p className="font-medium">{belge.company ? belge.company.name : 'Bilinmiyor'}</p>
+          
+          <div className="divide-y divide-gray-200">
+            {filteredBelgeler.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p>Filtreye uygun belge bulunamadı.</p>
+              </div>
+            ) : (
+              filteredBelgeler.map((belge) => (
+                <div key={belge.id} className="p-4 hover:bg-gray-50">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getStatusBadgeClass(belge.status)}`}>
+                          {getStatusIcon(belge.status)}
+                          {getStatusText(belge.status)}
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          {new Date(belge.createdAt).toLocaleDateString('tr-TR')}
+                        </span>
                       </div>
                       
-                      <div>
-                        <span className="text-gray-600">Belge Türü:</span>
-                        <p className="font-medium">{belge.belgeTuru}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">İşletme:</span>
+                          <p className="font-medium">{belge.company ? belge.company.name : 'Bilinmiyor'}</p>
+                        </div>
+                        
+                        <div>
+                          <span className="text-gray-600">Belge Türü:</span>
+                          <p className="font-medium">{belge.belgeTuru}</p>
+                        </div>
+                        
+                        <div>
+                          <span className="text-gray-600">Yükleyen:</span>
+                          <p className="font-medium">
+                            {belge.yuklenenTaraf === 'ogretmen' && belge.teacher
+                              ? `${belge.teacher.name} ${belge.teacher.surname} (Öğretmen)`
+                              : belge.yuklenenTaraf === 'isletme' && belge.company
+                              ? `${belge.company.contact} (İşletme)`
+                              : 'Bilinmiyor'}
+                          </p>
+                        </div>
                       </div>
+
+                      <div className="mt-2 text-sm">
+                        <span className="text-gray-600">Dosya:</span>
+                        <span className="font-medium ml-1">{belge.dosyaAdi}</span>
+                      </div>
+
+                      {belge.redNedeni && (
+                        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+                          <strong>Reddetme Nedeni:</strong> {belge.redNedeni}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-2 ml-4">
+                      <button
+                        onClick={() => openFile(belge.dosyaUrl)}
+                        className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Dosyayı görüntüle"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
                       
-                      <div>
-                        <span className="text-gray-600">Yükleyen:</span>
-                        <p className="font-medium">
-                          {belge.yuklenenTaraf === 'ogretmen' && belge.teacher
-                            ? `${belge.teacher.name} ${belge.teacher.surname} (Öğretmen)`
-                            : belge.yuklenenTaraf === 'isletme' && belge.company
-                            ? `${belge.company.contact} (İşletme)`
-                            : 'Bilinmiyor'}
-                        </p>
-                      </div>
+                      {belge.status === 'PENDING' && (
+                        <>
+                          <button
+                            onClick={() => handleApprove(belge.id)}
+                            disabled={actionLoading === belge.id}
+                            className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                          >
+                            {actionLoading === belge.id ? 'İşleniyor...' : 'Onayla'}
+                          </button>
+                          <button
+                            onClick={() => setSelectedItem({id: belge.id})}
+                            disabled={actionLoading === belge.id}
+                            className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                          >
+                            Reddet
+                          </button>
+                        </>
+                      )}
+                      
+                      <button
+                        onClick={() => setDeleteItem({id: belge.id, ad: belge.ad})}
+                        disabled={actionLoading === belge.id}
+                        className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Belgeyi sil"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-
-                    <div className="mt-2 text-sm">
-                      <span className="text-gray-600">Dosya:</span>
-                      <span className="font-medium ml-1">{belge.dosyaAdi}</span>
-                    </div>
-
-                    {belge.redNedeni && (
-                      <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-800">
-                        <strong>Reddetme Nedeni:</strong> {belge.redNedeni}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-2 ml-4">
-                    <button
-                      onClick={() => openFile(belge.dosyaUrl)}
-                      className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Dosyayı görüntüle"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    
-                    {belge.status === 'PENDING' && (
-                      <>
-                        <button
-                          onClick={() => handleApprove(belge.id)}
-                          disabled={actionLoading === belge.id}
-                          className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-                        >
-                          {actionLoading === belge.id ? 'İşleniyor...' : 'Onayla'}
-                        </button>
-                        <button
-                          onClick={() => setSelectedItem({id: belge.id})}
-                          disabled={actionLoading === belge.id}
-                          className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-                        >
-                          Reddet
-                        </button>
-                      </>
-                    )}
-                    
-                    <button
-                      onClick={() => setDeleteItem({id: belge.id, ad: belge.ad})}
-                      disabled={actionLoading === belge.id}
-                      className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Belgeyi sil"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Reject Modal */}
-      {selectedItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Belgeyi Reddet
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Lütfen reddetme nedeninizi belirtiniz:
-              </p>
-              <textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Reddetme nedeni..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 h-24 resize-none"
-              />
-              <div className="flex justify-end gap-3 mt-4">
-                <button
-                  onClick={() => {
-                    setSelectedItem(null)
-                    setRejectReason('')
-                  }}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  İptal
-                </button>
-                <button
-                  onClick={() => handleReject(selectedItem.id, rejectReason)}
-                  disabled={!rejectReason.trim() || actionLoading === selectedItem.id}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-                >
-                  {actionLoading === selectedItem.id ? 'İşleniyor...' : 'Reddet'}
-                </button>
-              </div>
-            </div>
+              ))
+            )}
           </div>
         </div>
-      )}
 
-      {/* Delete Modal */}
-      {deleteItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-red-100 rounded-lg">
-                  <Trash2 className="w-6 h-6 text-red-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Belgeyi Sil
+        {/* Reject Modal */}
+        {selectedItem && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+              <div className="p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Belgeyi Reddet
                 </h3>
-              </div>
-              <p className="text-gray-600 mb-4">
-                <strong>"{deleteItem.ad}"</strong> adlı belgeyi silmek istediğinizden emin misiniz?
-              </p>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                <p className="text-yellow-800 text-sm">
-                  <strong>Uyarı:</strong> Bu işlem geri alınamaz. Belge ve dosya kalıcı olarak silinecektir.
+                <p className="text-gray-600 mb-4">
+                  Lütfen reddetme nedeninizi belirtiniz:
                 </p>
-              </div>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setDeleteItem(null)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  İptal
-                </button>
-                <button
-                  onClick={() => handleDelete(deleteItem.id)}
-                  disabled={actionLoading === deleteItem.id}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-                >
-                  {actionLoading === deleteItem.id ? 'Siliniyor...' : 'Evet, Sil'}
-                </button>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Reddetme nedeni..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 h-24 resize-none"
+                />
+                <div className="flex justify-end gap-3 mt-4">
+                  <button
+                    onClick={() => {
+                      setSelectedItem(null)
+                      setRejectReason('')
+                    }}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    onClick={() => handleReject(selectedItem.id, rejectReason)}
+                    disabled={!rejectReason.trim() || actionLoading === selectedItem.id}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                  >
+                    {actionLoading === selectedItem.id ? 'İşleniyor...' : 'Reddet'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+
+        {/* Delete Modal */}
+        {deleteItem && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-red-100 rounded-lg">
+                    <Trash2 className="w-6 h-6 text-red-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Belgeyi Sil
+                  </h3>
+                </div>
+                <p className="text-gray-600 mb-4">
+                  <strong>"{deleteItem.ad}"</strong> adlı belgeyi silmek istediğinizden emin misiniz?
+                </p>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                  <p className="text-yellow-800 text-sm">
+                    <strong>Uyarı:</strong> Bu işlem geri alınamaz. Belge ve dosya kalıcı olarak silinecektir.
+                  </p>
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setDeleteItem(null)}
+                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    onClick={() => handleDelete(deleteItem.id)}
+                    disabled={actionLoading === deleteItem.id}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                  >
+                    {actionLoading === deleteItem.id ? 'Siliniyor...' : 'Evet, Sil'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </Suspense>
   )
 }

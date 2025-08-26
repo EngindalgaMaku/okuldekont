@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { Building2, FileText, LogOut, Loader, User, Receipt, GraduationCap, CheckCircle, Clock, XCircle, Download, Plus, Upload, Trash2, Calendar, Loader2, AlertTriangle, Search, Filter, Bell, Key, ChevronDown, ChevronUp } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
@@ -41,6 +41,7 @@ const TeacherPanel = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [selectedDekont, setSelectedDekont] = useState<Dekont | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   const [loading, setLoading] = useState(true);
   const [teacher, setTeacher] = useState<Teacher | null>(null);
@@ -454,6 +455,21 @@ const TeacherPanel = () => {
   useEffect(() => {
     if (activeTab === 'dekontlar') setDekontPage(1);
   }, [activeTab]);
+
+  // Sync activeTab with ?tab= in URL and set default
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const validTabs = ['isletmeler', 'dekontlar', 'belgeler'] as const;
+    if (!tab || !validTabs.includes(tab as any)) {
+      // Ensure URL reflects default tab without adding to history
+      router.replace('/ogretmen/panel?tab=isletmeler', { scroll: false });
+      setActiveTab('isletmeler');
+      return;
+    }
+    if (tab !== activeTab) {
+      setActiveTab(tab as typeof validTabs[number]);
+    }
+  }, [searchParams, router, activeTab]);
 
   // Belge filtreleme
   useEffect(() => {
@@ -1134,21 +1150,19 @@ const TeacherPanel = () => {
                 <Key className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                 <span className="sr-only">PIN Değiştir</span>
               </button>
-              
               <button
                 onClick={handleLogout}
-                className="flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
+                className="hidden md:flex items-center justify-center p-2 rounded-xl bg-white bg-opacity-20 backdrop-blur-lg hover:bg-opacity-30 transition-all duration-200"
                 title="Çıkış Yap"
               >
                 <LogOut className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
-                <span className="sr-only">Çıkış Yap</span>
               </button>
             </div>
           </div>
 
           {/* Tabs */}
           <div className="mt-6 sm:mt-8">
-            <nav className="-mb-px flex space-x-0.5 sm:space-x-4" aria-label="Tabs">
+            <nav className="-mb-px hidden md:flex space-x-0.5 sm:space-x-4" aria-label="Tabs">
               {[
                 { id: 'isletmeler', icon: Building2, label: 'İşletmeler', count: isletmeler.length },
                 { id: 'dekontlar', icon: Receipt, label: 'Dekont Listesi', count: dekontlar.length },
@@ -1159,12 +1173,10 @@ const TeacherPanel = () => {
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as 'isletmeler' | 'dekontlar' | 'belgeler')}
+                    onClick={() => router.push(`/ogretmen/panel?tab=${tab.id}`, { scroll: false })}
                     className={`
                       group relative min-w-0 flex-1 overflow-hidden py-1.5 sm:py-3 px-1 sm:px-6 rounded-t-xl text-xs sm:text-sm font-medium text-center hover:bg-white hover:bg-opacity-10 transition-all duration-200
-                      ${isActive
-                        ? 'bg-white text-indigo-700'
-                        : 'text-indigo-100 hover:text-white'}
+                      ${isActive ? 'bg-white text-indigo-700' : 'text-indigo-100 hover:text-white'}
                     `}
                   >
                     <div className="flex flex-col items-center justify-center min-h-[3rem] sm:min-h-[3.5rem]">
@@ -1242,9 +1254,9 @@ const TeacherPanel = () => {
 
           {/* Dekont Takip Uyarı Sistemi */}
           {eksikDekontOgrenciler.length > 0 && (
-            <div className={`mb-6 rounded-2xl shadow-lg ring-1 ring-black ring-opacity-5 p-6 ${
+            <div className={`sticky top-2 z-30 md:static md:top-auto mb-6 rounded-2xl shadow-lg ring-1 ring-black ring-opacity-5 p-6 ${
               isGecikme(dekontSonGun)
-                ? 'bg-gradient-to-r from-red-50 to-red-100 border-l-4 border-red-500'
+                ? 'bg-gradient-to-r from-red-50 to-red-100 border-l-2 sm:border-l-4 border-red-400 sm:border-red-500'
                 : isKritikSure(dekontSonGun)
                 ? 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-l-4 border-yellow-500'
                 : 'bg-gradient-to-r from-blue-50 to-blue-100 border-l-4 border-blue-500'

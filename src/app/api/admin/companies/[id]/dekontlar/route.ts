@@ -6,6 +6,7 @@ import { generateDekontFileName, DekontNamingData } from '@/utils/dekontNaming'
 import { validateAuthAndRole } from '@/middleware/auth'
 import { validateFileUpload, generateSecureFileName, quarantineFile } from '@/lib/file-security'
 import { encryptFinancialData, decryptFinancialData } from '@/lib/encryption'
+import { getActiveEducationYearId } from '@/lib/education-year'
 
 export async function GET(
   request: NextRequest,
@@ -19,6 +20,9 @@ export async function GET(
 
   try {
     const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const qEducationYearId = searchParams.get('educationYearId')
+    const educationYearId = qEducationYearId || await getActiveEducationYearId()
     
     console.log('🛡️ ADMIN SECURITY: Authorized admin accessing company dekontlar:', {
       adminId: authResult.user?.id,
@@ -29,7 +33,11 @@ export async function GET(
 
     const dekontlar = await prisma.dekont.findMany({
       where: {
-        companyId: id
+        companyId: id,
+        archived: false,
+        staj: {
+          educationYearId
+        }
       },
       include: {
         student: {

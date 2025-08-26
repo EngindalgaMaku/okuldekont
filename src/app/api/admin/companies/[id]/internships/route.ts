@@ -10,10 +10,15 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const qEducationYearId = searchParams.get('educationYearId')
+    const educationYearId = qEducationYearId || await getActiveEducationYearId()
     const internships = await prisma.staj.findMany({
       where: {
         companyId: id,
-        status: 'ACTIVE'  // Sadece aktif stajları göster
+        status: 'ACTIVE',  // Sadece aktif stajları göster
+        archived: false,
+        educationYearId
       },
       include: {
         student: {

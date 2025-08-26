@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getActiveEducationYearId } from '@/lib/education-year'
+
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { generateDekontFileName, DekontNamingData } from '@/utils/dekontNaming'
@@ -15,6 +17,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+
   // SADECE ADMIN ve İLGİLİ COMPANY erişebilir
   const authResult = await validateAuthAndRole(request, ['ADMIN', 'COMPANY'])
   if (!authResult.success) {
@@ -33,9 +36,15 @@ export async function GET(
 
   try {
     const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const educationYearIdParam = searchParams.get('educationYearId')
+    const educationYearId = educationYearIdParam || await getActiveEducationYearId()
+
     const dekontlar = await prisma.dekont.findMany({
       where: {
-        companyId: id
+        companyId: id,
+        archived: false,
+        staj: { educationYearId }
       },
       include: {
         student: {

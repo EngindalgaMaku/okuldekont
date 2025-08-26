@@ -5,15 +5,20 @@ import { validateAuthAndRole } from '@/middleware/auth'
 import { processDocumentForOCR, extractStructuredData } from '@/lib/ocr-service'
 import { analyzeWithAI } from '@/lib/ai-analysis-service'
 import fs from 'fs/promises'
+import fsSync from 'fs'
 import path from 'path'
 
-// Register a font for more realistic text
+// Register a font for more realistic text (guarded to avoid ENOENT during build)
 try {
-    registerFont(path.join(process.cwd(), 'public', 'fonts', 'cour.ttf'), { family: 'Courier New' });
+    const fontPath = path.join(process.cwd(), 'public', 'fonts', 'cour.ttf')
+    if (fsSync.existsSync(fontPath)) {
+        registerFont(fontPath, { family: 'Courier New' })
+    } else {
+        console.warn('Font file not found, using system default:', fontPath)
+    }
 } catch (error) {
-    console.warn("Could not register font. Using system default.", error);
+    console.warn('Could not register font. Using system default.', error)
 }
-
 
 // Helper to calculate similarity
 function calculateSimilarity(str1: string, str2: string): number {

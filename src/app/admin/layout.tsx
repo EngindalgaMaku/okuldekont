@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Fragment, ReactNode } from 'react'
+import { useEffect, useState, Fragment, ReactNode, Suspense } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Dialog, Transition, Menu as MenuDropdown } from '@headlessui/react'
@@ -13,23 +13,23 @@ import {
   Briefcase,
   FileText,
   LogOut,
- Calendar,
- Shield,
- Settings,
- GraduationCap,
- Receipt,
- AlertTriangle,
- BarChart3,
- BookOpen,
- Check,
- ExternalLink,
- Building2,
- UserCheck,
- Sparkles,
- User,
- ChevronDown,
- MessageCircle,
- Wrench
+  Calendar,
+  Shield,
+  Settings,
+  GraduationCap,
+  Receipt,
+  AlertTriangle,
+  BarChart3,
+  BookOpen,
+  Check,
+  ExternalLink,
+  Building2,
+  UserCheck,
+  Sparkles,
+  User,
+  ChevronDown,
+  MessageCircle,
+  Wrench
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -96,7 +96,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [schoolName, setSchoolName] = useState('')
   const [adminUserName, setAdminUserName] = useState<string>('')
   const [activeEducationYear, setActiveEducationYear] = useState<string>('')
-  
+  const [activeEducationYearId, setActiveEducationYearId] = useState<string>('')
+  const [educationYears, setEducationYears] = useState<any[]>([])
+  const [educationYearsLoading, setEducationYearsLoading] = useState(false)
+  const [changingYear, setChangingYear] = useState(false)
+
   // Tablet ve daha küçük ekranlar için media query
   const isTabletOrSmaller = useMediaQuery('(max-width: 1279px)')
 
@@ -117,7 +121,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         console.error('Okul adı getirme hatası:', response.statusText)
         return
       }
-      
+
       const data = await response.json()
       if (data?.value) {
         setSchoolName(data.value)
@@ -130,7 +134,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   // Admin kullanıcı adını getir
   const fetchAdminUserName = async () => {
     if (!user?.email) return
-    
+
     try {
       console.log('🔍 Fetching admin user name for email:', user.email)
       const response = await fetch(`/api/admin/user-info?email=${encodeURIComponent(user.email)}`)
@@ -138,10 +142,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         console.error('Admin kullanıcı adı getirme hatası:', response.statusText)
         return
       }
-      
+
       const data = await response.json()
       console.log('📊 Admin user data:', data)
-      
+
       if (data?.name) {
         console.log('✅ Setting admin user name:', data.name)
         setAdminUserName(data.name)
@@ -159,24 +163,85 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         console.error('Aktif eğitim yılı getirme hatası:', response.statusText)
         return
       }
-      
+      const contentType = response.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        const text = await response.text()
+        console.error('Aktif eğitim yılı getirme hatası: JSON bekleniyordu, gelen yanıt HTML/text görünüyor. İlk 200 karakter:', text.slice(0, 200))
+        return
+      }
+
       const data = await response.json()
       if (data?.year) {
         setActiveEducationYear(data.year)
+        if (data?.id) setActiveEducationYearId(data.id)
       }
     } catch (error) {
       console.error('Aktif eğitim yılı getirme hatası:', error)
     }
   }
 
+  // Eğitim yıllarını getir (liste)
+  const fetchEducationYears = async () => {
+    try {
+      setEducationYearsLoading(true)
+      const response = await fetch('/api/admin/education-years')
+      if (!response.ok) throw new Error('Eğitim yılları getirilemedi')
+      const data = await response.json()
+      setEducationYears(data || [])
+      const active = (data || []).find((y: any) => y.active)
+      if (active) {
+        setActiveEducationYear(active.year)
+        setActiveEducationYearId(active.id)
+      }
+    } catch (err) {
+      console.error('Eğitim yılları çekilirken hata:', err)
+    } finally {
+      setEducationYearsLoading(false)
+    }
+  }
+
+  // Aktif eğitim yılını değiştir
+  const handleChangeActiveEducationYear = async (yearId: string) => {
+    try {
+      setChangingYear(true)
+      const year = educationYears.find((y: any) => y.id === yearId)
+      if (!year) return
+      const response = await fetch('/api/admin/education-years', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...year,
+          active: true
+        })
+      })
+      if (!response.ok) throw new Error('Aktif dönem güncellenemedi')
+      // Refresh local state
+      await fetchEducationYears()
+      // Refresh route to re-fetch server components/data loaders
+      router.refresh()
+      // Tam sayfa yenileme: tüm client componentleri ve cache'leri temiz şekilde yeniden yüklesin
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          window.location.reload()
+        }
+      }, 50)
+    } catch (error) {
+      console.error('Aktif dönem değiştirilirken hata:', error)
+      alert('Aktif dönem değiştirilemedi')
+    } finally {
+      setChangingYear(false)
+    }
+  }
+
   useEffect(() => {
     fetchSchoolName()
-    fetchActiveEducationYear()
   }, [])
 
   useEffect(() => {
     if (user?.id && isAdmin) {
       fetchAdminUserName()
+      fetchActiveEducationYear()
+      fetchEducationYears()
     }
   }, [user?.id, isAdmin])
 
@@ -190,27 +255,27 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       }
     }
   }, [user, isAdmin, loading, pathname, router, isSigningOut])
-  
+
   const handleLogout = async () => {
     if (isSigningOut) return // Prevent multiple simultaneous logout attempts
-    
+
     setIsSigningOut(true)
     console.log('🚪 Logout initiated...')
-    
+
     try {
       // Clear auth state immediately to prevent UI issues
       const { error } = await signOut()
       if (error) {
         console.error('Logout error:', error)
       }
-      
+
       console.log('✅ Sign out completed, redirecting to login...')
-      
+
       // Use a more forceful redirect approach
       setTimeout(() => {
         window.location.href = '/admin/login'
       }, 100)
-      
+
     } catch (error) {
       console.error('Logout error:', error)
       // Force redirect even on error
@@ -227,7 +292,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   // Always render login page
   if (pathname === '/admin/login') {
-    return <>{children}</>
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>}>
+        {children}
+      </Suspense>
+    )
   }
 
   // Show loading state
@@ -319,7 +388,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     </button>
                   </div>
                 </Transition.Child>
-                
+
                 {/* Sidebar component for mobile */}
                 <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
                   <div className="flex items-center justify-center px-4 py-6 border-b border-gray-200">
@@ -340,14 +409,20 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                                 Aktif Dönem
                               </label>
                               <select
-                                value={activeEducationYear}
-                                disabled
-                                className="w-full text-sm font-medium text-blue-900 bg-white border border-blue-200 rounded-md px-2 py-1 cursor-not-allowed opacity-75"
+                                value={activeEducationYearId || ''}
+                                onChange={(e) => handleChangeActiveEducationYear(e.target.value)}
+                                disabled={educationYearsLoading || changingYear}
+                                className="w-full text-sm font-medium text-blue-900 bg-white border border-blue-200 rounded-md px-2 py-1 disabled:opacity-60"
                               >
-                                <option value={activeEducationYear}>
-                                  {activeEducationYear} Eğitim Yılı
-                                </option>
+                                {(educationYears || []).filter((y: any) => !y.archived).map((y: any) => (
+                                  <option key={y.id} value={y.id}>
+                                    {y.year} Eğitim Yılı{y.active ? ' (aktif)' : ''}
+                                  </option>
+                                ))}
                               </select>
+                              {changingYear && (
+                                <p className="mt-1 text-[11px] text-blue-700">Güncelleniyor...</p>
+                              )}
                             </div>
                           </div>
                         )}
@@ -364,12 +439,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                                 <item.icon className={`w-5 h-5 ${pathname === item.href ? 'text-indigo-600' : 'text-gray-400 group-hover:text-indigo-600'}`} />
                                 <span className="font-medium">{item.title}</span>
                               </Link>
-                              
+
                             </div>
                           ))}
                         </ul>
                       </li>
-                      
+
                       {/* Quick Links for Mobile */}
                       <li>
                         <div className="text-xs font-semibold leading-6 text-gray-400 px-3">Hızlı Erişim</div>
@@ -517,14 +592,20 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                         Aktif Dönem
                       </label>
                       <select
-                        value={activeEducationYear}
-                        disabled
-                        className="w-full text-sm font-medium text-blue-900 bg-white border border-blue-200 rounded-md px-2 py-1 cursor-not-allowed opacity-75"
+                        value={activeEducationYearId || ''}
+                        onChange={(e) => handleChangeActiveEducationYear(e.target.value)}
+                        disabled={educationYearsLoading || changingYear}
+                        className="w-full text-sm font-medium text-blue-900 bg-white border border-blue-200 rounded-md px-2 py-1 disabled:opacity-60"
                       >
-                        <option value={activeEducationYear}>
-                          {activeEducationYear} Eğitim Yılı
-                        </option>
+                        {(educationYears || []).filter((y: any) => !y.archived).map((y: any) => (
+                          <option key={y.id} value={y.id}>
+                            {y.year} Eğitim Yılı{y.active ? ' (aktif)' : ''}
+                          </option>
+                        ))}
                       </select>
+                      {changingYear && (
+                        <p className="mt-1 text-[11px] text-blue-700">Güncelleniyor...</p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -557,12 +638,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                         )} />
                         {desktopSidebarOpen && <span className="font-medium">{item.title}</span>}
                       </Link>
-                      
+
                     </div>
                   ))}
                 </ul>
               </li>
-              
+
               {/* Sidebar Footer - sadece açık durumda göster */}
               {desktopSidebarOpen && (
                 <li className="mt-auto">
@@ -632,7 +713,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:block text-xs sm:text-sm">İşletmeler</span>
                 </Link>
-                
+
                 <Link
                   href="/admin/ogretmenler"
                   className="flex items-center gap-x-1 px-1.5 sm:px-2 md:px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
@@ -641,7 +722,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   <UserCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:block text-xs sm:text-sm">Öğretmenler</span>
                 </Link>
-                
+
                 <Link
                   href="/admin/ogrenciler"
                   className="flex items-center gap-x-1 px-1.5 sm:px-2 md:px-3 py-1.5 text-sm font-medium text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
@@ -650,7 +731,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:block text-xs sm:text-sm">Öğrenciler</span>
                 </Link>
-                
+
               </div>
 
               {/* User dropdown */}
@@ -724,7 +805,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                           </Link>
                         )}
                       </MenuDropdown.Item>
-                      
+
                       <MenuDropdown.Item>
                         {({ active }) => (
                           <Link
@@ -739,9 +820,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                           </Link>
                         )}
                       </MenuDropdown.Item>
-                      
+
                       <div className="my-1 h-px bg-gray-200" />
-                      
+
                       <MenuDropdown.Item>
                         {({ active }) => (
                           <button
@@ -765,14 +846,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   </Transition>
                 </MenuDropdown>
               )}
-              
+
             </div>
           </div>
         </div>
 
         <main className="py-10">
           <div className="px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
-            {children}
+            <Suspense fallback={<div className="flex items-center justify-center min-h-[50vh]"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div></div>}>
+              {children}
+            </Suspense>
           </div>
         </main>
       </div>

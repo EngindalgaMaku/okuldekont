@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getActiveEducationYearId } from '@/lib/education-year'
 
 export async function GET(
   request: NextRequest,
@@ -7,6 +8,8 @@ export async function GET(
 ) {
   try {
     const { id: teacherId } = await params
+
+    const activeYearId = await getActiveEducationYearId()
 
     // First, get the teacher info from TeacherProfile table
     const teacher = await prisma.teacherProfile.findUnique({
@@ -34,7 +37,13 @@ export async function GET(
     // Get companies where this teacher is coordinator
     const companies = await prisma.companyProfile.findMany({
       where: {
-        teacherId: teacherId
+        teacherId: teacherId,
+        stajlar: {
+          some: {
+            educationYearId: activeYearId,
+            archived: false
+          }
+        }
       },
       select: {
         id: true,
@@ -45,9 +54,9 @@ export async function GET(
         masterTeacherPhone: true,
         stajlar: {
           where: {
-            status: {
-              in: ['ACTIVE', 'COMPLETED', 'CANCELLED', 'TERMINATED']
-            }
+            educationYearId: activeYearId,
+            archived: false,
+            status: { in: ['ACTIVE', 'COMPLETED', 'CANCELLED', 'TERMINATED'] }
           },
           include: {
             student: {
@@ -73,7 +82,9 @@ export async function GET(
     // Get all internships where teacher is directly assigned (active and past)
     const allInternships = await prisma.staj.findMany({
       where: {
-        teacherId: teacherId
+        teacherId: teacherId,
+        educationYearId: activeYearId,
+        archived: false
       },
       include: {
         student: {

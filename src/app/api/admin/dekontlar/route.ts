@@ -8,6 +8,7 @@ import { encryptFinancialData, decryptFinancialData, maskFinancialData } from '@
 import { validateAndSanitize, validateDekont, sanitizeString, ValidationFunctions } from '@/lib/validation'
 import { validateFileUpload, generateSecureFileName, quarantineFile } from '@/lib/file-security'
 import { generateDekontFileName, DekontNamingData } from '@/utils/dekontNaming'
+import { getActiveEducationYearId } from '@/lib/education-year'
 
 // Dekontları listele - SADECE ADMIN
 export async function GET(request: Request) {
@@ -17,7 +18,19 @@ export async function GET(request: Request) {
   }
 
   try {
+    // Query params: allow optional educationYearId, default to active year
+    const { searchParams } = new URL(request.url)
+    const queryEducationYearId = searchParams.get('educationYearId')
+    const educationYearId = queryEducationYearId || await getActiveEducationYearId()
+
     const rawData = await prisma.dekont.findMany({
+      where: {
+        archived: false,
+        // Filter by related internship's education year
+        staj: {
+          educationYearId
+        }
+      },
       include: {
         staj: {
           include: {
