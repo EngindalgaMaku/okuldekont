@@ -62,6 +62,10 @@ export async function authMiddleware(request: NextRequest) {
     timestamp: new Date().toISOString()
   })
   
+  // Paths that must never be indexed
+  const isNoIndexPath = (p: string) =>
+    p.startsWith('/admin') || p.startsWith('/console')
+  
   // Check if route is public
   const isPublicRoute = publicRoutes.some(route =>
     pathname.startsWith(route) || pathname === route
@@ -86,7 +90,12 @@ export async function authMiddleware(request: NextRequest) {
     
   if (isPublicRoute) {
     console.log(`✅ PUBLIC ROUTE ALLOWED:`, pathname)
-    return NextResponse.next()
+    // Ensure admin/console public pages like /admin/login are marked noindex
+    const res = NextResponse.next()
+    if (isNoIndexPath(pathname)) {
+      res.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive')
+    }
+    return res
   }
 
   console.log(`🔒 PROTECTED ROUTE:`, pathname)
@@ -160,7 +169,11 @@ export async function authMiddleware(request: NextRequest) {
         reason: 'No token found'
       })
       
-      return NextResponse.redirect(redirectUrl)
+      const redirectRes = NextResponse.redirect(redirectUrl)
+      if (isNoIndexPath(pathname) || isNoIndexPath(loginUrl)) {
+        redirectRes.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive')
+      }
+      return redirectRes
     }
 
     console.log(`✅ TOKEN FOUND:`, {
@@ -230,6 +243,11 @@ export async function authMiddleware(request: NextRequest) {
       response.headers.set('X-User-Role', token.role as string || '')
       response.headers.set('X-User-Email', token.email || '')
     }
+    
+    // Make sure admin/console pages are never indexed
+    if (isNoIndexPath(pathname)) {
+      response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive')
+    }
 
     return response
 
@@ -249,7 +267,11 @@ export async function authMiddleware(request: NextRequest) {
     }
     
     // Web routes redirect to login
-    return NextResponse.redirect(new URL('/', request.url))
+    const errorRedirect = NextResponse.redirect(new URL('/', request.url))
+    if (isNoIndexPath(pathname)) {
+      errorRedirect.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive')
+    }
+    return errorRedirect
   }
 }
 

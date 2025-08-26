@@ -1596,7 +1596,7 @@ function PanelPage() {
                       className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] p-6 border border-blue-100 hover:border-blue-200"
                     >
                       <div className="flex items-center">
-                        <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center border-2 border-indigo-100 hidden sm:block">
+                        <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl hidden sm:flex items-center justify-center border-2 border-indigo-100">
                           <User className="h-6 w-6 text-indigo-600" />
                         </div>
                         <div className="sm:ml-4 flex-1">
@@ -1775,7 +1775,7 @@ function PanelPage() {
                             className="w-full text-left p-4 hover:bg-gray-100 transition-colors flex items-center justify-between bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center hidden sm:block">
+                              <div className="h-10 w-10 bg-white bg-opacity-20 rounded-lg hidden sm:flex items-center justify-center">
                                 <User className="h-5 w-5 text-white" />
                               </div>
                               <div className="flex-1">
@@ -1971,7 +1971,7 @@ function PanelPage() {
                     {filteredBelgeler.map((belge) => (
                       <div key={belge.id} className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-100 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] p-6">
                         <div className="flex items-start">
-                          <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center border-2 border-indigo-100 flex-shrink-0 hidden sm:block">
+                          <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl hidden sm:flex items-center justify-center border-2 border-indigo-100 flex-shrink-0">
                             <FileText className="h-6 w-6 text-indigo-600" />
                           </div>
                           <div className="sm:ml-4 flex-1 min-w-0">
