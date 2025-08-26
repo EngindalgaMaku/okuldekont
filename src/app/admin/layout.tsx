@@ -299,48 +299,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     )
   }
 
-  // Show loading state
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto w-56 h-24 bg-white rounded-2xl flex items-center justify-center mb-4 p-4 shadow-lg border">
-            <img
-              src="/images/logo2.jpg"
-              alt="K-Panel Logo"
-              className="h-16 w-42 object-contain animate-pulse"
-            />
-          </div>
-          <div className="space-y-2">
-            <div className="h-6 bg-gray-200 rounded animate-pulse w-48 mx-auto"></div>
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-32 mx-auto"></div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Show unauthorized access
-  if (!user || !isAdmin) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-gray-100 p-8 text-center">
-          <div className="mx-auto w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mb-4">
-            <AlertTriangle className="h-8 w-8 text-red-600" />
-          </div>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Yetkisiz Erişim</h1>
-          <p className="text-gray-600 mb-6">Bu sayfaya erişim yetkiniz bulunmamaktadır.</p>
-          <button
-            onClick={() => router.push('/admin/login')}
-            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            Giriş Sayfasına Dön
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className={classNames(
       'flex min-h-screen bg-gray-50',
@@ -392,11 +350,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 {/* Sidebar component for mobile */}
                 <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
                   <div className="flex items-center justify-center px-4 py-6 border-b border-gray-200">
-                    <img
-                      src="/images/logo2.jpg"
-                      alt="K-Panel Logo"
-                      className="h-16 w-42 object-contain"
-                    />
+                    <div className="text-center">
+                      <p className="text-2xl font-extrabold text-gray-900 leading-tight">K-Panel</p>
+                      <p className="text-xs text-gray-600 tracking-wide">Koordinatörlük Takip Uygulaması</p>
+                    </div>
                   </div>
                   <nav className="flex flex-1 flex-col">
                     <ul role="list" className="flex flex-1 flex-col gap-y-7">
@@ -570,16 +527,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white">
           <div className={classNames(
             'flex items-center justify-center border-b border-gray-200 transition-all duration-300',
-            desktopSidebarOpen ? 'h-24 py-4' : 'h-16 py-2'
+            desktopSidebarOpen ? 'h-28 py-4' : 'h-16 py-2'
           )}>
-            <img
-              src={desktopSidebarOpen ? "/images/logo2.jpg" : "/images/logo_kucuk.png"}
-              alt="K-Panel Logo"
-              className={classNames(
-                desktopSidebarOpen ? 'h-20 w-52' : 'h-12 w-12',
-                'object-contain transition-all duration-300'
-              )}
-            />
+            {desktopSidebarOpen && (
+              <div className="text-center">
+                <p className="text-2xl font-extrabold text-gray-900 leading-tight">K-Panel</p>
+                <p className="text-sm text-gray-600 tracking-wide">Koordinatörlük Takip Uygulaması</p>
+              </div>
+            )}
           </div>
           <nav className="flex flex-1 flex-col">
             <ul role="list" className="flex flex-1 flex-col gap-y-7">

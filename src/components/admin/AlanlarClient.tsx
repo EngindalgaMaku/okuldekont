@@ -140,6 +140,7 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
   const [selectedAlan, setSelectedAlan] = useState<Alan | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [isToggleActiveModalOpen, setIsToggleActiveModalOpen] = useState(false)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
 
@@ -153,6 +154,8 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
 
   const [deleteAlanId, setDeleteAlanId] = useState<string | null>(null)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [relationCounts, setRelationCounts] = useState<{ teachers: number; students: number; classes: number } | null>(null)
+  const [relationLoading, setRelationLoading] = useState(false)
 
   const fetchAlanlar = async () => {
     setLoading(true)
@@ -239,18 +242,28 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
   }
 
   const handleDeleteAlan = async () => {
-    if (!deleteAlanId || deleteConfirmText !== 'SIL') return
+    // Prevent delete if relations exist based on authoritative counts
+    if (relationCounts && (relationCounts.teachers > 0 || relationCounts.students > 0 || relationCounts.classes > 0)) {
+      toast.error('Bu alana bağlı öğretmen/öğrenci/sınıf bulunduğu için silinemez.')
+      return
+    }
+    if (!deleteAlanId || deleteConfirmText !== 'SIL' || isDeleting) return
 
     try {
+      setIsDeleting(true)
       const response = await fetch(`/api/admin/alanlar?id=${deleteAlanId}`, {
         method: 'DELETE',
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Alan silinirken hata oluştu')
+        let message = 'Alan silinirken hata oluştu'
+        try {
+          const errorData = await response.json()
+          message = errorData?.error || message
+        } catch {}
+        toast.error(message)
+        return
       }
-
       toast.success('Alan başarıyla silindi.')
       setIsDeleteModalOpen(false)
       setDeleteAlanId(null)
@@ -260,6 +273,8 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
       const errorMessage = err instanceof Error ? err.message : 'Alan silinirken bir hata oluştu.'
       toast.error(errorMessage)
       console.error('Alan silinirken hata:', err)
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -297,6 +312,32 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
     setDeleteAlanId(alan.id)
     setDeleteConfirmText('')
     setIsDeleteModalOpen(true)
+
+    // Fetch authoritative relation counts for the modal
+    setRelationCounts(null)
+    setRelationLoading(true)
+    fetch(`/api/admin/alanlar/${alan.id}/relations`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error('İlişkiler getirilemedi')
+        return res.json()
+      })
+      .then((data) => {
+        if (data?.counts) {
+          setRelationCounts({
+            teachers: Number(data.counts.teachers) || 0,
+            students: Number(data.counts.students) || 0,
+            classes: Number(data.counts.classes) || 0,
+          })
+        } else {
+          setRelationCounts({ teachers: alan.ogretmen_sayisi, students: alan.ogrenci_sayisi, classes: 0 })
+        }
+      })
+      .catch((err) => {
+        console.error('İlişki sorgusu hatası:', err)
+        // Fall back to known list counts for teachers/students
+        setRelationCounts({ teachers: alan.ogretmen_sayisi, students: alan.ogrenci_sayisi, classes: 0 })
+      })
+      .finally(() => setRelationLoading(false))
   }
 
   const handleToggleActiveClick = (alan: Alan) => {
@@ -642,6 +683,27 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
             />
           </div>
 
+          {/* Relation counts (authoritative) */}
+          <div className="rounded-md border p-3" style={{ borderColor: '#e5e7eb' }}>
+            <p className="text-sm font-medium text-gray-800">İlişkili Kayıtlar</p>
+            {relationLoading ? (
+              <p className="text-xs text-gray-500 mt-1">Yükleniyor...</p>
+            ) : relationCounts ? (
+              <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-gray-700">
+                <div className="flex items-center justify-between"><span>Öğretmen</span><span className="font-semibold">{relationCounts.teachers}</span></div>
+                <div className="flex items-center justify-between"><span>Öğrenci</span><span className="font-semibold">{relationCounts.students}</span></div>
+                <div className="flex items-center justify-between"><span>Sınıf</span><span className="font-semibold">{relationCounts.classes}</span></div>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500 mt-1">Bilgi alınamadı.</p>
+            )}
+            {relationCounts && (relationCounts.teachers > 0 || relationCounts.students > 0 || relationCounts.classes > 0) && (
+              <div className="mt-2 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded p-2">
+                <p className="text-xs">Bağlı kayıtlar bulunduğu için bu alan silinemez. Lütfen önce ilişkileri kaldırın.</p>
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end gap-3 pt-4">
             <button
               type="button"
@@ -655,9 +717,15 @@ export default function AlanlarClient({ initialAlanlar }: { initialAlanlar: Alan
             </button>
             <button
               onClick={handleDeleteAlan}
-              disabled={deleteConfirmText !== 'SIL'}
+              disabled={
+                deleteConfirmText !== 'SIL' ||
+                isDeleting ||
+                relationLoading ||
+                (relationCounts ? (relationCounts.teachers > 0 || relationCounts.students > 0 || relationCounts.classes > 0) : false)
+              }
+              aria-busy={isDeleting}
               className={`px-4 py-2 rounded-md transition-colors font-medium ${
-                deleteConfirmText === 'SIL'
+                deleteConfirmText === 'SIL' && !isDeleting && !relationLoading && !(relationCounts && (relationCounts.teachers > 0 || relationCounts.students > 0 || relationCounts.classes > 0))
                   ? 'bg-red-600 text-white hover:bg-red-700'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}

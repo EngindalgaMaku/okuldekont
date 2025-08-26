@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { signIn, getSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { GraduationCap, Mail, Lock, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { useEgitimYili } from '@/lib/context/EgitimYiliContext'
 
 export default function AdminLoginPageNextAuth() {
   const router = useRouter()
@@ -12,6 +13,7 @@ export default function AdminLoginPageNextAuth() {
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const { okulAdi } = useEgitimYili()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -53,17 +55,13 @@ export default function AdminLoginPageNextAuth() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
         <div className="text-center">
-          <div className="mx-auto w-20 h-20 bg-white rounded-2xl flex items-center justify-center mb-4 shadow-lg border border-gray-100">
-            <img 
-              src="/images/logo_kucuk.png" 
-              alt="Hüsniye Özdilek Ticaret MTAL Logo" 
-              className="w-16 h-16 object-contain"
-            />
+          <h1 className="text-2xl font-bold text-gray-900">Admin Panel</h1>
+          <div className="mt-1">
+            <h2 className="text-2xl font-semibold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600">
+              {okulAdi}
+            </h2>
+            <div className="mx-auto mt-2 h-1 w-20 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500/90" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Admin Panel
-          </h1>
-          <p className="text-gray-600 mt-1">Hüsniye Özdilek Ticaret MTAL</p>
         </div>
         
         <form className="space-y-6" onSubmit={handleLogin}>

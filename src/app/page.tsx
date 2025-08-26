@@ -466,19 +466,9 @@ export default function LoginPage() {
     <div className="min-h-[100dvh] bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
         <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
             <div className="text-center">
-                <div className="mx-auto mb-3 flex items-center justify-center gap-3">
-                  <Image
-                    src="/images/edu-logo.svg"
-                    alt="Eğitim Logosu"
-                    width={56}
-                    height={56}
-                    priority
-                    className="rounded-md drop-shadow-sm"
-                  />
-                  <div className="text-left">
-                    <div className="text-lg font-bold tracking-tight text-slate-900">K‑PANEL</div>
-                    <div className="text-xs sm:text-sm font-medium text-slate-600">Koordinatörlük Takip Uygulaması</div>
-                  </div>
+                <div className="mx-auto mb-3 text-center">
+                  <div className="text-xl font-bold tracking-tight text-slate-900">K‑PANEL</div>
+                  <div className="text-sm font-semibold text-slate-700">Koordinatörlük Takip Uygulaması</div>
                 </div>
                 <div className="mt-1">
                   <h2 className="text-2xl font-semibold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600">

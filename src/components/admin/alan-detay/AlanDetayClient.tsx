@@ -80,7 +80,23 @@ export default function AlanDetayClient({
       if (!response.ok) throw new Error('Veri yüklenemedi')
       
       const data = await response.json()
-      
+
+      // Update counts based on freshly loaded data
+      try {
+        if (tabName === 'siniflar' && Array.isArray(data)) {
+          updateCount('siniflar', data.length)
+        } else if (tabName === 'ogretmenler' && Array.isArray(data)) {
+          updateCount('ogretmenler', data.length)
+        } else if (tabName === 'isletmeler' && Array.isArray(data)) {
+          updateCount('isletmeler', data.length)
+        } else if (tabName === 'ogrenciler' && data && typeof data.total === 'number') {
+          updateCount('ogrenciler', data.total)
+        }
+      } catch (e) {
+        // non-fatal
+        console.warn('Count update skipped:', e)
+      }
+
       setTabData(prev => ({
         ...prev,
         [tabName]: data
@@ -194,6 +210,7 @@ export default function AlanDetayClient({
           <SiniflarTab 
             initialSiniflar={data as any[]} 
             alanId={alanId} 
+            onDataChange={refreshTabData}
           />
         ) : null
 

@@ -29,6 +29,7 @@ interface Sinif {
 interface Props {
   initialSiniflar: Sinif[]
   alanId: string
+  onDataChange?: (tabName?: string) => void
 }
 
 const HaftalikProgramBileseni = ({ program, onChange }: { program: HaftalikProgram, onChange: (yeniProgram: HaftalikProgram) => void }) => {
@@ -67,7 +68,7 @@ const HaftalikProgramBileseni = ({ program, onChange }: { program: HaftalikProgr
   );
 };
 
-export default function SiniflarTab({ initialSiniflar, alanId }: Props) {
+export default function SiniflarTab({ initialSiniflar, alanId, onDataChange }: Props) {
   const router = useRouter();
   
   const [sinifModalOpen, setSinifModalOpen] = useState(false);
@@ -125,7 +126,11 @@ export default function SiniflarTab({ initialSiniflar, alanId }: Props) {
       toast.success('Sınıf başarıyla eklendi.');
       setSinifModalOpen(false);
       setSinifFormData(initialFormState);
-      router.refresh();
+      if (onDataChange) {
+        onDataChange('siniflar');
+      } else {
+        router.refresh();
+      }
     } catch (error: any) {
       toast.error(`Sınıf eklenirken hata: ${error.message}`);
     } finally {
@@ -219,7 +224,11 @@ export default function SiniflarTab({ initialSiniflar, alanId }: Props) {
       toast.success('Sınıf başarıyla silindi.');
       setDeleteSinifModal(false);
       setSelectedSinif(null);
-      router.refresh();
+      if (onDataChange) {
+        onDataChange('siniflar');
+      } else {
+        router.refresh();
+      }
     } catch (error: any) {
       toast.error(`Sınıf silinirken hata: ${error.message}`);
     } finally {
