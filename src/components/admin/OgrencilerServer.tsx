@@ -261,8 +261,8 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
     setSelectedSinif(sinif)
     setSelectedStatus(status)
     setCurrentPage(page)
-    // Initialize sort from URL or default to 'name'
-    const urlSort = urlSearchParams.get('sort') || 'name'
+    // Initialize sort from URL or default to 'number'
+    const urlSort = urlSearchParams.get('sort') || 'number'
     setSortBy(urlSort)
   }, [search, alanId, sinif, status, page, urlSearchParams])
 
@@ -967,8 +967,8 @@ export default function OgrencilerServer({ searchParams }: OgrencilerServerProps
                 onChange={(e) => setSortBy(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
               >
-                <option value="name">Ada Göre (A-Z)</option>
                 <option value="number">Numaraya Göre</option>
+                <option value="name">Ada Göre (A-Z)</option>
               </select>
             </div>
           </div>
