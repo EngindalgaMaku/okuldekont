@@ -48,6 +48,20 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  return handleInternshipUpdate(request, params);
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return handleInternshipUpdate(request, params);
+}
+
+async function handleInternshipUpdate(
+  request: NextRequest,
+  params: Promise<{ id: string }>
+) {
   const { id } = await params;
   try {
     const { status, teacherId, companyId, startDate, endDate, performedBy, reason, notes } = await request.json();

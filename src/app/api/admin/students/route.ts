@@ -249,3 +249,78 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export async function POST(request: NextRequest) {
+  // Auth check
+  const authResult = await validateAuthAndRole(request, ["ADMIN"]);
+  if (!authResult.success) {
+    return NextResponse.json(
+      { error: authResult.error },
+      { status: authResult.status }
+    );
+  }
+
+  try {
+    const body = await request.json();
+    const { name, surname, number, className, alanId } = body;
+
+    // Validate required fields
+    if (!name || !surname || !number || !className || !alanId) {
+      return NextResponse.json(
+        { error: "Tüm alanlar zorunludur" },
+        { status: 400 }
+      );
+    }
+
+    // Check if student number already exists
+    const existingStudent = await prisma.student.findFirst({
+      where: { number: number }
+    });
+
+    if (existingStudent) {
+      return NextResponse.json(
+        { error: "Bu öğrenci numarası zaten kullanılıyor" },
+        { status: 400 }
+      );
+    }
+
+    // Create new student
+    const newStudent = await prisma.student.create({
+      data: {
+        name,
+        surname,
+        number,
+        className,
+        alanId
+      },
+      include: {
+        alan: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    return NextResponse.json({
+      success: true,
+      student: {
+        id: newStudent.id,
+        ad: newStudent.name,
+        soyad: newStudent.surname,
+        no: newStudent.number,
+        sinif: newStudent.className,
+        alanId: newStudent.alanId,
+        alan: newStudent.alan
+      }
+    });
+
+  } catch (error) {
+    console.error("Student creation error:", error);
+    return NextResponse.json(
+      { error: "Öğrenci oluşturulurken hata oluştu" },
+      { status: 500 }
+    );
+  }
+}

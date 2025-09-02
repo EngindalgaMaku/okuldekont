@@ -28,9 +28,9 @@ export default function RootLayout({
   return (
     <html lang="tr" className="h-full">
       <head>
-        {/* iOS PWA meta tags */}
+        {/* PWA meta tags */}
         <link rel="apple-touch-icon" href="/images/logo.png" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Okul Dekont" />
         <meta name="theme-color" content="#0ea5e9" />
