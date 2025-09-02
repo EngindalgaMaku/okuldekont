@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 
-interface AssignmentRule {
+export interface AssignmentRule {
   type: 'COORDINATOR_CONSISTENCY' | 'FIELD_MATCH'
   severity: 'ERROR' | 'WARNING' | 'INFO'
   message: string

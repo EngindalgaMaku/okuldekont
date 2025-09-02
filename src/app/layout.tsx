@@ -36,6 +36,8 @@ export default function RootLayout({
         <meta name="theme-color" content="#0ea5e9" />
       </head>
       <body className="min-h-[100dvh] bg-slate-50">
+        {/* Service Worker Registration */}
+        <script src="/registerSW.js" />
         <SessionProvider>
           <EgitimYiliProvider>
             <ToastProvider>

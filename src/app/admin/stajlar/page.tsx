@@ -725,15 +725,16 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
           yeniKoordinator
         )
 
-        // Hata varsa kullanıcıya sor
-        const hasErrors = assignmentRules.lastResult?.rules.some(rule => rule.severity === 'ERROR')
-        if (hasErrors) {
+        // Hata veya uyarı varsa kullanıcıya sor
+        const hasErrorsOrWarnings = assignmentRules.lastResult?.rules.some(rule => rule.severity === 'ERROR' || rule.severity === 'WARNING')
+        if (hasErrorsOrWarnings) {
+          const allIssues = assignmentRules.lastResult?.rules
+            .filter(rule => rule.severity === 'ERROR' || rule.severity === 'WARNING')
+            .map(rule => `• ${rule.severity === 'ERROR' ? '[HATA]' : '[UYARI]'} ${rule.message}`)
+            .join('\n')
+          
           const confirmProceed = window.confirm(
-            'Kural ihlalleri tespit edildi. Yine de devam etmek istiyor musunuz?\n\n' +
-            assignmentRules.lastResult?.rules
-              .filter(rule => rule.severity === 'ERROR')
-              .map(rule => `• ${rule.message}`)
-              .join('\n')
+            'Koordinatör değişikliği ile ilgili uyarılar tespit edildi. Yine de devam etmek istiyor musunuz?\n\n' + allIssues
           )
           if (!confirmProceed) {
             setSubmitLoading(false)
@@ -753,15 +754,18 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
         throw new Error(error.message || 'Koordinatör güncellenemedi')
       }
 
+      const result = await response.json()
+      
       showToast({
         type: 'success',
         title: 'Başarılı',
-        message: 'Koordinatör başarıyla güncellendi'
+        message: result.message || 'Koordinatör başarıyla güncellendi'
       })
       setKoordinatorModalOpen(false)
       setSelectedStaj(null)
       setYeniKoordinator('')
-      await fetchData()
+      await fetchStajlar(currentPageStajlar)
+      await fetchTabCounts()
     } catch (error: any) {
       console.error('Koordinatör güncelleme hatası:', error)
       showToast({

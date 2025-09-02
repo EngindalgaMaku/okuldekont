@@ -98,43 +98,132 @@ export async function PUT(
     }
 
     // Use transaction to ensure both update and audit trail are created
-    const result = await prisma.$transaction(async (prisma) => {
-      // Update internship
-      const updatedInternship = await prisma.staj.update({
-        where: { id },
-        data: updateData,
-        include: {
-          student: {
-            include: {
-              alan: true
-            }
-          },
-          company: true,
-          teacher: true,
-          educationYear: true
-        }
-      });
-
-      // Create audit trail history record
-      await prisma.internshipHistory.create({
-        data: {
-          internshipId: id,
-          action: action as any,
-          previousData: {
-            status: currentInternship.status,
-            teacherId: currentInternship.teacherId,
+    const result = await prisma.$transaction(async (tx) => {
+      // If teacherId is being changed, update all internships in the same company
+      if (teacherId && teacherId !== currentInternship.teacherId) {
+        // Get all active internships in the same company
+        const companyInternships = await tx.staj.findMany({
+          where: {
             companyId: currentInternship.companyId,
-            startDate: currentInternship.startDate,
-            endDate: currentInternship.endDate
+            status: 'ACTIVE'
           },
-          newData: updateData,
-          performedBy: realPerformedBy,
-          reason: reason || `Staj durumu güncellendi: ${action}`,
-          notes
-        }
-      });
+          include: {
+            student: true,
+            teacher: true
+          }
+        });
 
-      return updatedInternship;
+        // Get new teacher info
+        const newTeacher = await tx.teacherProfile.findUnique({
+          where: { id: teacherId }
+        });
+
+        // Update all internships in the company
+        const updatedInternships = await Promise.all(
+          companyInternships.map(async (internship) => {
+            // Create assignment history if coordinator is changing
+            if (internship.teacherId && internship.teacherId !== teacherId) {
+              await tx.teacherAssignmentHistory.create({
+                data: {
+                  companyId: internship.companyId,
+                  previousTeacherId: internship.teacherId,
+                  teacherId: teacherId,
+                  assignedAt: new Date(),
+                  assignedBy: realPerformedBy,
+                  reason: reason || 'Koordinatör değişikliği'
+                }
+              });
+            }
+
+            // Update internship
+            const updated = await tx.staj.update({
+              where: { id: internship.id },
+              data: { 
+                teacherId,
+                lastModifiedBy: realPerformedBy,
+                lastModifiedAt: new Date()
+              },
+              include: {
+                student: {
+                  include: {
+                    alan: true
+                  }
+                },
+                company: true,
+                teacher: true,
+                educationYear: true
+              }
+            });
+
+            // Create audit trail for each internship
+            await tx.internshipHistory.create({
+              data: {
+                internshipId: internship.id,
+                action: auditActions.TEACHER_CHANGED,
+                previousData: {
+                  status: internship.status,
+                  teacherId: internship.teacherId,
+                  companyId: internship.companyId,
+                  startDate: internship.startDate,
+                  endDate: internship.endDate
+                },
+                newData: {
+                  status: internship.status,
+                  teacherId: teacherId,
+                  companyId: internship.companyId,
+                  startDate: internship.startDate,
+                  endDate: internship.endDate
+                },
+                performedBy: realPerformedBy,
+                reason: reason || `Koordinatör değişikliği: ${internship.teacher?.name || 'Bilinmeyen'} -> ${newTeacher?.name || 'Bilinmeyen'}`,
+                notes: notes || `İşletme genelinde koordinatör değişikliği yapıldı`
+              }
+            });
+
+            return updated;
+          })
+        );
+
+        // Return the main internship that was requested to be updated
+        return updatedInternships.find(i => i.id === id) || updatedInternships[0];
+      } else {
+        // Regular update for non-coordinator changes
+        const updatedInternship = await tx.staj.update({
+          where: { id },
+          data: updateData,
+          include: {
+            student: {
+              include: {
+                alan: true
+              }
+            },
+            company: true,
+            teacher: true,
+            educationYear: true
+          }
+        });
+
+        // Create audit trail history record
+        await tx.internshipHistory.create({
+          data: {
+            internshipId: id,
+            action: action as any,
+            previousData: {
+              status: currentInternship.status,
+              teacherId: currentInternship.teacherId,
+              companyId: currentInternship.companyId,
+              startDate: currentInternship.startDate,
+              endDate: currentInternship.endDate
+            },
+            newData: updateData,
+            performedBy: realPerformedBy,
+            reason: reason || `Staj durumu güncellendi: ${action}`,
+            notes
+          }
+        });
+
+        return updatedInternship;
+      }
     });
 
     // Also create audit trail using utility function for backward compatibility

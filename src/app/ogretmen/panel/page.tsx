@@ -48,6 +48,8 @@ const TeacherPanel = () => {
   const [isletmeler, setIsletmeler] = useState<Isletme[]>([]);
   const [dekontlar, setDekontlar] = useState<Dekont[]>([]);
   const [filteredDekontlar, setFilteredDekontlar] = useState<Dekont[]>([]);
+  const [historicalDekontlar, setHistoricalDekontlar] = useState<Dekont[]>([]);
+  const [showHistoricalDekontlar, setShowHistoricalDekontlar] = useState(false);
   const [dekontSearchTerm, setDekontSearchTerm] = useState('');
   const [isletmeFilter, setIsletmeFilter] = useState<string>('all');
   const [onayDurumuFilter, setOnayDurumuFilter] = useState<string>('all');
@@ -135,8 +137,8 @@ const TeacherPanel = () => {
       const startYear = startDate.getFullYear();
       const startMonth = startDate.getMonth() + 1;
       
-      // Eğer öğrenci önceki aydan sonra işe başlamışsa, dekont aranmaz
-      if (previousYear < startYear || (previousYear === startYear && previousMonth < startMonth)) {
+      // Eğer öğrenci önceki aydan sonra veya önceki ay içinde işe başlamışsa, dekont aranmaz
+      if (previousYear < startYear || (previousYear === startYear && previousMonth <= startMonth)) {
         return false;
       }
       
@@ -151,14 +153,15 @@ const TeacherPanel = () => {
   };
 
 
-  // Öğrencinin başlangıç tarihinden önceki aya kadar olan ayları getir
+  // Öğrencinin başlangıç tarihinden sonraki aya kadar olan ayları getir
   const getMonthsFromStartToPrevious = (startDate: string): { month: number, year: number, label: string }[] => {
     const start = new Date(startDate);
     const currentDate = new Date();
     const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
     
     const months: { month: number, year: number, label: string }[] = [];
-    const current = new Date(start.getFullYear(), start.getMonth(), 1);
+    // Staj başlangıç ayının bir sonraki ayından başla
+    const current = new Date(start.getFullYear(), start.getMonth() + 1, 1);
     
     while (current <= previousMonth) {
       months.push({
@@ -208,6 +211,19 @@ const TeacherPanel = () => {
     const lastMonth = currentDate.getMonth(); // 0-based
     const lastMonthYear = lastMonth === 0 ? currentDate.getFullYear() - 1 : currentDate.getFullYear();
     const targetMonth = lastMonth === 0 ? 12 : lastMonth;
+    
+    // Öğrencinin başlangıç tarihini bul
+    const ogrenci = isletmeler.flatMap(i => i.ogrenciler).find(o => `${o.ad} ${o.soyad}` === ogrenciAd);
+    if (ogrenci) {
+      const startDate = new Date(ogrenci.baslangic_tarihi);
+      const startYear = startDate.getFullYear();
+      const startMonth = startDate.getMonth() + 1;
+      
+      // Eğer önceki ay staj başlangıç ayından önce veya aynıysa, dekont kontrolü yapma
+      if (lastMonthYear < startYear || (lastMonthYear === startYear && targetMonth <= startMonth)) {
+        return `${aylar[targetMonth - 1]}: ➖ Henüz başlamamış`;
+      }
+    }
     
     const status = getDekontStatus(ogrenciAd, targetMonth, lastMonthYear);
     const monthName = aylar[targetMonth - 1];
@@ -271,6 +287,17 @@ const TeacherPanel = () => {
         const dekontData = await dekontlarResponse.json();
         setDekontlar(dekontData);
         setFilteredDekontlar(dekontData);
+      }
+      
+      // Eski koordinatörlük dekontlarını getir
+      try {
+        const historicalResponse = await fetch(`/api/admin/teachers/${teacherId}/historical-dekontlar`);
+        if (historicalResponse.ok) {
+          const historicalData = await historicalResponse.json();
+          setHistoricalDekontlar(historicalData);
+        }
+      } catch (error) {
+        console.error('Eski koordinatörlük dekontları getirme hatası:', error);
       }
       if (belgelerResponse.ok) {
         const belgeData = await belgelerResponse.json();
@@ -492,7 +519,7 @@ const TeacherPanel = () => {
 
   // Dekont filtreleme ve sıralama
   useEffect(() => {
-    let filtered = dekontlar;
+    let filtered = showHistoricalDekontlar ? [...dekontlar, ...historicalDekontlar] : dekontlar;
 
     if (dekontSearchTerm) {
       filtered = filtered.filter(dekont =>
@@ -528,7 +555,7 @@ const TeacherPanel = () => {
     });
 
     setFilteredDekontlar(filtered);
-  }, [dekontlar, dekontSearchTerm, isletmeFilter, onayDurumuFilter]);
+  }, [dekontlar, historicalDekontlar, showHistoricalDekontlar, dekontSearchTerm, isletmeFilter, onayDurumuFilter]);
 
   const fetchOgretmenData = async (teacherId: string) => {
     setLoading(true);
@@ -1594,9 +1621,22 @@ const TeacherPanel = () => {
             {activeTab === 'dekontlar' && (
               <div className="space-y-4 p-6">
                 <div className="flex flex-col sm:flex-row gap-4 items-center justify-between mb-6">
-                  <h2 className="text-2xl font-semibold text-gray-900">
-                    Dekontlar ({filteredDekontlar.length})
-                  </h2>
+                  <div className="flex items-center gap-4">
+                    <h2 className="text-2xl font-semibold text-gray-900">
+                      Dekontlar ({filteredDekontlar.length})
+                    </h2>
+                    {historicalDekontlar.length > 0 && (
+                      <label className="flex items-center gap-2 text-sm text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={showHistoricalDekontlar}
+                          onChange={(e) => setShowHistoricalDekontlar(e.target.checked)}
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        Eski koordinatörlük dekontlarını göster ({historicalDekontlar.length})
+                      </label>
+                    )}
+                  </div>
                   <button
                     onClick={() => setOgrenciSecimModalOpen(true)}
                     className="flex items-center px-4 py-2 text-sm text-white bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-colors shadow-sm"
@@ -1790,7 +1830,7 @@ const TeacherPanel = () => {
                                               {studentGroup.dekontlar.map((dekont, dekontIndex) => (
                                                 <div
                                                   key={`dekont-${dekont.id}-${dekont.ay}-${dekont.yil}-${dekontIndex}`}
-                                                  className="bg-gray-50 rounded-lg p-4 border border-gray-100"
+                                                  className={`${dekont.koordinatorluk_donemi ? 'bg-amber-50 border-amber-200' : 'bg-gray-50'} rounded-lg p-4 border border-gray-100`}
                                                 >
                                                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                                     <div className="space-y-2">
@@ -1801,6 +1841,11 @@ const TeacherPanel = () => {
                                                         <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-bold border border-indigo-200">
                                                           {aylar[dekont.ay - 1]} {dekont.yil}
                                                         </span>
+                                                        {dekont.koordinatorluk_donemi && (
+                                                          <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs font-medium">
+                                                            Eski Koordinatörlük
+                                                          </span>
+                                                        )}
                                                       </div>
                                                       <div className="flex items-center gap-2">
                                                         <span className="text-xs">
@@ -1818,7 +1863,7 @@ const TeacherPanel = () => {
                                                           <Download className="h-5 w-5" />
                                                         </button>
                                                       )}
-                                                      {dekont.onay_durumu !== 'onaylandi' && (
+                                                      {dekont.onay_durumu !== 'onaylandi' && !dekont.koordinatorluk_donemi && (
                                                         <button
                                                           onClick={() => {
                                                             setSelectedDekont(dekont);

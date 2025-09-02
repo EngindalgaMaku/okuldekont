@@ -1,46 +1,61 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { Building2, Users, Calendar, AlertTriangle, X, Search, ChevronDown } from 'lucide-react'
-import Modal from '@/components/ui/Modal'
-import TerminationModal from './TerminationModal'
-import { toast } from 'react-hot-toast'
-import { useInternshipAssignmentRules } from '@/hooks/useInternshipAssignmentRules'
+import { useState, useEffect } from "react";
+import {
+  Building2,
+  Users,
+  Calendar,
+  AlertTriangle,
+  X,
+  Search,
+  ChevronDown,
+} from "lucide-react";
+import Modal from "@/components/ui/Modal";
+import TerminationModal from "./TerminationModal";
+import { toast } from "react-hot-toast";
+import { useInternshipAssignmentRules, type AssignmentRule } from "@/hooks/useInternshipAssignmentRules";
 
 interface Company {
-  id: string
-  name: string
-  contact: string
+  id: string;
+  name: string;
+  contact: string;
+  teacherId?: string | null;
   teacher?: {
-    id: string
-    name: string
-    surname: string
-  } | null
+    id: string;
+    name: string;
+    surname: string;
+  } | null;
+  masterTeacherId?: string | null;
+  masterTeacherName?: string | null;
+  masterTeacherPhone?: string | null;
+  master_teacher_id?: string | null;
+  master_teacher_name?: string | null;
+  master_teacher_phone?: string | null;
 }
 
 interface Teacher {
-  id: string
-  name: string
-  surname: string
+  id: string;
+  name: string;
+  surname: string;
   alan?: {
-    name: string
-  }
+    name: string;
+  };
 }
 
 interface Student {
-  id: string
-  ad: string
-  soyad: string
-  sinif: string
-  no: string
+  id: string;
+  ad: string;
+  soyad: string;
+  sinif: string;
+  no: string;
 }
 
 interface Props {
-  isOpen: boolean
-  onClose: () => void
-  student: Student | null
-  alanId: string
-  onAssignmentComplete: () => void
+  isOpen: boolean;
+  onClose: () => void;
+  student: Student | null;
+  alanId: string;
+  onAssignmentComplete: () => void;
 }
 
 export default function StudentAssignmentModal({
@@ -48,155 +63,246 @@ export default function StudentAssignmentModal({
   onClose,
   student,
   alanId,
-  onAssignmentComplete
+  onAssignmentComplete,
 }: Props) {
-  const [companies, setCompanies] = useState<Company[]>([])
-  const [teachers, setTeachers] = useState<Teacher[]>([])
-  const [loading, setLoading] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [validationResult, setValidationResult] = useState<any>(null)
-  const [showTerminationModal, setShowTerminationModal] = useState(false)
-  const [activeInternship, setActiveInternship] = useState<any>(null)
-  const [companySearch, setCompanySearch] = useState('')
-  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false)
-  const [showAllTeachers, setShowAllTeachers] = useState(false)
-  const [assignmentRulesResult, setAssignmentRulesResult] = useState<any>(null)
-  const [coordinatorRuleWarning, setCoordinatorRuleWarning] = useState<string | null>(null)
-  const [coordinatorAutoSelected, setCoordinatorAutoSelected] = useState<string | null>(null)
-  
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [validationResult, setValidationResult] = useState<any>(null);
+  const [showTerminationModal, setShowTerminationModal] = useState(false);
+  const [activeInternship, setActiveInternship] = useState<any>(null);
+  const [companySearch, setCompanySearch] = useState("");
+  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+  const [showAllTeachers, setShowAllTeachers] = useState(false);
+  const [assignmentRulesResult, setAssignmentRulesResult] = useState<any>(null);
+  const [coordinatorRuleWarning, setCoordinatorRuleWarning] = useState<
+    string | null
+  >(null);
+  const [coordinatorAutoSelected, setCoordinatorAutoSelected] = useState<
+    string | null
+  >(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   // Assignment rules hook
-  const { checkAssignmentRules, getSuggestedTeacher, showRulesModal, lastResult } = useInternshipAssignmentRules()
-  
+  const {
+    checkAssignmentRules,
+    getSuggestedTeacher,
+    showRulesModal,
+    lastResult,
+  } = useInternshipAssignmentRules();
+
   const [formData, setFormData] = useState({
-    companyId: '',
-    teacherId: '',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: ''
-  })
+    companyId: "",
+    teacherId: "",
+    startDate: new Date().toISOString().split("T")[0],
+    endDate: "",
+  });
 
   // Fetch companies and teachers when modal opens
   useEffect(() => {
     if (isOpen && student) {
-      fetchData()
+      fetchData();
     }
-  }, [isOpen, student])
+  }, [isOpen, student]);
 
   const fetchData = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      // Fetch companies - tüm işletmeleri getir (sayfalama olmadan)
-      const companiesRes = await fetch('/api/admin/companies?per_page=1000')
+      const companiesRes = await fetch("/api/admin/companies?per_page=1000");
       if (companiesRes.ok) {
-        const companiesData = await companiesRes.json()
-        setCompanies(companiesData.data || [])
+        const companiesData = await companiesRes.json();
+        console.log('Raw companies API response:', companiesData);
+        setCompanies(companiesData.data || []);
       }
 
       // Fetch teachers - varsayılan olarak sadece alan öğretmenleri
-      await fetchTeachers(false)
+      await fetchTeachers(false);
     } catch (error) {
-      console.error('Error fetching data:', error)
-      toast.error('Veriler yüklenirken hata oluştu')
+      console.error("Error fetching data:", error);
+      toast.error("Veriler yüklenirken hata oluştu");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleCompanyChange = async (companyId: string) => {
     setFormData({
       ...formData,
       companyId,
-      teacherId: '' // Önce temizle, sonra kural kontrolü sonucuna göre set et
-    })
-    
+      teacherId: "", // Önce temizle, sonra kural kontrolü sonucuna göre set et
+    });
+
     // Validate assignment when company is selected
     if (student && companyId) {
-      await validateAssignment(companyId)
-      
+      await validateAssignment(companyId);
+
       // Assignment rules kontrolü yap
-      const rulesResult = await checkAssignmentRules(student.id, companyId)
-      setAssignmentRulesResult(rulesResult)
-      
+      const rulesResult = await checkAssignmentRules(student.id, companyId);
+      setAssignmentRulesResult(rulesResult);
+
       // Eğer mevcut koordinatör varsa otomatik seç
       if (rulesResult?.existingCoordinator) {
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
-          teacherId: rulesResult.existingCoordinator!.id
-        }))
-        
+          teacherId: rulesResult.existingCoordinator!.id,
+        }));
+
         // Inline bildirim göster
         setCoordinatorAutoSelected(
           `${rulesResult.existingCoordinator.name} ${rulesResult.existingCoordinator.surname}`
-        )
-        
+        );
+
         // 3 saniye sonra bildirim kaybolsun
-        setTimeout(() => setCoordinatorAutoSelected(null), 3000)
+        setTimeout(() => setCoordinatorAutoSelected(null), 3000);
       }
     } else {
-      setValidationResult(null)
-      setAssignmentRulesResult(null)
+      setValidationResult(null);
+      setAssignmentRulesResult(null);
     }
-  }
+  };
 
   const validateAssignment = async (companyId: string) => {
-    if (!student) return
-    
+    if (!student) return;
+
     try {
-      const response = await fetch(`/api/admin/students/${student.id}/validate-assignment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId })
-      })
+      const response = await fetch(
+        `/api/admin/students/${student.id}/validate-assignment`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ companyId }),
+        }
+      );
 
       if (response.ok) {
-        const result = await response.json()
-        setValidationResult(result.validation)
-        
+        const result = await response.json();
+        setValidationResult(result.validation);
+
         // If there are active internships, get the first one for termination
         if (result.validation.activeInternships?.length > 0) {
-          setActiveInternship(result.validation.activeInternships[0])
+          setActiveInternship(result.validation.activeInternships[0]);
         }
       }
     } catch (error) {
-      console.error('Validation error:', error)
+      console.error("Validation error:", error);
     }
-  }
+  };
 
   const handleTermination = async (terminationData: any) => {
-    if (!activeInternship) return
+    if (!activeInternship) return;
 
     try {
-      const response = await fetch(`/api/admin/internships/${activeInternship.id}/terminate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(terminationData)
-      })
+      const response = await fetch(
+        `/api/admin/internships/${activeInternship.id}/terminate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(terminationData),
+        }
+      );
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Fesih işlemi başarısız')
+        const error = await response.json();
+        throw new Error(error.error || "Fesih işlemi başarısız");
       }
 
-      toast.success('Staj başarıyla fesih edildi!')
-      setShowTerminationModal(false)
-      setValidationResult(null)
-      setActiveInternship(null)
-      
+      toast.success("Staj başarıyla fesih edildi!");
+      setShowTerminationModal(false);
+      setValidationResult(null);
+      setActiveInternship(null);
+
       // Re-validate after termination
       if (formData.companyId) {
-        await validateAssignment(formData.companyId)
+        await validateAssignment(formData.companyId);
       }
     } catch (error: any) {
-      throw new Error(error.message)
+      throw new Error(error.message);
     }
-  }
+  };
 
   const handleSubmit = async () => {
     if (!student || !formData.companyId) {
-      toast.error('Lütfen bir işletme seçin')
-      return
+      toast.error("Lütfen bir işletme seçin");
+      return;
     }
 
-    // Koordinatör seçimi artık opsiyonel - öğrenciler koordinatör atanmadan önce staja başlayabilir
+    // Check if company has a master teacher
+    const selectedCompany = companies.find((c) => c.id === formData.companyId);
+    
+    if (!selectedCompany) {
+      console.error('Company not found in local state:', {
+        companyId: formData.companyId,
+        availableCompanyIds: companies.map(c => c.id)
+      });
+      toast.error("İşletme bilgileri yüklenirken bir hata oluştu. Lütfen sayfayı yenileyip tekrar deneyin.");
+      return;
+    }
+    
+    // Check for master teacher using only master teacher specific fields
+    const hasMasterTeacher = selectedCompany.masterTeacherName?.trim() || selectedCompany.masterTeacherPhone?.trim();
+    
+
+    if (!hasMasterTeacher) {
+      console.error('No master teacher found for company:', {
+        companyId: formData.companyId,
+        companyName: selectedCompany.name,
+        allCompanyData: selectedCompany,
+        availableFields: Object.keys(selectedCompany)
+      });
+      setErrorMessage("Bu işletmeye staj ataması yapabilmek için öncelikle bir usta öğreticisi tanımlanmalıdır. Lütfen işletme yönetimi ile iletişime geçip usta öğreticisi bilgilerini alın ve işletme profilinde güncelleyin.");
+      setShowErrorModal(true);
+      return;
+    }
+
+    // First, let's check for master teacher (this is a critical requirement)
+    try {
+      const assignmentRulesResponse = await fetch(
+        "/api/admin/internships/assignment-rules",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            studentId: student.id,
+            companyId: formData.companyId,
+            teacherId: formData.teacherId || null,
+            action: "create",
+          }),
+        }
+      );
+
+      if (assignmentRulesResponse.ok) {
+        const ruleResult = await assignmentRulesResponse.json();
+
+        // Check for errors and display them
+        if (ruleResult.hasErrors) {
+          const errorMessages = (ruleResult.rules as AssignmentRule[])
+            .filter((rule: AssignmentRule) => rule.severity === "ERROR")
+            .map((rule: AssignmentRule) => `${rule.message}${rule.suggestedAction ? '\n' + rule.suggestedAction : ''}`)
+            .join("\n\n");
+
+          toast.error(
+            errorMessages || "Atama yapılamıyor: Kritik kurallar ihlal ediliyor"
+          );
+          return;
+        }
+
+        // Handle warnings with confirmation
+        if (ruleResult.hasWarnings) {
+          showRulesModal(
+            ruleResult,
+            () => performAssignment(), // Devam et
+            () => {} // İptal et
+          );
+          return;
+        }
+      }
+    } catch (error) {
+      console.error("Kural kontrolü hatası:", error);
+    }
 
     // Assignment rules kontrolü yap
     if (formData.teacherId) {
@@ -204,100 +310,106 @@ export default function StudentAssignmentModal({
         student.id,
         formData.companyId,
         formData.teacherId
-      )
+      );
 
-      if (finalRulesCheck && (finalRulesCheck.hasErrors || finalRulesCheck.hasWarnings)) {
+      if (
+        finalRulesCheck &&
+        (finalRulesCheck.hasErrors || finalRulesCheck.hasWarnings)
+      ) {
         // Kuralları göster ve kullanıcı kararına göre devam et
         showRulesModal(
           finalRulesCheck,
           () => performAssignment(), // Devam et
           () => {} // İptal et
-        )
-        return
+        );
+        return;
       }
     }
 
     // Kural sorunu yoksa direkt ata
-    await performAssignment()
-  }
+    await performAssignment();
+  };
 
   const performAssignment = async () => {
     if (!student) {
-      toast.error('Öğrenci bilgisi bulunamadı')
-      return
+      toast.error("Öğrenci bilgisi bulunamadı");
+      return;
     }
-    
-    setSubmitting(true)
+
+    setSubmitting(true);
     try {
       // Assign student to company
-      const response = await fetch(`/api/admin/students/${student.id}/assign-company`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId: formData.companyId,
-          teacherId: formData.teacherId || null,
-          startDate: formData.startDate,
-          endDate: formData.endDate || undefined
-        })
-      })
+      const response = await fetch(
+        `/api/admin/students/${student.id}/assign-company`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyId: formData.companyId,
+            teacherId: formData.teacherId || null,
+            startDate: formData.startDate,
+            endDate: formData.endDate || undefined,
+          }),
+        }
+      );
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Atama işlemi başarısız')
+        const error = await response.json();
+        throw new Error(error.error || "Atama işlemi başarısız");
       }
 
-      toast.success('Öğrenci başarıyla işletmeye atandı!')
-      onAssignmentComplete()
-      onClose()
-      resetForm()
+      toast.success("Öğrenci başarıyla işletmeye atandı!");
+      onAssignmentComplete();
+      onClose();
+      resetForm();
     } catch (error: any) {
-      toast.error(`Hata: ${error.message}`)
+      toast.error(`Hata: ${error.message}`);
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   const fetchTeachers = async (includeAllTeachers: boolean = false) => {
     try {
       const url = includeAllTeachers
-        ? '/api/admin/teachers?per_page=1000'
-        : `/api/admin/fields/${alanId}/teachers`
-      
-      const teachersRes = await fetch(url)
+        ? "/api/admin/teachers?per_page=1000"
+        : `/api/admin/fields/${alanId}/teachers`;
+
+      const teachersRes = await fetch(url);
       if (teachersRes.ok) {
-        const teachersData = await teachersRes.json()
+        const teachersData = await teachersRes.json();
         // API response farklı olabilir, veriyi normalize et
         const normalizedTeachers = includeAllTeachers
-          ? (teachersData.data || teachersData || [])
-          : (teachersData || [])
-        setTeachers(normalizedTeachers)
+          ? teachersData.data || teachersData || []
+          : teachersData || [];
+        setTeachers(normalizedTeachers);
       }
     } catch (error) {
-      console.error('Error fetching teachers:', error)
+      console.error("Error fetching teachers:", error);
     }
-  }
+  };
 
   const resetForm = () => {
     setFormData({
-      companyId: '',
-      teacherId: '',
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: ''
-    })
-    setCompanySearch('')
-    setShowCompanyDropdown(false)
-    setShowAllTeachers(false)
-    setValidationResult(null)
-    setCoordinatorRuleWarning(null)
-    setCoordinatorAutoSelected(null)
-  }
+      companyId: "",
+      teacherId: "",
+      startDate: new Date().toISOString().split("T")[0],
+      endDate: "",
+    });
+    setCompanySearch("");
+    setShowCompanyDropdown(false);
+    setShowAllTeachers(false);
+    setValidationResult(null);
+    setCoordinatorRuleWarning(null);
+    setCoordinatorAutoSelected(null);
+  };
 
   const handleClose = () => {
-    onClose()
-    resetForm()
-  }
+    onClose();
+    resetForm();
+  };
 
-  const selectedCompany = companies.find(c => c.id === formData.companyId)
+  const selectedCompany = companies.find((c) => c.id === formData.companyId);
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Öğrenci Atama">
@@ -305,11 +417,21 @@ export default function StudentAssignmentModal({
         {/* Student Info */}
         {student && (
           <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-            <h3 className="text-sm font-medium text-blue-900 mb-2">Öğrenci Bilgileri</h3>
+            <h3 className="text-sm font-medium text-blue-900 mb-2">
+              Öğrenci Bilgileri
+            </h3>
             <div className="text-sm text-blue-800">
-              <p><span className="font-medium">Ad Soyad:</span> {student.ad} {student.soyad}</p>
-              <p><span className="font-medium">Sınıf:</span> {student.sinif}</p>
-              <p><span className="font-medium">No:</span> {student.no || 'Belirtilmemiş'}</p>
+              <p>
+                <span className="font-medium">Ad Soyad:</span> {student.ad}{" "}
+                {student.soyad}
+              </p>
+              <p>
+                <span className="font-medium">Sınıf:</span> {student.sinif}
+              </p>
+              <p>
+                <span className="font-medium">No:</span>{" "}
+                {student.no || "Belirtilmemiş"}
+              </p>
             </div>
           </div>
         )}
@@ -327,7 +449,7 @@ export default function StudentAssignmentModal({
                 <Building2 className="inline h-4 w-4 mr-1" />
                 İşletme Seçin
               </label>
-              
+
               {/* Search Input */}
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -337,18 +459,18 @@ export default function StudentAssignmentModal({
                   type="text"
                   value={companySearch}
                   onChange={(e) => {
-                    setCompanySearch(e.target.value)
-                    setShowCompanyDropdown(true)
+                    setCompanySearch(e.target.value);
+                    setShowCompanyDropdown(true);
                     if (e.target.value.length === 0) {
-                      setFormData({ ...formData, companyId: '' })
-                      setValidationResult(null)
+                      setFormData({ ...formData, companyId: "" });
+                      setValidationResult(null);
                     }
                   }}
                   onFocus={() => {
-                    setShowCompanyDropdown(true)
+                    setShowCompanyDropdown(true);
                   }}
                   onClick={() => {
-                    setShowCompanyDropdown(true)
+                    setShowCompanyDropdown(true);
                   }}
                   className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="İşletme ara veya listeden seç..."
@@ -363,14 +485,15 @@ export default function StudentAssignmentModal({
                 <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-blue-900">
-                      <strong>Seçilen:</strong> {companies.find(c => c.id === formData.companyId)?.name}
+                      <strong>Seçilen:</strong>{" "}
+                      {companies.find((c) => c.id === formData.companyId)?.name}
                     </div>
                     <button
                       type="button"
                       onClick={() => {
-                        setFormData({ ...formData, companyId: '' })
-                        setCompanySearch('')
-                        setValidationResult(null)
+                        setFormData({ ...formData, companyId: "" });
+                        setCompanySearch("");
+                        setValidationResult(null);
                       }}
                       className="text-blue-600 hover:text-blue-800"
                     >
@@ -385,32 +508,37 @@ export default function StudentAssignmentModal({
                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
                   {(() => {
                     // Eğer arama boşsa veya 2 karakterden azsa, tüm işletmeleri göster
-                    const filteredCompanies = companySearch.length >= 2
-                      ? companies.filter(company =>
-                          company.name.toLowerCase().includes(companySearch.toLowerCase()) ||
-                          company.contact.toLowerCase().includes(companySearch.toLowerCase())
-                        )
-                      : companies
-                    
+                    const filteredCompanies =
+                      companySearch.length >= 2
+                        ? companies.filter(
+                            (company) =>
+                              company.name
+                                .toLowerCase()
+                                .includes(companySearch.toLowerCase()) ||
+                              company.contact
+                                .toLowerCase()
+                                .includes(companySearch.toLowerCase())
+                          )
+                        : companies;
+
                     if (filteredCompanies.length === 0) {
                       return (
                         <div className="px-3 py-2 text-sm text-gray-500">
                           {companySearch.length >= 2
                             ? `"${companySearch}" için sonuç bulunamadı`
-                            : 'İşletme bulunamadı'
-                          }
+                            : "İşletme bulunamadı"}
                         </div>
-                      )
+                      );
                     }
-                    
+
                     return filteredCompanies.map((company) => (
                       <button
                         key={company.id}
                         type="button"
                         onClick={() => {
-                          handleCompanyChange(company.id)
-                          setCompanySearch(company.name)
-                          setShowCompanyDropdown(false)
+                          handleCompanyChange(company.id);
+                          setCompanySearch(company.name);
+                          setShowCompanyDropdown(false);
                         }}
                         className="w-full px-3 py-2 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none"
                       >
@@ -421,7 +549,7 @@ export default function StudentAssignmentModal({
                           {company.contact}
                         </div>
                       </button>
-                    ))
+                    ));
                   })()}
                 </div>
               )}
@@ -434,9 +562,10 @@ export default function StudentAssignmentModal({
                 Koordinatör Öğretmen (Opsiyonel)
               </label>
               <p className="text-xs text-gray-500 mb-2">
-                Koordinatör sonradan atanabilir. Öğrenciler koordinatör olmadan da staja başlayabilir.
+                Koordinatör sonradan atanabilir. Öğrenciler koordinatör olmadan
+                da staja başlayabilir.
               </p>
-              
+
               {/* Alan dışı öğretmenler checkbox */}
               <div className="mb-3">
                 <label className="flex items-center">
@@ -444,13 +573,19 @@ export default function StudentAssignmentModal({
                     type="checkbox"
                     checked={showAllTeachers}
                     onChange={async (e) => {
-                      setShowAllTeachers(e.target.checked)
-                      await fetchTeachers(e.target.checked)
+                      setShowAllTeachers(e.target.checked);
+                      await fetchTeachers(e.target.checked);
                       // Seçili öğretmen alan dışıysa ve checkbox kaldırıldıysa, seçimi temizle
                       if (!e.target.checked && formData.teacherId) {
-                        const currentTeacher = teachers.find(t => t.id === formData.teacherId)
-                        if (currentTeacher && currentTeacher.alan?.name && !currentTeacher.alan.name.includes(alanId)) {
-                          setFormData({ ...formData, teacherId: '' })
+                        const currentTeacher = teachers.find(
+                          (t) => t.id === formData.teacherId
+                        );
+                        if (
+                          currentTeacher &&
+                          currentTeacher.alan?.name &&
+                          !currentTeacher.alan.name.includes(alanId)
+                        ) {
+                          setFormData({ ...formData, teacherId: "" });
                         }
                       }
                     }}
@@ -461,32 +596,34 @@ export default function StudentAssignmentModal({
                   </span>
                 </label>
               </div>
-              
+
               <select
                 value={formData.teacherId}
                 onChange={async (e) => {
-                  const newTeacherId = e.target.value
-                  setFormData({ ...formData, teacherId: newTeacherId })
-                  
+                  const newTeacherId = e.target.value;
+                  setFormData({ ...formData, teacherId: newTeacherId });
+
                   // Koordinatör değiştirildiğinde kural kontrolü yap
                   if (student && formData.companyId && newTeacherId) {
                     const rulesCheck = await checkAssignmentRules(
                       student.id,
                       formData.companyId,
                       newTeacherId
-                    )
-                    
+                    );
+
                     if (rulesCheck?.hasWarnings) {
                       // Koordinatör kuralı uyarısını inline göster
-                      const warningRules = rulesCheck.rules.filter(r => r.severity === 'WARNING')
+                      const warningRules = rulesCheck.rules.filter(
+                        (r) => r.severity === "WARNING"
+                      );
                       if (warningRules.length > 0) {
-                        setCoordinatorRuleWarning(warningRules[0].message)
+                        setCoordinatorRuleWarning(warningRules[0].message);
                       }
                     } else {
-                      setCoordinatorRuleWarning(null)
+                      setCoordinatorRuleWarning(null);
                     }
                   } else {
-                    setCoordinatorRuleWarning(null)
+                    setCoordinatorRuleWarning(null);
                   }
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -500,7 +637,7 @@ export default function StudentAssignmentModal({
                   </option>
                 ))}
               </select>
-              
+
               {/* Koordinatör kural uyarısı */}
               {coordinatorRuleWarning && (
                 <div className="mt-3 bg-orange-100 border-l-4 border-orange-500 p-4 rounded-r-lg">
@@ -531,7 +668,9 @@ export default function StudentAssignmentModal({
                 <input
                   type="date"
                   value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, startDate: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -543,7 +682,9 @@ export default function StudentAssignmentModal({
                 <input
                   type="date"
                   value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, endDate: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   min={formData.startDate}
                 />
@@ -558,11 +699,15 @@ export default function StudentAssignmentModal({
                     <div className="flex items-start">
                       <AlertTriangle className="h-5 w-5 text-red-400 mt-0.5 mr-3 flex-shrink-0" />
                       <div>
-                        <h3 className="text-sm font-medium text-red-800">Atama Engellenmiş</h3>
+                        <h3 className="text-sm font-medium text-red-800">
+                          Atama Engellenmiş
+                        </h3>
                         <div className="mt-1 text-sm text-red-700">
-                          {validationResult.errors.map((error: string, index: number) => (
-                            <p key={index}>{error}</p>
-                          ))}
+                          {validationResult.errors.map(
+                            (error: string, index: number) => (
+                              <p key={index}>{error}</p>
+                            )
+                          )}
                         </div>
                         {validationResult.requiresTermination && (
                           <div className="mt-3">
@@ -586,11 +731,15 @@ export default function StudentAssignmentModal({
                     <div className="flex items-start">
                       <AlertTriangle className="h-5 w-5 text-yellow-400 mt-0.5 mr-3 flex-shrink-0" />
                       <div>
-                        <h3 className="text-sm font-medium text-yellow-800">Uyarılar</h3>
+                        <h3 className="text-sm font-medium text-yellow-800">
+                          Uyarılar
+                        </h3>
                         <div className="mt-1 text-sm text-yellow-700">
-                          {validationResult.warnings.map((warning: string, index: number) => (
-                            <p key={index}>{warning}</p>
-                          ))}
+                          {validationResult.warnings.map(
+                            (warning: string, index: number) => (
+                              <p key={index}>{warning}</p>
+                            )
+                          )}
                         </div>
                       </div>
                     </div>
@@ -601,12 +750,22 @@ export default function StudentAssignmentModal({
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <div className="flex items-start">
                       <div className="flex-shrink-0">
-                        <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        <svg
+                          className="h-5 w-5 text-green-400"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                            clipRule="evenodd"
+                          />
                         </svg>
                       </div>
                       <div className="ml-3">
-                        <h3 className="text-sm font-medium text-green-800">Atama Onaylandı</h3>
+                        <h3 className="text-sm font-medium text-green-800">
+                          Atama Onaylandı
+                        </h3>
                         <div className="mt-1 text-sm text-green-700">
                           Öğrenci seçilen şirkete atanabilir.
                         </div>
@@ -639,7 +798,7 @@ export default function StudentAssignmentModal({
                 <span>Atanıyor...</span>
               </div>
             ) : (
-              'Ata'
+              "Ata"
             )}
           </button>
         </div>
@@ -650,21 +809,48 @@ export default function StudentAssignmentModal({
         isOpen={showTerminationModal}
         onClose={() => setShowTerminationModal(false)}
         onConfirm={handleTermination}
-        internship={activeInternship ? {
-          id: activeInternship.id,
-          student: {
-            name: student?.ad || '',
-            surname: student?.soyad || ''
-          },
-          company: {
-            name: activeInternship.company?.name || 'Bilinmeyen Şirket'
-          },
-          teacher: {
-            name: activeInternship.teacher?.name || 'Bilinmeyen',
-            surname: activeInternship.teacher?.surname || 'Öğretmen'
-          }
-        } : null}
+        internship={
+          activeInternship
+            ? {
+                id: activeInternship.id,
+                student: {
+                  name: student?.ad || "",
+                  surname: student?.soyad || "",
+                },
+                company: {
+                  name: activeInternship.company?.name || "Bilinmeyen Şirket",
+                },
+                teacher: {
+                  name: activeInternship.teacher?.name || "Bilinmeyen",
+                  surname: activeInternship.teacher?.surname || "Öğretmen",
+                },
+              }
+            : null
+        }
       />
+
+      {/* Error Modal */}
+      <Modal 
+        isOpen={showErrorModal} 
+        onClose={() => setShowErrorModal(false)}
+        title="Eksik Bilgi"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-center text-red-500 mb-4">
+            <AlertTriangle size={48} className="mr-2" />
+          </div>
+          <p className="text-gray-700 whitespace-pre-line">{errorMessage}</p>
+          <div className="flex justify-end mt-6">
+            <button
+              onClick={() => setShowErrorModal(false)}
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+            >
+              Tamam
+            </button>
+          </div>
+        </div>
+      </Modal>
     </Modal>
-  )
+  );
 }

@@ -188,7 +188,7 @@ export default function DekontUpload({
                 }
                 
                 // Aynı yıldaysa ve ay staj başlangıç ayından önceyse gösterme
-                if (selectedYear === stajBaslangicYear && (index + 1) < stajBaslangicMonth) {
+                if (selectedYear === stajBaslangicYear && (index + 1) <= stajBaslangicMonth) {
                   return null;
                 }
               }

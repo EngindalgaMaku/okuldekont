@@ -33,11 +33,6 @@ const nextConfig = {
     ];
   },
 
-  // WebAssembly desteği
-  experimental: {
-    esmExternals: 'loose',
-  },
-
   // Static dosya optimizasyonu
   images: {
     domains: [],
@@ -45,12 +40,33 @@ const nextConfig = {
   }
 }
 
-// PWA: wrap with next-pwa
+// PWA configuration
 const withPWA = require('next-pwa')({
   dest: 'public',
+  disable: process.env.NODE_ENV === 'development',
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development',
+  buildExcludes: [
+    /middleware-manifest\.json$/, 
+    /_middleware\.js$/,
+    /\/_middleware\.ts$/
+  ],
+  runtimeCaching: [
+    {
+      urlPattern: /^https?:\/\//,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'offlineCache',
+        expiration: {
+          maxEntries: 200,
+        },
+      },
+    },
+  ],
+  publicExcludes: ['!noprecache/**/*'],
+  dynamicStartUrl: false,
+  reloadOnOnline: true,
+  sourcemap: false
 })
 
 module.exports = withPWA(nextConfig)

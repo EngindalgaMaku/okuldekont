@@ -14,6 +14,7 @@ interface ModalProps {
   confirmText?: string
   confirmButtonColor?: string
   cancelText?: string
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
 }
 
 export default function Modal({
@@ -25,7 +26,8 @@ export default function Modal({
   onConfirm,
   confirmText = 'Confirm',
   confirmButtonColor = 'bg-indigo-600 hover:bg-indigo-700',
-  cancelText = 'Cancel'
+  cancelText = 'Cancel',
+  size = 'md'
 }: ModalProps) {
   return (
     <Transition.Root show={isOpen} as={Fragment}>
@@ -53,7 +55,13 @@ export default function Modal({
               leaveFrom="opacity-100 translate-y-0 sm:scale-100"
               leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             >
-              <Dialog.Panel className="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-2xl sm:p-6">
+              <Dialog.Panel className={`relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:p-6 ${
+                size === 'sm' ? 'sm:max-w-md' :
+                size === 'md' ? 'sm:max-w-lg' :
+                size === 'lg' ? 'sm:max-w-2xl' :
+                size === 'xl' ? 'sm:max-w-3xl' :
+                'sm:max-w-4xl' // 2xl
+              }`}>
                 <div className="absolute right-0 top-0 hidden pr-4 pt-4 sm:block">
                   <button
                     type="button"

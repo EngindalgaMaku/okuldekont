@@ -1,157 +1,182 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { User, Lock, Save, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react'
-import { useAuth } from '@/hooks/useAuth'
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import {
+  User,
+  Lock,
+  Save,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  CheckCircle,
+} from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function ProfilPage() {
-  const router = useRouter()
-  const { user, loading, isAdmin, adminRole } = useAuth()
-  const [isLoading, setIsLoading] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  
+  const router = useRouter();
+  const { user, loading, isAdmin, adminRole } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
   // Profil bilgileri
   const [profileData, setProfileData] = useState({
-    ad: '',
-    soyad: '',
-    email: ''
-  })
-  
+    ad: "",
+    soyad: "",
+    email: "",
+  });
+
   // Şifre değiştirme
   const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  })
-  
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+
   const [showPasswords, setShowPasswords] = useState({
     current: false,
     new: false,
-    confirm: false
-  })
+    confirm: false,
+  });
 
   // Auth kontrolü
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) {
-      router.push('/admin/login')
+      router.push("/admin/login");
     }
-  }, [user, isAdmin, loading, router])
+  }, [user, isAdmin, loading, router]);
 
   // Profil bilgilerini yükle
   useEffect(() => {
     const fetchProfileData = async () => {
-      if (!user?.email) return
-      
+      if (!user?.email) return;
+
       try {
-        const response = await fetch(`/api/admin/user-info?email=${user.email}`)
-        const data = await response.json()
-        
+        const response = await fetch(
+          `/api/admin/user-info?email=${user.email}`
+        );
+        const data = await response.json();
+
         if (!response.ok) {
-          console.error('Profil bilgileri yüklenirken hata:', data.error)
-          setMessage({ type: 'error', text: 'Profil bilgileri yüklenemedi' })
-          return
+          console.error("Profil bilgileri yüklenirken hata:", data.error);
+          setMessage({ type: "error", text: "Profil bilgileri yüklenemedi" });
+          return;
         }
-        
+
         if (data) {
           setProfileData({
-            ad: data.name || '',
-            soyad: data.surname || '',
-            email: data.email || user.email || ''
-          })
+            ad: data.name || "",
+            soyad: data.surname || "",
+            email: data.email || user.email || "",
+          });
         }
       } catch (error) {
-        console.error('Profil bilgileri yüklenirken hata:', error)
-        setMessage({ type: 'error', text: 'Profil bilgileri yüklenemedi' })
+        console.error("Profil bilgileri yüklenirken hata:", error);
+        setMessage({ type: "error", text: "Profil bilgileri yüklenemedi" });
       }
-    }
-    
-    fetchProfileData()
-  }, [user])
+    };
+
+    fetchProfileData();
+  }, [user]);
 
   const handleProfileUpdate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setMessage(null)
-    
+    e.preventDefault();
+    setIsLoading(true);
+    setMessage(null);
+
     try {
-      const response = await fetch('/api/admin/profile', {
-        method: 'PUT',
+      const response = await fetch("/api/admin/profile", {
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           name: profileData.ad,
           surname: profileData.soyad,
-          email: user?.email
-        })
-      })
+          email: user?.email,
+        }),
+      });
 
-      const result = await response.json()
+      const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Profil güncellenemedi')
+        throw new Error(result.error || "Profil güncellenemedi");
       }
-      
-      setMessage({ type: 'success', text: 'Profil bilgileri başarıyla güncellendi' })
+
+      setMessage({
+        type: "success",
+        text: "Profil bilgileri başarıyla güncellendi",
+      });
     } catch (error: any) {
-      console.error('Profil güncelleme hatası:', error)
-      setMessage({ type: 'error', text: error.message || 'Profil güncellenirken hata oluştu' })
+      console.error("Profil güncelleme hatası:", error);
+      setMessage({
+        type: "error",
+        text: error.message || "Profil güncellenirken hata oluştu",
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setMessage(null)
-    
+    e.preventDefault();
+    setIsLoading(true);
+    setMessage(null);
+
     // Şifre validasyonu
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setMessage({ type: 'error', text: 'Yeni şifreler eşleşmiyor' })
-      setIsLoading(false)
-      return
+      setMessage({ type: "error", text: "Yeni şifreler eşleşmiyor" });
+      setIsLoading(false);
+      return;
     }
-    
+
     if (passwordData.newPassword.length < 6) {
-      setMessage({ type: 'error', text: 'Yeni şifre en az 6 karakter olmalıdır' })
-      setIsLoading(false)
-      return
+      setMessage({
+        type: "error",
+        text: "Yeni şifre en az 6 karakter olmalıdır",
+      });
+      setIsLoading(false);
+      return;
     }
-    
+
     try {
-      const response = await fetch('/api/admin/change-password', {
-        method: 'POST',
+      const response = await fetch("/api/admin/change-password", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           email: user?.email,
           currentPassword: passwordData.currentPassword,
-          newPassword: passwordData.newPassword
-        })
-      })
+          newPassword: passwordData.newPassword,
+        }),
+      });
 
-      const result = await response.json()
+      const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Şifre değiştirilemedi')
+        throw new Error(result.error || "Şifre değiştirilemedi");
       }
-      
-      setMessage({ type: 'success', text: 'Şifre başarıyla değiştirildi' })
+
+      setMessage({ type: "success", text: "Şifre başarıyla değiştirildi" });
       setPasswordData({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      })
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
     } catch (error: any) {
-      console.error('Şifre değiştirme hatası:', error)
-      setMessage({ type: 'error', text: error.message || 'Şifre değiştirilirken hata oluştu' })
+      console.error("Şifre değiştirme hatası:", error);
+      setMessage({
+        type: "error",
+        text: error.message || "Şifre değiştirilirken hata oluştu",
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Loading durumu
   if (loading) {
@@ -167,7 +192,7 @@ export default function ProfilPage() {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -176,17 +201,21 @@ export default function ProfilPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Profil Ayarları</h1>
-          <p className="mt-2 text-gray-600">Hesap bilgilerinizi ve güvenlik ayarlarınızı yönetin</p>
+          <p className="mt-2 text-gray-600">
+            Hesap bilgilerinizi ve güvenlik ayarlarınızı yönetin
+          </p>
         </div>
 
         {/* Message */}
         {message && (
-          <div className={`mb-6 p-4 rounded-xl flex items-center ${
-            message.type === 'success' 
-              ? 'bg-green-50 border border-green-200 text-green-800' 
-              : 'bg-red-50 border border-red-200 text-red-800'
-          }`}>
-            {message.type === 'success' ? (
+          <div
+            className={`mb-6 p-4 rounded-xl flex items-center ${
+              message.type === "success"
+                ? "bg-green-50 border border-green-200 text-green-800"
+                : "bg-red-50 border border-red-200 text-red-800"
+            }`}
+          >
+            {message.type === "success" ? (
               <CheckCircle className="h-5 w-5 mr-2" />
             ) : (
               <AlertCircle className="h-5 w-5 mr-2" />
@@ -203,9 +232,20 @@ export default function ProfilPage() {
                 <User className="h-6 w-6 text-indigo-600" />
               </div>
               <div className="ml-4">
-                <h2 className="text-xl font-semibold text-gray-900">Profil Bilgileri</h2>
-                <p className="text-sm text-gray-600">Kişisel bilgilerinizi güncelleyin</p>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Profil Bilgileri
+                </h2>
+                <p className="text-sm text-gray-600">
+                  Kişisel bilgilerinizi güncelleyin
+                </p>
               </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-5 text-sm text-blue-700">
+              <p>
+                Ad ve soyad alanlarını ayrı ayrı doldurabilirsiniz. Profiliniz
+                kaydedildiğinde sistem bu bilgileri birleştirecektir.
+              </p>
             </div>
 
             <form onSubmit={handleProfileUpdate} className="space-y-6">
@@ -216,7 +256,9 @@ export default function ProfilPage() {
                 <input
                   type="text"
                   value={profileData.ad}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, ad: e.target.value }))}
+                  onChange={(e) =>
+                    setProfileData((prev) => ({ ...prev, ad: e.target.value }))
+                  }
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
                   placeholder="Adınızı girin"
                   required
@@ -230,7 +272,12 @@ export default function ProfilPage() {
                 <input
                   type="text"
                   value={profileData.soyad}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, soyad: e.target.value }))}
+                  onChange={(e) =>
+                    setProfileData((prev) => ({
+                      ...prev,
+                      soyad: e.target.value,
+                    }))
+                  }
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
                   placeholder="Soyadınızı girin"
                   required
@@ -247,7 +294,9 @@ export default function ProfilPage() {
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm bg-gray-50 text-gray-500"
                   disabled
                 />
-                <p className="text-xs text-gray-500 mt-1">E-posta adresi değiştirilemez</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  E-posta adresi değiştirilemez
+                </p>
               </div>
 
               <button
@@ -277,8 +326,12 @@ export default function ProfilPage() {
                 <Lock className="h-6 w-6 text-red-600" />
               </div>
               <div className="ml-4">
-                <h2 className="text-xl font-semibold text-gray-900">Şifre Değiştir</h2>
-                <p className="text-sm text-gray-600">Hesap güvenliğinizi koruyun</p>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Şifre Değiştir
+                </h2>
+                <p className="text-sm text-gray-600">
+                  Hesap güvenliğinizi koruyun
+                </p>
               </div>
             </div>
 
@@ -291,17 +344,31 @@ export default function ProfilPage() {
                   <input
                     type={showPasswords.current ? "text" : "password"}
                     value={passwordData.currentPassword}
-                    onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                    onChange={(e) =>
+                      setPasswordData((prev) => ({
+                        ...prev,
+                        currentPassword: e.target.value,
+                      }))
+                    }
                     className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
                     placeholder="Mevcut şifrenizi girin"
                     required
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
+                    onClick={() =>
+                      setShowPasswords((prev) => ({
+                        ...prev,
+                        current: !prev.current,
+                      }))
+                    }
                     className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPasswords.current ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -314,17 +381,28 @@ export default function ProfilPage() {
                   <input
                     type={showPasswords.new ? "text" : "password"}
                     value={passwordData.newPassword}
-                    onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                    onChange={(e) =>
+                      setPasswordData((prev) => ({
+                        ...prev,
+                        newPassword: e.target.value,
+                      }))
+                    }
                     className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
                     placeholder="Yeni şifrenizi girin"
                     required
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
+                    onClick={() =>
+                      setShowPasswords((prev) => ({ ...prev, new: !prev.new }))
+                    }
                     className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPasswords.new ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -337,17 +415,31 @@ export default function ProfilPage() {
                   <input
                     type={showPasswords.confirm ? "text" : "password"}
                     value={passwordData.confirmPassword}
-                    onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                    onChange={(e) =>
+                      setPasswordData((prev) => ({
+                        ...prev,
+                        confirmPassword: e.target.value,
+                      }))
+                    }
                     className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
                     placeholder="Yeni şifrenizi tekrar girin"
                     required
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
+                    onClick={() =>
+                      setShowPasswords((prev) => ({
+                        ...prev,
+                        confirm: !prev.confirm,
+                      }))
+                    }
                     className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPasswords.confirm ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -375,19 +467,29 @@ export default function ProfilPage() {
 
         {/* Hesap Bilgileri */}
         <div className="mt-8 bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Hesap Bilgileri</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Hesap Bilgileri
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-gray-50 rounded-xl">
-              <p className="text-sm font-medium text-gray-600">Yetki Seviyesi</p>
+              <p className="text-sm font-medium text-gray-600">
+                Yetki Seviyesi
+              </p>
               <p className="text-lg font-semibold text-indigo-600 mt-1">
-                {adminRole === 'super_admin' ? 'Süper Admin' :
-                 adminRole === 'admin' ? 'Admin' :
-                 adminRole === 'operator' ? 'Operatör' : 'Admin'}
+                {adminRole === "super_admin"
+                  ? "Süper Admin"
+                  : adminRole === "admin"
+                  ? "Admin"
+                  : adminRole === "operator"
+                  ? "Operatör"
+                  : "Admin"}
               </p>
             </div>
             <div className="p-4 bg-gray-50 rounded-xl">
               <p className="text-sm font-medium text-gray-600">E-posta</p>
-              <p className="text-lg font-semibold text-gray-900 mt-1">{user?.email}</p>
+              <p className="text-lg font-semibold text-gray-900 mt-1">
+                {user?.email}
+              </p>
             </div>
             <div className="p-4 bg-gray-50 rounded-xl">
               <p className="text-sm font-medium text-gray-600">Hesap Durumu</p>
@@ -397,5 +499,5 @@ export default function ProfilPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -1,29 +1,32 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user || session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user || session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, surname, email } = await request.json()
+    const { name, surname, email } = await request.json();
 
-    // Update admin profile
+    // Update admin profile with proper formatting for name
     await prisma.adminProfile.update({
       where: { email: session.user.email },
       data: {
-        name: `${name} ${surname}`,
-      }
-    })
+        name: `${name.trim()} ${surname.trim()}`,
+      },
+    });
 
-    return NextResponse.json({ message: 'Profil başarıyla güncellendi' })
+    return NextResponse.json({ message: "Profil başarıyla güncellendi" });
   } catch (error) {
-    console.error('Error updating profile:', error)
-    return NextResponse.json({ error: 'Profil güncellenirken hata oluştu' }, { status: 500 })
+    console.error("Error updating profile:", error);
+    return NextResponse.json(
+      { error: "Profil güncellenirken hata oluştu" },
+      { status: 500 }
+    );
   }
 }

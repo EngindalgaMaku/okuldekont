@@ -176,8 +176,8 @@ function PanelPage() {
       const startYear = startDate.getFullYear();
       const startMonth = startDate.getMonth() + 1;
       
-      // Eğer öğrenci önceki aydan sonra işe başlamışsa, dekont aranmaz
-      if (previousYear < startYear || (previousYear === startYear && previousMonth < startMonth)) {
+      // Eğer öğrenci önceki aydan sonra veya önceki ay içinde işe başlamışsa, dekont aranmaz
+      if (previousYear < startYear || (previousYear === startYear && previousMonth <= startMonth)) {
         return false;
       }
       
@@ -200,7 +200,7 @@ function PanelPage() {
     return day >= 1 && day <= dekontSonGun;
   };
 
-  // Öğrencinin başlangıç tarihinden önceki aya kadar olan ayları getir
+  // Öğrencinin başlangıç tarihinden sonraki aya kadar olan ayları getir
   const getMonthsFromStartToPrevious = (startDate: string): { month: number, year: number, label: string }[] => {
     const start = new Date(startDate);
     const currentDate = new Date();
@@ -208,8 +208,8 @@ function PanelPage() {
     
     const months: { month: number, year: number, label: string }[] = [];
     
-    // Öğrencinin başladığı aydan başla (1 gün bile çalışsa dekont gerekir)
-    const current = new Date(start.getFullYear(), start.getMonth(), 1);
+    // Öğrencinin başladığı ayın bir sonraki ayından başla
+    const current = new Date(start.getFullYear(), start.getMonth() + 1, 1);
     
     while (current <= previousMonth) {
       months.push({
@@ -255,6 +255,19 @@ function PanelPage() {
   const getLastMonthDekontStatus = (stajId: string): string => {
     const lastMonth = getCurrentMonth() === 1 ? 12 : getCurrentMonth() - 1;
     const lastMonthYear = getCurrentMonth() === 1 ? getCurrentYear() - 1 : getCurrentYear();
+    
+    // Öğrencinin başlangıç tarihini bul
+    const ogrenci = ogrenciler.find(o => String(o.staj_id) === String(stajId));
+    if (ogrenci) {
+      const startDate = new Date(ogrenci.baslangic_tarihi);
+      const startYear = startDate.getFullYear();
+      const startMonth = startDate.getMonth() + 1;
+      
+      // Eğer önceki ay staj başlangıç ayından önce veya aynıysa, dekont kontrolü yapma
+      if (lastMonthYear < startYear || (lastMonthYear === startYear && lastMonth <= startMonth)) {
+        return '➖'; // Henüz başlamamış
+      }
+    }
     
     const lastMonthStatus = getDekontStatus(stajId, lastMonth, lastMonthYear);
     

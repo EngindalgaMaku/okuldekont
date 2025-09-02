@@ -1,17 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resolvedParams = await params
-    const alanId = resolvedParams.id
-    const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const itemsPerPage = 10
-    const skip = (page - 1) * itemsPerPage
+    const resolvedParams = await params;
+    const alanId = resolvedParams.id;
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const itemsPerPage = 10;
+    const skip = (page - 1) * itemsPerPage;
 
     // Öğrencileri sayfalı olarak getir (aktif stajlar dahil)
     const [ogrencilerData, totalCount] = await Promise.all([
@@ -38,16 +38,16 @@ export async function GET(
                   alan: {
                     select: {
                       id: true,
-                      name: true
-                    }
-                  }
-                }
-              }
-            }
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
           },
           stajlar: {
             where: {
-              status: 'ACTIVE'
+              status: "ACTIVE",
             },
             select: {
               id: true,
@@ -67,12 +67,12 @@ export async function GET(
                       alan: {
                         select: {
                           id: true,
-                          name: true
-                        }
-                      }
-                    }
-                  }
-                }
+                          name: true,
+                        },
+                      },
+                    },
+                  },
+                },
               },
               teacher: {
                 select: {
@@ -83,68 +83,81 @@ export async function GET(
                   alan: {
                     select: {
                       id: true,
-                      name: true
-                    }
-                  }
-                }
-              }
+                      name: true,
+                    },
+                  },
+                },
+              },
             },
-            take: 1
-          }
+            take: 1,
+          },
         },
-        orderBy: { name: 'asc' },
+        // No need to sort here as we'll sort after data transformation
+        // orderBy: { number: "asc" },
         skip: skip,
-        take: itemsPerPage
+        take: itemsPerPage,
       }),
       prisma.student.count({
-        where: { alanId: alanId }
+        where: { alanId: alanId },
+      }),
+    ]);
+
+    // Öğrenci verilerini dönüştür ve sayısal sıraya göre sırala
+    const transformedOgrenciler = ogrencilerData
+      .map((ogrenci) => {
+        // Aktif staj varsa öncelik ver, yoksa student.company'yi kullan
+        const activeInternship = ogrenci.stajlar?.[0];
+        const currentCompany = activeInternship?.company || ogrenci.company;
+
+        // Koordinatör öğretmeni al (öncelik staj koordinatörüne)
+        const coordinatorTeacher =
+          activeInternship?.teacher || currentCompany?.teacher;
+
+        return {
+          id: ogrenci.id,
+          ad: ogrenci.name,
+          soyad: ogrenci.surname,
+          no: ogrenci.number || "",
+          sinif: ogrenci.className,
+          alanId: ogrenci.alanId,
+          company: currentCompany
+            ? {
+                id: currentCompany.id,
+                name: currentCompany.name,
+                contact: currentCompany.contact,
+                teacher: coordinatorTeacher
+                  ? {
+                      id: coordinatorTeacher.id,
+                      name: coordinatorTeacher.name,
+                      surname: coordinatorTeacher.surname,
+                      alanId: coordinatorTeacher.alanId,
+                      alan: coordinatorTeacher.alan,
+                    }
+                  : null,
+              }
+            : null,
+        };
       })
-    ])
+      .sort((a, b) => {
+        // Numeric sort by student number
+        const numA = parseInt(a.no) || 0;
+        const numB = parseInt(b.no) || 0;
+        return numA - numB;
+      });
 
-    // Öğrenci verilerini dönüştür
-    const transformedOgrenciler = ogrencilerData.map((ogrenci) => {
-      // Aktif staj varsa öncelik ver, yoksa student.company'yi kullan
-      const activeInternship = ogrenci.stajlar?.[0]
-      const currentCompany = activeInternship?.company || ogrenci.company
-      
-      // Koordinatör öğretmeni al (öncelik staj koordinatörüne)
-      const coordinatorTeacher = activeInternship?.teacher || currentCompany?.teacher
-      
-      return {
-        id: ogrenci.id,
-        ad: ogrenci.name,
-        soyad: ogrenci.surname,
-        no: ogrenci.number || '',
-        sinif: ogrenci.className,
-        alanId: ogrenci.alanId,
-        company: currentCompany ? {
-          id: currentCompany.id,
-          name: currentCompany.name,
-          contact: currentCompany.contact,
-          teacher: coordinatorTeacher ? {
-            id: coordinatorTeacher.id,
-            name: coordinatorTeacher.name,
-            surname: coordinatorTeacher.surname,
-            alanId: coordinatorTeacher.alanId,
-            alan: coordinatorTeacher.alan
-          } : null
-        } : null
-      }
-    })
-
-    const totalPages = Math.ceil(totalCount / itemsPerPage)
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
 
     return NextResponse.json({
       data: transformedOgrenciler,
       total: totalCount,
       currentPage: page,
-      totalPages: totalPages
-    })
+      totalPages: totalPages,
+    });
   } catch (error) {
-    console.error('Öğrenciler API hatası:', error)
+    console.error("Öğrenciler API hatası:", error);
     return NextResponse.json(
-      { error: 'Öğrenciler yüklenirken hata oluştu' },
+      { error: "Öğrenciler yüklenirken hata oluştu" },
       { status: 500 }
-    )
+    );
   }
 }

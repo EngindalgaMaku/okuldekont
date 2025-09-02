@@ -1,114 +1,114 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { validateAuthAndRole } from '@/middleware/auth'
-import { getActiveEducationYearId } from '@/lib/education-year'
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { validateAuthAndRole } from "@/middleware/auth";
+import { getActiveEducationYearId } from "@/lib/education-year";
 
 export async function GET(request: NextRequest) {
   // Auth check
-  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  const authResult = await validateAuthAndRole(request, ["ADMIN"]);
   if (!authResult.success) {
-    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+    return NextResponse.json(
+      { error: authResult.error },
+      { status: authResult.status }
+    );
   }
 
   try {
-    const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const search = searchParams.get('search') || ''
-    const alanId = searchParams.get('alanId') || ''
-    const sinif = searchParams.get('sinif') || ''
-    const status = searchParams.get('status') || ''
-    const itemsPerPage = 12
-    const skip = (page - 1) * itemsPerPage
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const search = searchParams.get("search") || "";
+    const alanId = searchParams.get("alanId") || "";
+    const sinif = searchParams.get("sinif") || "";
+    const status = searchParams.get("status") || "";
+    const itemsPerPage = 12;
+    const skip = (page - 1) * itemsPerPage;
 
     // Active education year scope
-    const activeEducationYearId = await getActiveEducationYearId()
+    const activeEducationYearId = await getActiveEducationYearId();
 
     // Build where clause
-    const whereClause: any = {}
-    
+    const whereClause: any = {};
+
     // Search filter
     if (search) {
       whereClause.OR = [
         {
           name: {
             contains: search,
-            mode: 'insensitive'
-          }
+            mode: "insensitive",
+          },
         },
         {
           surname: {
             contains: search,
-            mode: 'insensitive'
-          }
+            mode: "insensitive",
+          },
         },
         {
           number: {
             contains: search,
-            mode: 'insensitive'
-          }
-        }
-      ]
+            mode: "insensitive",
+          },
+        },
+      ];
     }
 
     // Alan filter
-    if (alanId && alanId !== 'all') {
-      whereClause.alanId = alanId
+    if (alanId && alanId !== "all") {
+      whereClause.alanId = alanId;
     }
 
     // Sınıf filter
-    if (sinif && sinif !== 'all') {
-      whereClause.className = sinif
+    if (sinif && sinif !== "all") {
+      whereClause.className = sinif;
     }
 
     // Status filter
-    if (status && status !== 'all') {
+    if (status && status !== "all") {
       switch (status) {
-        case 'active':
+        case "active":
           whereClause.stajlar = {
             some: {
-              status: 'ACTIVE',
+              status: "ACTIVE",
               educationYearId: activeEducationYearId,
-              archived: false
-            }
-          }
-          break
-        case 'unassigned':
+              archived: false,
+            },
+          };
+          break;
+        case "unassigned":
           whereClause.AND = [
             {
-              OR: [
-                { companyId: null },
-                { companyId: '' }
-              ]
+              OR: [{ companyId: null }, { companyId: "" }],
             },
             {
               stajlar: {
                 none: {
-                  status: 'ACTIVE',
+                  status: "ACTIVE",
                   educationYearId: activeEducationYearId,
-                  archived: false
-                }
-              }
-            }
-          ]
-          break
-        case 'terminated':
+                  archived: false,
+                },
+              },
+            },
+          ];
+          break;
+        case "terminated":
           whereClause.stajlar = {
             some: {
-              status: 'TERMINATED',
+              status: "TERMINATED",
               educationYearId: activeEducationYearId,
-              archived: false
-            }
-          }
-          break
-        case 'completed':
+              archived: false,
+            },
+          };
+          break;
+        case "completed":
           whereClause.stajlar = {
             some: {
-              status: 'COMPLETED',
+              status: "COMPLETED",
               educationYearId: activeEducationYearId,
-              archived: false
-            }
-          }
-          break
+              archived: false,
+            },
+          };
+          break;
       }
     }
 
@@ -126,14 +126,14 @@ export async function GET(request: NextRequest) {
           alan: {
             select: {
               id: true,
-              name: true
-            }
+              name: true,
+            },
           },
           stajlar: {
             where: {
-              status: 'ACTIVE',
+              status: "ACTIVE",
               educationYearId: activeEducationYearId,
-              archived: false
+              archived: false,
             },
             select: {
               id: true,
@@ -154,12 +154,12 @@ export async function GET(request: NextRequest) {
                       alan: {
                         select: {
                           id: true,
-                          name: true
-                        }
-                      }
-                    }
-                  }
-                }
+                          name: true,
+                        },
+                      },
+                    },
+                  },
+                },
               },
               teacher: {
                 select: {
@@ -170,64 +170,68 @@ export async function GET(request: NextRequest) {
                   alan: {
                     select: {
                       id: true,
-                      name: true
-                    }
-                  }
-                }
-              }
+                      name: true,
+                    },
+                  },
+                },
+              },
             },
-            take: 1
-          }
+            take: 1,
+          },
         },
-        orderBy: [
-          { name: 'asc' },
-          { surname: 'asc' }
-        ],
+        orderBy: [{ number: "asc" }],
         skip: skip,
-        take: itemsPerPage
+        take: itemsPerPage,
       }),
       prisma.student.count({
-        where: whereClause
-      })
-    ])
+        where: whereClause,
+      }),
+    ]);
 
     // Transform data to match expected format
     const transformedStudents = students.map((student) => {
       // Use active internship if available
-      const activeInternship = student.stajlar?.[0]
-      const currentCompany = activeInternship?.company
-      const coordinatorTeacher = activeInternship?.teacher || currentCompany?.teacher
+      const activeInternship = student.stajlar?.[0];
+      const currentCompany = activeInternship?.company;
+      const coordinatorTeacher =
+        activeInternship?.teacher || currentCompany?.teacher;
 
       return {
         id: student.id,
         ad: student.name,
         soyad: student.surname,
-        no: student.number || '',
+        no: student.number || "",
         sinif: student.className,
         alanId: student.alanId,
         alan: student.alan,
-        company: currentCompany ? {
-          id: currentCompany.id,
-          name: currentCompany.name,
-          contact: currentCompany.contact,
-          teacher: coordinatorTeacher ? {
-            id: coordinatorTeacher.id,
-            name: coordinatorTeacher.name,
-            surname: coordinatorTeacher.surname,
-            alanId: coordinatorTeacher.alanId,
-            alan: coordinatorTeacher.alan
-          } : null
-        } : null,
-        internshipStatus: activeInternship ? {
-          id: activeInternship.id,
-          status: activeInternship.status,
-          startDate: activeInternship.startDate,
-          endDate: activeInternship.endDate
-        } : null
-      }
-    })
+        company: currentCompany
+          ? {
+              id: currentCompany.id,
+              name: currentCompany.name,
+              contact: currentCompany.contact,
+              teacher: coordinatorTeacher
+                ? {
+                    id: coordinatorTeacher.id,
+                    name: coordinatorTeacher.name,
+                    surname: coordinatorTeacher.surname,
+                    alanId: coordinatorTeacher.alanId,
+                    alan: coordinatorTeacher.alan,
+                  }
+                : null,
+            }
+          : null,
+        internshipStatus: activeInternship
+          ? {
+              id: activeInternship.id,
+              status: activeInternship.status,
+              startDate: activeInternship.startDate,
+              endDate: activeInternship.endDate,
+            }
+          : null,
+      };
+    });
 
-    const totalPages = Math.ceil(totalCount / itemsPerPage)
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
 
     return NextResponse.json({
       students: transformedStudents,
@@ -235,14 +239,13 @@ export async function GET(request: NextRequest) {
       totalPages,
       currentPage: page,
       hasNext: page < totalPages,
-      hasPrev: page > 1
-    })
-
+      hasPrev: page > 1,
+    });
   } catch (error) {
-    console.error('Students API error:', error)
+    console.error("Students API error:", error);
     return NextResponse.json(
-      { error: 'Öğrenciler yüklenirken hata oluştu' },
+      { error: "Öğrenciler yüklenirken hata oluştu" },
       { status: 500 }
-    )
+    );
   }
 }
