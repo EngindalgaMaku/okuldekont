@@ -24,16 +24,15 @@ import Link from 'next/link'
 
 interface CompanyHistoryItem {
   id: string
-  company_id: string
-  company_name: string
-  change_type: string
-  changed_field: string
-  old_value: string | null
-  new_value: string | null
-  valid_from: string
-  valid_to: string | null
-  description: string | null
-  changed_by: string | null
+  companyId: string
+  changeType: string
+  fieldName: string
+  previousValue: string | null
+  newValue: string | null
+  validFrom: string
+  validTo: string | null
+  reason: string | null
+  changedBy: string | null
 }
 
 export default function CompanyHistoryPage() {
@@ -62,7 +61,7 @@ export default function CompanyHistoryPage() {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      if (selectedChangeType) params.append('change_type', selectedChangeType)
+      if (selectedChangeType) params.append('changeType', selectedChangeType)
       if (selectedDateRange.start) params.append('start_date', selectedDateRange.start)
       if (selectedDateRange.end) params.append('end_date', selectedDateRange.end)
       if (searchQuery) params.append('search', searchQuery)
@@ -71,8 +70,25 @@ export default function CompanyHistoryPage() {
       if (!response.ok) throw new Error('İşletme geçmişi getirilemedi')
       
       const data = await response.json()
-      setHistoryData(data.history || [])
-      setFilteredData(data.history || [])
+      console.log('API Response:', data)
+      
+      // API'den gelen veriyi frontend interface'ine uygun hale getir
+      const formattedData = (data.history || []).map((item: any) => ({
+        id: item.id,
+        companyId: item.companyId,
+        changeType: item.changeType,
+        fieldName: item.fieldName,
+        previousValue: item.previousValue,
+        newValue: item.newValue,
+        validFrom: item.validFrom,
+        validTo: item.validTo,
+        reason: item.reason,
+        changedBy: item.changedBy,
+        company_name: item.company_name || 'Bilinmiyor'
+      }))
+      
+      setHistoryData(formattedData)
+      setFilteredData(formattedData)
     } catch (error) {
       console.error('İşletme geçmişi çekilirken hata:', error)
       alert('İşletme geçmişi yüklenirken bir hata oluştu')
@@ -85,15 +101,15 @@ export default function CompanyHistoryPage() {
 
     if (searchQuery) {
       filtered = filtered.filter(item =>
-        item.company_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.old_value?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.new_value?.toLowerCase().includes(searchQuery.toLowerCase())
+        (item as any).company_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.reason?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.previousValue?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.newValue?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     }
 
     if (selectedChangeType) {
-      filtered = filtered.filter(item => item.change_type === selectedChangeType)
+      filtered = filtered.filter(item => item.changeType === selectedChangeType)
     }
 
     setFilteredData(filtered)
@@ -117,7 +133,7 @@ export default function CompanyHistoryPage() {
     }
 
     const csvContent = filteredData.map(item => 
-      `"${item.company_name}","${item.change_type}","${item.changed_field}","${item.old_value || ''}","${item.new_value || ''}","${new Date(item.valid_from).toLocaleDateString('tr-TR')}","${item.description || ''}"`
+      `"${(item as any).company_name || 'Bilinmiyor'}","${item.changeType}","${item.fieldName}","${item.previousValue || ''}","${item.newValue || ''}","${item.validFrom && !isNaN(new Date(item.validFrom).getTime()) ? new Date(item.validFrom).toLocaleDateString('tr-TR') : 'Geçersiz Tarih'}","${item.reason || ''}"`
     ).join('\n')
 
     const header = 'İşletme Adı,Değişiklik Tipi,Değişen Alan,Eski Değer,Yeni Değer,Tarih,Açıklama\n'
@@ -130,14 +146,14 @@ export default function CompanyHistoryPage() {
 
   const getChangeTypeColor = (type: string) => {
     switch (type) {
-      case 'OTHER_UPDATE': return 'blue'
-      case 'CONTACT_INFO_UPDATE': return 'green'
-      case 'MASTER_TEACHER_UPDATE': return 'purple'
-      case 'EMPLOYEE_COUNT_UPDATE': return 'orange'
-      case 'ADDRESS_UPDATE': return 'indigo'
-      case 'BANK_ACCOUNT_UPDATE': return 'yellow'
-      case 'ACTIVITY_FIELD_UPDATE': return 'teal'
-      default: return 'gray'
+      case 'OTHER_UPDATE': return 'bg-blue-100 text-blue-600'
+      case 'CONTACT_INFO_UPDATE': return 'bg-green-100 text-green-600'
+      case 'MASTER_TEACHER_UPDATE': return 'bg-purple-100 text-purple-600'
+      case 'EMPLOYEE_COUNT_UPDATE': return 'bg-orange-100 text-orange-600'
+      case 'ADDRESS_UPDATE': return 'bg-indigo-100 text-indigo-600'
+      case 'BANK_ACCOUNT_UPDATE': return 'bg-yellow-100 text-yellow-600'
+      case 'ACTIVITY_FIELD_UPDATE': return 'bg-teal-100 text-teal-600'
+      default: return 'bg-gray-100 text-gray-600'
     }
   }
 
@@ -282,23 +298,29 @@ export default function CompanyHistoryPage() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
-                        <div className={`p-2 rounded-lg bg-${getChangeTypeColor(item.change_type)}-100`}>
-                          <Building className={`h-5 w-5 text-${getChangeTypeColor(item.change_type)}-600`} />
+                        <div className={`p-2 rounded-lg ${getChangeTypeColor(item.changeType)}`}>
+                          <Building className="h-5 w-5" />
                         </div>
                         <div>
-                          <h4 className="font-medium text-gray-900">{item.company_name}</h4>
+                          <h4 className="font-medium text-gray-900">{(item as any).company_name || 'İşletme Adı'}</h4>
                           <p className="text-sm text-gray-600">
-                            {getChangeTypeLabel(item.change_type)} • {item.changed_field}
+                            {getChangeTypeLabel(item.changeType)} • {item.fieldName}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
                         <div className="text-right">
                           <p className="text-sm font-medium text-gray-900">
-                            {new Date(item.valid_from).toLocaleDateString('tr-TR')}
+                            {item.validFrom && !isNaN(new Date(item.validFrom).getTime()) 
+                              ? new Date(item.validFrom).toLocaleDateString('tr-TR')
+                              : 'Geçersiz Tarih'
+                            }
                           </p>
                           <p className="text-xs text-gray-600">
-                            {new Date(item.valid_from).toLocaleTimeString('tr-TR')}
+                            {item.validFrom && !isNaN(new Date(item.validFrom).getTime())
+                              ? new Date(item.validFrom).toLocaleTimeString('tr-TR')
+                              : ''
+                            }
                           </p>
                         </div>
                         {expandedItems.has(item.id) ? (
@@ -316,22 +338,22 @@ export default function CompanyHistoryPage() {
                         <div>
                           <h5 className="text-sm font-medium text-gray-900 mb-2">Eski Değer:</h5>
                           <p className="text-sm text-gray-700 bg-red-50 border border-red-200 rounded p-2">
-                            {item.old_value || 'Değer yok'}
+                            {item.previousValue || 'Değer yok'}
                           </p>
                         </div>
                         <div>
                           <h5 className="text-sm font-medium text-gray-900 mb-2">Yeni Değer:</h5>
                           <p className="text-sm text-gray-700 bg-green-50 border border-green-200 rounded p-2">
-                            {item.new_value || 'Değer yok'}
+                            {item.newValue || 'Değer yok'}
                           </p>
                         </div>
                       </div>
 
-                      {item.description && (
+                      {item.reason && (
                         <div className="mt-4">
                           <h5 className="text-sm font-medium text-gray-900 mb-2">Açıklama:</h5>
                           <p className="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded p-2">
-                            {item.description}
+                            {item.reason}
                           </p>
                         </div>
                       )}
@@ -340,14 +362,19 @@ export default function CompanyHistoryPage() {
                         <div className="flex items-center space-x-4">
                           <span className="flex items-center">
                             <Clock className="h-3 w-3 mr-1" />
-                            Geçerlilik: {new Date(item.valid_from).toLocaleDateString('tr-TR')}
-                            {item.valid_to && ` - ${new Date(item.valid_to).toLocaleDateString('tr-TR')}`}
+                            Geçerlilik: {item.validFrom && !isNaN(new Date(item.validFrom).getTime()) 
+                              ? new Date(item.validFrom).toLocaleDateString('tr-TR')
+                              : 'Geçersiz Tarih'
+                            }
+                            {item.validTo && !isNaN(new Date(item.validTo).getTime()) && 
+                              ` - ${new Date(item.validTo).toLocaleDateString('tr-TR')}`
+                            }
                           </span>
                         </div>
-                        {item.changed_by && (
+                        {item.changedBy && (
                           <span className="flex items-center">
                             <User className="h-3 w-3 mr-1" />
-                            Değiştiren: {item.changed_by}
+                            Değiştiren: {item.changedBy}
                           </span>
                         )}
                       </div>

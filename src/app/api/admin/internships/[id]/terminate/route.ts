@@ -147,24 +147,50 @@ export async function POST(
         : terminatorInfo?.adminProfile?.name || 'Sistem Admin';
       const teacherName = teacherInfo ? `${teacherInfo.name} ${teacherInfo.surname}` : 'Atanmamış';
       const companyName = currentInternship.company.name;
-      
+
+      // Create teacher history record for internship termination
+      if (currentInternship.teacherId) {
+        await (tx as any).teacherHistory.create({
+          data: {
+            teacherId: currentInternship.teacherId,
+            changeType: 'OTHER_UPDATE',
+            fieldName: 'internship_assignment',
+            previousValue: JSON.stringify({
+              action: 'ACTIVE_INTERNSHIP',
+              studentName: `${currentInternship.student.name} ${currentInternship.student.surname}`,
+              companyName: companyName,
+              startDate: currentInternship.startDate
+            }),
+            newValue: JSON.stringify({
+              action: 'TERMINATED_INTERNSHIP',
+              terminationDate: finalTerminationDate,
+              reason: reason
+            }),
+            validFrom: finalTerminationDate,
+            changedBy: terminatedBy,
+            reason: `Staj fesih edildi: ${reason}`,
+            notes: `${currentInternship.student.name} ${currentInternship.student.surname} - ${companyName} stajı fesih edildi`
+          }
+        });
+      }
+
       await tx.internshipHistory.create({
         data: {
           internshipId: id,
           action: 'TERMINATED',
-          previousData: {
+          previousData: JSON.stringify({
             status: currentInternship.status,
             terminationDate: currentInternship.terminationDate,
             terminationReason: currentInternship.terminationReason
-          },
-          newData: {
+          }),
+          newData: JSON.stringify({
             status: 'TERMINATED',
             terminationDate: finalTerminationDate,
             terminationReason: reason,
             terminatedBy,
             terminationDocumentId: documentId || null,
             terminationNotes: notes || null
-          },
+          }),
           performedBy: terminatedBy,
           reason: `${companyName} işletmesinde staj fesih edildi`,
           notes: `Fesih Tarihi: ${terminationDateFormatted} | Koordinatör: ${teacherName} | Fesih Eden: ${terminatorName} | Neden: ${reason}`

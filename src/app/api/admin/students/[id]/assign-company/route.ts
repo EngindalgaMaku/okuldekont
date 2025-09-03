@@ -95,7 +95,7 @@ export async function POST(
           data: {
             internshipId: createdInternship.id,
             action: 'CREATED',
-            newData: {
+            newData: JSON.stringify({
               studentId,
               companyId,
               teacherId: finalTeacherId,
@@ -103,7 +103,7 @@ export async function POST(
               startDate: internshipStartDate,
               endDate: internshipEndDate,
               status: 'ACTIVE'
-            },
+            }),
             performedBy: currentUserId,
             reason: `${companyName} işletmesinde staj başlatıldı`,
             notes: `Başlangıç Tarihi: ${startDateFormatted} | Koordinatör: ${teacherName}`
@@ -230,17 +230,17 @@ export async function DELETE(
           return {
             internshipId: internship.id,
             action: 'TERMINATED' as const,
-            previousData: {
+            previousData: JSON.stringify({
               status: internship.status,
               terminationDate: internship.terminationDate,
               terminationReason: internship.terminationReason
-            },
-            newData: {
+            }),
+            newData: JSON.stringify({
               status: 'TERMINATED',
               terminationDate: finalTerminationDate,
               terminationReason: reason.trim(),
               terminationNotes: notes?.trim() || null
-            },
+            }),
             performedBy: currentUserId,
             reason: `${internship.company.name} işletmesinde staj fesih edildi`,
             notes: `Fesih Tarihi: ${terminationDateFormatted} | Koordinatör: ${teacherName} | Neden: ${reason.trim()}`

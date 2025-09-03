@@ -355,11 +355,21 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
       
       // Set education years data safely
       const safeEducationYearsData = Array.isArray(educationYearsData) ? educationYearsData : []
-      setEgitimYillari(safeEducationYearsData.map((year: any) => ({
+      const transformedEducationYears = safeEducationYearsData.map((year: any) => ({
         id: year?.id || '',
         year: year?.year || '',
         active: year?.active || false
-      })).filter(year => year.id && year.year))
+      })).filter(year => year.id && year.year)
+      
+      setEgitimYillari(transformedEducationYears)
+      
+      // Auto-select active education year if not already set
+      if (!filterEgitimYili) {
+        const activeYear = transformedEducationYears.find(year => year.active)
+        if (activeYear) {
+          setFilterEgitimYili(activeYear.id)
+        }
+      }
       
     } catch (error) {
       console.error('Veri yükleme hatası:', error)

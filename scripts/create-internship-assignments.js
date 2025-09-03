@@ -174,17 +174,26 @@ async function createInternshipAssignments(dryRun = false) {
       ];
 
       if (!dryRun) {
-        // Stajı fesih et
-        await prisma.staj.update({
-          where: { id: internship.id },
-          data: {
-            status: 'TERMINATED',
-            terminationDate: terminationDate,
-            terminationReason: getRandomElement(terminationReasons)
-            // terminatedBy alanını boş bırakıyoruz çünkü foreign key constraint var
-          }
+        // Stajı fesih et ve öğrencinin işletme atamasını temizle
+        await prisma.$transaction(async (tx) => {
+          // Stajı fesih et
+          await tx.staj.update({
+            where: { id: internship.id },
+            data: {
+              status: 'TERMINATED',
+              terminationDate: terminationDate,
+              terminationReason: getRandomElement(terminationReasons)
+              // terminatedBy alanını boş bırakıyoruz çünkü foreign key constraint var
+            }
+          });
+
+          // Öğrencinin işletme atamasını temizle
+          await tx.student.update({
+            where: { id: internship.studentId },
+            data: { companyId: null }
+          });
         });
-        console.log(`   🔴 Staj feshedildi: ${i + 1}/20`);
+        console.log(`   🔴 Staj feshedildi ve öğrenci işletme ataması temizlendi: ${i + 1}/20`);
       } else {
         console.log(`   🔴 [DRY-RUN] Staj feshedilecek: ${i + 1}/20 (${getRandomElement(terminationReasons)})`);
       }

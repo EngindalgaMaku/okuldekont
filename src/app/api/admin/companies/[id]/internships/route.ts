@@ -117,7 +117,7 @@ export async function POST(
         data: {
           internshipId: internship.id,
           action: 'CREATED',
-          newData: {
+          newData: JSON.stringify({
             studentId: data.studentId,
             companyId: id,
             teacherId: company.teacherId || '',
@@ -125,7 +125,7 @@ export async function POST(
             startDate: startDate,
             endDate: endDate,
             status: 'ACTIVE'
-          },
+          }),
           performedBy,
           reason: `${company.name} işletmesinde staj başlatıldı`,
           notes: `Başlangıç Tarihi: ${startDateFormatted} | Koordinatör: ${teacherName}`

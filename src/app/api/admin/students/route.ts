@@ -179,7 +179,6 @@ export async function GET(request: NextRequest) {
             take: 1,
           },
         },
-        orderBy: [{ number: "asc" }],
         skip: skip,
         take: itemsPerPage,
       }),
@@ -188,8 +187,15 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
+    // Sort students by number as integer
+    const sortedStudents = students.sort((a, b) => {
+      const numA = parseInt(a.number || '0');
+      const numB = parseInt(b.number || '0');
+      return numA - numB;
+    });
+
     // Transform data to match expected format
-    const transformedStudents = students.map((student) => {
+    const transformedStudents = sortedStudents.map((student) => {
       // Use active internship if available
       const activeInternship = student.stajlar?.[0];
       const currentCompany = activeInternship?.company;

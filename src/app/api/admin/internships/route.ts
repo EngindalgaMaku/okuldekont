@@ -77,9 +77,16 @@ export async function GET(request: Request) {
         teacher: true,
         educationYear: true
       },
-      orderBy: {
-        createdAt: 'desc'
-      },
+      orderBy: [
+        {
+          student: {
+            number: 'asc'
+          }
+        },
+        {
+          createdAt: 'desc'
+        }
+      ],
       skip,
       take: validLimit
     })
@@ -237,7 +244,7 @@ export async function POST(request: Request) {
         data: {
           internshipId: internship.id,
           action: 'CREATED',
-          newData: {
+          newData: JSON.stringify({
             studentId,
             companyId,
             teacherId,
@@ -245,12 +252,34 @@ export async function POST(request: Request) {
             startDate: new Date(startDate),
             endDate: endDate ? new Date(endDate) : new Date(startDate),
             status
-          },
+          }),
           performedBy: realPerformedBy,
           reason: `${companyName} işletmesinde staj başlatıldı`,
           notes: `Başlangıç Tarihi: ${startDateFormatted} | Koordinatör: ${teacherName}`
         }
       })
+
+      // Create teacher history record for internship assignment
+      if (teacherId) {
+        await (prisma as any).teacherHistory.create({
+          data: {
+            teacherId: teacherId,
+            changeType: 'OTHER_UPDATE',
+            fieldName: 'internship_assignment',
+            previousValue: null,
+            newValue: JSON.stringify({
+              action: 'ASSIGNED_INTERNSHIP',
+              studentName: `${internship.student.name} ${internship.student.surname}`,
+              companyName: companyName,
+              startDate: new Date(startDate)
+            }),
+            validFrom: new Date(),
+            changedBy: realPerformedBy,
+            reason: `Yeni staj ataması yapıldı`,
+            notes: `${internship.student.name} ${internship.student.surname} - ${companyName} stajı başlatıldı`
+          }
+        });
+      }
 
       return internship
     })

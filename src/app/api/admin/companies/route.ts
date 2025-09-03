@@ -116,6 +116,8 @@ export async function GET(request: Request) {
         taxNumber: company.taxNumber,
         pin: company.pin,
         teacherId: coordinatorTeacher?.id || company.teacherId,
+        masterTeacherName: company.masterTeacherName,
+        masterTeacherPhone: company.masterTeacherPhone,
         _count: company._count,
         teacher: coordinatorTeacher ? {
           id: coordinatorTeacher.id,

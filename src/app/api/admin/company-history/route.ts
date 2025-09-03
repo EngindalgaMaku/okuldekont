@@ -74,19 +74,22 @@ export async function GET(request: NextRequest) {
 
     // Arama filtresi
     if (search) {
-      whereClause.OR = [
-        {
-          company: {
-            name: { contains: search, mode: 'insensitive' }
+      whereClause.AND = whereClause.AND || [];
+      whereClause.AND.push({
+        OR: [
+          {
+            company: {
+              name: { contains: search, mode: 'insensitive' }
+            }
+          },
+          {
+            reason: { contains: search, mode: 'insensitive' }
+          },
+          {
+            notes: { contains: search, mode: 'insensitive' }
           }
-        },
-        {
-          reason: { contains: search, mode: 'insensitive' }
-        },
-        {
-          notes: { contains: search, mode: 'insensitive' }
-        }
-      ];
+        ]
+      });
     }
 
     const offset = (page - 1) * limit;
@@ -130,11 +133,12 @@ export async function GET(request: NextRequest) {
       fieldName: record.fieldName,
       previousValue: record.previousValue,
       newValue: record.newValue,
-      validFrom: record.validFrom.toISOString(),
+      validFrom: record.validFrom?.toISOString() || null,
       validTo: record.validTo?.toISOString() || null,
       changedBy: record.changedByUser?.adminProfile?.name || record.changedByUser?.email || 'Bilinmiyor',
       reason: record.reason,
-      createdAt: record.validFrom.toISOString()
+      createdAt: record.validFrom?.toISOString() || null,
+      company_name: record.company?.name || 'Bilinmiyor'
     }));
 
     return NextResponse.json({

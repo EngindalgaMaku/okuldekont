@@ -97,14 +97,14 @@ export async function PUT(
             data: {
               internshipId: internship.id,
               action: auditActions.TEACHER_CHANGED,
-              previousData: {
+              previousData: JSON.stringify({
                 teacherId: internship.teacherId,
                 status: internship.status
-              },
-              newData: {
+              }),
+              newData: JSON.stringify({
                 teacherId: teacherId,
                 status: internship.status
-              },
+              }),
               performedBy: await getSystemUserId(),
               reason: `Koordinatör değişikliği: ${internship.teacher?.name || 'Bilinmeyen'} -> ${newTeacher.name}`,
               notes: `İşletme genelinde koordinatör değişikliği yapıldı`

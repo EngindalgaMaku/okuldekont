@@ -314,15 +314,65 @@ export default function TeacherHistoryPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <h5 className="text-sm font-medium text-gray-900 mb-2">Eski Değer:</h5>
-                          <p className="text-sm text-gray-700 bg-red-50 border border-red-200 rounded p-2">
-                            {item.old_value || 'Değer yok'}
-                          </p>
+                          <div className="text-sm text-gray-700 bg-red-50 border border-red-200 rounded p-2">
+                            {item.old_value ? (
+                              (() => {
+                                try {
+                                  const parsed = JSON.parse(item.old_value);
+                                  if (parsed.action === 'ACTIVE_INTERNSHIP') {
+                                    return (
+                                      <div>
+                                        <div className="font-medium text-blue-700">Aktif Staj</div>
+                                        <div>Öğrenci: {parsed.studentName}</div>
+                                        <div>İşletme: {parsed.companyName}</div>
+                                        <div>Başlangıç: {new Date(parsed.startDate).toLocaleDateString('tr-TR')}</div>
+                                      </div>
+                                    );
+                                  }
+                                  return <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(parsed, null, 2)}</pre>;
+                                } catch {
+                                  return item.old_value;
+                                }
+                              })()
+                            ) : (
+                              'Değer yok'
+                            )}
+                          </div>
                         </div>
                         <div>
                           <h5 className="text-sm font-medium text-gray-900 mb-2">Yeni Değer:</h5>
-                          <p className="text-sm text-gray-700 bg-green-50 border border-green-200 rounded p-2">
-                            {item.new_value || 'Değer yok'}
-                          </p>
+                          <div className="text-sm text-gray-700 bg-green-50 border border-green-200 rounded p-2">
+                            {item.new_value ? (
+                              (() => {
+                                try {
+                                  const parsed = JSON.parse(item.new_value);
+                                  if (parsed.action === 'TERMINATED_INTERNSHIP') {
+                                    return (
+                                      <div>
+                                        <div className="font-medium text-red-700">Staj Fesih Edildi</div>
+                                        <div>Fesih Tarihi: {new Date(parsed.terminationDate).toLocaleDateString('tr-TR')}</div>
+                                        <div>Sebep: {parsed.reason}</div>
+                                      </div>
+                                    );
+                                  } else if (parsed.action === 'ASSIGNED_INTERNSHIP') {
+                                    return (
+                                      <div>
+                                        <div className="font-medium text-green-700">Staj Ataması</div>
+                                        <div>Öğrenci: {parsed.studentName}</div>
+                                        <div>İşletme: {parsed.companyName}</div>
+                                        <div>Başlangıç: {new Date(parsed.startDate).toLocaleDateString('tr-TR')}</div>
+                                      </div>
+                                    );
+                                  }
+                                  return <pre className="whitespace-pre-wrap text-xs">{JSON.stringify(parsed, null, 2)}</pre>;
+                                } catch {
+                                  return item.new_value;
+                                }
+                              })()
+                            ) : (
+                              'Değer yok'
+                            )}
+                          </div>
                         </div>
                       </div>
 

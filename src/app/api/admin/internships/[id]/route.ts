@@ -174,20 +174,20 @@ async function handleInternshipUpdate(
               data: {
                 internshipId: internship.id,
                 action: auditActions.TEACHER_CHANGED,
-                previousData: {
+                previousData: JSON.stringify({
                   status: internship.status,
                   teacherId: internship.teacherId,
                   companyId: internship.companyId,
                   startDate: internship.startDate,
                   endDate: internship.endDate
-                },
-                newData: {
+                }),
+                newData: JSON.stringify({
                   status: internship.status,
                   teacherId: teacherId,
                   companyId: internship.companyId,
                   startDate: internship.startDate,
                   endDate: internship.endDate
-                },
+                }),
                 performedBy: realPerformedBy,
                 reason: reason || `Koordinatör değişikliği: ${internship.teacher?.name || 'Bilinmeyen'} -> ${newTeacher?.name || 'Bilinmeyen'}`,
                 notes: notes || `İşletme genelinde koordinatör değişikliği yapıldı`
@@ -222,14 +222,14 @@ async function handleInternshipUpdate(
           data: {
             internshipId: id,
             action: action as any,
-            previousData: {
+            previousData: JSON.stringify({
               status: currentInternship.status,
               teacherId: currentInternship.teacherId,
               companyId: currentInternship.companyId,
               startDate: currentInternship.startDate,
               endDate: currentInternship.endDate
-            },
-            newData: updateData,
+            }),
+            newData: JSON.stringify(updateData),
             performedBy: realPerformedBy,
             reason: reason || `Staj durumu güncellendi: ${action}`,
             notes
@@ -308,8 +308,8 @@ export async function DELETE(
         data: {
           internshipId: id,
           action: 'DELETED' as any,
-          previousData: currentInternship,
-          newData: {} as any,
+          previousData: JSON.stringify(currentInternship),
+          newData: JSON.stringify({}),
           performedBy: realPerformedBy,
           reason,
           notes: 'Staj kaydı sistemden silindi'

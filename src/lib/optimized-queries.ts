@@ -135,13 +135,14 @@ export async function fetchOgretmenlerOptimized(searchParams: any) {
     // Scope statistics to the active education year
     const activeEducationYearId = await getActiveEducationYearId()
 
-    // Get statistics for each teacher
+    // Get statistics for each teacher (only ACTIVE internships)
     const teacherIds = teachers.map((t: any) => t.id)
     const stajlarStats = await prisma.staj.groupBy({
       by: ['teacherId'],
       where: {
         teacherId: { in: teacherIds },
         educationYearId: activeEducationYearId,
+        status: 'ACTIVE',
         archived: false
       },
       _count: {
@@ -154,6 +155,7 @@ export async function fetchOgretmenlerOptimized(searchParams: any) {
       where: {
         teacherId: { in: teacherIds },
         educationYearId: activeEducationYearId,
+        status: 'ACTIVE',
         archived: false
       },
       _count: {

@@ -82,14 +82,14 @@ export async function POST(
           data: {
             internshipId: internship.id,
             action: historyAction,
-            previousData: {
+            previousData: JSON.stringify({
               teacherId: previousTeacherId,
               teacherName: previousTeacherName
-            },
-            newData: {
+            }),
+            newData: JSON.stringify({
               teacherId: teacherId || null,
               teacherName: teacherName
-            },
+            }),
             performedBy: currentUserId,
             reason: reason?.trim() || actionReason,
             notes: notes?.trim() || null
