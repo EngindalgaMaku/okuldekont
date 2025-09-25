@@ -9,8 +9,11 @@ interface RouteContext {
 
 export async function PUT(request: NextRequest, context: RouteContext) {
   try {
+    console.log("PUT request received for teacher field update");
     const { id } = await context.params;
+    console.log("Teacher ID:", id);
     const { alanId } = await request.json();
+    console.log("New alanId:", alanId);
 
     if (!id) {
       return NextResponse.json(
