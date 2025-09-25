@@ -378,9 +378,7 @@ export default function OgretmenlerTableClient({
                           {ogretmen.alanlar && (
                             <p className="text-xs text-gray-600 truncate">
                               <span className="font-medium">Alan:</span>{" "}
-                              {Array.isArray(ogretmen.alanlar)
-                                ? ogretmen.alanlar[0]?.ad || "Bilinmiyor"
-                                : (ogretmen.alanlar as any)?.ad || "Bilinmiyor"}
+                              {ogretmen.alanlar.ad || "Bilinmiyor"}
                             </p>
                           )}
                           {ogretmen.email && (
@@ -533,13 +531,7 @@ export default function OgretmenlerTableClient({
                     {editingField === ogretmen.id ? (
                       <div className="flex items-center gap-2">
                         <select
-                          defaultValue={
-                            ogretmen.alanlar
-                              ? Array.isArray(ogretmen.alanlar)
-                                ? ogretmen.alanlar[0]?.id || "null"
-                                : (ogretmen.alanlar as any)?.id || "null"
-                              : "null"
-                          }
+                          defaultValue={ogretmen.alanlar?.id || "null"}
                           className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           onChange={(e) =>
                             setEditingAlan({
@@ -586,21 +578,13 @@ export default function OgretmenlerTableClient({
                     ) : (
                       <div className="flex items-center gap-2">
                         <div className="text-sm text-gray-900">
-                          {ogretmen.alanlar
-                            ? Array.isArray(ogretmen.alanlar)
-                              ? ogretmen.alanlar[0]?.ad || "Atanmamış"
-                              : (ogretmen.alanlar as any)?.ad || "Atanmamış"
-                            : "Atanmamış"}
+                          {ogretmen.alanlar?.ad || "Atanmamış"}
                         </div>
                         <button
                           onClick={() =>
                             handleEditAlan(
                               ogretmen.id,
-                              ogretmen.alanlar
-                                ? Array.isArray(ogretmen.alanlar)
-                                  ? ogretmen.alanlar[0]?.id || null
-                                  : (ogretmen.alanlar as any)?.id || null
-                                : null
+                              ogretmen.alanlar?.id || null
                             )
                           }
                           className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
