@@ -20,7 +20,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     // Validate alanId if provided
-    if (alanId && typeof alanId !== "number") {
+    if (alanId && typeof alanId !== "string") {
       return NextResponse.json(
         { error: "Geçersiz alan ID'si" },
         { status: 400 }

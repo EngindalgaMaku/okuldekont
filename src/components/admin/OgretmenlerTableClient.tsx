@@ -288,7 +288,7 @@ export default function OgretmenlerTableClient({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          alanId: newAlanId === "null" ? null : parseInt(newAlanId),
+          alanId: newAlanId === "null" ? null : newAlanId,
         }),
       });
 
