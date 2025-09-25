@@ -34,14 +34,14 @@ interface Ogretmen {
   email?: string;
   telefon?: string;
   pin?: string;
-  alan_id?: number;
+  alan_id?: string;
   alanlar?: any;
   stajlarCount?: number;
   koordinatorlukCount?: number;
 }
 
 interface Alan {
-  id: number;
+  id: string;
   ad: string;
 }
 
@@ -122,7 +122,7 @@ export default function OgretmenlerTableClient({
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editingAlan, setEditingAlan] = useState<{
     teacherId: string;
-    currentAlanId: number | null;
+    currentAlanId: string | null;
   }>({ teacherId: "", currentAlanId: null });
   const [updatingAlan, setUpdatingAlan] = useState(false);
 
@@ -269,9 +269,9 @@ export default function OgretmenlerTableClient({
   };
 
   // Handle alan edit
-  const handleEditAlan = (teacherId: string, currentAlanId: number | null) => {
+  const handleEditAlan = (teacherId: string, currentAlanId: string | null) => {
     setEditingField(teacherId);
-    setEditingAlan({ teacherId, currentAlanId });
+    setEditingAlan({ teacherId, currentAlanId: currentAlanId || "null" });
   };
 
   const handleCancelEditAlan = () => {
@@ -532,16 +532,17 @@ export default function OgretmenlerTableClient({
                       <div className="flex items-center gap-2">
                         <select
                           defaultValue={ogretmen.alanlar?.id || "null"}
+                          data-teacher-id={ogretmen.id}
                           className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          onChange={(e) =>
+                          onChange={(e) => {
                             setEditingAlan({
                               ...editingAlan,
                               currentAlanId:
                                 e.target.value === "null"
                                   ? null
-                                  : parseInt(e.target.value),
-                            })
-                          }
+                                  : e.target.value,
+                            });
+                          }}
                         >
                           <option value="null">Alan Seçiniz</option>
                           {alanlar.map((alan) => (
@@ -554,7 +555,7 @@ export default function OgretmenlerTableClient({
                           onClick={() =>
                             handleSaveAlan(
                               ogretmen.id,
-                              editingAlan.currentAlanId?.toString() || "null"
+                              editingAlan.currentAlanId || "null"
                             )
                           }
                           disabled={updatingAlan}
