@@ -1,9 +1,9 @@
-'use client'
+"use client";
 
-import { useEffect, useState, Fragment, ReactNode, Suspense } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { Dialog, Transition, Menu as MenuDropdown } from '@headlessui/react'
+import { useEffect, useState, Fragment, ReactNode, Suspense } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
+import { Dialog, Transition, Menu as MenuDropdown } from "@headlessui/react";
 import {
   Home,
   Menu,
@@ -29,284 +29,305 @@ import {
   User,
   ChevronDown,
   MessageCircle,
-  Wrench
-} from 'lucide-react'
-import { useAuth } from '@/hooks/useAuth'
+  Wrench,
+  Upload,
+} from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const menuItems = [
   {
-    title: 'Dashboard',
+    title: "Dashboard",
     icon: Home,
-    href: '/admin',
-    description: 'Genel bakış ve istatistikler'
+    href: "/admin",
+    description: "Genel bakış ve istatistikler",
   },
   {
-    title: 'Meslek Alanları',
+    title: "Meslek Alanları",
     icon: BookOpen,
-    href: '/admin/alanlar',
-    description: 'Alan seçimi ve kademeli yönetim'
+    href: "/admin/alanlar",
+    description: "Alan seçimi ve kademeli yönetim",
   },
   {
-    title: 'Dekontlar',
+    title: "Dekontlar",
     icon: Receipt,
-    href: '/admin/dekontlar',
-    description: 'Ödeme ve dekont yönetimi'
+    href: "/admin/dekontlar",
+    description: "Ödeme ve dekont yönetimi",
   },
   {
-    title: 'Stajlar',
+    title: "Stajlar",
     icon: GraduationCap,
-    href: '/admin/stajlar',
-    description: 'Öğrenci staj süreçleri ve koordinatörlük yönetimi'
+    href: "/admin/stajlar",
+    description: "Öğrenci staj süreçleri ve koordinatörlük yönetimi",
   },
   {
-    title: 'Araçlar',
+    title: "Araçlar",
     icon: Wrench,
-    href: '/admin/araclar',
-    description: 'Raporlama araçları ve geçmiş takip'
-  }
-]
+    href: "/admin/araclar",
+    description: "Raporlama araçları ve geçmiş takip",
+  },
+];
 
 function classNames(...classes: string[]) {
-  return classes.filter(Boolean).join(' ')
+  return classes.filter(Boolean).join(" ");
 }
 
 function useMediaQuery(query: string) {
-  const [matches, setMatches] = useState(false)
+  const [matches, setMatches] = useState(false);
 
   useEffect(() => {
-    const media = window.matchMedia(query)
+    const media = window.matchMedia(query);
     if (media.matches !== matches) {
-      setMatches(media.matches)
+      setMatches(media.matches);
     }
-    const listener = () => setMatches(media.matches)
-    media.addListener(listener)
-    return () => media.removeListener(listener)
-  }, [matches, query])
+    const listener = () => setMatches(media.matches);
+    media.addListener(listener);
+    return () => media.removeListener(listener);
+  }, [matches, query]);
 
-  return matches
+  return matches;
 }
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const { user, loading, isAdmin, adminRole, signOut } = useAuth()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true)
-  const [isSigningOut, setIsSigningOut] = useState(false)
-  const [schoolName, setSchoolName] = useState('')
-  const [adminUserName, setAdminUserName] = useState<string>('')
-  const [activeEducationYear, setActiveEducationYear] = useState<string>('')
-  const [activeEducationYearId, setActiveEducationYearId] = useState<string>('')
-  const [educationYears, setEducationYears] = useState<any[]>([])
-  const [educationYearsLoading, setEducationYearsLoading] = useState(false)
-  const [changingYear, setChangingYear] = useState(false)
+  const router = useRouter();
+  const pathname = usePathname();
+  const { user, loading, isAdmin, adminRole, signOut } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [schoolName, setSchoolName] = useState("");
+  const [adminUserName, setAdminUserName] = useState<string>("");
+  const [activeEducationYear, setActiveEducationYear] = useState<string>("");
+  const [activeEducationYearId, setActiveEducationYearId] =
+    useState<string>("");
+  const [educationYears, setEducationYears] = useState<any[]>([]);
+  const [educationYearsLoading, setEducationYearsLoading] = useState(false);
+  const [changingYear, setChangingYear] = useState(false);
 
   // Tablet ve daha küçük ekranlar için media query
-  const isTabletOrSmaller = useMediaQuery('(max-width: 1279px)')
+  const isTabletOrSmaller = useMediaQuery("(max-width: 1279px)");
 
   // Tablet/mobil cihazlarda sidebar'ı otomatik küçült
   useEffect(() => {
     if (isTabletOrSmaller) {
-      setDesktopSidebarOpen(false)
+      setDesktopSidebarOpen(false);
     } else {
-      setDesktopSidebarOpen(true)
+      setDesktopSidebarOpen(true);
     }
-  }, [isTabletOrSmaller])
+  }, [isTabletOrSmaller]);
 
   // Okul ismini ayarlardan çek
   const fetchSchoolName = async () => {
     try {
-      const response = await fetch('/api/system-settings/school-name')
+      const response = await fetch("/api/system-settings/school-name");
       if (!response.ok) {
-        console.error('Okul adı getirme hatası:', response.statusText)
-        return
+        console.error("Okul adı getirme hatası:", response.statusText);
+        return;
       }
 
-      const data = await response.json()
+      const data = await response.json();
       if (data?.value) {
-        setSchoolName(data.value)
+        setSchoolName(data.value);
       }
     } catch (error) {
-      console.error('Okul adı getirme hatası:', error)
+      console.error("Okul adı getirme hatası:", error);
     }
-  }
+  };
 
   // Admin kullanıcı adını getir
   const fetchAdminUserName = async () => {
-    if (!user?.email) return
+    if (!user?.email) return;
 
     try {
-      console.log('🔍 Fetching admin user name for email:', user.email)
-      const response = await fetch(`/api/admin/user-info?email=${encodeURIComponent(user.email)}`)
+      console.log("🔍 Fetching admin user name for email:", user.email);
+      const response = await fetch(
+        `/api/admin/user-info?email=${encodeURIComponent(user.email)}`
+      );
       if (!response.ok) {
-        console.error('Admin kullanıcı adı getirme hatası:', response.statusText)
-        return
+        console.error(
+          "Admin kullanıcı adı getirme hatası:",
+          response.statusText
+        );
+        return;
       }
 
-      const data = await response.json()
-      console.log('📊 Admin user data:', data)
+      const data = await response.json();
+      console.log("📊 Admin user data:", data);
 
       if (data?.name) {
-        console.log('✅ Setting admin user name:', data.name)
-        setAdminUserName(data.name)
+        console.log("✅ Setting admin user name:", data.name);
+        setAdminUserName(data.name);
       }
     } catch (error) {
-      console.error('Admin kullanıcı adı getirme hatası:', error)
+      console.error("Admin kullanıcı adı getirme hatası:", error);
     }
-  }
+  };
 
   // Aktif eğitim yılını getir
   const fetchActiveEducationYear = async () => {
     try {
-      const response = await fetch('/api/admin/education-years/active')
+      const response = await fetch("/api/admin/education-years/active");
       if (!response.ok) {
-        console.error('Aktif eğitim yılı getirme hatası:', response.statusText)
-        return
+        console.error("Aktif eğitim yılı getirme hatası:", response.statusText);
+        return;
       }
-      const contentType = response.headers.get('content-type') || ''
-      if (!contentType.includes('application/json')) {
-        const text = await response.text()
-        console.error('Aktif eğitim yılı getirme hatası: JSON bekleniyordu, gelen yanıt HTML/text görünüyor. İlk 200 karakter:', text.slice(0, 200))
-        return
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        const text = await response.text();
+        console.error(
+          "Aktif eğitim yılı getirme hatası: JSON bekleniyordu, gelen yanıt HTML/text görünüyor. İlk 200 karakter:",
+          text.slice(0, 200)
+        );
+        return;
       }
 
-      const data = await response.json()
+      const data = await response.json();
       if (data?.year) {
-        setActiveEducationYear(data.year)
-        if (data?.id) setActiveEducationYearId(data.id)
+        setActiveEducationYear(data.year);
+        if (data?.id) setActiveEducationYearId(data.id);
       }
     } catch (error) {
-      console.error('Aktif eğitim yılı getirme hatası:', error)
+      console.error("Aktif eğitim yılı getirme hatası:", error);
     }
-  }
+  };
 
   // Eğitim yıllarını getir (liste)
   const fetchEducationYears = async () => {
     try {
-      setEducationYearsLoading(true)
-      const response = await fetch('/api/admin/education-years')
-      if (!response.ok) throw new Error('Eğitim yılları getirilemedi')
-      const data = await response.json()
-      setEducationYears(data || [])
-      const active = (data || []).find((y: any) => y.active)
+      setEducationYearsLoading(true);
+      const response = await fetch("/api/admin/education-years");
+      if (!response.ok) throw new Error("Eğitim yılları getirilemedi");
+      const data = await response.json();
+      setEducationYears(data || []);
+      const active = (data || []).find((y: any) => y.active);
       if (active) {
-        setActiveEducationYear(active.year)
-        setActiveEducationYearId(active.id)
+        setActiveEducationYear(active.year);
+        setActiveEducationYearId(active.id);
       }
     } catch (err) {
-      console.error('Eğitim yılları çekilirken hata:', err)
+      console.error("Eğitim yılları çekilirken hata:", err);
     } finally {
-      setEducationYearsLoading(false)
+      setEducationYearsLoading(false);
     }
-  }
+  };
 
   // Aktif eğitim yılını değiştir
   const handleChangeActiveEducationYear = async (yearId: string) => {
     try {
-      setChangingYear(true)
-      const year = educationYears.find((y: any) => y.id === yearId)
-      if (!year) return
-      const response = await fetch('/api/admin/education-years', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+      setChangingYear(true);
+      const year = educationYears.find((y: any) => y.id === yearId);
+      if (!year) return;
+      const response = await fetch("/api/admin/education-years", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...year,
-          active: true
-        })
-      })
-      if (!response.ok) throw new Error('Aktif dönem güncellenemedi')
+          active: true,
+        }),
+      });
+      if (!response.ok) throw new Error("Aktif dönem güncellenemedi");
       // Refresh local state
-      await fetchEducationYears()
+      await fetchEducationYears();
       // Refresh route to re-fetch server components/data loaders
-      router.refresh()
+      router.refresh();
       // Tam sayfa yenileme: tüm client componentleri ve cache'leri temiz şekilde yeniden yüklesin
       setTimeout(() => {
-        if (typeof window !== 'undefined') {
-          window.location.reload()
+        if (typeof window !== "undefined") {
+          window.location.reload();
         }
-      }, 50)
+      }, 50);
     } catch (error) {
-      console.error('Aktif dönem değiştirilirken hata:', error)
-      alert('Aktif dönem değiştirilemedi')
+      console.error("Aktif dönem değiştirilirken hata:", error);
+      alert("Aktif dönem değiştirilemedi");
     } finally {
-      setChangingYear(false)
+      setChangingYear(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchSchoolName()
-  }, [])
+    fetchSchoolName();
+  }, []);
 
   useEffect(() => {
     if (user?.id && isAdmin) {
-      fetchAdminUserName()
-      fetchActiveEducationYear()
-      fetchEducationYears()
+      fetchAdminUserName();
+      fetchActiveEducationYear();
+      fetchEducationYears();
     }
-  }, [user?.id, isAdmin])
+  }, [user?.id, isAdmin]);
 
   // Auth check and redirect logic
   useEffect(() => {
     if (!loading && !isSigningOut) {
       if (!user || !isAdmin) {
-        if (pathname !== '/admin/login') {
-          router.push('/admin/login')
+        if (pathname !== "/admin/login") {
+          router.push("/admin/login");
         }
       }
     }
-  }, [user, isAdmin, loading, pathname, router, isSigningOut])
+  }, [user, isAdmin, loading, pathname, router, isSigningOut]);
 
   const handleLogout = async () => {
-    if (isSigningOut) return // Prevent multiple simultaneous logout attempts
+    if (isSigningOut) return; // Prevent multiple simultaneous logout attempts
 
-    setIsSigningOut(true)
-    console.log('🚪 Logout initiated...')
+    setIsSigningOut(true);
+    console.log("🚪 Logout initiated...");
 
     try {
       // Clear auth state immediately to prevent UI issues
-      const { error } = await signOut()
+      const { error } = await signOut();
       if (error) {
-        console.error('Logout error:', error)
+        console.error("Logout error:", error);
       }
 
-      console.log('✅ Sign out completed, redirecting to login...')
+      console.log("✅ Sign out completed, redirecting to login...");
 
       // Use a more forceful redirect approach
       setTimeout(() => {
-        window.location.href = '/admin/login'
-      }, 100)
-
+        window.location.href = "/admin/login";
+      }, 100);
     } catch (error) {
-      console.error('Logout error:', error)
+      console.error("Logout error:", error);
       // Force redirect even on error
       setTimeout(() => {
-        window.location.href = '/admin/login'
-      }, 100)
+        window.location.href = "/admin/login";
+      }, 100);
     } finally {
       // Reset the signing out state after a delay to prevent race conditions
       setTimeout(() => {
-        setIsSigningOut(false)
-      }, 1000)
+        setIsSigningOut(false);
+      }, 1000);
     }
-  }
+  };
 
   // Always render login page
-  if (pathname === '/admin/login') {
+  if (pathname === "/admin/login") {
     return (
-      <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>}>
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          </div>
+        }
+      >
         {children}
       </Suspense>
-    )
+    );
   }
 
   return (
-    <div className={classNames(
-      'flex min-h-screen bg-gray-50',
-      desktopSidebarOpen ? 'pb-16' : 'pb-0'
-    )}>
+    <div
+      className={classNames(
+        "flex min-h-screen bg-gray-50",
+        desktopSidebarOpen ? "pb-16" : "pb-0"
+      )}
+    >
       {/* Mobile Sidebar */}
       <Transition.Root show={sidebarOpen} as={Fragment}>
-        <Dialog as="div" className="relative z-50 lg:hidden" onClose={setSidebarOpen}>
+        <Dialog
+          as="div"
+          className="relative z-50 lg:hidden"
+          onClose={setSidebarOpen}
+        >
           <Transition.Child
             as={Fragment}
             enter="transition-opacity ease-linear duration-300"
@@ -340,7 +361,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   leaveTo="opacity-0"
                 >
                   <div className="absolute left-full top-0 flex w-16 justify-center pt-5">
-                    <button type="button" className="-m-2.5 p-2.5" onClick={() => setSidebarOpen(false)}>
+                    <button
+                      type="button"
+                      className="-m-2.5 p-2.5"
+                      onClick={() => setSidebarOpen(false)}
+                    >
                       <span className="sr-only">Menüyü kapat</span>
                       <X className="h-6 w-6 text-white" aria-hidden="true" />
                     </button>
@@ -351,8 +376,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4">
                   <div className="flex items-center justify-center px-4 py-6 border-b border-gray-200">
                     <div className="text-center">
-                      <p className="text-2xl font-extrabold text-gray-900 leading-tight">K-Panel</p>
-                      <p className="text-xs text-gray-600 tracking-wide">Koordinatörlük Takip Uygulaması</p>
+                      <p className="text-2xl font-extrabold text-gray-900 leading-tight">
+                        K-Panel
+                      </p>
+                      <p className="text-xs text-gray-600 tracking-wide">
+                        Koordinatörlük Takip Uygulaması
+                      </p>
                     </div>
                   </div>
                   <nav className="flex flex-1 flex-col">
@@ -366,19 +395,28 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                                 Aktif Dönem
                               </label>
                               <select
-                                value={activeEducationYearId || ''}
-                                onChange={(e) => handleChangeActiveEducationYear(e.target.value)}
+                                value={activeEducationYearId || ""}
+                                onChange={(e) =>
+                                  handleChangeActiveEducationYear(
+                                    e.target.value
+                                  )
+                                }
                                 disabled={educationYearsLoading || changingYear}
                                 className="w-full text-sm font-medium text-blue-900 bg-white border border-blue-200 rounded-md px-2 py-1 disabled:opacity-60"
                               >
-                                {(educationYears || []).filter((y: any) => !y.archived).map((y: any) => (
-                                  <option key={y.id} value={y.id}>
-                                    {y.year} Eğitim Yılı{y.active ? ' (aktif)' : ''}
-                                  </option>
-                                ))}
+                                {(educationYears || [])
+                                  .filter((y: any) => !y.archived)
+                                  .map((y: any) => (
+                                    <option key={y.id} value={y.id}>
+                                      {y.year} Eğitim Yılı
+                                      {y.active ? " (aktif)" : ""}
+                                    </option>
+                                  ))}
                               </select>
                               {changingYear && (
-                                <p className="mt-1 text-[11px] text-blue-700">Güncelleniyor...</p>
+                                <p className="mt-1 text-[11px] text-blue-700">
+                                  Güncelleniyor...
+                                </p>
                               )}
                             </div>
                           </div>
@@ -390,13 +428,24 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                               <Link
                                 href={item.href}
                                 className={`flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 group transition-colors duration-150
-                                  ${pathname === item.href ? 'bg-indigo-50 text-indigo-700' : ''}`}
+                                  ${
+                                    pathname === item.href
+                                      ? "bg-indigo-50 text-indigo-700"
+                                      : ""
+                                  }`}
                                 onClick={() => setSidebarOpen(false)}
                               >
-                                <item.icon className={`w-5 h-5 ${pathname === item.href ? 'text-indigo-600' : 'text-gray-400 group-hover:text-indigo-600'}`} />
-                                <span className="font-medium">{item.title}</span>
+                                <item.icon
+                                  className={`w-5 h-5 ${
+                                    pathname === item.href
+                                      ? "text-indigo-600"
+                                      : "text-gray-400 group-hover:text-indigo-600"
+                                  }`}
+                                />
+                                <span className="font-medium">
+                                  {item.title}
+                                </span>
                               </Link>
-
                             </div>
                           ))}
                         </ul>
@@ -404,7 +453,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
                       {/* Quick Links for Mobile */}
                       <li>
-                        <div className="text-xs font-semibold leading-6 text-gray-400 px-3">Hızlı Erişim</div>
+                        <div className="text-xs font-semibold leading-6 text-gray-400 px-3">
+                          Hızlı Erişim
+                        </div>
                         <ul role="list" className="-mx-2 mt-2 space-y-1">
                           <Link
                             href="/admin/isletmeler"
@@ -430,6 +481,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                             <Users className="w-5 h-5 text-gray-400 group-hover:text-purple-600" />
                             <span className="font-medium">Öğrenciler</span>
                           </Link>
+                          <Link
+                            href="/admin/koordinator-import"
+                            className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-teal-50 hover:text-teal-700 group transition-colors duration-150"
+                            onClick={() => setSidebarOpen(false)}
+                          >
+                            <Upload className="w-5 h-5 text-gray-400 group-hover:text-teal-600" />
+                            <span className="font-medium">
+                              Koordinatör Import
+                            </span>
+                          </Link>
                         </ul>
                       </li>
 
@@ -441,25 +502,33 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                               <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center shadow-sm">
                                   <span className="text-sm font-medium text-indigo-600">
-                                    {(adminUserName ||
+                                    {(
+                                      adminUserName ||
                                       user.user_metadata?.full_name ||
                                       user.user_metadata?.name ||
                                       user.email ||
-                                      'A').charAt(0).toUpperCase()}
+                                      "A"
+                                    )
+                                      .charAt(0)
+                                      .toUpperCase()}
                                   </span>
                                 </div>
                                 <div>
                                   <p className="text-sm font-medium text-gray-900">
                                     {adminUserName ||
-                                     user.user_metadata?.full_name ||
-                                     user.user_metadata?.name ||
-                                     user.email?.split('@')[0] ||
-                                     'Admin Kullanıcı'}
+                                      user.user_metadata?.full_name ||
+                                      user.user_metadata?.name ||
+                                      user.email?.split("@")[0] ||
+                                      "Admin Kullanıcı"}
                                   </p>
                                   <p className="text-xs font-medium bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                                    {adminRole === 'super_admin' ? 'K. Müd. Yard.' :
-                                     adminRole === 'admin' ? 'Admin' :
-                                     adminRole === 'operator' ? 'Admin' : 'Admin'}
+                                    {adminRole === "super_admin"
+                                      ? "K. Müd. Yard."
+                                      : adminRole === "admin"
+                                      ? "Admin"
+                                      : adminRole === "operator"
+                                      ? "Admin"
+                                      : "Admin"}
                                   </p>
                                 </div>
                               </div>
@@ -491,8 +560,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                               </Link>
                               <button
                                 onClick={() => {
-                                  setSidebarOpen(false)
-                                  handleLogout()
+                                  setSidebarOpen(false);
+                                  handleLogout();
                                 }}
                                 disabled={isSigningOut}
                                 className="flex w-full items-center gap-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-700 group transition-colors duration-150 disabled:opacity-50"
@@ -502,7 +571,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                                 ) : (
                                   <LogOut className="w-5 h-5 text-gray-400 group-hover:text-red-600" />
                                 )}
-                                <span className="font-medium">{isSigningOut ? 'Çıkış Yapılıyor...' : 'Çıkış Yap'}</span>
+                                <span className="font-medium">
+                                  {isSigningOut
+                                    ? "Çıkış Yapılıyor..."
+                                    : "Çıkış Yap"}
+                                </span>
                               </button>
                             </ul>
                           </div>
@@ -520,19 +593,25 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       {/* Desktop Sidebar */}
       <div
         className={classNames(
-          desktopSidebarOpen ? 'lg:w-72' : 'lg:w-20',
-          'hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:flex-col transition-all duration-300'
+          desktopSidebarOpen ? "lg:w-72" : "lg:w-20",
+          "hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:flex-col transition-all duration-300"
         )}
       >
         <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white">
-          <div className={classNames(
-            'flex items-center justify-center border-b border-gray-200 transition-all duration-300',
-            desktopSidebarOpen ? 'h-28 py-4' : 'h-16 py-2'
-          )}>
+          <div
+            className={classNames(
+              "flex items-center justify-center border-b border-gray-200 transition-all duration-300",
+              desktopSidebarOpen ? "h-28 py-4" : "h-16 py-2"
+            )}
+          >
             {desktopSidebarOpen && (
               <div className="text-center">
-                <p className="text-2xl font-extrabold text-gray-900 leading-tight">K-Panel</p>
-                <p className="text-sm text-gray-600 tracking-wide">Koordinatörlük Takip Uygulaması</p>
+                <p className="text-2xl font-extrabold text-gray-900 leading-tight">
+                  K-Panel
+                </p>
+                <p className="text-sm text-gray-600 tracking-wide">
+                  Koordinatörlük Takip Uygulaması
+                </p>
               </div>
             )}
           </div>
@@ -547,53 +626,72 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                         Aktif Dönem
                       </label>
                       <select
-                        value={activeEducationYearId || ''}
-                        onChange={(e) => handleChangeActiveEducationYear(e.target.value)}
+                        value={activeEducationYearId || ""}
+                        onChange={(e) =>
+                          handleChangeActiveEducationYear(e.target.value)
+                        }
                         disabled={educationYearsLoading || changingYear}
                         className="w-full text-sm font-medium text-blue-900 bg-white border border-blue-200 rounded-md px-2 py-1 disabled:opacity-60"
                       >
-                        {(educationYears || []).filter((y: any) => !y.archived).map((y: any) => (
-                          <option key={y.id} value={y.id}>
-                            {y.year} Eğitim Yılı{y.active ? ' (aktif)' : ''}
-                          </option>
-                        ))}
+                        {(educationYears || [])
+                          .filter((y: any) => !y.archived)
+                          .map((y: any) => (
+                            <option key={y.id} value={y.id}>
+                              {y.year} Eğitim Yılı{y.active ? " (aktif)" : ""}
+                            </option>
+                          ))}
                       </select>
                       {changingYear && (
-                        <p className="mt-1 text-[11px] text-blue-700">Güncelleniyor...</p>
+                        <p className="mt-1 text-[11px] text-blue-700">
+                          Güncelleniyor...
+                        </p>
                       )}
                     </div>
                   </div>
                 )}
 
-                <ul role="list" className={classNames(
-                  desktopSidebarOpen ? 'px-4' : 'px-2',
-                  'space-y-1'
-                )}>
+                <ul
+                  role="list"
+                  className={classNames(
+                    desktopSidebarOpen ? "px-4" : "px-2",
+                    "space-y-1"
+                  )}
+                >
                   {menuItems.map((item) => (
                     <div key={item.href} className="space-y-1">
                       <Link
                         href={item.href}
                         className={classNames(
-                          pathname === item.href ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-indigo-50 hover:text-indigo-700',
-                          desktopSidebarOpen ? 'px-3' : 'justify-center px-2',
-                          'group flex items-center gap-x-3 py-2 rounded-lg transition-colors duration-150'
+                          pathname === item.href
+                            ? "bg-indigo-50 text-indigo-700"
+                            : "text-gray-700 hover:bg-indigo-50 hover:text-indigo-700",
+                          desktopSidebarOpen ? "px-3" : "justify-center px-2",
+                          "group flex items-center gap-x-3 py-2 rounded-lg transition-colors duration-150"
                         )}
                         title={!desktopSidebarOpen ? item.title : undefined}
                       >
-                        <item.icon className={classNames(
-                          pathname === item.href ? 'text-indigo-600' :
-                          !desktopSidebarOpen ?
-                            (item.href === '/admin' ? 'text-blue-500 group-hover:text-blue-600' :
-                             item.href === '/admin/alanlar' ? 'text-green-500 group-hover:text-green-600' :
-                             item.href === '/admin/dekontlar' ? 'text-purple-500 group-hover:text-purple-600' :
-                             item.href === '/admin/araclar' ? 'text-orange-500 group-hover:text-orange-600' :
-                             'text-gray-400 group-hover:text-indigo-600') :
-                          'text-gray-400 group-hover:text-indigo-600',
-                          'h-5 w-5 shrink-0'
-                        )} />
-                        {desktopSidebarOpen && <span className="font-medium">{item.title}</span>}
+                        <item.icon
+                          className={classNames(
+                            pathname === item.href
+                              ? "text-indigo-600"
+                              : !desktopSidebarOpen
+                              ? item.href === "/admin"
+                                ? "text-blue-500 group-hover:text-blue-600"
+                                : item.href === "/admin/alanlar"
+                                ? "text-green-500 group-hover:text-green-600"
+                                : item.href === "/admin/dekontlar"
+                                ? "text-purple-500 group-hover:text-purple-600"
+                                : item.href === "/admin/araclar"
+                                ? "text-orange-500 group-hover:text-orange-600"
+                                : "text-gray-400 group-hover:text-indigo-600"
+                              : "text-gray-400 group-hover:text-indigo-600",
+                            "h-5 w-5 shrink-0"
+                          )}
+                        />
+                        {desktopSidebarOpen && (
+                          <span className="font-medium">{item.title}</span>
+                        )}
                       </Link>
-
                     </div>
                   ))}
                 </ul>
@@ -604,8 +702,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <li className="mt-auto">
                   <div className="bg-gradient-to-br from-indigo-900 to-indigo-800 text-white py-4">
                     <div className="px-4 sm:px-6 lg:px-8">
-                      <div className="flex items-center justify-center h-6">
-                      </div>
+                      <div className="flex items-center justify-center h-6"></div>
                     </div>
                   </div>
                 </li>
@@ -616,10 +713,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </div>
 
       {/* Main Content */}
-      <div className={classNames(
-        desktopSidebarOpen ? 'lg:pl-72' : 'lg:pl-20',
-        'flex flex-1 flex-col lg:ml-0 transition-all duration-300'
-      )}>
+      <div
+        className={classNames(
+          desktopSidebarOpen ? "lg:pl-72" : "lg:pl-20",
+          "flex flex-1 flex-col lg:ml-0 transition-all duration-300"
+        )}
+      >
         <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
           <button
             type="button"
@@ -635,7 +734,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             className="hidden lg:block -m-2.5 p-2.5 text-gray-700"
             onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
           >
-            <span className="sr-only">{desktopSidebarOpen ? 'Menüyü daralt' : 'Menüyü genişlet'}</span>
+            <span className="sr-only">
+              {desktopSidebarOpen ? "Menüyü daralt" : "Menüyü genişlet"}
+            </span>
             <Menu className="h-6 w-6" aria-hidden="true" />
           </button>
 
@@ -647,9 +748,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   <div className="flex items-center gap-x-1 sm:gap-x-2">
                     <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600 flex-shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-blue-700 hidden sm:block">Aktif Dönem</p>
+                      <p className="text-xs font-medium text-blue-700 hidden sm:block">
+                        Aktif Dönem
+                      </p>
                       <p className="text-xs sm:text-sm font-semibold text-blue-900 truncate">
-                        <span className="sm:hidden">Dönem: </span>{activeEducationYear}
+                        <span className="sm:hidden">Dönem: </span>
+                        {activeEducationYear}
                       </p>
                     </div>
                   </div>
@@ -666,7 +770,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   title="İşletme Yönetimi - Tüm işletmeleri listele, filtrele ve yönet"
                 >
                   <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:block text-xs sm:text-sm">İşletmeler</span>
+                  <span className="hidden sm:block text-xs sm:text-sm">
+                    İşletmeler
+                  </span>
                 </Link>
 
                 <Link
@@ -675,7 +781,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   title="Öğretmen Yönetimi - Tüm öğretmenleri listele, filtrele ve yönet"
                 >
                   <UserCheck className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:block text-xs sm:text-sm">Öğretmenler</span>
+                  <span className="hidden sm:block text-xs sm:text-sm">
+                    Öğretmenler
+                  </span>
                 </Link>
 
                 <Link
@@ -684,9 +792,21 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   title="Öğrenci Yönetimi - Tüm öğrencileri listele, filtrele ve yönet"
                 >
                   <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:block text-xs sm:text-sm">Öğrenciler</span>
+                  <span className="hidden sm:block text-xs sm:text-sm">
+                    Öğrenciler
+                  </span>
                 </Link>
 
+                <Link
+                  href="/admin/koordinator-import"
+                  className="flex items-center gap-x-1 px-1.5 sm:px-2 md:px-3 py-1.5 text-sm font-medium text-teal-600 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition-colors"
+                  title="Koordinatör Excel Import - Excel dosyasından koordinatör atama verilerini içe aktar"
+                >
+                  <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:block text-xs sm:text-sm">
+                    Import
+                  </span>
+                </Link>
               </div>
 
               {/* User dropdown */}
@@ -696,24 +816,32 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     <div className="text-right">
                       <p className="text-sm font-medium text-gray-900">
                         {adminUserName ||
-                         user.user_metadata?.full_name ||
-                         user.user_metadata?.name ||
-                         user.email?.split('@')[0] ||
-                         'Admin Kullanıcı'}
+                          user.user_metadata?.full_name ||
+                          user.user_metadata?.name ||
+                          user.email?.split("@")[0] ||
+                          "Admin Kullanıcı"}
                       </p>
                       <p className="text-xs font-medium bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                        {adminRole === 'super_admin' ? 'K. Müd. Yard.' :
-                         adminRole === 'admin' ? 'Admin' :
-                         adminRole === 'operator' ? 'Admin' : 'Admin'}
+                        {adminRole === "super_admin"
+                          ? "K. Müd. Yard."
+                          : adminRole === "admin"
+                          ? "Admin"
+                          : adminRole === "operator"
+                          ? "Admin"
+                          : "Admin"}
                       </p>
                     </div>
                     <div className="w-8 h-8 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center shadow-sm">
                       <span className="text-sm font-medium text-indigo-600">
-                        {(adminUserName ||
+                        {(
+                          adminUserName ||
                           user.user_metadata?.full_name ||
                           user.user_metadata?.name ||
                           user.email ||
-                          'A').charAt(0).toUpperCase()}
+                          "A"
+                        )
+                          .charAt(0)
+                          .toUpperCase()}
                       </span>
                     </div>
                     <ChevronDown className="h-4 w-4 text-gray-400" />
@@ -734,8 +862,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                           <Link
                             href="/admin/mesajlar"
                             className={classNames(
-                              active ? 'bg-purple-50 text-purple-700' : 'text-gray-700',
-                              'flex items-center px-4 py-3 text-sm font-medium transition-colors'
+                              active
+                                ? "bg-purple-50 text-purple-700"
+                                : "text-gray-700",
+                              "flex items-center px-4 py-3 text-sm font-medium transition-colors"
                             )}
                           >
                             <MessageCircle className="mr-3 h-5 w-5" />
@@ -751,8 +881,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                           <Link
                             href="/admin/profil"
                             className={classNames(
-                              active ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700',
-                              'flex items-center px-4 py-3 text-sm font-medium transition-colors'
+                              active
+                                ? "bg-indigo-50 text-indigo-700"
+                                : "text-gray-700",
+                              "flex items-center px-4 py-3 text-sm font-medium transition-colors"
                             )}
                           >
                             <User className="mr-3 h-5 w-5" />
@@ -766,8 +898,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                           <Link
                             href="/admin/ayarlar"
                             className={classNames(
-                              active ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700',
-                              'flex items-center px-4 py-3 text-sm font-medium transition-colors'
+                              active
+                                ? "bg-indigo-50 text-indigo-700"
+                                : "text-gray-700",
+                              "flex items-center px-4 py-3 text-sm font-medium transition-colors"
                             )}
                           >
                             <Settings className="mr-3 h-5 w-5" />
@@ -784,8 +918,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                             onClick={handleLogout}
                             disabled={isSigningOut}
                             className={classNames(
-                              active ? 'bg-red-50 text-red-700' : 'text-gray-700',
-                              'flex w-full items-center px-4 py-3 text-sm font-medium transition-colors disabled:opacity-50'
+                              active
+                                ? "bg-red-50 text-red-700"
+                                : "text-gray-700",
+                              "flex w-full items-center px-4 py-3 text-sm font-medium transition-colors disabled:opacity-50"
                             )}
                           >
                             {isSigningOut ? (
@@ -793,7 +929,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                             ) : (
                               <LogOut className="mr-3 h-5 w-5" />
                             )}
-                            {isSigningOut ? 'Çıkış Yapılıyor...' : 'Güvenli Çıkış'}
+                            {isSigningOut
+                              ? "Çıkış Yapılıyor..."
+                              : "Güvenli Çıkış"}
                           </button>
                         )}
                       </MenuDropdown.Item>
@@ -801,14 +939,19 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   </Transition>
                 </MenuDropdown>
               )}
-
             </div>
           </div>
         </div>
 
         <main className="py-10">
           <div className="px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
-            <Suspense fallback={<div className="flex items-center justify-center min-h-[50vh]"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div></div>}>
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center min-h-[50vh]">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+                </div>
+              }
+            >
               {children}
             </Suspense>
           </div>
@@ -824,12 +967,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <div className="font-bold bg-white text-indigo-900 w-6 h-6 flex items-center justify-center rounded-md">
                   {schoolName.charAt(0)}
                 </div>
-                <span className="text-sm">&copy; {new Date().getFullYear()} {schoolName}</span>
+                <span className="text-sm">
+                  &copy; {new Date().getFullYear()} {schoolName}
+                </span>
               </div>
             </div>
           </div>
         </footer>
       )}
     </div>
-  )
+  );
 }

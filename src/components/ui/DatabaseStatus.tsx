@@ -127,20 +127,21 @@ export function DatabaseStatusHeader() {
     // Polling disabled for header version
   }, [])
 
+  // Only show when there's a connection problem
+  if (status === 'connected') {
+    return null
+  }
+
   return (
     <div className="flex items-center justify-center mb-4">
       <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs ${
-        status === 'connected' 
-          ? 'bg-green-50 text-green-700 border border-green-200' 
-          : status === 'disconnected'
+        status === 'disconnected'
           ? 'bg-red-50 text-red-700 border border-red-200'
           : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
       }`}>
-        {status === 'connected' && <Wifi className="w-3 h-3" />}
         {status === 'disconnected' && <WifiOff className="w-3 h-3" />}
         {status === 'checking' && <Loader2 className="w-3 h-3 animate-spin" />}
         <span>
-          {status === 'connected' && 'Veritabanı Bağlı'}
           {status === 'disconnected' && 'Veritabanı Bağlantısız'}
           {status === 'checking' && 'Bağlantı Kontrol Ediliyor'}
         </span>
