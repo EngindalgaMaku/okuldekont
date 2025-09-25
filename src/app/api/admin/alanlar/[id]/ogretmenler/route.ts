@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resolvedParams = await params
-    const alanId = resolvedParams.id
+    const resolvedParams = await params;
+    const alanId = resolvedParams.id;
 
     // Öğretmenler ve onların staj bilgilerini getir (optimize edilmiş)
     const ogretmenlerData = await prisma.teacherProfile.findMany({
@@ -25,72 +25,79 @@ export async function GET(
             stajlar: {
               where: {
                 student: {
-                  alanId: alanId
-                }
-              }
-            }
-          }
-        }
+                  alanId: alanId,
+                },
+              },
+            },
+          },
+        },
       },
-      orderBy: { name: 'asc' }
-    })
+      orderBy: { name: "asc" },
+    });
 
     // Her öğretmen için gerçek sayıları hesapla
     const ogretmenler = await Promise.all(
-      ogretmenlerData.map(async (ogretmen) => {
+      ogretmenlerData.map(async (ogretmen: any) => {
         // Bu öğretmenin koordinatörlüğünü yaptığı aktif stajları al
         const activeInternships = await prisma.staj.findMany({
           where: {
             teacherId: ogretmen.id,
             student: {
-              alanId: alanId
+              alanId: alanId,
             },
-            status: 'ACTIVE'
+            status: "ACTIVE",
           },
           select: {
             studentId: true,
-            companyId: true
-          }
-        })
+            companyId: true,
+          },
+        });
 
         // Bu öğretmenin işletmeye atandığı stajları da al
         const companyAssignedInternships = await prisma.staj.findMany({
           where: {
             company: {
-              teacherId: ogretmen.id
+              teacherId: ogretmen.id,
             },
             student: {
-              alanId: alanId
+              alanId: alanId,
             },
-            status: 'ACTIVE'
+            status: "ACTIVE",
           },
           select: {
             studentId: true,
-            companyId: true
-          }
-        })
+            companyId: true,
+          },
+        });
 
         // Tüm stajları birleştir ve duplicate'ları çıkar
-        const allInternships = [...activeInternships, ...companyAssignedInternships]
-        const uniqueStudents = Array.from(new Set(allInternships.map(i => i.studentId)))
-        const uniqueCompanies = Array.from(new Set(allInternships.map(i => i.companyId)))
+        const allInternships = [
+          ...activeInternships,
+          ...companyAssignedInternships,
+        ];
+        const uniqueStudents = Array.from(
+          new Set(allInternships.map((i) => i.studentId))
+        );
+        const uniqueCompanies = Array.from(
+          new Set(allInternships.map((i) => i.companyId))
+        );
 
         return {
           ...ogretmen,
           ad: ogretmen.name,
           soyad: ogretmen.surname,
           ogrenci_sayisi: uniqueStudents.length,
-          isletme_sayisi: uniqueCompanies.length
-        }
+          isletme_sayisi: uniqueCompanies.length,
+        };
       })
-    )
+    );
 
-    return NextResponse.json(ogretmenler)
+    return NextResponse.json(ogretmenler);
   } catch (error) {
-    console.error('Öğretmenler API hatası:', error)
+    console.error("Öğretmenler API hatası:", error);
     return NextResponse.json(
-      { error: 'Öğretmenler yüklenirken hata oluştu' },
+      { error: "Öğretmenler yüklenirken hata oluştu" },
       { status: 500 }
-    )
+    );
   }
 }

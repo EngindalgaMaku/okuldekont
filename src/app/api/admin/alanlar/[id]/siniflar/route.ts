@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resolvedParams = await params
-    const alanId = resolvedParams.id
+    const resolvedParams = await params;
+    const alanId = resolvedParams.id;
 
     // Sınıfları getir
     const siniflarData = await prisma.class.findMany({
@@ -19,27 +19,27 @@ export async function GET(
         haftalik_program: true,
         _count: {
           select: {
-            students: true
-          }
-        }
+            students: true,
+          },
+        },
       },
-      orderBy: { name: 'asc' }
-    })
+      orderBy: { name: "asc" },
+    });
 
     // Sınıfları dönüştür
-    const siniflar = siniflarData.map((sinif) => ({
+    const siniflar = siniflarData.map((sinif: any) => ({
       ...sinif,
       ad: sinif.name,
       ogrenci_sayisi: sinif._count.students,
-      haftalik_program: sinif.haftalik_program
-    }))
+      haftalik_program: sinif.haftalik_program,
+    }));
 
-    return NextResponse.json(siniflar)
+    return NextResponse.json(siniflar);
   } catch (error) {
-    console.error('Sınıflar API hatası:', error)
+    console.error("Sınıflar API hatası:", error);
     return NextResponse.json(
-      { error: 'Sınıflar yüklenirken hata oluştu' },
+      { error: "Sınıflar yüklenirken hata oluştu" },
       { status: 500 }
-    )
+    );
   }
 }

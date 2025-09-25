@@ -1,16 +1,16 @@
-import AlanlarClient from '@/components/admin/AlanlarClient'
-import { GraduationCap } from 'lucide-react'
-import { prisma } from '@/lib/prisma'
+import AlanlarClient from "@/components/admin/AlanlarClient";
+import { GraduationCap } from "lucide-react";
+import { prisma } from "@/lib/prisma";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 interface Alan {
-  id: string
-  ad: string
-  aciklama?: string
-  aktif: boolean
-  ogretmen_sayisi: number
-  ogrenci_sayisi: number
+  id: string;
+  ad: string;
+  aciklama?: string;
+  aktif: boolean;
+  ogretmen_sayisi: number;
+  ogrenci_sayisi: number;
 }
 
 async function getAlanlar(): Promise<Alan[]> {
@@ -21,38 +21,38 @@ async function getAlanlar(): Promise<Alan[]> {
         _count: {
           select: {
             teachers: true,
-            students: true
-          }
-        }
+            students: true,
+          },
+        },
       },
       orderBy: {
-        name: 'asc'
-      }
-    })
+        name: "asc",
+      },
+    });
 
     // Get companies count separately
-    const companiesCount = await prisma.companyProfile.count()
+    const companiesCount = await prisma.companyProfile.count();
 
     // Transform data to match expected interface
-    const transformedFields = fields.map(field => ({
+    const transformedFields = fields.map((field: any) => ({
       id: field.id,
       ad: field.name,
       aciklama: field.description || undefined,
       aktif: field.active,
       ogretmen_sayisi: field._count.teachers,
-      ogrenci_sayisi: field._count.students
-    }))
+      ogrenci_sayisi: field._count.students,
+    }));
 
-    return transformedFields
+    return transformedFields;
   } catch (error) {
-    console.error('Alanlar yüklenirken hata:', error)
-    return []
+    console.error("Alanlar yüklenirken hata:", error);
+    return [];
   }
 }
 
 export default async function AlanlarPage() {
-  const alanlar = await getAlanlar()
+  const alanlar = await getAlanlar();
 
   // Always render AlanlarClient - it handles empty state internally
-  return <AlanlarClient initialAlanlar={alanlar} />
+  return <AlanlarClient initialAlanlar={alanlar} />;
 }

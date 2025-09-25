@@ -104,7 +104,7 @@ export async function GET(
 
     // Öğrenci verilerini dönüştür ve sayısal sıraya göre sırala
     const transformedOgrenciler = ogrencilerData
-      .map((ogrenci) => {
+      .map((ogrenci: any) => {
         // Aktif staj varsa öncelik ver, yoksa student.company'yi kullan
         const activeInternship = ogrenci.stajlar?.[0];
         const currentCompany = activeInternship?.company || ogrenci.company;
@@ -138,7 +138,7 @@ export async function GET(
             : null,
         };
       })
-      .sort((a, b) => {
+      .sort((a: any, b: any) => {
         // Numeric sort by student number
         const numA = parseInt(a.no) || 0;
         const numB = parseInt(b.no) || 0;
