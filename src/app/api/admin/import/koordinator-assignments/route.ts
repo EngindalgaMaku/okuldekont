@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
                 surname: teacherLastName,
                 pin: "2025", // Default PIN
                 userId: teacherUser.id,
-                alanId: alan.id,
+                alanId: null, // Öğretmenin kendi alanı sonradan belirlenecek
                 mustChangePin: true,
                 active: true,
               },

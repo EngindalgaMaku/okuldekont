@@ -81,7 +81,15 @@ export default function LoginPage() {
   // Fetch login control settings
   const fetchLoginControlSettings = useCallback(async () => {
     try {
-      const response = await fetch("/api/system-settings");
+      // Add cache busting to ensure fresh data
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/system-settings?t=${timestamp}`, {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+        },
+      });
       if (!response.ok) throw new Error("Failed to fetch settings");
       const data = await response.json();
 
@@ -92,8 +100,18 @@ export default function LoginPage() {
         }
       }
 
+      console.log("🔧 Login control settings loaded:", {
+        enable_company_login: settingsMap.enable_company_login,
+        enable_teacher_login: settingsMap.enable_teacher_login,
+      });
+
       const enableCompanyLogin = settingsMap.enable_company_login !== "false";
       const enableTeacherLogin = settingsMap.enable_teacher_login !== "false";
+
+      console.log("🎯 Parsed login settings:", {
+        enableCompanyLogin,
+        enableTeacherLogin,
+      });
 
       setLoginControlSettings({
         enableCompanyLogin,
@@ -141,6 +159,29 @@ export default function LoginPage() {
     };
 
     initializeLoginPage();
+  }, [fetchLoginControlSettings]);
+
+  // Re-fetch settings when page becomes visible (to catch admin changes)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        console.log("🔄 Page became visible, refreshing login settings...");
+        fetchLoginControlSettings();
+      }
+    };
+
+    const handleFocus = () => {
+      console.log("🔄 Page focused, refreshing login settings...");
+      fetchLoginControlSettings();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, [fetchLoginControlSettings]);
 
   // Debounced search term - 300ms bekle
@@ -599,6 +640,21 @@ export default function LoginPage() {
                 <p className="text-sm text-gray-600">
                   Giriş seçenekleri yükleniyor...
                 </p>
+              </div>
+            )}
+
+            {/* Refresh button for manual update */}
+            {!loginControlSettings.loading && (
+              <div className="text-center mb-4">
+                <button
+                  onClick={() => {
+                    console.log("🔄 Manual refresh triggered");
+                    fetchLoginControlSettings();
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  ↻ Ayarları Yenile
+                </button>
               </div>
             )}
 
