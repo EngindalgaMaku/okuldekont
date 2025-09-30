@@ -110,19 +110,21 @@ export default function DekontUpload({
     label: isletme.ad
   })) || []
 
-  // Eğitim-öğretim yılını dinamik hesapla (Eylül-Haziran)
+  // Yıl listesini dinamik oluştur
   const getEgitimYillari = () => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth(); // 0-based (0=Ocak, 8=Eylül)
+    const currentYear = new Date().getFullYear();
+    const baseYears = [currentYear - 1, currentYear];
     
-    // Eylül ve sonrasıysa yeni eğitim yılı başlamıştır (örn: Eylül 2025 -> 2025-2026)
-    // Ağustos ve öncesiyse hala önceki eğitim yılındayız (örn: Ağustos 2025 -> 2024-2025)
-    if (currentMonth >= 8) { // Eylül (8) ve sonrası
-      return [currentYear, currentYear + 1];
-    } else {
-      return [currentYear - 1, currentYear];
+    // Staj başlangıç tarihi kontrolü
+    if (startDate) {
+      const startYear = new Date(startDate).getFullYear();
+      
+      // Staj başlangıç yılından önceki yılları filtrele
+      // Örnek: Eylül 2025 başlamışsa -> 2024 gösterme, sadece 2025
+      return baseYears.filter(year => year >= startYear);
     }
+    
+    return baseYears;
   };
   
   const YIL_LISTESI = getEgitimYillari();
