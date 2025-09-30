@@ -65,6 +65,17 @@ const MONTHS = [
   'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
 ]
 
+// Gerçek uzantıyı fileUrl'den çıkar (jpeg -> jpg normalize)
+function getFileExtFromUrl(fileUrl: string | null): string {
+  if (!fileUrl) return 'pdf'
+  const lower = fileUrl.toLowerCase()
+  const lastDot = lower.lastIndexOf('.')
+  if (lastDot === -1) return isImageFile(fileUrl) ? 'jpg' : 'pdf'
+  const ext = lower.substring(lastDot + 1)
+  if (ext === 'jpeg') return 'jpg'
+  return ext
+}
+
 const STATUS_COLORS = {
   bekliyor: 'bg-yellow-100 text-yellow-800 border-yellow-200',
   onaylandi: 'bg-green-100 text-green-800 border-green-200',
@@ -852,7 +863,10 @@ export default function ClientDekontlarPage() {
                                   <>
                                     <button
                                       onClick={() => {
-                                        handleFileAction(dekont.dosya_url!, `dekont-${dekont.ogrenci_ad.replace(/\s+/g, '_')}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.${isImageFile(dekont.dosya_url!) ? 'jpg' : 'pdf'}`)
+                                        handleFileAction(
+                                          dekont.dosya_url!,
+                                          `dekont-${dekont.ogrenci_ad.replace(/\s+/g, '_')}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.${getFileExtFromUrl(dekont.dosya_url!)}`
+                                        )
                                         closeDropdown()
                                       }}
                                       className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -1032,7 +1046,10 @@ export default function ClientDekontlarPage() {
                             <>
                               <button
                                 onClick={() => {
-                                  handleFileAction(dekont.dosya_url!, `dekont-${dekont.ogrenci_ad.replace(/\s+/g, '_')}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.${isImageFile(dekont.dosya_url!) ? 'jpg' : 'pdf'}`)
+                                  handleFileAction(
+                                    dekont.dosya_url!,
+                                    `dekont-${dekont.ogrenci_ad.replace(/\s+/g, '_')}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.${getFileExtFromUrl(dekont.dosya_url!)}`
+                                  )
                                   closeDropdown()
                                 }}
                                 className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -1124,7 +1141,10 @@ export default function ClientDekontlarPage() {
                   <>
                     {isPreviewableFile(dekont.dosya_url) ? (
                       <button
-                        onClick={() => openImageModal(dekont.dosya_url!, `dekont-${dekont.ogrenci_ad.replace(/\s+/g, '_')}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.${isImageFile(dekont.dosya_url!) ? 'jpg' : 'pdf'}`)}
+                        onClick={() => openImageModal(
+                          dekont.dosya_url!,
+                          `dekont-${dekont.ogrenci_ad.replace(/\s+/g, '_')}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.${getFileExtFromUrl(dekont.dosya_url!)}`
+                        )}
                         className="inline-flex items-center px-3 py-1.5 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md"
                       >
                         <Eye className="h-4 w-4 mr-2" />
@@ -1132,7 +1152,10 @@ export default function ClientDekontlarPage() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => downloadFile(dekont.dosya_url!, `dekont-${dekont.ogrenci_ad.replace(/\s+/g, '_')}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.${isImageFile(dekont.dosya_url!) ? 'jpg' : 'pdf'}`)}
+                        onClick={() => downloadFile(
+                          dekont.dosya_url!,
+                          `dekont-${dekont.ogrenci_ad.replace(/\s+/g, '_')}-${MONTHS[dekont.ay - 1]}-${dekont.yil}.${getFileExtFromUrl(dekont.dosya_url!)}`
+                        )}
                         className="inline-flex items-center px-3 py-1.5 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
                       >
                         <Download className="h-4 w-4 mr-2" />
