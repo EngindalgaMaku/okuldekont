@@ -61,8 +61,8 @@ export default function AyarlarPage() {
     systemMaintenance: false,
     showPerformanceMonitoring: false,
     dekont_son_gun: 10,
-    enableCompanyLogin: true,
-    enableTeacherLogin: true,
+    enableCompanyLogin: false,
+    enableTeacherLogin: false,
   });
 
   // Daily Rate Settings
@@ -277,8 +277,8 @@ export default function AyarlarPage() {
         showPerformanceMonitoring:
           settingsMap.show_performance_monitoring === "true",
         dekont_son_gun: parseInt(settingsMap.dekont_son_gun || "10"),
-        enableCompanyLogin: settingsMap.enable_company_login !== "false",
-        enableTeacherLogin: settingsMap.enable_teacher_login !== "false",
+        enableCompanyLogin: settingsMap.enable_company_login === "true",
+        enableTeacherLogin: settingsMap.enable_teacher_login === "true",
       });
     } catch (error) {
       console.error("Ayarlar çekilirken hata:", error);

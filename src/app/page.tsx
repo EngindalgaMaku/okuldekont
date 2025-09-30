@@ -70,8 +70,8 @@ export default function LoginPage() {
 
   // Login control settings
   const [loginControlSettings, setLoginControlSettings] = useState({
-    enableCompanyLogin: true,
-    enableTeacherLogin: true,
+    enableCompanyLogin: false,
+    enableTeacherLogin: false,
     loading: true,
   });
 
@@ -105,8 +105,8 @@ export default function LoginPage() {
         enable_teacher_login: settingsMap.enable_teacher_login,
       });
 
-      const enableCompanyLogin = settingsMap.enable_company_login !== "false";
-      const enableTeacherLogin = settingsMap.enable_teacher_login !== "false";
+      const enableCompanyLogin = settingsMap.enable_company_login === "true";
+      const enableTeacherLogin = settingsMap.enable_teacher_login === "true";
 
       console.log("🎯 Parsed login settings:", {
         enableCompanyLogin,
@@ -122,13 +122,13 @@ export default function LoginPage() {
       return { enableCompanyLogin, enableTeacherLogin };
     } catch (error) {
       console.error("Login control settings fetch error:", error);
-      // Default to enabled if fetch fails
+      // Default to disabled if fetch fails for security
       setLoginControlSettings({
-        enableCompanyLogin: true,
-        enableTeacherLogin: true,
+        enableCompanyLogin: false,
+        enableTeacherLogin: false,
         loading: false,
       });
-      return { enableCompanyLogin: true, enableTeacherLogin: true };
+      return { enableCompanyLogin: false, enableTeacherLogin: false };
     }
   }, []);
 

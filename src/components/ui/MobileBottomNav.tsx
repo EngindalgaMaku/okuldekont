@@ -19,8 +19,8 @@ export default function MobileBottomNav() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [loginSettings, setLoginSettings] = useState({
-    enableCompanyLogin: true,
-    enableTeacherLogin: true,
+    enableCompanyLogin: false,
+    enableTeacherLogin: false,
     loading: true,
   });
 
@@ -39,8 +39,8 @@ export default function MobileBottomNav() {
           }
         }
 
-        const enableCompanyLogin = settingsMap.enable_company_login !== "false";
-        const enableTeacherLogin = settingsMap.enable_teacher_login !== "false";
+        const enableCompanyLogin = settingsMap.enable_company_login === "true";
+        const enableTeacherLogin = settingsMap.enable_teacher_login === "true";
 
         setLoginSettings({
           enableCompanyLogin,
@@ -49,10 +49,10 @@ export default function MobileBottomNav() {
         });
       } catch (error) {
         console.error("Login settings fetch error:", error);
-        // Default to enabled if fetch fails
+        // Default to disabled if fetch fails for security
         setLoginSettings({
-          enableCompanyLogin: true,
-          enableTeacherLogin: true,
+          enableCompanyLogin: false,
+          enableTeacherLogin: false,
           loading: false,
         });
       }
