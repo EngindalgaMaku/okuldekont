@@ -1,10 +1,11 @@
 "use client";
 
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { Home, Building2, User, Users, FileText, Receipt, LogOut } from "lucide-react";
+import { Home, Building2, User, Users, FileText, Receipt, LogOut, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
+import { isPWAInstalled, closePWA } from "@/lib/pwaUtils";
 
 interface NavItem {
   label: string;
@@ -23,6 +24,7 @@ export default function MobileBottomNav() {
     enableTeacherLogin: false,
     loading: true,
   });
+  const [isPWA, setIsPWA] = useState(false);
 
   // Fetch login control settings
   useEffect(() => {
@@ -59,6 +61,11 @@ export default function MobileBottomNav() {
     };
 
     fetchLoginSettings();
+  }, []);
+
+  // PWA kontrolü
+  useEffect(() => {
+    setIsPWA(isPWAInstalled());
   }, []);
 
   // If user is not authenticated, do not show the mobile bottom nav at all
@@ -113,9 +120,9 @@ export default function MobileBottomNav() {
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0px)" }}
     >
       <ul className={`grid ${
-        (items.length + (session ? 1 : 0)) === 2 ? "grid-cols-2" :
-        (items.length + (session ? 1 : 0)) === 3 ? "grid-cols-3" :
-        (items.length + (session ? 1 : 0)) === 4 ? "grid-cols-4" : "grid-cols-5"
+        (items.length + (session ? 1 : 0) + (isPWA ? 1 : 0)) === 2 ? "grid-cols-2" :
+        (items.length + (session ? 1 : 0) + (isPWA ? 1 : 0)) === 3 ? "grid-cols-3" :
+        (items.length + (session ? 1 : 0) + (isPWA ? 1 : 0)) === 4 ? "grid-cols-4" : "grid-cols-5"
       }`}>
         {items.map((item) => {
           // Aktiflik: panel sayfalarında tab parametresi ile kontrol
@@ -160,6 +167,20 @@ export default function MobileBottomNav() {
             >
               <span className="mb-1"><LogOut className="h-5 w-5" /></span>
               <span>Çıkış</span>
+            </button>
+          </li>
+        )}
+        {isPWA && (
+          <li key="close-pwa" className="flex">
+            <button
+              onClick={closePWA}
+              className="flex-1 flex flex-col items-center justify-center py-2 text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors"
+              aria-label="Uygulamayı Kapat"
+              title="Uygulamayı Kapat"
+              type="button"
+            >
+              <span className="mb-1"><XCircle className="h-5 w-5" /></span>
+              <span>Kapat</span>
             </button>
           </li>
         )}

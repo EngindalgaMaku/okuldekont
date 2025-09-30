@@ -21,24 +21,62 @@ export async function GET(request: Request) {
 
     // Build where condition
     let whereCondition: any = {}
+    const conditions: any[] = []
     
+    // Search condition
     if (search) {
-      whereCondition.OR = [
-        { name: { contains: search } },
-        { contact: { contains: search } },
-        { phone: { contains: search } },
-        { email: { contains: search } }
-      ]
+      conditions.push({
+        OR: [
+          { name: { contains: search } },
+          { contact: { contains: search } },
+          { phone: { contains: search } },
+          { email: { contains: search } }
+        ]
+      })
     }
 
+    // Filter condition
     if (filter === 'active') {
-      whereCondition.students = {
-        some: {}
-      }
+      // Aktif: ya direkt öğrencisi olan ya da aktif stajı olan işletmeler
+      conditions.push({
+        OR: [
+          {
+            students: {
+              some: {}
+            }
+          },
+          {
+            stajlar: {
+              some: {
+                status: 'ACTIVE'
+              }
+            }
+          }
+        ]
+      })
     } else if (filter === 'empty') {
-      whereCondition.students = {
-        none: {}
-      }
+      // Boş: ne direkt öğrencisi ne de aktif stajı olan işletmeler
+      conditions.push({
+        AND: [
+          {
+            students: {
+              none: {}
+            }
+          },
+          {
+            stajlar: {
+              none: {
+                status: 'ACTIVE'
+              }
+            }
+          }
+        ]
+      })
+    }
+
+    // Combine conditions with AND
+    if (conditions.length > 0) {
+      whereCondition.AND = conditions
     }
 
     // Get total count for pagination
@@ -54,7 +92,12 @@ export async function GET(request: Request) {
         user: true,
         _count: {
           select: {
-            students: true
+            students: true, // Direkt atanan öğrenciler
+            stajlar: { // Staj üzerinden gelen öğrenciler
+              where: {
+                status: 'ACTIVE'
+              }
+            }
           }
         },
         stajlar: {
@@ -106,6 +149,9 @@ export async function GET(request: Request) {
         }
       }
 
+      // Toplam öğrenci sayısı: direkt atananlar + aktif stajdakiler
+      const totalStudentCount = company._count.students + company._count.stajlar;
+
       return {
         id: company.id,
         name: company.name,
@@ -118,7 +164,9 @@ export async function GET(request: Request) {
         teacherId: coordinatorTeacher?.id || company.teacherId,
         masterTeacherName: company.masterTeacherName,
         masterTeacherPhone: company.masterTeacherPhone,
-        _count: company._count,
+        _count: {
+          students: totalStudentCount // Toplam öğrenci sayısı
+        },
         teacher: coordinatorTeacher ? {
           id: coordinatorTeacher.id,
           name: coordinatorTeacher.name,

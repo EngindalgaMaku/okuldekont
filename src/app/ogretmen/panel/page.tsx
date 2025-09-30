@@ -1454,20 +1454,8 @@ const TeacherPanel = () => {
                           background: styles.background
                         }}
                       >
-                        {/* Belgeler butonu - sağ üst köşe */}
-                        <div className="absolute top-4 right-4">
-                          <button
-                            onClick={() => handleBelgeYukle(isletme)}
-                            className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                            title="Belgeler"
-                          >
-                            <FileText className="h-4 w-4 mr-1.5" />
-                            Belgeler
-                          </button>
-                        </div>
-
                         <div className="flex items-center">
-                          <div className="flex-1 pr-16 sm:pr-20">
+                          <div className="flex-1">
                             <h3 className="text-lg font-bold text-gray-900 flex flex-col sm:flex-row sm:items-center sm:gap-2">
                               <span className="break-words">{isletme.ad}</span>
                               {isletme.total_students && (
