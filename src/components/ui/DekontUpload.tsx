@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { X, Upload, XCircle, CheckCircle, User } from 'lucide-react'
-import Modal from './Modal'
 import ModernSelect from './ModernSelect'
 import { DekontFormData } from '@/types/dekont'
 
@@ -41,15 +40,23 @@ export default function DekontUpload({
   existingDekontlar = [],
   compact = true
 }: DekontUploadProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedIsletme, setSelectedIsletme] = useState(selectedIsletmeId || '')
   const [selectedStajyer, setSelectedStajyer] = useState(selectedStajyerId || '')
   const [formData, setFormData] = useState<DekontFormData>({
     staj_id: stajId || '',
     miktar: undefined,
-    // Mevcut ayı seç (1-12 arası)
-    ay: (new Date().getMonth() + 1).toString(),
-    yil: new Date().getFullYear().toString(),
+    // Varsayılan: önceki ay (öğrenci bir önceki ayın maaşını alır)
+    ay: (() => {
+      const today = new Date();
+      const prevMonth = today.getMonth() === 0 ? 12 : today.getMonth(); // 1-12
+      return prevMonth.toString();
+    })(),
+    yil: (() => {
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      const isJan = today.getMonth() === 0; // Ocak
+      return (isJan ? currentYear - 1 : currentYear).toString();
+    })(),
     aciklama: ''
   })
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -94,34 +101,29 @@ export default function DekontUpload({
       setFormData({
         staj_id: stajId || '',
         miktar: undefined,
-        ay: (new Date().getMonth() + 1).toString(),
-        yil: new Date().getFullYear().toString(),
+        // Reset: yine bir önceki ayı seç
+        ay: (() => {
+          const today = new Date();
+          const prevMonth = today.getMonth() === 0 ? 12 : today.getMonth();
+          return prevMonth.toString();
+        })(),
+        yil: (() => {
+          const today = new Date();
+          const currentYear = today.getFullYear();
+          const isJan = today.getMonth() === 0;
+          return (isJan ? currentYear - 1 : currentYear).toString();
+        })(),
         aciklama: ''
       })
       setSelectedFile(null)
-      if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (error) {
       console.error('Dekont yükleme hatası:', error)
     }
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const file = e.target.files?.[0]
-    console.log('File selected:', file)
-    if (file) {
-      setSelectedFile(file)
-      setErrors(prev => ({ ...prev, dosya: undefined }))
-      console.log('File state updated:', file.name)
-    } else {
-      console.log('No file selected')
-    }
-  }
 
   const handleRemoveFile = () => {
     setSelectedFile(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const handleStajyerChange = (stajyerId: string | number) => {
@@ -168,51 +170,7 @@ export default function DekontUpload({
       style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)', maxHeight: '70vh', overflowY: 'auto' }}
       onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault() }}
     >
-      {/* Debug listeners for unexpected unloads */}
-      {(() => {
-        // Attach once per component lifecycle
-        useEffect(() => {
-          const log = (type: string) => {
-            const data = {
-              type,
-              ts: new Date().toISOString(),
-              visibility: document.visibilityState,
-              href: typeof window !== 'undefined' ? window.location.href : '',
-              ua: typeof navigator !== 'undefined' ? navigator.userAgent : '',
-              intent: sessionStorage.getItem('dekont_upload_intent') || '',
-            };
-            try {
-              sessionStorage.setItem('dekont_last_unload_event', JSON.stringify(data));
-            } catch {}
-            // eslint-disable-next-line no-console
-            console.warn('[DekontUpload][debug]', data);
-          };
-
-          const onBeforeUnload = () => log('beforeunload');
-          const onPageHide = () => log('pagehide');
-          const onVisibilityChange = () => log('visibilitychange');
-
-          window.addEventListener('beforeunload', onBeforeUnload);
-          window.addEventListener('pagehide', onPageHide);
-          document.addEventListener('visibilitychange', onVisibilityChange);
-
-          // Log previous session info on mount
-          try {
-            const last = sessionStorage.getItem('dekont_last_unload_event');
-            if (last) {
-              // eslint-disable-next-line no-console
-              console.warn('[DekontUpload][debug] last_unload_event', JSON.parse(last));
-            }
-          } catch {}
-
-          return () => {
-            window.removeEventListener('beforeunload', onBeforeUnload);
-            window.removeEventListener('pagehide', onPageHide);
-            document.removeEventListener('visibilitychange', onVisibilityChange);
-          };
-        }, []);
-        return null;
-      })()}
+      {/* */}
       {/* Öğrenci Seçimi */}
       {stajyerler && stajyerler.length > 0 && (
         <ModernSelect
@@ -273,39 +231,20 @@ export default function DekontUpload({
               {AY_LISTESI.map((ay, index) => {
                 const today = new Date();
                 const currentYear = today.getFullYear();
-                const currentMonth = today.getMonth(); // 0-based (0=Ocak, 8=Eylül)
+                const currentMonth = today.getMonth(); // 0-based (0=Ocak)
                 const currentDay = today.getDate();
                 const selectedYear = parseInt(formData.yil, 10);
-                const ayIndex = index; // 0-based (0=Ocak, 8=Eylül)
+                const ayIndex = index; // 0-based
 
                 // Ayın son gününü hesapla
                 const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-                // Gelecek yıl kontrolü
-                if (selectedYear > currentYear) {
-                  return null;
-                }
-                
-                // Mevcut yıl için ay kontrolü
+                // Gelecek yıl gizle
+                if (selectedYear > currentYear) return null;
+
+                // Mevcut yıl: içinde bulunulan ay ve sonraki ayları gizle (öğrenci önceki ayın maaşı)
                 if (selectedYear === currentYear) {
-                  // Gelecek aylar hiçbir zaman görünmez
-                  if (ayIndex > currentMonth) {
-                    return null;
-                  }
-                  
-                  // Mevcut ay: Sadece ayın son günü veya sonrasında görünür
-                  // ANCAK: Eğer bu ay için dekont yoksa her zaman görünür (geçmiş eksik dekontlar için)
-                  if (ayIndex === currentMonth && currentDay < lastDayOfMonth) {
-                    // Bu ay için dekont var mı kontrol et
-                    const hasApprovedDekont = existingDekontlar.some(
-                      d => d.yil === selectedYear && d.ay === (ayIndex + 1) && d.onay_durumu === 'onaylandi'
-                    );
-                    
-                    // Eğer onaylanan dekont yoksa göster (eksik dekont yüklenebilsin)
-                    if (hasApprovedDekont) {
-                      return null;
-                    }
-                  }
+                  if (ayIndex >= currentMonth) return null;
                 }
 
                 // Staj başlama tarihi kontrolü
@@ -388,61 +327,7 @@ export default function DekontUpload({
                 <div className="text-xs text-gray-400">JPG, PNG, PDF (max. 10MB)</div>
               </div>
             </div>
-            {/* Mobil için Büyük Butonlar */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
-              {/* Fotoğraf Çek Butonu - Mobil */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  try { sessionStorage.setItem('dekont_upload_intent', JSON.stringify({ ts: Date.now(), type: 'camera' })); } catch {}
-                  document.getElementById('camera-upload')?.click();
-                }}
-                className="flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 text-white rounded-lg font-medium cursor-pointer hover:bg-blue-700 active:bg-blue-800 transition-colors"
-                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Fotoğraf Çek
-              </button>
 
-              {/* Galeriden Seç Butonu */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  try { sessionStorage.setItem('dekont_upload_intent', JSON.stringify({ ts: Date.now(), type: 'gallery' })); } catch {}
-                  document.getElementById('gallery-upload')?.click();
-                }}
-                className="flex items-center justify-center gap-2 px-6 py-4 bg-green-600 text-white rounded-lg font-medium cursor-pointer hover:bg-green-700 active:bg-green-800 transition-colors"
-                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-              >
-                <Upload className="w-6 h-6" />
-                Galeriden Seç
-              </button>
-            </div>
-            
-            {/* Input'lar form dışında - DOM'da ama görünmez */}
-            <input
-              id="camera-upload"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleFileChange}
-              style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }}
-            />
-            <input
-              id="gallery-upload"
-              type="file"
-              ref={fileInputRef}
-              accept="image/*,application/pdf"
-              onChange={handleFileChange}
-              style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }}
-            />
             
             <p className="text-xs text-center text-gray-500">
               JPG, PNG, PDF (max. 10MB)
@@ -492,19 +377,7 @@ export default function DekontUpload({
         </button>
       </div>
       
-      {/* Debug info (visible) */}
-      {(() => {
-        let intent = '' as string;
-        let last: any = null;
-        try { intent = sessionStorage.getItem('dekont_upload_intent') || ''; } catch {}
-        try { const v = sessionStorage.getItem('dekont_last_unload_event'); last = v ? JSON.parse(v) : null; } catch {}
-        return (
-          <div className="text-[10px] text-gray-400 select-text">
-            <div>debug.intent: {intent || '-'}</div>
-            <div>debug.last_unload: {last ? `${last.type} @ ${last.ts} (vis=${last.visibility})` : '-'}</div>
-          </div>
-        );
-      })()}
+      {/* */}
 
     </div>
   )
