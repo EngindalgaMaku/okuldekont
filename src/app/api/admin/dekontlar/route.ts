@@ -101,6 +101,7 @@ export async function GET(request: Request) {
         ogrenci_ad: dekont.staj?.student ? `${dekont.staj.student.name} ${dekont.staj.student.surname}` : 'Bilinmiyor',
         ogrenci_sinif: dekont.staj?.student?.className || '',
         ogrenci_no: dekont.staj?.student?.number || '',
+        ogrenci_alan: dekont.staj?.student?.alan?.name || '',
         miktar: dekont.amount ? Number(decryptFinancialData(dekont.amount.toString())) : null,
         odeme_tarihi: dekont.paymentDate.toISOString(),
         onay_durumu: statusMapping[dekont.status] || dekont.status,

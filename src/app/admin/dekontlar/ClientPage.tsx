@@ -10,6 +10,7 @@ interface Dekont {
   ogrenci_ad: string
   ogrenci_sinif: string
   ogrenci_no: string
+  ogrenci_alan?: string
   miktar: number | null
   odeme_tarihi: string
   onay_durumu: 'bekliyor' | 'onaylandi' | 'reddedildi'
@@ -82,6 +83,8 @@ export default function ClientDekontlarPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [selectedMonth, setSelectedMonth] = useState<string>('all')
   const [selectedYear, setSelectedYear] = useState<string>('all')
+  const [selectedAlan, setSelectedAlan] = useState<string>('all')
+  const [selectedSinif, setSelectedSinif] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
@@ -137,6 +140,16 @@ export default function ClientDekontlarPage() {
       filtered = filtered.filter(d => d.yil === parseInt(selectedYear))
     }
 
+    // Alan filtresi
+    if (selectedAlan !== 'all') {
+      filtered = filtered.filter(d => d.ogrenci_alan === selectedAlan)
+    }
+
+    // Sınıf filtresi
+    if (selectedSinif !== 'all') {
+      filtered = filtered.filter(d => d.ogrenci_sinif === selectedSinif)
+    }
+
     // Arama filtresi
     if (searchTerm) {
       const term = searchTerm.toLowerCase()
@@ -148,7 +161,7 @@ export default function ClientDekontlarPage() {
     }
 
     return filtered
-  }, [dekontlar, selectedStatus, selectedMonth, selectedYear, searchTerm])
+  }, [dekontlar, selectedStatus, selectedMonth, selectedYear, selectedAlan, selectedSinif, searchTerm])
 
   // Memoized pagination calculations - expensive computation
   const paginationData = useMemo(() => {
@@ -168,6 +181,22 @@ export default function ClientDekontlarPage() {
   // Memoized available years calculation - expensive operation
   const availableYears = useMemo(() => {
     return Array.from(new Set(dekontlar.map(d => d.yil))).sort((a, b) => b - a)
+  }, [dekontlar])
+
+  // Memoized available alanlar calculation
+  const availableAlanlar = useMemo(() => {
+    const alanlar = dekontlar
+      .map(d => d.ogrenci_alan)
+      .filter((alan): alan is string => !!alan)
+    return Array.from(new Set(alanlar)).sort()
+  }, [dekontlar])
+
+  // Memoized available siniflar calculation
+  const availableSiniflar = useMemo(() => {
+    const siniflar = dekontlar
+      .map(d => d.ogrenci_sinif)
+      .filter((sinif): sinif is string => !!sinif)
+    return Array.from(new Set(siniflar)).sort()
   }, [dekontlar])
 
   // Memoized event handlers - prevent re-creation
@@ -419,6 +448,8 @@ export default function ClientDekontlarPage() {
     setSelectedStatus('all')
     setSelectedMonth('all')
     setSelectedYear('all')
+    setSelectedAlan('all')
+    setSelectedSinif('all')
     setSearchTerm('')
   }, [])
 
@@ -454,9 +485,9 @@ export default function ClientDekontlarPage() {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm border p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
           {/* Search */}
-          <div className="relative">
+          <div className="relative lg:col-span-2">
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             <input
               type="text"
@@ -477,6 +508,30 @@ export default function ClientDekontlarPage() {
             <option value="bekliyor">Beklemede</option>
             <option value="onaylandi">Onaylandı</option>
             <option value="reddedildi">Reddedildi</option>
+          </select>
+
+          {/* Alan Filter */}
+          <select
+            value={selectedAlan}
+            onChange={(e) => setSelectedAlan(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">Tüm Alanlar</option>
+            {availableAlanlar.map((alan) => (
+              <option key={alan} value={alan}>{alan}</option>
+            ))}
+          </select>
+
+          {/* Sinif Filter */}
+          <select
+            value={selectedSinif}
+            onChange={(e) => setSelectedSinif(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">Tüm Sınıflar</option>
+            {availableSiniflar.map((sinif) => (
+              <option key={sinif} value={sinif}>{sinif}</option>
+            ))}
           </select>
 
           {/* Month Filter */}
@@ -502,11 +557,13 @@ export default function ClientDekontlarPage() {
               <option key={year} value={year}>{year}</option>
             ))}
           </select>
-
-          {/* Clear Filters */}
+        </div>
+        
+        {/* Clear Filters Button - Full width on mobile */}
+        <div className="mt-4">
           <button
             onClick={clearFilters}
-            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50"
+            className="w-full md:w-auto px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50"
           >
             Filtreleri Temizle
           </button>
