@@ -104,6 +104,7 @@ export default function ClientDekontlarPage() {
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [warningMessage, setWarningMessage] = useState('')
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+  const [totalStudentsCount, setTotalStudentsCount] = useState(0)
 
   // Memoized fetch function - prevents re-creation on every render
   const fetchDekontlar = useCallback(async () => {
@@ -113,6 +114,7 @@ export default function ClientDekontlarPage() {
       if (response.ok) {
         const result = await response.json()
         setDekontlar(result.data || [])
+        setTotalStudentsCount(result.totalStudents || 0)
       }
     } catch (error) {
       console.error('Dekont verisi alınırken hata:', error)
@@ -313,17 +315,12 @@ export default function ClientDekontlarPage() {
   const updateDekontStatus = useCallback(async (dekontId: string, status: 'APPROVED' | 'REJECTED', reason?: string) => {
     try {
       const updateData = {
-        status,
-        ...(status === 'APPROVED' && { approvedBy: 'admin', approvedAt: new Date() }),
-        ...(status === 'REJECTED' && {
-          rejectedBy: 'admin',
-          rejectedAt: new Date(),
-          rejectReason: reason || null
-        })
+        decision: status,
+        ...(status === 'REJECTED' && { rejectReason: reason || null })
       }
 
-      const response = await fetch(`/api/admin/dekontlar/${dekontId}`, {
-        method: 'PUT',
+      const response = await fetch(`/api/admin/dekontlar/${dekontId}/approve`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -349,28 +346,37 @@ export default function ClientDekontlarPage() {
   }, [fetchDekontlar])
 
   const deleteDekont = useCallback(async (dekontId: string) => {
+    console.log('🗑️ Delete dekont called:', dekontId)
     try {
       const response = await fetch(`/api/admin/dekontlar/${dekontId}`, {
         method: 'DELETE',
       })
 
+      console.log('Delete response status:', response.status)
+
       if (response.ok) {
+        console.log('✅ Dekont silindi, liste yenileniyor...')
         await fetchDekontlar() // Refresh the list
         setShowDeleteModal(false)
         setSelectedDekont(null)
       } else if (response.status === 403) {
         // Onaylanmış dekont silme hatası - şık modal göster
+        console.log('⚠️ 403: Onaylı dekont silinemez')
         setShowDeleteModal(false)
         setShowApprovedDeleteWarning(true)
       } else {
-        console.error('Dekont silme hatası')
-        setWarningMessage('Dekont silinirken bir hata oluştu')
+        console.error('❌ Dekont silme hatası, status:', response.status)
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Error data:', errorData)
+        setWarningMessage(errorData.error || 'Dekont silinirken bir hata oluştu')
         setShowWarningModal(true)
+        setShowDeleteModal(false)
       }
     } catch (error) {
-      console.error('Dekont silinirken hata:', error)
+      console.error('❌ Dekont silinirken hata:', error)
       setWarningMessage('Dekont silinirken bir hata oluştu')
-        setShowWarningModal(true)
+      setShowWarningModal(true)
+      setShowDeleteModal(false)
     }
   }, [fetchDekontlar])
 
@@ -650,8 +656,8 @@ export default function ClientDekontlarPage() {
         <div className="bg-white rounded-lg shadow-sm border p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Toplam Öğrenci</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{statistics.totalStudents}</p>
+              <p className="text-sm font-medium text-gray-600">Staja Giden Öğrenci</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{totalStudentsCount}</p>
             </div>
             <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -715,9 +721,9 @@ export default function ClientDekontlarPage() {
       </div>
 
       {/* Desktop Table View (hidden on mobile) */}
-      <div className="hidden md:block bg-white rounded-lg shadow-sm border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+      <div className="hidden md:block bg-white rounded-lg shadow-sm border">
+        <div className="overflow-x-auto overflow-y-visible pb-64">
+          <table className="min-w-full divide-y divide-gray-200" style={{overflow: 'visible'}}>
             <thead className="bg-gray-50">
               <tr>
                 <th scope="col" className="relative px-7 sm:w-12 sm:px-6">
@@ -752,9 +758,9 @@ export default function ClientDekontlarPage() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-gray-200" style={{overflow: 'visible'}}>
               {currentDekontlar.map((dekont) => (
-                <tr key={dekont.id} className={selectedIds.includes(dekont.id) ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'}>
+                <tr key={dekont.id} className={`${selectedIds.includes(dekont.id) ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'} relative`} style={{zIndex: openDropdown === dekont.id ? 100 : 'auto'}}>
                   <td className="relative px-7 sm:w-12 sm:px-6">
                     <input
                       type="checkbox"
@@ -808,12 +814,16 @@ export default function ClientDekontlarPage() {
                       {formatDate(dekont.created_at)}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium overflow-visible relative">
                     <div className="flex items-center justify-end gap-3">
                       {/* İşlemler Dropdown */}
-                      <div className="relative">
+                      <div className="relative z-50">
                         <button
-                          onClick={() => toggleDropdown(dekont.id)}
+                          id={`dropdown-btn-${dekont.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleDropdown(dekont.id)
+                          }}
                           className="flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
                           title="İşlemler"
                         >
@@ -825,11 +835,17 @@ export default function ClientDekontlarPage() {
                           <>
                             {/* Backdrop to close dropdown */}
                             <div
-                              className="fixed inset-0 z-10"
+                              className="fixed inset-0 z-[100]"
                               onClick={closeDropdown}
                             ></div>
                             
-                            <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-20">
+                            <div 
+                              className="fixed w-48 bg-white rounded-md shadow-lg border border-gray-200 z-[101]"
+                              style={{
+                                top: `${document.getElementById(`dropdown-btn-${dekont.id}`)?.getBoundingClientRect().bottom || 0}px`,
+                                right: `${window.innerWidth - (document.getElementById(`dropdown-btn-${dekont.id}`)?.getBoundingClientRect().right || 0)}px`
+                              }}
+                            >
                               <div className="py-1">
                                 {/* Dosya İşlemleri */}
                                 {dekont.dosya_url && dekont.dosya_url.trim() !== '' ? (
@@ -1265,6 +1281,35 @@ export default function ClientDekontlarPage() {
                 className="px-4 py-2 text-sm text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50"
               >
                 Reddet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
+      {showDeleteModal && selectedDekont && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold mb-4">Dekont Silme</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              {selectedDekont.ogrenci_ad} - {formatCurrency(selectedDekont.miktar)} - {MONTHS[selectedDekont.ay - 1]} {selectedDekont.yil}
+            </p>
+            <p className="text-sm text-gray-600 mb-4">
+              Bu dekontu silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={closeModals}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                İptal
+              </button>
+              <button
+                onClick={() => selectedDekont && deleteDekont(selectedDekont.id)}
+                className="px-4 py-2 text-sm text-white bg-red-600 rounded-md hover:bg-red-700"
+              >
+                Evet, Sil
               </button>
             </div>
           </div>

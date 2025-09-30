@@ -41,8 +41,9 @@ export default function DekontUpload({
   const [formData, setFormData] = useState<DekontFormData>({
     staj_id: stajId || '',
     miktar: undefined,
-    ay: (new Date().getMonth() === 0 ? 12 : new Date().getMonth()).toString(),
-    yil: (new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear()).toString(),
+    // Mevcut ayı seç (1-12 arası)
+    ay: (new Date().getMonth() + 1).toString(),
+    yil: new Date().getFullYear().toString(),
     aciklama: ''
   })
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -84,9 +85,13 @@ export default function DekontUpload({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    console.log('File selected:', file)
     if (file) {
       setSelectedFile(file)
       setErrors(prev => ({ ...prev, dosya: undefined }))
+      console.log('File state updated:', file.name)
+    } else {
+      console.log('No file selected')
     }
   }
 
@@ -303,7 +308,8 @@ export default function DekontUpload({
                       type="file"
                       ref={fileInputRef}
                       className="sr-only"
-                      accept=".jpg,.jpeg,.png,.gif,.webp,.pdf"
+                      accept="image/*,.pdf"
+                      capture="environment"
                       onChange={handleFileChange}
                     />
                   </label>

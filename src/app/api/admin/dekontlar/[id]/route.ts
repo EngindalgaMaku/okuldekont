@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { validateAuthAndRole } from '@/middleware/auth'
 import { ValidationFunctions } from '@/lib/validation'
+import { unlink } from 'fs/promises'
+import path from 'path'
 
 // Dekont sil - ADMIN VE TEACHER
 export async function DELETE(
@@ -40,6 +42,7 @@ export async function DELETE(
         select: {
           id: true,
           status: true,
+          fileUrl: true,
           staj: {
             select: {
               student: {
@@ -57,8 +60,9 @@ export async function DELETE(
         throw new Error('DEKONT_NOT_FOUND')
       }
 
-      // Onaylanmış dekontları silmeyi engelle
-      if (existingDekont.status === 'APPROVED') {
+      // Onaylanmış dekontları silmeyi engelle - SADECE TEACHER için
+      // ADMIN onaylı dekontları da silebilir
+      if (existingDekont.status === 'APPROVED' && authResult.user?.role === 'TEACHER') {
         throw new Error('APPROVED_DEKONT_DELETE_DENIED')
       }
 
@@ -69,6 +73,24 @@ export async function DELETE(
 
       return existingDekont
     })
+
+    // Fiziksel dosyayı sil
+    if (result.fileUrl) {
+      try {
+        const filePath = path.join(process.cwd(), 'public', result.fileUrl)
+        await unlink(filePath)
+        console.log('📁 FILE DELETE: Dekont file deleted', {
+          filePath: result.fileUrl,
+          dekontId: id
+        })
+      } catch (fileError) {
+        console.error('⚠️ FILE DELETE WARNING: Could not delete file', {
+          filePath: result.fileUrl,
+          error: fileError
+        })
+        // Dosya silme hatası dekont silme işlemini engellemez
+      }
+    }
 
     console.log(`✅ DEKONT DELETE: Successful deletion by ${authResult.user?.role}`, {
       dekontId: id,

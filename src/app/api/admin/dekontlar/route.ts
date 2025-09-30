@@ -130,7 +130,18 @@ export async function GET(request: Request) {
       };
     })
 
-    return NextResponse.json({ data: formattedData })
+    // Staja giden toplam öğrenci sayısını hesapla
+    const totalStudentsWithInternship = await prisma.staj.count({
+      where: {
+        educationYearId,
+        archived: false
+      }
+    })
+
+    return NextResponse.json({ 
+      data: formattedData,
+      totalStudents: totalStudentsWithInternship 
+    })
   } catch (error) {
     console.error('Dekont listesi alınırken hata:', error)
     return NextResponse.json(
@@ -306,14 +317,16 @@ export async function POST(request: Request) {
     
     // Tarih validasyonu 2: Staj başlama tarihi kontrolü
     const stajBaslangic = new Date(staj.startDate);
-    const dekontTarihi = new Date(yilNum, ayNum - 1, 1); // ayNum is 1-based, Date constructor expects 0-based
+    const stajBaslangicYear = stajBaslangic.getFullYear();
+    const stajBaslangicMonth = stajBaslangic.getMonth() + 1; // 0-based to 1-based
     
-    if (dekontTarihi < stajBaslangic) {
+    // Sadece yıl ve ay karşılaştırması yap (gün önemli değil)
+    if (yilNum < stajBaslangicYear || (yilNum === stajBaslangicYear && ayNum < stajBaslangicMonth)) {
       const stajBaslangicStr = stajBaslangic.toLocaleDateString('tr-TR', {
         year: 'numeric',
         month: 'long'
       });
-      const dekontTarihiStr = dekontTarihi.toLocaleDateString('tr-TR', {
+      const dekontTarihiStr = new Date(yilNum, ayNum - 1, 1).toLocaleDateString('tr-TR', {
         year: 'numeric',
         month: 'long'
       });
