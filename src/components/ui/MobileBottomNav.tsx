@@ -4,6 +4,7 @@ import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { Home, Building2, User, Users, FileText, Receipt, LogOut } from "lucide-react";
 import type { ReactNode } from "react";
 import { useSession, signOut } from "next-auth/react";
+import { useState, useEffect } from "react";
 
 interface NavItem {
   label: string;
@@ -17,6 +18,48 @@ export default function MobileBottomNav() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const [loginSettings, setLoginSettings] = useState({
+    enableCompanyLogin: true,
+    enableTeacherLogin: true,
+    loading: true,
+  });
+
+  // Fetch login control settings
+  useEffect(() => {
+    const fetchLoginSettings = async () => {
+      try {
+        const response = await fetch("/api/system-settings");
+        if (!response.ok) throw new Error("Failed to fetch settings");
+        const data = await response.json();
+
+        const settingsMap: { [key: string]: any } = {};
+        if (data) {
+          for (const setting of data) {
+            settingsMap[setting.key] = setting.value;
+          }
+        }
+
+        const enableCompanyLogin = settingsMap.enable_company_login !== "false";
+        const enableTeacherLogin = settingsMap.enable_teacher_login !== "false";
+
+        setLoginSettings({
+          enableCompanyLogin,
+          enableTeacherLogin,
+          loading: false,
+        });
+      } catch (error) {
+        console.error("Login settings fetch error:", error);
+        // Default to enabled if fetch fails
+        setLoginSettings({
+          enableCompanyLogin: true,
+          enableTeacherLogin: true,
+          loading: false,
+        });
+      }
+    };
+
+    fetchLoginSettings();
+  }, []);
 
   // If user is not authenticated, do not show the mobile bottom nav at all
   if (status !== "authenticated") {
@@ -24,6 +67,16 @@ export default function MobileBottomNav() {
   }
 
   const role = session?.user?.role as string | undefined;
+
+  // Hide mobile nav if role's login is disabled in settings
+  if (!loginSettings.loading) {
+    if (role === "COMPANY" && !loginSettings.enableCompanyLogin) {
+      return null;
+    }
+    if (role === "TEACHER" && !loginSettings.enableTeacherLogin) {
+      return null;
+    }
+  }
 
   let items: NavItem[];
   if (role === "COMPANY") {
