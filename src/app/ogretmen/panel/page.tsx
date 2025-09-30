@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
 import { Building2, FileText, LogOut, Loader, User, Receipt, GraduationCap, CheckCircle, Clock, XCircle, Download, Plus, Upload, Trash2, Calendar, Loader2, AlertTriangle, Search, Filter, Bell, Key, ChevronDown, ChevronUp } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
@@ -13,15 +14,6 @@ import { DekontFormData } from '@/types/dekont'
 import {
   Ogrenci,
   Isletme,
-  Dekont,
-  Belge,
-  Notification,
-  Teacher,
-  ErrorModal,
-  SuccessModal
-} from '@/types/teacher-panel'
-
-import {
   truncateFileName,
   getCurrentMonth,
   getCurrentYear,
@@ -1586,15 +1578,15 @@ const parseDateFlexible = (value: string): Date => {
                                   </div>
                                 </div>
                               <div className="flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); handleOpenDekontUpload(ogrenci, isletme); }}
+                                <Link
+                                  href={`/ogretmen/dekont-yukle?isletmeId=${isletme.id}&ogrenciId=${ogrenci.id}`}
+                                  onClick={(e) => e.stopPropagation()}
                                   className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                                  title="Dekont Yükle"
+                                  title="Dekont Yükle (Sayfada)"
                                 >
                                   <Upload className="h-4 w-4 mr-1.5" />
                                   Dekont Yükle
-                                </button>
+                                </Link>
                               </div>
                                
                               {/* Dekont Durumu Tablosu */}
