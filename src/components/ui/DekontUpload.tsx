@@ -61,8 +61,7 @@ export default function DekontUpload({
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async () => {
     if (!validateForm()) return
     try {
       await onSubmit({
@@ -75,7 +74,7 @@ export default function DekontUpload({
       setFormData({
         staj_id: stajId || '',
         miktar: undefined,
-        ay: (new Date().getMonth()).toString(),
+        ay: (new Date().getMonth() + 1).toString(),
         yil: new Date().getFullYear().toString(),
         aciklama: ''
       })
@@ -144,7 +143,7 @@ export default function DekontUpload({
   const YIL_LISTESI = getEgitimYillari();
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form onSubmit={(e) => e.preventDefault()} className="space-y-8" noValidate autoComplete="off" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault() }}>
       {/* Öğrenci Seçimi */}
       {stajyerler && stajyerler.length > 0 && (
         <ModernSelect
@@ -389,7 +388,8 @@ export default function DekontUpload({
           </button>
         )}
         <button
-          type="submit"
+          type="button"
+          onClick={handleSubmit}
           disabled={isLoading}
           className="inline-flex items-center justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
