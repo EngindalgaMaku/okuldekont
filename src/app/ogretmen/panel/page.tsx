@@ -2098,6 +2098,7 @@ const TeacherPanel = () => {
            isletmeler={isletmeler.map(i => ({ id: i.id, ad: i.ad }))}
            selectedIsletmeId={selectedIsletme.id}
            startDate={selectedStudent.baslangic_tarihi}
+           existingDekontlar={dekontlar.filter(d => d.ogrenci_ad === `${selectedStudent.ad} ${selectedStudent.soyad}` && d.isletme_ad === selectedIsletme.ad)}
          />
        </Modal>
      )}

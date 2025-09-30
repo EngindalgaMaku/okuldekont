@@ -14,6 +14,7 @@ interface DekontUploadProps {
   selectedStajyerId?: string
   onStajyerChange?: (stajyerId: string) => void
   startDate?: string // Staj başlama tarihi (YYYY-MM-DD formatında)
+  existingDekontlar?: Array<{ ay: number; yil: number; onay_durumu: string }> // Mevcut dekontlar
 }
 
 const AY_LISTESI = [
@@ -31,7 +32,8 @@ export default function DekontUpload({
   stajyerler,
   selectedStajyerId,
   onStajyerChange,
-  startDate
+  startDate,
+  existingDekontlar = []
 }: DekontUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedIsletme, setSelectedIsletme] = useState(selectedIsletmeId || '')
@@ -191,12 +193,39 @@ export default function DekontUpload({
               {AY_LISTESI.map((ay, index) => {
                 const today = new Date();
                 const currentYear = today.getFullYear();
-                const currentMonth = today.getMonth();
+                const currentMonth = today.getMonth(); // 0-based (0=Ocak, 8=Eylül)
+                const currentDay = today.getDate();
                 const selectedYear = parseInt(formData.yil, 10);
+                const ayIndex = index; // 0-based (0=Ocak, 8=Eylül)
 
-                // Gelecek ay ve yıl kontrolü
-                if (selectedYear > currentYear || (selectedYear === currentYear && index >= currentMonth)) {
+                // Ayın son gününü hesapla
+                const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+                // Gelecek yıl kontrolü
+                if (selectedYear > currentYear) {
                   return null;
+                }
+                
+                // Mevcut yıl için ay kontrolü
+                if (selectedYear === currentYear) {
+                  // Gelecek aylar hiçbir zaman görünmez
+                  if (ayIndex > currentMonth) {
+                    return null;
+                  }
+                  
+                  // Mevcut ay: Sadece ayın son günü veya sonrasında görünür
+                  // ANCAK: Eğer bu ay için dekont yoksa her zaman görünür (geçmiş eksik dekontlar için)
+                  if (ayIndex === currentMonth && currentDay < lastDayOfMonth) {
+                    // Bu ay için dekont var mı kontrol et
+                    const hasApprovedDekont = existingDekontlar.some(
+                      d => d.yil === selectedYear && d.ay === (ayIndex + 1) && d.onay_durumu === 'onaylandi'
+                    );
+                    
+                    // Eğer onaylanan dekont yoksa göster (eksik dekont yüklenebilsin)
+                    if (hasApprovedDekont) {
+                      return null;
+                    }
+                  }
                 }
 
                 // Staj başlama tarihi kontrolü

@@ -1,0 +1,10 @@
+﻿         <DekontUploadForm
+           stajId={selectedStudent.staj_id?.toString() || ''}
+           onSubmit={handleDekontSubmit}
+          onCancel={() => setDekontUploadModalOpen(false)}
+           isLoading={isSubmitting}
+           isletmeler={isletmeler.map(i => ({ id: i.id, ad: i.ad }))}
+           selectedIsletmeId={selectedIsletme.id}
+           startDate={selectedStudent.baslangic_tarihi}
+           existingDekontlar={dekontlar.filter(d => d.ogrenci_ad === ${selectedStudent.ad}  && d.isletme_ad === selectedIsletme.ad)}
+         />
