@@ -1,4 +1,5 @@
-import { Metadata } from "next";
+"use client";
+
 import {
   CheckCircleIcon,
   ClockIcon,
@@ -8,11 +9,6 @@ import {
   DevicePhoneMobileIcon,
   AcademicCapIcon,
 } from "@heroicons/react/24/outline";
-
-export const metadata: Metadata = {
-  title: "K-PANEL Öğretmen Rehberi | Hüsniye Özdilek Ticaret MTAL",
-  description: "Staj koordinatörlüğü takip sistemi kullanım kılavuzu",
-};
 
 export default function BrosurPage() {
   return (
