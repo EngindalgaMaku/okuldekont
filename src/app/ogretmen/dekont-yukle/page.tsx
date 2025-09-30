@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 type Ogrenci = {
   id: string;
@@ -33,6 +34,7 @@ function getPrevMonthYear(d = new Date()) {
 function DekontYukleInner() {
   const router = useRouter();
   const search = useSearchParams();
+  const { data: session, status } = useSession();
 
   const [teacherId, setTeacherId] = useState<string>("");
   const [isletmeler, setIsletmeler] = useState<Isletme[]>([]);
@@ -42,7 +44,7 @@ function DekontYukleInner() {
   const [miktar, setMiktar] = useState<number | "">("");
   const [aciklama, setAciklama] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [status, setStatus] = useState<string>("");
+  const [uploadStatus, setUploadStatus] = useState<string>("");
 
   const { ay: defaultAy, yil: defaultYil } = useMemo(() => getPrevMonthYear(), []);
   const [ay, setAy] = useState<number>(defaultAy);
@@ -50,47 +52,96 @@ function DekontYukleInner() {
 
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  // Auth ve veri çekme (panel ile aynı mantık)
   useEffect(() => {
-    const qIsletme = search.get("isletmeId") || "";
-    const qOgrenci = search.get("ogrenciId") || "";
-    if (qIsletme) setSelectedIsletmeId(qIsletme);
-    if (qOgrenci) setSelectedOgrenciId(qOgrenci);
-  }, [search]);
-
-  useEffect(() => {
-    const tid = typeof window !== "undefined" ? sessionStorage.getItem("ogretmen_id") || "" : "";
+    if (status === "loading") return;
+    if (status === "unauthenticated" || !session?.user?.teacherId) {
+      router.push("/");
+      return;
+    }
+    const tid = session.user.teacherId as string;
     setTeacherId(tid);
 
-    async function fetchData(teacher: string) {
-      if (!teacher) return;
+    (async () => {
       try {
-        const res = await fetch(`/api/admin/teachers/${teacher}/internships`);
+        const res = await fetch(`/api/admin/teachers/${tid}/internships`);
         if (!res.ok) throw new Error("Staj verisi alınamadı");
         const data = await res.json();
-        setIsletmeler(data || []);
+        const normalized: Isletme[] = (data || []).map((i: any) => ({
+          id: String(i.id),
+          ad: i.ad,
+          ogrenciler: (i.ogrenciler || []).map((o: any) => ({
+            id: String(o.id),
+            ad: o.ad,
+            soyad: o.soyad,
+            sinif: o.sinif,
+            no: o.no,
+            baslangic_tarihi: o.baslangic_tarihi,
+          }))
+        }));
+        setIsletmeler(normalized);
       } catch (e) {
         console.error(e);
       }
+    })();
+  }, [status, session, router]);
+
+  // Liste geldikten sonra query'leri uygula ve tek seçenek varsa otomatik seç
+  useEffect(() => {
+    const qIsletme = search.get("isletmeId") || "";
+    const qOgrenci = search.get("ogrenciId") || "";
+    if (!isletmeler.length) return;
+
+    // Query ile ön seçim
+    if (qIsletme && isletmeler.some(i => i.id === qIsletme)) {
+      setSelectedIsletmeId(prev => prev || qIsletme);
+      const isl = isletmeler.find(i => i.id === qIsletme);
+      if (isl && qOgrenci && isl.ogrenciler.some(o => o.id === qOgrenci)) {
+        setSelectedOgrenciId(prev => prev || qOgrenci);
+      }
     }
 
-    fetchData(tid);
-  }, []);
+    // Otomatik seçim (tek seçenek)
+    if (!qIsletme && !selectedIsletmeId && isletmeler.length === 1) {
+      setSelectedIsletmeId(isletmeler[0].id);
+    }
+    const isl = isletmeler.find(i => i.id === (qIsletme || selectedIsletmeId));
+    if (isl && !qOgrenci && !selectedOgrenciId && isl.ogrenciler.length === 1) {
+      setSelectedOgrenciId(isl.ogrenciler[0].id);
+    }
+  }, [isletmeler, search, selectedIsletmeId, selectedOgrenciId]);
+
+  // Yıla göre izin verilen maksimum ay (mevcut yıl için: geçen ay; geçmiş yıllar için: 12)
+  const maxAyForYil = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth(); // 1-12
+    if (yil < currentYear) return 12;
+    if (yil === currentYear) return prevMonth;
+    // Gelecek yıl seçildiyse kısıtla
+    return prevMonth;
+  }, [yil]);
+
+  // Yıl değiştiğinde, seçili ay izin verilen aralığın üstündeyse kırp
+  useEffect(() => {
+    if (ay > maxAyForYil) setAy(maxAyForYil);
+  }, [maxAyForYil, ay]);
 
   const selectedIsletme = useMemo(() => isletmeler.find(i => i.id === selectedIsletmeId) || null, [isletmeler, selectedIsletmeId]);
   const selectedOgrenci = useMemo(() => selectedIsletme?.ogrenciler.find(o => o.id === selectedOgrenciId) || null, [selectedIsletme, selectedOgrenciId]);
 
   const handleSubmit = async () => {
     if (!teacherId || !selectedIsletme || !selectedOgrenci) {
-      setStatus("Eksik seçimler var.");
+      setUploadStatus("Eksik seçimler var.");
       return;
     }
     if (!file) {
-      setStatus("Lütfen dosya seçin.");
+      setUploadStatus("Lütfen dosya seçin.");
       return;
     }
 
     setIsSubmitting(true);
-    setStatus("Yükleniyor...");
+    setUploadStatus("Yükleniyor...");
     try {
       // Staj ID'yi bul
       const stajRes = await fetch(`/api/admin/internships/find?ogrenci_id=${selectedOgrenci.id}&isletme_id=${selectedIsletme.id}`);
@@ -111,18 +162,18 @@ function DekontYukleInner() {
 
       if (res.status === 409) {
         const warn = await res.json();
-        setStatus(`Uyarı: Bu ay için zaten ${warn.mevcutDekontSayisi || 1} dekont var. Yine de eklendi (ek dekont).`);
+        setUploadStatus(`Uyarı: Bu ay için zaten ${warn.mevcutDekontSayisi || 1} dekont var. Yine de eklendi (ek dekont).`);
       } else if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Yükleme başarısız (${res.status})`);
       } else {
-        setStatus("Başarılı! Dekont yüklendi.");
+        setUploadStatus("Başarılı! Dekont yüklendi.");
       }
 
       // 2 sn sonra dekont listesine yönlendir
       setTimeout(() => router.push("/ogretmen/panel?tab=dekontlar"), 1500);
     } catch (e: any) {
-      setStatus(`Hata: ${e?.message || e}`);
+      setUploadStatus(`Hata: ${e?.message || e}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -171,14 +222,30 @@ function DekontYukleInner() {
             <div>
               <label className="block text-sm font-medium mb-1">Ay</label>
               <select value={ay} onChange={e => setAy(Number(e.target.value))} className="w-full border rounded px-3 py-2">
-                {aylar.map((a, idx) => (
-                  <option key={idx+1} value={idx+1}>{a}</option>
-                ))}
+                {aylar.map((a, idx) => {
+                  const val = idx + 1;
+                  if (val > maxAyForYil) return null;
+                  return (
+                    <option key={val} value={val}>{a}</option>
+                  );
+                })}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Yıl</label>
-              <input type="number" value={yil} onChange={e => setYil(Number(e.target.value))} className="w-full border rounded px-3 py-2" />
+              <input
+                type="number"
+                value={yil}
+                onChange={e => {
+                  const next = Number(e.target.value);
+                  const now = new Date();
+                  const currentYear = now.getFullYear();
+                  // Gelecek yıllara izin verme; en fazla mevcut yıl
+                  const clamped = Math.min(next, currentYear);
+                  setYil(clamped);
+                }}
+                className="w-full border rounded px-3 py-2"
+              />
             </div>
           </div>
 
@@ -234,7 +301,7 @@ function DekontYukleInner() {
               onClick={() => {
                 setFile(null);
                 if (inputRef.current) inputRef.current.value = "";
-                setStatus("");
+                setUploadStatus("");
               }}
             >
               Sıfırla
@@ -248,15 +315,12 @@ function DekontYukleInner() {
             </button>
           </div>
 
-          {status && (
-            <div className="text-sm mt-2 p-2 rounded bg-gray-50 border">{status}</div>
+          {uploadStatus && (
+            <div className="text-sm mt-2 p-2 rounded bg-gray-50 border">{uploadStatus}</div>
           )}
         </div>
 
-        <p className="text-xs text-gray-500 mt-3">
-          Not: Bu sayfa, mobilde dosya seçiminden sonra beklenmeyen yeniden yükleme veya odak kaybı sorunlarını tamamen
-          devre dışı bırakmak amacıyla modal yerine sayfa düzeniyle tasarlanmıştır.
-        </p>
+        {null}
       </div>
     </div>
   );
