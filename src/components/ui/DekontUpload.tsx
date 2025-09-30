@@ -84,6 +84,8 @@ export default function DekontUpload({
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
     const file = e.target.files?.[0]
     console.log('File selected:', file)
     if (file) {
@@ -299,19 +301,19 @@ export default function DekontUpload({
                 <div className="flex text-sm text-gray-600">
                   <label
                     htmlFor="file-upload"
-                    className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
+                    className="cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
                   >
-                    <span>Dosya Seç</span>
-                    <input
-                      id="file-upload"
-                      name="file-upload"
-                      type="file"
-                      ref={fileInputRef}
-                      className="absolute opacity-0 w-0 h-0 overflow-hidden"
-                      accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,application/pdf"
-                      onChange={handleFileChange}
-                    />
+                    Dosya Seç
                   </label>
+                  <input
+                    id="file-upload"
+                    name="file-upload"
+                    type="file"
+                    ref={fileInputRef}
+                    className="sr-only"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,application/pdf"
+                    onChange={handleFileChange}
+                  />
                   <p className="pl-1">veya sürükleyip bırakın</p>
                 </div>
                 <p className="text-xs text-gray-500">
