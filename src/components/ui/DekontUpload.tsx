@@ -300,6 +300,7 @@ export default function DekontUpload({
                   <label
                     htmlFor="file-upload"
                     className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <span>Dosya Seç</span>
                     <input
@@ -308,9 +309,9 @@ export default function DekontUpload({
                       type="file"
                       ref={fileInputRef}
                       className="sr-only"
-                      accept="image/*,.pdf"
-                      capture="environment"
+                      accept="image/*,application/pdf"
                       onChange={handleFileChange}
+                      onClick={(e) => e.stopPropagation()}
                     />
                   </label>
                   <p className="pl-1">veya sürükleyip bırakın</p>
