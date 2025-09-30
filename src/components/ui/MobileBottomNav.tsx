@@ -25,6 +25,7 @@ export default function MobileBottomNav() {
     loading: true,
   });
   const [isPWA, setIsPWA] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
 
   // Fetch login control settings
   useEffect(() => {
@@ -66,6 +67,15 @@ export default function MobileBottomNav() {
   // PWA kontrolü
   useEffect(() => {
     setIsPWA(isPWAInstalled());
+  }, []);
+
+  // Listen modal open changes to disable pointer events under modal
+  useEffect(() => {
+    const handler = (e: any) => {
+      setModalOpen(!!(e?.detail));
+    };
+    window.addEventListener('modal-open-change', handler as any);
+    return () => window.removeEventListener('modal-open-change', handler as any);
   }, []);
 
   // If user is not authenticated, do not show the mobile bottom nav at all
@@ -114,7 +124,7 @@ export default function MobileBottomNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-[100] border-t border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80"
+      className={`md:hidden fixed bottom-0 left-0 right-0 z-[100] border-t border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 ${modalOpen ? 'pointer-events-none opacity-80' : ''}`}
       role="navigation"
       aria-label="Alt menü"
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0px)" }}

@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment } from 'react'
+import { Fragment, useEffect } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { X } from 'lucide-react'
 
@@ -29,6 +29,27 @@ export default function Modal({
   cancelText = 'Cancel',
   size = 'md'
 }: ModalProps) {
+  // Inform the app that a modal is open, so bottom nav can disable pointer events
+  useEffect(() => {
+    if (isOpen) {
+      try {
+        document.body.classList.add('modal-open');
+        window.dispatchEvent(new CustomEvent('modal-open-change', { detail: true }));
+      } catch {}
+    } else {
+      try {
+        document.body.classList.remove('modal-open');
+        window.dispatchEvent(new CustomEvent('modal-open-change', { detail: false }));
+      } catch {}
+    }
+    return () => {
+      try {
+        document.body.classList.remove('modal-open');
+        window.dispatchEvent(new CustomEvent('modal-open-change', { detail: false }));
+      } catch {}
+    };
+  }, [isOpen]);
+
   return (
     <Transition.Root show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-[1000]" onClose={onClose}>
@@ -41,10 +62,10 @@ export default function Modal({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+          <div className="fixed inset-0 z-[2000] bg-gray-500 bg-opacity-75 transition-opacity" />
         </Transition.Child>
 
-        <div className="fixed inset-0 z-10 overflow-y-auto">
+        <div className="fixed inset-0 z-[2001] overflow-y-auto">
           <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
             <Transition.Child
               as={Fragment}

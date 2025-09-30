@@ -19,6 +19,7 @@ interface DekontUploadProps {
   onStajyerChange?: (stajyerId: string) => void
   startDate?: string // Staj başlama tarihi (YYYY-MM-DD formatında)
   existingDekontlar?: Array<{ ay: number; yil: number; onay_durumu: string }> // Mevcut dekontlar
+  compact?: boolean // Geçici olarak yüksekliği küçük tutmak için
 }
 
 const AY_LISTESI = [
@@ -37,7 +38,8 @@ export default function DekontUpload({
   selectedStajyerId,
   onStajyerChange,
   startDate,
-  existingDekontlar = []
+  existingDekontlar = [],
+  compact = true
 }: DekontUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedIsletme, setSelectedIsletme] = useState(selectedIsletmeId || '')
@@ -52,6 +54,23 @@ export default function DekontUpload({
   })
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [errors, setErrors] = useState<Partial<Record<keyof DekontFormData, string>>>({})
+
+  // Top-level dropzone hook (do NOT call hooks inside render)
+  const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
+    multiple: false,
+    maxSize: 10 * 1024 * 1024,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg'],
+      'application/pdf': ['.pdf']
+    },
+    onDrop: (acceptedFiles) => {
+      const f = acceptedFiles?.[0]
+      if (f) {
+        setSelectedFile(f)
+        setErrors(prev => ({ ...prev, dosya: undefined }))
+      }
+    }
+  })
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof DekontFormData, string>> = {}
@@ -145,8 +164,8 @@ export default function DekontUpload({
 
   return (
     <div
-      className="space-y-8 pb-6"
-      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+      className="space-y-6 pb-4"
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)', maxHeight: '70vh', overflowY: 'auto' }}
       onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault() }}
     >
       {/* Debug listeners for unexpected unloads */}
@@ -220,21 +239,23 @@ export default function DekontUpload({
           searchable
         />
       )}
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div>
           <label htmlFor="miktar" className="block text-sm font-medium text-gray-700 mb-2">
             Miktar (TL) <span className="text-gray-400">(İsteğe bağlı)</span>
           </label>
-          <input
-            type="number"
-            id="miktar"
-            min="0"
-            step="0.01"
-            value={formData.miktar ?? ''}
-            onChange={(e) => setFormData(prev => ({ ...prev, miktar: e.target.value ? parseFloat(e.target.value) : undefined }))}
-            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-all sm:text-sm"
-            placeholder="0.00"
-          />
+          {!compact && (
+            <input
+              type="number"
+              id="miktar"
+              min="0"
+              step="0.01"
+              value={formData.miktar ?? ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, miktar: e.target.value ? parseFloat(e.target.value) : undefined }))}
+              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-all sm:text-sm"
+              placeholder="0.00"
+            />
+          )}
         </div>
         
         {/* Ay ve Yıl Seçimi */}
@@ -329,18 +350,20 @@ export default function DekontUpload({
           </div>
         </div>
       </div>
-      <div>
-        <label htmlFor="aciklama" className="block text-sm font-medium text-gray-700">
-          Açıklama (İsteğe bağlı)
-        </label>
-        <textarea
-          id="aciklama"
-          rows={3}
-          value={formData.aciklama}
-          onChange={(e) => setFormData(prev => ({ ...prev, aciklama: e.target.value }))}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-        />
-      </div>
+      {!compact && (
+        <div>
+          <label htmlFor="aciklama" className="block text-sm font-medium text-gray-700">
+            Açıklama (İsteğe bağlı)
+          </label>
+          <textarea
+            id="aciklama"
+            rows={3}
+            value={formData.aciklama}
+            onChange={(e) => setFormData(prev => ({ ...prev, aciklama: e.target.value }))}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+          />
+        </div>
+      )}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-3">
           Dekont Dosyası <span className="text-red-500">*</span>
@@ -349,42 +372,22 @@ export default function DekontUpload({
         {!selectedFile ? (
           <div className="space-y-3">
             {/* Dropzone area */}
-            {(() => {
-              const dz = useDropzone({
-                multiple: false,
-                maxSize: 10 * 1024 * 1024,
-                accept: {
-                  'image/*': ['.png', '.jpg', '.jpeg'],
-                  'application/pdf': ['.pdf']
-                },
-                onDrop: (acceptedFiles) => {
-                  const f = acceptedFiles?.[0]
-                  if (f) {
-                    setSelectedFile(f)
-                    setErrors(prev => ({ ...prev, dosya: undefined }))
-                  }
-                }
-              })
-              const { getRootProps, getInputProps, isDragActive, isDragReject } = dz
-              return (
-                <div
-                  {...getRootProps()}
-                  className={`cursor-pointer border-2 border-dashed rounded-lg p-6 text-center transition-colors mb-2 ${
-                    isDragReject ? 'border-red-400 bg-red-50' : isDragActive ? 'border-indigo-400 bg-indigo-50' : 'border-gray-300 bg-white'
-                  }`}
-                  style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                >
-                  <input {...getInputProps()} />
-                  <div className="flex flex-col items-center gap-2 text-sm text-gray-600">
-                    <Upload className="h-6 w-6 text-gray-400" />
-                    <div>
-                      Dosyayı buraya bırakın veya <span className="text-indigo-600 font-medium">dokunup seçin</span>
-                    </div>
-                    <div className="text-xs text-gray-400">JPG, PNG, PDF (max. 10MB)</div>
-                  </div>
+            <div
+              {...getRootProps()}
+              className={`cursor-pointer border-2 border-dashed rounded-lg ${compact ? 'p-4' : 'p-6'} text-center transition-colors mb-2 ${
+                isDragReject ? 'border-red-400 bg-red-50' : isDragActive ? 'border-indigo-400 bg-indigo-50' : 'border-gray-300 bg-white'
+              }`}
+              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+            >
+              <input {...getInputProps()} />
+              <div className="flex flex-col items-center gap-2 text-sm text-gray-600">
+                <Upload className="h-6 w-6 text-gray-400" />
+                <div>
+                  Dosyayı buraya bırakın veya <span className="text-indigo-600 font-medium">dokunup seçin</span>
                 </div>
-              )
-            })()}
+                <div className="text-xs text-gray-400">JPG, PNG, PDF (max. 10MB)</div>
+              </div>
+            </div>
             {/* Mobil için Büyük Butonlar */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
               {/* Fotoğraf Çek Butonu - Mobil */}
