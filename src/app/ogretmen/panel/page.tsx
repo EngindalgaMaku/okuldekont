@@ -1189,6 +1189,22 @@ const TeacherPanel = () => {
 
           {/* Tabs */}
           <div className="mt-6 sm:mt-8">
+            {/* Mobile Tab Menu */}
+            <div className="md:hidden mb-4">
+              <select
+                value={activeTab}
+                onChange={(e) => router.push(`/ogretmen/panel?tab=${e.target.value}`, { scroll: false })}
+                className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white font-medium appearance-none"
+              >
+                <option value="isletmeler" className="text-gray-900">📋 İşletmeler ({isletmeler.length})</option>
+                <option value="dekontlar" className="text-gray-900">📄 Dekont Listesi ({dekontlar.length})</option>
+                <option value="bildirimler" className="text-gray-900">
+                  🔔 Bildirimler ({notifications.length}){unreadCount > 0 ? ` - ${unreadCount} Yeni` : ''}
+                </option>
+              </select>
+            </div>
+            
+            {/* Desktop Tab Menu */}
             <nav className="-mb-px hidden md:flex space-x-0.5 sm:space-x-4" aria-label="Tabs">
               {[
                 { id: 'isletmeler', icon: Building2, label: 'İşletmeler', count: isletmeler.length },

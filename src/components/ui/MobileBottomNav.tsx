@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { Home, Building2, User, Users, FileText, Receipt, LogOut, XCircle } from "lucide-react";
+import { Home, Building2, User, Users, FileText, Receipt, LogOut, XCircle, Bell } from "lucide-react";
 import type { ReactNode } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
@@ -94,11 +94,11 @@ export default function MobileBottomNav() {
       { label: "Belgeler", href: "/isletme?tab=belgeler", tab: "belgeler", icon: <FileText className="h-5 w-5" /> },
     ];
   } else if (role === "TEACHER") {
-    // Öğretmen girişi menüsü: İşletmeler, Dekont Listesi, Belgeler
+    // Öğretmen girişi menüsü: İşletmeler, Dekont Listesi, Bildirimler
     items = [
       { label: "İşletmeler", href: "/ogretmen/panel?tab=isletmeler", tab: "isletmeler", icon: <Building2 className="h-5 w-5" /> },
       { label: "Dekont Listesi", href: "/ogretmen/panel?tab=dekontlar", tab: "dekontlar", icon: <Receipt className="h-5 w-5" /> },
-      { label: "Belgeler", href: "/ogretmen/panel?tab=belgeler", tab: "belgeler", icon: <FileText className="h-5 w-5" /> },
+      { label: "Bildirimler", href: "/ogretmen/panel?tab=bildirimler", tab: "bildirimler", icon: <Bell className="h-5 w-5" /> },
     ];
   } else {
     // Authenticated but no specific role: default to empty nav
