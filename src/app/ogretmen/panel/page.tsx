@@ -152,10 +152,26 @@ const TeacherPanel = () => {
     });
   };
 
-
+// Esnek tarih parse helper'i (YYYY-MM-DD veya DD.MM.YYYY)
+const parseDateFlexible = (value: string): Date => {
+  if (!value) return new Date('1970-01-01T00:00:00Z');
+  // ISO benzeri format (YYYY-MM-DD)
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+    // Safari uyumu için zaman ekleyelim
+    return new Date(`${value}T00:00:00`);
+  }
+  // TR formatı (DD.MM.YYYY)
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(value)) {
+    const [dd, mm, yyyy] = value.split('.');
+    const d = Number(dd), m = Number(mm), y = Number(yyyy);
+    return new Date(y, m - 1, d);
+  }
+  const ts = Date.parse(value);
+  return isNaN(ts) ? new Date('1970-01-01T00:00:00Z') : new Date(ts);
+};
   // Öğrencinin başlangıç tarihinden sonraki aya kadar olan ayları getir
   const getMonthsFromStartToPrevious = (startDate: string): { month: number, year: number, label: string }[] => {
-    const start = new Date(startDate);
+    const start = parseDateFlexible(startDate);
     const currentDate = new Date();
     const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
     
@@ -215,7 +231,7 @@ const TeacherPanel = () => {
     // Öğrencinin başlangıç tarihini bul
     const ogrenci = isletmeler.flatMap(i => i.ogrenciler).find(o => `${o.ad} ${o.soyad}` === ogrenciAd);
     if (ogrenci) {
-      const startDate = new Date(ogrenci.baslangic_tarihi);
+      const startDate = parseDateFlexible(ogrenci.baslangic_tarihi);
       const startYear = startDate.getFullYear();
       const startMonth = startDate.getMonth() + 1;
       
