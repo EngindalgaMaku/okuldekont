@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useDropzone } from 'react-dropzone'
 import { X, Upload, XCircle, CheckCircle, User } from 'lucide-react'
 import Modal from './Modal'
 import ModernSelect from './ModernSelect'
@@ -143,7 +144,11 @@ export default function DekontUpload({
   const YIL_LISTESI = getEgitimYillari();
 
   return (
-    <div className="space-y-8" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault() }}>
+    <div
+      className="space-y-8 pb-6"
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault() }}
+    >
       {/* Debug listeners for unexpected unloads */}
       {(() => {
         // Attach once per component lifecycle
@@ -343,8 +348,45 @@ export default function DekontUpload({
         
         {!selectedFile ? (
           <div className="space-y-3">
+            {/* Dropzone area */}
+            {(() => {
+              const dz = useDropzone({
+                multiple: false,
+                maxSize: 10 * 1024 * 1024,
+                accept: {
+                  'image/*': ['.png', '.jpg', '.jpeg'],
+                  'application/pdf': ['.pdf']
+                },
+                onDrop: (acceptedFiles) => {
+                  const f = acceptedFiles?.[0]
+                  if (f) {
+                    setSelectedFile(f)
+                    setErrors(prev => ({ ...prev, dosya: undefined }))
+                  }
+                }
+              })
+              const { getRootProps, getInputProps, isDragActive, isDragReject } = dz
+              return (
+                <div
+                  {...getRootProps()}
+                  className={`cursor-pointer border-2 border-dashed rounded-lg p-6 text-center transition-colors mb-2 ${
+                    isDragReject ? 'border-red-400 bg-red-50' : isDragActive ? 'border-indigo-400 bg-indigo-50' : 'border-gray-300 bg-white'
+                  }`}
+                  style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                >
+                  <input {...getInputProps()} />
+                  <div className="flex flex-col items-center gap-2 text-sm text-gray-600">
+                    <Upload className="h-6 w-6 text-gray-400" />
+                    <div>
+                      Dosyayı buraya bırakın veya <span className="text-indigo-600 font-medium">dokunup seçin</span>
+                    </div>
+                    <div className="text-xs text-gray-400">JPG, PNG, PDF (max. 10MB)</div>
+                  </div>
+                </div>
+              )
+            })()}
             {/* Mobil için Büyük Butonlar */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
               {/* Fotoğraf Çek Butonu - Mobil */}
               <button
                 type="button"
@@ -355,6 +397,7 @@ export default function DekontUpload({
                   document.getElementById('camera-upload')?.click();
                 }}
                 className="flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 text-white rounded-lg font-medium cursor-pointer hover:bg-blue-700 active:bg-blue-800 transition-colors"
+                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -373,6 +416,7 @@ export default function DekontUpload({
                   document.getElementById('gallery-upload')?.click();
                 }}
                 className="flex items-center justify-center gap-2 px-6 py-4 bg-green-600 text-white rounded-lg font-medium cursor-pointer hover:bg-green-700 active:bg-green-800 transition-colors"
+                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
               >
                 <Upload className="w-6 h-6" />
                 Galeriden Seç

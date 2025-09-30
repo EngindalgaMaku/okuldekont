@@ -31,7 +31,7 @@ export default function Modal({
 }: ModalProps) {
   return (
     <Transition.Root show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Dialog as="div" className="relative z-[1000]" onClose={onClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -55,7 +55,7 @@ export default function Modal({
               leaveFrom="opacity-100 translate-y-0 sm:scale-100"
               leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             >
-              <Dialog.Panel className={`relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:p-6 ${
+              <Dialog.Panel style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }} className={`relative transform overflow-hidden rounded-lg bg-white px-4 pb-8 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:p-6 ${
                 size === 'sm' ? 'sm:max-w-md' :
                 size === 'md' ? 'sm:max-w-lg' :
                 size === 'lg' ? 'sm:max-w-2xl' :
