@@ -290,37 +290,59 @@ export default function DekontUpload({
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-sm font-medium text-gray-700 mb-3">
           Dekont Dosyası <span className="text-red-500">*</span>
         </label>
-        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-          <div className="space-y-1 text-center">
-            {!selectedFile ? (
-              <>
-                <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                <div className="flex text-sm text-gray-600">
-                  <label
-                    htmlFor="file-upload"
-                    className="cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
-                  >
-                    Dosya Seç
-                  </label>
-                  <input
-                    id="file-upload"
-                    name="file-upload"
-                    type="file"
-                    ref={fileInputRef}
-                    className="sr-only"
-                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,application/pdf"
-                    onChange={handleFileChange}
-                  />
-                  <p className="pl-1">veya sürükleyip bırakın</p>
-                </div>
-                <p className="text-xs text-gray-500">
-                  JPG, JPEG, PNG, GIF, WEBP veya PDF (max. 10MB)
-                </p>
-              </>
-            ) : (
+        
+        {!selectedFile ? (
+          <div className="space-y-3">
+            {/* Mobil için Büyük Butonlar */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Fotoğraf Çek Butonu - Mobil */}
+              <label
+                htmlFor="camera-upload"
+                className="flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 text-white rounded-lg font-medium cursor-pointer hover:bg-blue-700 active:bg-blue-800 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Fotoğraf Çek
+              </label>
+              <input
+                id="camera-upload"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+
+              {/* Galeriden Seç Butonu */}
+              <label
+                htmlFor="gallery-upload"
+                className="flex items-center justify-center gap-2 px-6 py-4 bg-green-600 text-white rounded-lg font-medium cursor-pointer hover:bg-green-700 active:bg-green-800 transition-colors"
+              >
+                <Upload className="w-6 h-6" />
+                Galeriden Seç
+              </label>
+              <input
+                id="gallery-upload"
+                type="file"
+                ref={fileInputRef}
+                accept="image/*,application/pdf"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </div>
+            
+            <p className="text-xs text-center text-gray-500">
+              JPG, PNG, PDF (max. 10MB)
+            </p>
+          </div>
+        ) : (
+          <div className="border-2 border-gray-300 border-dashed rounded-md p-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <Upload className="h-6 w-6 text-gray-400 mr-2" />
@@ -334,11 +356,11 @@ export default function DekontUpload({
                   <X className="h-5 w-5" />
                 </button>
               </div>
-            )}
+            </div>
           </div>
-        </div>
+        )}
         {errors.dosya && <p className="mt-1 text-sm text-red-600">{errors.dosya}</p>}
-        </div>
+      </div>
       <div className="flex justify-end gap-3">
         {onCancel && (
           <button
