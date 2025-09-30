@@ -160,6 +160,13 @@ export default function ClientDekontlarPage() {
       )
     }
 
+    // Son yüklenen önce gelecek şekilde sırala (created_at'e göre azalan)
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.created_at).getTime()
+      const dateB = new Date(b.created_at).getTime()
+      return dateB - dateA
+    })
+
     return filtered
   }, [dekontlar, selectedStatus, selectedMonth, selectedYear, selectedAlan, selectedSinif, searchTerm])
 
@@ -198,6 +205,42 @@ export default function ClientDekontlarPage() {
       .filter((sinif): sinif is string => !!sinif)
     return Array.from(new Set(siniflar)).sort()
   }, [dekontlar])
+
+  // İstatistik hesaplamaları
+  const statistics = useMemo(() => {
+    // Seçili ay ve yıl için istatistik
+    let targetDekontlar = dekontlar
+    
+    if (selectedMonth !== 'all') {
+      targetDekontlar = targetDekontlar.filter(d => d.ay === parseInt(selectedMonth))
+    }
+    if (selectedYear !== 'all') {
+      targetDekontlar = targetDekontlar.filter(d => d.yil === parseInt(selectedYear))
+    }
+
+    // Benzersiz öğrenci sayısı (staja giden toplam öğrenci)
+    const uniqueStudents = new Set(targetDekontlar.map(d => d.ogrenci_ad)).size
+    
+    // Dekont yüklenen öğrenci sayısı (tüm durumlar)
+    const withDekont = targetDekontlar.length
+    
+    // Onay bekleyen
+    const pending = targetDekontlar.filter(d => d.onay_durumu === 'bekliyor').length
+    
+    // Onaylanan
+    const approved = targetDekontlar.filter(d => d.onay_durumu === 'onaylandi').length
+    
+    // Reddedilen
+    const rejected = targetDekontlar.filter(d => d.onay_durumu === 'reddedildi').length
+
+    return {
+      totalStudents: uniqueStudents,
+      withDekont,
+      pending,
+      approved,
+      rejected
+    }
+  }, [dekontlar, selectedMonth, selectedYear])
 
   // Memoized event handlers - prevent re-creation
   const handleSelectAll = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -600,6 +643,75 @@ export default function ClientDekontlarPage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* İstatistik Kartları */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Toplam Öğrenci</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{statistics.totalStudents}</p>
+            </div>
+            <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Dekont Yüklenen</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">{statistics.withDekont}</p>
+            </div>
+            <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <Check className="h-6 w-6 text-green-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Onay Bekliyor</p>
+              <p className="text-2xl font-bold text-yellow-600 mt-1">{statistics.pending}</p>
+            </div>
+            <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+              <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Onaylanan</p>
+              <p className="text-2xl font-bold text-emerald-600 mt-1">{statistics.approved}</p>
+            </div>
+            <div className="h-12 w-12 bg-emerald-100 rounded-lg flex items-center justify-center">
+              <svg className="h-6 w-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Reddedilen</p>
+              <p className="text-2xl font-bold text-red-600 mt-1">{statistics.rejected}</p>
+            </div>
+            <div className="h-12 w-12 bg-red-100 rounded-lg flex items-center justify-center">
+              <X className="h-6 w-6 text-red-600" />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Desktop Table View (hidden on mobile) */}
