@@ -1,10 +1,13 @@
-import { useState, useRef } from 'react'
-import { Upload, X, User, CheckCircle, XCircle } from 'lucide-react'
-import { DekontFormData } from '@/types/dekont'
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import { X, Upload, XCircle, CheckCircle, User } from 'lucide-react'
+import Modal from './Modal'
 import ModernSelect from './ModernSelect'
+import { DekontFormData } from '@/types/dekont'
 
 interface DekontUploadProps {
-  onSubmit: (formData: DekontFormData) => Promise<void>
+  onSubmit: (data: DekontFormData) => Promise<void>
   onCancel?: () => void
   isLoading?: boolean
   stajId?: string
@@ -394,6 +397,7 @@ export default function DekontUpload({
           {isLoading ? 'Yükleniyor...' : 'Dekont Yükle'}
         </button>
       </div>
+      
     </form>
   )
 }
