@@ -143,7 +143,52 @@ export default function DekontUpload({
   const YIL_LISTESI = getEgitimYillari();
 
   return (
-    <form onSubmit={(e) => e.preventDefault()} className="space-y-8" noValidate autoComplete="off" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault() }}>
+    <div className="space-y-8" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault() }}>
+      {/* Debug listeners for unexpected unloads */}
+      {(() => {
+        // Attach once per component lifecycle
+        useEffect(() => {
+          const log = (type: string) => {
+            const data = {
+              type,
+              ts: new Date().toISOString(),
+              visibility: document.visibilityState,
+              href: typeof window !== 'undefined' ? window.location.href : '',
+              ua: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+              intent: sessionStorage.getItem('dekont_upload_intent') || '',
+            };
+            try {
+              sessionStorage.setItem('dekont_last_unload_event', JSON.stringify(data));
+            } catch {}
+            // eslint-disable-next-line no-console
+            console.warn('[DekontUpload][debug]', data);
+          };
+
+          const onBeforeUnload = () => log('beforeunload');
+          const onPageHide = () => log('pagehide');
+          const onVisibilityChange = () => log('visibilitychange');
+
+          window.addEventListener('beforeunload', onBeforeUnload);
+          window.addEventListener('pagehide', onPageHide);
+          document.addEventListener('visibilitychange', onVisibilityChange);
+
+          // Log previous session info on mount
+          try {
+            const last = sessionStorage.getItem('dekont_last_unload_event');
+            if (last) {
+              // eslint-disable-next-line no-console
+              console.warn('[DekontUpload][debug] last_unload_event', JSON.parse(last));
+            }
+          } catch {}
+
+          return () => {
+            window.removeEventListener('beforeunload', onBeforeUnload);
+            window.removeEventListener('pagehide', onPageHide);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+          };
+        }, []);
+        return null;
+      })()}
       {/* Öğrenci Seçimi */}
       {stajyerler && stajyerler.length > 0 && (
         <ModernSelect
@@ -306,6 +351,7 @@ export default function DekontUpload({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
+                  try { sessionStorage.setItem('dekont_upload_intent', JSON.stringify({ ts: Date.now(), type: 'camera' })); } catch {}
                   document.getElementById('camera-upload')?.click();
                 }}
                 className="flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 text-white rounded-lg font-medium cursor-pointer hover:bg-blue-700 active:bg-blue-800 transition-colors"
@@ -323,6 +369,7 @@ export default function DekontUpload({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
+                  try { sessionStorage.setItem('dekont_upload_intent', JSON.stringify({ ts: Date.now(), type: 'gallery' })); } catch {}
                   document.getElementById('gallery-upload')?.click();
                 }}
                 className="flex items-center justify-center gap-2 px-6 py-4 bg-green-600 text-white rounded-lg font-medium cursor-pointer hover:bg-green-700 active:bg-green-800 transition-colors"
@@ -398,6 +445,20 @@ export default function DekontUpload({
         </button>
       </div>
       
-    </form>
+      {/* Debug info (visible) */}
+      {(() => {
+        let intent = '' as string;
+        let last: any = null;
+        try { intent = sessionStorage.getItem('dekont_upload_intent') || ''; } catch {}
+        try { const v = sessionStorage.getItem('dekont_last_unload_event'); last = v ? JSON.parse(v) : null; } catch {}
+        return (
+          <div className="text-[10px] text-gray-400 select-text">
+            <div>debug.intent: {intent || '-'}</div>
+            <div>debug.last_unload: {last ? `${last.type} @ ${last.ts} (vis=${last.visibility})` : '-'}</div>
+          </div>
+        );
+      })()}
+
+    </div>
   )
 }

@@ -1383,6 +1383,7 @@ const TeacherPanel = () => {
                               </div>
                               {fullOgrenci && isletme && (
                                 <button
+                                  type="button"
                                   onClick={() => handleOpenDekontUpload(fullOgrenci, isletme)}
                                   className={`mt-2 w-full flex items-center justify-center px-2 py-1 text-xs font-medium rounded transition-colors ${
                                     isGecikme(dekontSonGun) ? 'bg-red-600 text-white hover:bg-red-700' :
@@ -1570,6 +1571,7 @@ const TeacherPanel = () => {
                                 </div>
                               <div className="flex justify-end">
                                 <button
+                                  type="button"
                                   onClick={(e) => { e.stopPropagation(); handleOpenDekontUpload(ogrenci, isletme); }}
                                   className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
                                   title="Dekont Yükle"
