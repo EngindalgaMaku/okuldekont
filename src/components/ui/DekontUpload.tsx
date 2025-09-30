@@ -238,7 +238,8 @@ export default function DekontUpload({
                     return null;
                   }
                   
-                  if (selectedYear === stajBaslangicYear && (index + 1) <= stajBaslangicMonth) {
+                  // Staj başlangıç ayından ÖNCEki ayları engelle (başlangıç ayı dahil yüklenebilir)
+                  if (selectedYear === stajBaslangicYear && (index + 1) < stajBaslangicMonth) {
                     return null;
                   }
                 }
