@@ -172,93 +172,67 @@ export default function DekontUpload({
           />
         </div>
         
-        {/* Modern Ay ve Yıl Seçimi */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Dekont Dönemi <span className="text-red-500">*</span>
-          </label>
-          <div className="grid grid-cols-3 gap-3">
-            {/* Yıl Seçimi */}
-            <div className="col-span-3 sm:col-span-1">
-              <div className="relative">
-                <select
-                  id="yil"
-                  value={formData.yil}
-                  onChange={(e) => setFormData(prev => ({ ...prev, yil: e.target.value }))}
-                  className="block w-full rounded-lg border-2 border-gray-300 bg-white px-4 py-3 text-center text-lg font-semibold text-gray-900 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer hover:border-indigo-400"
-                >
-                  {YIL_LISTESI.map((yil) => (
-                    <option key={yil} value={yil}>{yil}</option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-            
-            {/* Ay Seçimi - Grid */}
-            <div className="col-span-3 sm:col-span-2">
-              <div className="grid grid-cols-4 gap-2">
-                {AY_LISTESI.map((ay, index) => {
-                  const today = new Date();
-                  const currentYear = today.getFullYear();
-                  const currentMonth = today.getMonth();
-                  const selectedYear = parseInt(formData.yil, 10);
+        {/* Ay ve Yıl Seçimi */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="ay" className="block text-sm font-medium text-gray-700 mb-1">
+              Ay <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="ay"
+              value={formData.ay}
+              onChange={(e) => setFormData(prev => ({ ...prev, ay: e.target.value }))}
+              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-all sm:text-sm"
+            >
+              {AY_LISTESI.map((ay, index) => {
+                const today = new Date();
+                const currentYear = today.getFullYear();
+                const currentMonth = today.getMonth();
+                const selectedYear = parseInt(formData.yil, 10);
 
-                  // Gelecek ay ve yıl kontrolü
-                  if (selectedYear > currentYear || (selectedYear === currentYear && index >= currentMonth)) {
+                // Gelecek ay ve yıl kontrolü
+                if (selectedYear > currentYear || (selectedYear === currentYear && index >= currentMonth)) {
+                  return null;
+                }
+
+                // Staj başlama tarihi kontrolü
+                if (startDate) {
+                  const stajBaslangic = new Date(startDate);
+                  const stajBaslangicYear = stajBaslangic.getFullYear();
+                  const stajBaslangicMonth = stajBaslangic.getMonth() + 1;
+                  
+                  if (selectedYear < stajBaslangicYear) {
                     return null;
                   }
-
-                  // Staj başlama tarihi kontrolü
-                  if (startDate) {
-                    const stajBaslangic = new Date(startDate);
-                    const stajBaslangicYear = stajBaslangic.getFullYear();
-                    const stajBaslangicMonth = stajBaslangic.getMonth() + 1; // 1-based
-                    
-                    // Seçilen yıl staj başlangıç yılından önceyse hiç gösterme
-                    if (selectedYear < stajBaslangicYear) {
-                      return null;
-                    }
-                    
-                    // Aynı yıldaysa ve ay staj başlangıç ayından önceyse gösterme
-                    if (selectedYear === stajBaslangicYear && (index + 1) <= stajBaslangicMonth) {
-                      return null;
-                    }
+                  
+                  if (selectedYear === stajBaslangicYear && (index + 1) <= stajBaslangicMonth) {
+                    return null;
                   }
-                  
-                  const isSelected = formData.ay === (index + 1).toString();
-                  
-                  return (
-                    <button
-                      key={ay}
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, ay: (index + 1).toString() }))}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                        isSelected
-                          ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md transform scale-105'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105'
-                      }`}
-                    >
-                      {ay.substring(0, 3)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+                }
+                
+                return (
+                  <option key={index + 1} value={index + 1}>
+                    {ay}
+                  </option>
+                );
+              })}
+            </select>
           </div>
           
-          {/* Seçilen dönem göstergesi */}
-          <div className="mt-3 flex items-center justify-center">
-            <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2">
-              <p className="text-sm text-indigo-900">
-                <span className="font-semibold">Seçilen Dönem:</span>{' '}
-                {AY_LISTESI[parseInt(formData.ay) - 1]} {formData.yil}
-              </p>
-            </div>
+          <div>
+            <label htmlFor="yil" className="block text-sm font-medium text-gray-700 mb-1">
+              Yıl <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="yil"
+              value={formData.yil}
+              onChange={(e) => setFormData(prev => ({ ...prev, yil: e.target.value }))}
+              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition-all sm:text-sm"
+            >
+              {YIL_LISTESI.map((yil) => (
+                <option key={yil} value={yil}>{yil}</option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
