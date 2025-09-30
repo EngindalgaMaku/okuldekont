@@ -219,8 +219,8 @@ const TeacherPanel = () => {
       const startYear = startDate.getFullYear();
       const startMonth = startDate.getMonth() + 1;
       
-      // Eğer önceki ay staj başlangıç ayından önce veya aynıysa, dekont kontrolü yapma
-      if (lastMonthYear < startYear || (lastMonthYear === startYear && targetMonth <= startMonth)) {
+      // Eğer önceki ay staj başlangıç ayından önceyse, dekont kontrolü yapma (başlangıç ayı dahil)
+      if (lastMonthYear < startYear || (lastMonthYear === startYear && targetMonth < startMonth)) {
         return `${aylar[targetMonth - 1]}: ➖ Henüz başlamamış`;
       }
     }

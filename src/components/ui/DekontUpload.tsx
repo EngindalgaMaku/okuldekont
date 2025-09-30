@@ -83,6 +83,21 @@ export default function DekontUpload({
     return hasFile && stajIdReady && ayReady && yilReady
   }
 
+  // Mobile direct file input change -> auto-submit
+  const handleMobileFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] || null
+    if (f) {
+      setSelectedFile(f)
+      setErrors(prev => ({ ...prev, dosya: undefined }))
+      if (canAutoSubmit(f)) {
+        // Defer to ensure state is applied
+        setTimeout(() => {
+          handleSubmit()
+        }, 0)
+      }
+    }
+  }
+
   // Top-level dropzone hook (do NOT call hooks inside render)
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
     multiple: false,
@@ -96,13 +111,7 @@ export default function DekontUpload({
       if (f) {
         setSelectedFile(f)
         setErrors(prev => ({ ...prev, dosya: undefined }))
-        // On mobile, auto-submit immediately if form is ready
-        if (isMobile && canAutoSubmit(f)) {
-          // slight defer to ensure state updates
-          setTimeout(() => {
-            handleSubmit()
-          }, 0)
-        }
+        // Desktop dropzone flow only
       }
     }
   })
@@ -338,28 +347,46 @@ export default function DekontUpload({
         
         {!selectedFile ? (
           <div className="space-y-3">
-            {/* Dropzone area */}
-            <div
-              {...getRootProps()}
-              className={`cursor-pointer border-2 border-dashed rounded-lg ${compact ? 'p-4' : 'p-6'} text-center transition-colors mb-2 ${
-                isDragReject ? 'border-red-400 bg-red-50' : isDragActive ? 'border-indigo-400 bg-indigo-50' : 'border-gray-300 bg-white'
-              }`}
-              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-            >
-              <input {...getInputProps()} />
-              <div className="flex flex-col items-center gap-2 text-sm text-gray-600">
-                <Upload className="h-6 w-6 text-gray-400" />
-                <div>
-                  Dosyayı buraya bırakın veya <span className="text-indigo-600 font-medium">dokunup seçin</span>
-                </div>
-                <div className="text-xs text-gray-400">JPG, PNG, PDF (max. 10MB)</div>
+            {/* Mobile: native file input */}
+            {isMobile ? (
+              <div className="mb-2">
+                <label className={`w-full flex items-center justify-center gap-2 ${compact ? 'p-4' : 'p-6'} rounded-lg bg-blue-600 text-white font-medium cursor-pointer active:bg-blue-700`}>
+                  <Upload className="w-5 h-5" />
+                  Dosya Seç
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={handleMobileFileChange}
+                    className="hidden"
+                  />
+                </label>
+                <p className="text-xs text-center text-gray-500 mt-2">JPG, PNG, PDF (max. 10MB)</p>
               </div>
-            </div>
+            ) : (
+              <div
+                {...getRootProps()}
+                className={`cursor-pointer border-2 border-dashed rounded-lg ${compact ? 'p-4' : 'p-6'} text-center transition-colors mb-2 ${
+                  isDragReject ? 'border-red-400 bg-red-50' : isDragActive ? 'border-indigo-400 bg-indigo-50' : 'border-gray-300 bg-white'
+                }`}
+                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+              >
+                <input {...getInputProps()} />
+                <div className="flex flex-col items-center gap-2 text-sm text-gray-600">
+                  <Upload className="h-6 w-6 text-gray-400" />
+                  <div>
+                    Dosyayı buraya bırakın veya <span className="text-indigo-600 font-medium">tıklayıp seçin</span>
+                  </div>
+                  <div className="text-xs text-gray-400">JPG, PNG, PDF (max. 10MB)</div>
+                </div>
+              </div>
+            )}
 
             
-            <p className="text-xs text-center text-gray-500">
-              JPG, PNG, PDF (max. 10MB)
-            </p>
+            {!isMobile && (
+              <p className="text-xs text-center text-gray-500">
+                JPG, PNG, PDF (max. 10MB)
+              </p>
+            )}
           </div>
         ) : (
           <div className="border-2 border-gray-300 border-dashed rounded-md p-4">
