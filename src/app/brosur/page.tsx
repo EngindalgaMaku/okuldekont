@@ -9,6 +9,7 @@ import {
   DevicePhoneMobileIcon,
   AcademicCapIcon,
 } from "@heroicons/react/24/outline";
+import Image from "next/image";
 
 export default function BrosurPage() {
   return (
@@ -24,6 +25,19 @@ export default function BrosurPage() {
           <p className="text-center text-lg opacity-90 mt-1">
             Hüsniye Özdilek Ticaret Mesleki ve Teknik Anadolu Lisesi
           </p>
+          {/* Kapak görseli */}
+          <div className="mt-6 flex justify-center">
+            <div className="relative w-56 h-72 rounded-xl overflow-hidden shadow-lg ring-1 ring-white/30 print:hidden">
+              <Image
+                src="/images/brosur/dekont_takip_brosur.jpg"
+                alt="K-PANEL Dekont Takip"
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 224px, 224px"
+                priority
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -59,6 +73,36 @@ export default function BrosurPage() {
                 <span className="text-gray-700">{item}</span>
               </div>
             ))}
+          </div>
+          {/* Giriş ekranı ekran görüntüleri */}
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="relative w-full h-72 rounded-lg overflow-hidden ring-1 ring-gray-200">
+              <Image
+                src="/images/brosur/ogretnemgiris1.jpg"
+                alt="Öğretmen Giriş 1"
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 100vw, 33vw"
+              />
+            </div>
+            <div className="relative w-full h-72 rounded-lg overflow-hidden ring-1 ring-gray-200">
+              <Image
+                src="/images/brosur/ogretmengiris2.jpg"
+                alt="Öğretmen Giriş 2"
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 100vw, 33vw"
+              />
+            </div>
+            <div className="relative w-full h-72 rounded-lg overflow-hidden ring-1 ring-gray-200">
+              <Image
+                src="/images/brosur/ogretmengiris3.jpg"
+                alt="Öğretmen Giriş 3"
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 100vw, 33vw"
+              />
+            </div>
           </div>
         </section>
 
@@ -127,6 +171,36 @@ export default function BrosurPage() {
             Giriş yaptıktan sonra koordinatörlüğünüzdeki tüm öğrencileri
             göreceksiniz.
           </p>
+          {/* Öğretmen paneli ekran görüntüleri */}
+          <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="relative w-full h-64 rounded-lg overflow-hidden ring-1 ring-gray-200">
+              <Image
+                src="/images/brosur/ogretmenekran1.jpg"
+                alt="Öğretmen Paneli - Öğrenci Listesi"
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 100vw, 33vw"
+              />
+            </div>
+            <div className="relative w-full h-64 rounded-lg overflow-hidden ring-1 ring-gray-200">
+              <Image
+                src="/images/brosur/ogretmenekran2.jpg"
+                alt="Öğretmen Paneli - Dekont Modal"
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 100vw, 33vw"
+              />
+            </div>
+            <div className="relative w-full h-64 rounded-lg overflow-hidden ring-1 ring-gray-200">
+              <Image
+                src="/images/brosur/ogretmenekran3.jpg"
+                alt="Öğretmen Paneli - Dekontlar Sekmesi"
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 100vw, 33vw"
+              />
+            </div>
+          </div>
           <div className="bg-gray-50 rounded-lg p-4">
             <h3 className="font-semibold text-gray-900 mb-3">
               Liste Özellikleri
