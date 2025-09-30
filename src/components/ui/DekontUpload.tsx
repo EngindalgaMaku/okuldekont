@@ -297,23 +297,22 @@ export default function DekontUpload({
               <>
                 <Upload className="mx-auto h-12 w-12 text-gray-400" />
                 <div className="flex text-sm text-gray-600">
-                  <label
-                    htmlFor="file-upload"
-                    className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
-                    onClick={(e) => e.stopPropagation()}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
-                    <span>Dosya Seç</span>
-                    <input
-                      id="file-upload"
-                      name="file-upload"
-                      type="file"
-                      ref={fileInputRef}
-                      className="sr-only"
-                      accept="image/*,application/pdf"
-                      onChange={handleFileChange}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  </label>
+                    Dosya Seç
+                  </button>
+                  <input
+                    id="file-upload"
+                    name="file-upload"
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*,application/pdf"
+                    onChange={handleFileChange}
+                  />
                   <p className="pl-1">veya sürükleyip bırakın</p>
                 </div>
                 <p className="text-xs text-gray-500">
