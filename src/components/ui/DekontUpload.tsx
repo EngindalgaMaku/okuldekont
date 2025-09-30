@@ -299,8 +299,13 @@ export default function DekontUpload({
             {/* Mobil için Büyük Butonlar */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Fotoğraf Çek Butonu - Mobil */}
-              <label
-                htmlFor="camera-upload"
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  document.getElementById('camera-upload')?.click();
+                }}
                 className="flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 text-white rounded-lg font-medium cursor-pointer hover:bg-blue-700 active:bg-blue-800 transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -308,33 +313,40 @@ export default function DekontUpload({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 Fotoğraf Çek
-              </label>
-              <input
-                id="camera-upload"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleFileChange}
-                className="hidden"
-              />
+              </button>
 
               {/* Galeriden Seç Butonu */}
-              <label
-                htmlFor="gallery-upload"
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  document.getElementById('gallery-upload')?.click();
+                }}
                 className="flex items-center justify-center gap-2 px-6 py-4 bg-green-600 text-white rounded-lg font-medium cursor-pointer hover:bg-green-700 active:bg-green-800 transition-colors"
               >
                 <Upload className="w-6 h-6" />
                 Galeriden Seç
-              </label>
-              <input
-                id="gallery-upload"
-                type="file"
-                ref={fileInputRef}
-                accept="image/*,application/pdf"
-                onChange={handleFileChange}
-                className="hidden"
-              />
+              </button>
             </div>
+            
+            {/* Input'lar form dışında - DOM'da ama görünmez */}
+            <input
+              id="camera-upload"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileChange}
+              style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }}
+            />
+            <input
+              id="gallery-upload"
+              type="file"
+              ref={fileInputRef}
+              accept="image/*,application/pdf"
+              onChange={handleFileChange}
+              style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }}
+            />
             
             <p className="text-xs text-center text-gray-500">
               JPG, PNG, PDF (max. 10MB)
