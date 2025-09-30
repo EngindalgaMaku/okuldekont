@@ -201,15 +201,30 @@ export async function POST(
       )
     }
 
-    // Tarih validasyonu 1: Mevcut ay ve gelecek aylar için dekont yüklenemez (öğrenciler önceki ayın maaşını alır)
+    // Tarih validasyonu 1: Ayın son günü veya sonrasında o ayın dekontunu yükleyebilir
     const currentDate = new Date()
     const currentYear = currentDate.getFullYear()
     const currentMonth = currentDate.getMonth() + 1
+    const currentDay = currentDate.getDate()
     
-    if (yil > currentYear || (yil === currentYear && ay >= currentMonth)) {
+    // Ayın son gününü hesapla
+    const lastDayOfMonth = new Date(currentYear, currentMonth, 0).getDate()
+    
+    // Mevcut ay için: Sadece ayın son günü veya daha sonrasında yüklenebilir
+    if (yil === currentYear && ay === currentMonth && currentDay < lastDayOfMonth) {
       return NextResponse.json(
         {
-          error: `Mevcut ay (${currentMonth}/${currentYear}) ve gelecek aylar için dekont yükleyemezsiniz. Öğrenciler sadece önceki ayın maaşını alır.`
+          error: `${ay}/${yil} ayının dekontunu ${lastDayOfMonth}/${ay}/${yil} tarihinden itibaren yükleyebilirsiniz.`
+        },
+        { status: 400 }
+      )
+    }
+    
+    // Gelecek aylar için dekont yüklenemez
+    if (yil > currentYear || (yil === currentYear && ay > currentMonth)) {
+      return NextResponse.json(
+        {
+          error: `Gelecek aylar için dekont yükleyemezsiniz.`
         },
         { status: 400 }
       )
