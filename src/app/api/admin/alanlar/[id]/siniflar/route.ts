@@ -34,7 +34,10 @@ export async function GET(
       haftalik_program: sinif.haftalik_program,
     }));
 
-    return NextResponse.json(siniflar);
+    // 0 öğrencili sınıfları filtrele (silinmiş sınıflar)
+    const filteredSiniflar = siniflar.filter((s: any) => s.ogrenci_sayisi > 0);
+
+    return NextResponse.json(filteredSiniflar);
   } catch (error) {
     console.error("Sınıflar API hatası:", error);
     return NextResponse.json(

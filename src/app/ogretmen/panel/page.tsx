@@ -2093,6 +2093,7 @@ const TeacherPanel = () => {
          <DekontUploadForm
            stajId={selectedStudent.staj_id?.toString() || ''}
            onSubmit={handleDekontSubmit}
+          onCancel={() => setDekontUploadModalOpen(false)}
            isLoading={isSubmitting}
            isletmeler={isletmeler.map(i => ({ id: i.id, ad: i.ad }))}
            selectedIsletmeId={selectedIsletme.id}
