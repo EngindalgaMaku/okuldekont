@@ -39,15 +39,11 @@ Kullanıcı   : TC Kimlik Numaranız
    • Onay/red işlemleri
    • Otomatik hatırlatmalar
 
-4. BELGE YÖNETİMİ
-   • Sözleşme kontrolü
-   • Usta öğretici belgesi
-   • Fesih belgeleri
-
-5. BİLDİRİMLER
-   • Anlık bildirimler
-   • E-posta uyarıları
-   • Mobil bildirimler
+4. BİLDİRİMLER
+   • Dekont hatırlatmaları
+   • Sistem bildirimleri
+   • Durum güncellemeleri
+   • Okunmamış bildirim badge'i
 
 
 ┌─────────────────────────────────────────────────────────────────────┐

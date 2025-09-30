@@ -53,7 +53,7 @@ const TeacherPanel = () => {
   const [dekontSearchTerm, setDekontSearchTerm] = useState('');
   const [isletmeFilter, setIsletmeFilter] = useState<string>('all');
   const [onayDurumuFilter, setOnayDurumuFilter] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'isletmeler' | 'dekontlar' | 'belgeler'>('isletmeler');
+  const [activeTab, setActiveTab] = useState<'isletmeler' | 'dekontlar' | 'bildirimler'>('isletmeler');
   const [dekontPage, setDekontPage] = useState(1);
   const DEKONTLAR_PER_PAGE = 5;
   const [isDekontUploadModalOpen, setDekontUploadModalOpen] = useState(false);
@@ -486,7 +486,7 @@ const TeacherPanel = () => {
   // Sync activeTab with ?tab= in URL and set default
   useEffect(() => {
     const tab = searchParams.get('tab');
-    const validTabs = ['isletmeler', 'dekontlar', 'belgeler'] as const;
+    const validTabs = ['isletmeler', 'dekontlar', 'bildirimler'] as const;
     if (!tab || !validTabs.includes(tab as any)) {
       // Ensure URL reflects default tab without adding to history
       router.replace('/ogretmen/panel?tab=isletmeler', { scroll: false });
@@ -1193,7 +1193,7 @@ const TeacherPanel = () => {
               {[
                 { id: 'isletmeler', icon: Building2, label: 'İşletmeler', count: isletmeler.length },
                 { id: 'dekontlar', icon: Receipt, label: 'Dekont Listesi', count: dekontlar.length },
-                { id: 'belgeler', icon: FileText, label: 'Belgeler', count: belgeler.length }
+                { id: 'bildirimler', icon: Bell, label: 'Bildirimler', count: notifications.length }
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -1207,7 +1207,14 @@ const TeacherPanel = () => {
                     `}
                   >
                     <div className="flex flex-col items-center justify-center min-h-[3rem] sm:min-h-[3.5rem]">
-                      <Icon className={`h-3.5 w-3.5 sm:h-5 sm:w-5 ${isActive ? 'text-indigo-700' : 'text-indigo-300 group-hover:text-white'} mb-0.5 sm:mb-0 sm:mr-2 flex-shrink-0`} />
+                      <div className="relative">
+                        <Icon className={`h-3.5 w-3.5 sm:h-5 sm:w-5 ${isActive ? 'text-indigo-700' : 'text-indigo-300 group-hover:text-white'} mb-0.5 sm:mb-0 sm:mr-2 flex-shrink-0`} />
+                        {tab.id === 'bildirimler' && unreadCount > 0 && (
+                          <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full flex items-center justify-center text-[8px] text-white font-bold animate-pulse">
+                            {unreadCount > 9 ? '9+' : unreadCount}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex flex-col sm:flex-row items-center gap-0.5 sm:gap-1">
                         <span className="text-[10px] sm:text-sm font-medium truncate max-w-full">
                           {tab.label}
@@ -1912,155 +1919,79 @@ const TeacherPanel = () => {
               </div>
             )}
 
-            {activeTab === 'belgeler' && (
+            {activeTab === 'bildirimler' && (
               <div className="p-6">
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
                   <h2 className="text-lg font-medium text-gray-900">
-                    Tüm İşletme Belgeleri ({filteredBelgeler.length})
+                    Bildirimler ({notifications.length})
                   </h2>
-                  <button
-                    onClick={() => setIsletmeSecimModalOpen(true)}
-                    className="flex items-center px-4 py-2 text-sm text-white bg-gradient-to-r from-indigo-600 to-blue-600 rounded-lg hover:from-indigo-700 hover:to-blue-700 transition-colors shadow-sm"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Yeni Belge Ekle
-                  </button>
+                  {unreadCount > 0 && (
+                    <span className="px-3 py-1 text-sm font-medium text-white bg-red-500 rounded-full">
+                      {unreadCount} Okunmamış
+                    </span>
+                  )}
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                  <div className="relative flex-grow">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Belgelerde ara..."
-                      value={belgeSearchTerm}
-                      onChange={(e) => setBelgeSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                  </div>
-                  <div className="relative w-full sm:w-48">
-                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <select
-                      value={belgeTurFilter}
-                      onChange={(e) => setBelgeTurFilter(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
-                    >
-                      <option value="all">Tüm Türler</option>
-                      <option value="Sözleşme">Sözleşme</option>
-                      <option value="Fesih Belgesi">Fesih Belgesi</option>
-                      <option value="Usta Öğreticilik Belgesi">Usta Öğretici Belgesi</option>
-                      <option value="Diğer">Diğer</option>
-                    </select>
-                  </div>
-                </div>
-
-                {filteredBelgeler.length > 0 ? (
-                  <div className="space-y-6">
-                    {(() => {
-                      const groupedBelgeler = groupBelgelerByCompany();
-                      const companyKeys = Object.keys(groupedBelgeler);
-                      
-                      return (
-                        <div className="space-y-6">
-                          {companyKeys.map((companyKey) => {
-                            const companyGroup = groupedBelgeler[companyKey];
-                            
-                            return (
-                              <div key={companyKey} className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
-                                {/* Company Header */}
-                                <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center hidden sm:block">
-                                      <Building2 className="h-5 w-5 text-white" />
-                                    </div>
-                                    <div>
-                                      <h2 className="text-lg font-bold">{companyKey}</h2>
-                                      <p className="text-purple-100 text-sm">
-                                        {companyGroup.count} belge
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Documents List */}
-                                <div className="p-4 space-y-4">
-                                  {companyGroup.belgeler.map((belge) => (
-                                    <div key={belge.id} className="bg-gray-50 rounded-xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
-                                      <div className="flex flex-col">
-                                        <div className="flex items-start">
-                                          <div className="h-12 w-12 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl flex items-center justify-center flex-shrink-0 hidden sm:block">
-                                            <FileText className="h-6 w-6 text-indigo-600" />
-                                          </div>
-                                          <div className="sm:ml-4 flex-1 min-w-0">
-                                            <h3 className="text-lg font-medium text-gray-900 truncate" title={belge.dosya_adi}>
-                                              {belge.dosya_adi}
-                                            </h3>
-                                            <div className="flex flex-wrap gap-2 mt-2 text-sm">
-                                              <div className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg font-medium">
-                                                {formatBelgeTur(belge.belge_turu)}
-                                              </div>
-                                              {belge.status && (
-                                                <div className={`px-3 py-1.5 rounded-lg font-medium ${getBelgeDurum(belge.status).bg} ${getBelgeDurum(belge.status).color}`}>
-                                                  {getBelgeDurum(belge.status).text}
-                                                </div>
-                                              )}
-                                              {belge.yukleyen_kisi && (
-                                                <div className="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg font-medium">
-                                                  {belge.yukleyen_kisi}
-                                                </div>
-                                              )}
-                                            </div>
-                                            <p className="text-sm text-gray-500 mt-2">
-                                              Yüklenme Tarihi: {new Date(belge.yukleme_tarihi).toLocaleDateString('tr-TR')}
-                                            </p>
-                                          </div>
-                                        </div>
-                                        
-                                        <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-3 border-t border-gray-200">
-                                          {belge.dosya_url && (
-                                            <button
-                                              onClick={() => handleFileView(belge.dosya_url)}
-                                              className="flex items-center justify-center px-4 py-2 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                                            >
-                                              <Download className="h-4 w-4 mr-2" />
-                                              Dosyayı İndir
-                                            </button>
-                                          )}
-                                          {belge.status !== 'APPROVED' && (
-                                            <button
-                                              onClick={() => {
-                                                setSelectedBelge(belge);
-                                                setBelgeSilModalOpen(true);
-                                              }}
-                                              className="flex items-center justify-center px-4 py-2 text-sm text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                                            >
-                                              <Trash2 className="h-4 w-4 mr-2" />
-                                              Belgeyi Sil
-                                            </button>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
+                {notifications.length > 0 ? (
+                  <div className="space-y-4">
+                    {notifications.map((notification) => (
+                      <div 
+                        key={notification.id} 
+                        className={`bg-white rounded-xl border p-4 hover:shadow-md transition-shadow ${
+                          !notification.is_read ? 'border-l-4 border-l-blue-500 bg-blue-50' : 'border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                            !notification.is_read ? 'bg-blue-100' : 'bg-gray-100'
+                          }`}>
+                            <Bell className={`h-5 w-5 ${!notification.is_read ? 'text-blue-600' : 'text-gray-400'}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <h3 className={`text-base font-medium ${!notification.is_read ? 'text-gray-900' : 'text-gray-600'}`}>
+                                {notification.title}
+                              </h3>
+                              {!notification.is_read && (
+                                <span className="px-2 py-1 text-xs font-medium text-white bg-blue-500 rounded-full">
+                                  Yeni
+                                </span>
+                              )}
+                            </div>
+                            <p className={`mt-1 text-sm ${!notification.is_read ? 'text-gray-700' : 'text-gray-500'}`}>
+                              {notification.content}
+                            </p>
+                            <p className="mt-2 text-xs text-gray-400">
+                              {new Date(notification.created_at).toLocaleDateString('tr-TR', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
                         </div>
-                      );
-                    })()}
+                        {!notification.is_read && (
+                          <button
+                            onClick={() => markAsRead(notification.id)}
+                            className="mt-3 w-full px-4 py-2 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                          >
+                            Okundu Olarak İşaretle
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
-               ) : (
-                 <div className="text-center py-12">
-                   <FileText className="mx-auto h-12 w-12 text-gray-400" />
-                   <h3 className="mt-4 text-lg font-medium text-gray-900">Belge Bulunamadı</h3>
-                   <p className="mt-2 text-sm text-gray-500">
-                     {belgeSearchTerm || belgeTurFilter !== 'all'
-                       ? 'Arama kriterlerinize uygun belge bulunamadı.'
-                       : 'Henüz hiç belge yüklenmemiş.'}
-                   </p>
-                 </div>
-               )}
+                ) : (
+                  <div className="text-center py-12">
+                    <Bell className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-4 text-lg font-medium text-gray-900">Bildirim Bulunamadı</h3>
+                    <p className="mt-2 text-sm text-gray-500">
+                      Henüz hiç bildiriminiz yok.
+                    </p>
+                  </div>
+                )}
              </div>
            )}
          </div>

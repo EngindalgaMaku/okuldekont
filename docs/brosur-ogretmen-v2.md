@@ -21,7 +21,7 @@
 
 ### Giriş Bilgileri
 - **Web Adresi:** `ozdilek.kodleon.com`
-- **Kullanıcı Adı:** TC Kimlik Numaranız
+- **Kullanıcı Adı:** Ad Soyadınız (ilk 2 harfi yazarak listeden seçiniz.)
 - **İlk Giriş Şifresi:** `2025`
 
 ![Giriş Ekranı]
@@ -99,11 +99,55 @@ Giriş yaptıktan sonra koordinatörlüğünüzdeki tüm öğrencileri göreceks
 > ⏰ **Her ay, bir önceki ayın dekontunu yüklersiniz**  
 > Örnek: Ekim ayında → Eylül dekontu yüklenir
 
-> 🔔 **Sistem otomatik hatırlatma gönderir**  
-> E-posta ve uygulama bildirimleri ile uyarılırsınız
-
 > 📞 **Gecikme durumunda**  
 > Önce işletmeyi arayın, sorun varsa idareye bildirin
+
+---
+
+## 🔔 Bildirimler
+
+Sistem üzerinden size önemli bildirimler ve hatırlatmalar gelir.
+
+### Bildirim Türleri
+
+1. **Dekont Hatırlatmaları**
+   - Ayın 1'inde: "Yeni ay dekont yükleme dönemi başladı"
+   - Ayın 10'unda: "Dekont yükleme süresi bitiyor, lütfen kontrol edin"
+   - Gecikme durumunda: "Bekleyen dekont var! Acil yükleyin"
+
+2. **Sistem Bildirimleri**
+   - Öğrenci atamaları
+   - İşletme değişiklikleri
+   - Önemli duyurular
+
+3. **Durum Güncellemeleri**
+   - Dekont onaylandı/reddedildi bildirimleri
+   - Eksik belge uyarıları
+
+### Bildirimleri Görüntüleme
+
+1. **Menüden Erişim**
+   - Ana menüde "Bildirimler" sekmesine tıklayın
+   - 🔴 Kırmızı badge okunmamış bildirimleri gösterir
+   
+2. **Bildirim İşlemleri**
+   - Okunmamış bildirimler mavi kenarlık ile gösterilir
+   - "Okundu olarak işaretle" butonuna tıklayın
+   - Bildirimlere tıklayarak detayları görün
+
+![Bildirimler]
+*(Ekran görüntüsü: Bildirimler sekmesi - Okunmamış bildirimlerle)*
+
+### 💡 İpuçları
+
+> 🔔 **Bildirimleri düzenli kontrol edin**  
+> Önemli hatırlatmaları kaçırmamak için günde bir kez kontrol edin
+
+> 📱 **Mobilde de çalışır**  
+> Telefon veya tabletten de tüm bildirimlere ulaşabilirsiniz
+
+> ⏰ **Zamanında aksiyon alın**  
+> Dekont hatırlatmalarını dikkate alarak süresi içinde yükleyin
 
 ---
 
@@ -142,8 +186,8 @@ Evet! Telefon veya tabletten tarayıcı ile `ozdilek.kodleon.com` adresine girin
 ## 📞 Destek
 
 **Teknik destek için:**
-- 📧 E-posta: destek@okulunuz.com
-- 📞 Telefon: [İletişim numarası]
+- 📧 E-posta: mackaengin@gmail.com
+- 📞 Telefon: 05465867927 (Engin Dalga)
 - ⏰ Çalışma saatleri: Hafta içi 08:00-17:00
 
 ---
