@@ -28,7 +28,7 @@ export default function MobileBottomNav() {
   useEffect(() => {
     const fetchLoginSettings = async () => {
       try {
-        const response = await fetch("/api/system-settings");
+        const response = await fetch("/api/public/system-settings");
         if (!response.ok) throw new Error("Failed to fetch settings");
         const data = await response.json();
 

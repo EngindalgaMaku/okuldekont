@@ -83,7 +83,7 @@ export default function LoginPage() {
     try {
       // Add cache busting to ensure fresh data
       const timestamp = new Date().getTime();
-      const response = await fetch(`/api/system-settings?t=${timestamp}`, {
+      const response = await fetch(`/api/public/system-settings?t=${timestamp}`, {
         cache: "no-store",
         headers: {
           "Cache-Control": "no-cache, no-store, must-revalidate",
