@@ -643,20 +643,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Refresh button for manual update */}
-            {!loginControlSettings.loading && (
-              <div className="text-center mb-4">
-                <button
-                  onClick={() => {
-                    console.log("🔄 Manual refresh triggered");
-                    fetchLoginControlSettings();
-                  }}
-                  className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
-                >
-                  ↻ Ayarları Yenile
-                </button>
-              </div>
-            )}
 
             {/* Show login type buttons only if not loading */}
             {!loginControlSettings.loading && (
@@ -664,15 +650,10 @@ export default function LoginPage() {
                 {/* Check if any login type is enabled */}
                 {loginControlSettings.enableCompanyLogin ||
                 loginControlSettings.enableTeacherLogin ? (
-                  <div
-                    className={`grid gap-3 ${
-                      loginControlSettings.enableCompanyLogin &&
-                      loginControlSettings.enableTeacherLogin
-                        ? "grid-cols-2"
-                        : "grid-cols-1"
-                    }`}
-                  >
-                    {loginControlSettings.enableCompanyLogin && (
+                  /* Only show tabs if both options are enabled */
+                  loginControlSettings.enableCompanyLogin &&
+                  loginControlSettings.enableTeacherLogin ? (
+                    <div className="grid grid-cols-2 gap-3">
                       <button
                         onClick={() => setLoginType("isletme")}
                         className={`flex items-center justify-center px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
@@ -684,8 +665,6 @@ export default function LoginPage() {
                         <BuildingOfficeIcon className="h-5 w-5 mr-2" />
                         İşletme
                       </button>
-                    )}
-                    {loginControlSettings.enableTeacherLogin && (
                       <button
                         onClick={() => setLoginType("ogretmen")}
                         className={`flex items-center justify-center px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
@@ -697,8 +676,8 @@ export default function LoginPage() {
                         <AcademicCapIcon className="h-5 w-5 mr-2" />
                         Öğretmen
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  ) : null
                 ) : (
                   /* Show message when all login types are disabled */
                   <div className="text-center py-8">

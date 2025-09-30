@@ -1,0 +1,146 @@
+═══════════════════════════════════════════════════════════════════════
+                STAJ KOORDİNATÖRLÜĞÜ TAKİP SİSTEMİ
+                    Öğretmen Kullanım Rehberi
+═══════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  SİSTEM NEDİR?                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+Öğrencilerinizin staj süreçlerini dijital ortamda yönetmenizi sağlayan,
+MEB ve SGK uyumlu, kullanıcı dostu bir takip platformudur.
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  SİSTEME GİRİŞ                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+Web Adresi  : ozdilek.kodleon.com
+Kullanıcı   : TC Kimlik Numaranız
+Şifre       : 4 haneli PIN kodunuz
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  ANA ÖZELLİKLER                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+1. İŞLETME YÖNETİMİ
+   • İşletme ekleme ve düzenleme
+   • Usta öğretici tanımlama
+   • İletişim bilgileri yönetimi
+
+2. ÖĞRENCİ ATAMA
+   • Öğrenci-işletme eşleştirme
+   • Otomatik kontrol sistemi
+   • Başlangıç tarihi belirleme
+
+3. DEKONT KONTROLÜ
+   • Aylık dekont takibi
+   • Onay/red işlemleri
+   • Otomatik hatırlatmalar
+
+4. BELGE YÖNETİMİ
+   • Sözleşme kontrolü
+   • Usta öğretici belgesi
+   • Fesih belgeleri
+
+5. BİLDİRİMLER
+   • Anlık bildirimler
+   • E-posta uyarıları
+   • Mobil bildirimler
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  DEKONT TAKVİMİ                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+Ayın 1-10'u     : İşletmeler dekont yükler (kritik süre)
+Ayın 10'undan   : Gecikme durumu (uyarı)
+Her Ay          : Bir önceki ayın dekontu yüklenir
+
+Örnek: Eylül ayında → Ağustos dekontu yüklenir
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  AVANTAJLAR                                                         │
+└─────────────────────────────────────────────────────────────────────┘
+
+✓ ZAMAN TASARRUFU      : Kağıt işlerinden kurtulun
+✓ KOLAY TAKİP          : Tek ekrandan tüm öğrenciler
+✓ HATA MİNİMİZASYONU   : Otomatik kontroller
+✓ ANLIK BİLDİRİM       : Hiçbir şey kaçmaz
+✓ MOBİL UYUMLU         : Her yerden erişim
+✓ GÜVENLİ              : Şifreli ve güvenli
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  HIZLI BAŞLANGIÇ ADIMLARI                                          │
+└─────────────────────────────────────────────────────────────────────┘
+
+1. Sisteme TC kimlik ve PIN ile giriş yapın
+2. İşletme bilgilerini kontrol edin/ekleyin
+3. Usta öğretici belgelerini tamamlayın
+4. Öğrencileri işletmelere atayın
+5. Dekont ve belgeleri düzenli kontrol edin
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  ÖNEMLİ NOTLAR                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+• PIN kodunuzu kimseyle paylaşmayın
+• Dekontları zamanında kontrol edin
+• Eksik belgeleri hemen bildirin
+• Mobil cihazınızdan da kullanabilirsiniz
+• Düzenli olarak bildirimleri kontrol edin
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  SIK SORULAN SORULAR                                               │
+└─────────────────────────────────────────────────────────────────────┘
+
+S: İşletme şifresini unuttu ne yapmalı?
+C: Admin panelinden PIN sıfırlama yapabilirsiniz.
+
+S: Dekont reddedilirse ne olur?
+C: İşletmeye otomatik bildirim gider, düzeltme yapabilir.
+
+S: Öğrenci işletme değiştirecek?
+C: Önce mevcut stajı sonlandırın, sonra yeni atama yapın.
+
+S: Mobil cihazdan kullanılabilir mi?
+C: Evet! Sistem tam responsive, her cihazdan kullanabilirsiniz.
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  TEKNİK DESTEK                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+E-posta        : destek@okulunuz.com
+Telefon        : 0xxx xxx xx xx
+Çalışma Saati  : Hafta içi 08:00-17:00
+Web            : ozdilek.kodleon.com
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  KONTROL LİSTESİ                                                    │
+└─────────────────────────────────────────────────────────────────────┘
+
+☐ Sisteme ilk giriş yaptım
+☐ PIN kodumu değiştirdim
+☐ İşletme bilgilerini kontrol ettim
+☐ Öğrenci atamalarını tamamladım
+☐ Bildirim ayarlarını kontrol ettim
+☐ Mobil cihazdan deneme yaptım
+
+
+═══════════════════════════════════════════════════════════════════════
+
+                      BAŞARILI STAJ DÖNEMİ DİLERİZ!
+                    
+                        ozdilek.kodleon.com
+                    Staj Takibinde Yeni Nesil Çözüm
+
+═══════════════════════════════════════════════════════════════════════
+
+Versiyon 1.0 | Eylül 2025
