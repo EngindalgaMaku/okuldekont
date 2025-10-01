@@ -1700,30 +1700,44 @@ const TeacherPanel = () => {
             {activeTab === "isletmeler" && (
               <div className="space-y-6 p-6">
                 {/* Company Filter Toggle */}
-                <div className="flex items-center justify-between mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                {/* Company Filter Toggle - More Prominent */}
+                <div className="mb-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border-2 border-indigo-200 shadow-sm">
                   <div className="flex items-center gap-4">
-                    <h2 className="text-lg font-semibold text-gray-900">
-                      İşletmeler ({isletmeler.length})
-                    </h2>
                     <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <div className="p-2 bg-indigo-100 rounded-lg">
+                        <Building2 className="h-5 w-5 text-indigo-600" />
+                      </div>
+                      <label className="flex items-center gap-3 text-base font-medium text-gray-800 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={showInactiveCompanies}
                           onChange={(e) =>
                             setShowInactiveCompanies(e.target.checked)
                           }
-                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          className="w-5 h-5 rounded border-2 border-indigo-300 text-indigo-600 focus:ring-indigo-500 focus:ring-2"
                         />
-                        Pasif/Eski İşletmeleri Göster
+                        <span className="select-none">
+                          🏢 Pasif/Eski İşletmeleri Göster
+                        </span>
                       </label>
                       {showInactiveCompanies && (
-                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full font-medium">
-                          Pasif işletmeler dahil
+                        <span className="px-3 py-1.5 bg-amber-100 text-amber-800 text-sm rounded-full font-semibold border border-amber-200 shadow-sm">
+                          ✨ Pasif işletmeler dahil
                         </span>
                       )}
                     </div>
                   </div>
+                  {showInactiveCompanies && (
+                    <div className="mt-3 text-sm text-gray-600 bg-white p-3 rounded-lg border border-indigo-100">
+                      <p className="flex items-center gap-2">
+                        <span className="text-amber-600">⚠️</span>
+                        <span>
+                          Pasif işletmeler feshedilmiş veya tamamlanmış stajları
+                          içerir.
+                        </span>
+                      </p>
+                    </div>
+                  )}
                 </div>
                 {isletmeler.map((isletme, index) => {
                   // Get company styling based on backend metadata
@@ -2746,14 +2760,6 @@ const TeacherPanel = () => {
           <p className="text-sm text-gray-600">
             Dekont eklemek istediğiniz öğrenciyi seçin:
           </p>
-          {/* DEBUG: Add diagnostic information */}
-          <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-            DEBUG: İşletme sayısı: {isletmeler.length} | Toplam öğrenci:{" "}
-            {isletmeler.reduce(
-              (total, isletme) => total + (isletme.ogrenciler?.length || 0),
-              0
-            )}
-          </div>
           <div className="max-h-96 overflow-y-auto space-y-2">
             {(() => {
               console.log("🔍 DEBUG: isletmeler state:", isletmeler);

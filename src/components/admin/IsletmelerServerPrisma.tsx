@@ -1,187 +1,240 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { Building2, Search, Filter, Plus, Eye, RefreshCw, ChevronLeft, ChevronRight, Shield, Unlock, Send, Bell, User, Phone, Mail, MapPin, Hash, CreditCard, UserPlus, Loader, X, Users, Calendar, History } from 'lucide-react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import CompanyQuickPinButton from './CompanyQuickPinButton'
-import IsletmelerActions from './IsletmelerActions'
-import Modal from '@/components/ui/Modal'
-import CompanyHistoryModal from './CompanyHistoryModal'
-import { toast } from 'react-hot-toast'
+import { useState, useEffect } from "react";
+import {
+  Building2,
+  Search,
+  Filter,
+  Plus,
+  Eye,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  Shield,
+  Unlock,
+  Send,
+  Bell,
+  User,
+  Phone,
+  Mail,
+  MapPin,
+  Hash,
+  CreditCard,
+  UserPlus,
+  Loader,
+  X,
+  Users,
+  Calendar,
+  History,
+} from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import CompanyQuickPinButton from "./CompanyQuickPinButton";
+import IsletmelerActions from "./IsletmelerActions";
+import Modal from "@/components/ui/Modal";
+import CompanyHistoryModal from "./CompanyHistoryModal";
+import { toast } from "react-hot-toast";
 
 interface Company {
-  id: string
-  name: string
-  contact?: string
-  phone?: string
-  address?: string
-  pin?: string
+  id: string;
+  name: string;
+  contact?: string;
+  phone?: string;
+  address?: string;
+  pin?: string;
   _count?: {
-    students: number
-  }
+    students: number;
+  };
   teacher?: {
-    name: string
-    surname: string
-  }
-  isLocked?: boolean
+    name: string;
+    surname: string;
+  };
+  isLocked?: boolean;
 }
 
 interface Teacher {
-  id: string
-  name: string
-  surname: string
+  id: string;
+  name: string;
+  surname: string;
   alan?: {
-    id: string
-    name: string
-  }
+    id: string;
+    name: string;
+  };
 }
 
 interface YeniIsletmeFormData {
-  name: string
-  contact: string
-  phone: string
-  email: string
-  address: string
-  taxNumber: string
-  pin: string
-  usta_ogretici_ad: string
-  usta_ogretici_telefon: string
+  name: string;
+  contact: string;
+  phone: string;
+  email: string;
+  address: string;
+  taxNumber: string;
+  pin: string;
+  usta_ogretici_ad: string;
+  usta_ogretici_telefon: string;
 }
 
 interface PaginationInfo {
-  page: number
-  perPage: number
-  totalCount: number
-  totalPages: number
-  hasNext: boolean
-  hasPrev: boolean
+  page: number;
+  perPage: number;
+  totalCount: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
 }
 
 interface SearchParams {
-  page?: string
-  search?: string
-  filter?: string
-  per_page?: string
+  page?: string;
+  search?: string;
+  filter?: string;
+  per_page?: string;
 }
 
 interface IsletmelerServerPrismaProps {
-  searchParams: SearchParams
+  searchParams: SearchParams;
 }
 
-export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServerPrismaProps) {
-  const [companies, setCompanies] = useState<Company[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [retryCount, setRetryCount] = useState(0)
-  const [pagination, setPagination] = useState<PaginationInfo | null>(null)
-  const [searchInput, setSearchInput] = useState('')
-  const [filterInput, setFilterInput] = useState('')
-  const [securityStatuses, setSecurityStatuses] = useState<Record<string, any>>({})
-  const [unlockingCompanies, setUnlockingCompanies] = useState<Set<string>>(new Set())
-  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([])
-  const [mesajModalOpen, setMesajModalOpen] = useState(false)
+export default function IsletmelerServerPrisma({
+  searchParams,
+}: IsletmelerServerPrismaProps) {
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [filterInput, setFilterInput] = useState("");
+  const [securityStatuses, setSecurityStatuses] = useState<Record<string, any>>(
+    {}
+  );
+  const [unlockingCompanies, setUnlockingCompanies] = useState<Set<string>>(
+    new Set()
+  );
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
+  const [mesajModalOpen, setMesajModalOpen] = useState(false);
   const [mesajData, setMesajData] = useState({
-    title: '',
-    content: '',
-    priority: 'NORMAL' as 'LOW' | 'NORMAL' | 'HIGH'
-  })
-  const [sending, setSending] = useState(false)
+    title: "",
+    content: "",
+    priority: "NORMAL" as "LOW" | "NORMAL" | "HIGH",
+  });
+  const [sending, setSending] = useState(false);
 
   // Yeni İşletme Modal States
-  const [yeniIsletmeModalOpen, setYeniIsletmeModalOpen] = useState(false)
-  const [createLoading, setCreateLoading] = useState(false)
-  const [yeniIsletmeFormData, setYeniIsletmeFormData] = useState<YeniIsletmeFormData>({
-    name: '',
-    contact: '',
-    phone: '',
-    email: '',
-    address: '',
-    taxNumber: '',
-    pin: '',
-    usta_ogretici_ad: '',
-    usta_ogretici_telefon: ''
-  })
+  const [yeniIsletmeModalOpen, setYeniIsletmeModalOpen] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [yeniIsletmeFormData, setYeniIsletmeFormData] =
+    useState<YeniIsletmeFormData>({
+      name: "",
+      contact: "",
+      phone: "",
+      email: "",
+      address: "",
+      taxNumber: "",
+      pin: "",
+      usta_ogretici_ad: "",
+      usta_ogretici_telefon: "",
+    });
 
   // Öğrenci Listesi Modal States
-  const [studentsModalOpen, setStudentsModalOpen] = useState(false)
-  const [selectedCompanyStudents, setSelectedCompanyStudents] = useState<any[]>([])
-  const [studentsLoading, setStudentsLoading] = useState(false)
-  const [selectedCompanyForStudents, setSelectedCompanyForStudents] = useState<Company | null>(null)
-  
+  const [studentsModalOpen, setStudentsModalOpen] = useState(false);
+  const [selectedCompanyStudents, setSelectedCompanyStudents] = useState<any[]>(
+    []
+  );
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [selectedCompanyForStudents, setSelectedCompanyForStudents] =
+    useState<Company | null>(null);
+
   // Company History Modal States
-  const [companyHistoryModalOpen, setCompanyHistoryModalOpen] = useState(false)
-  const [selectedCompanyForHistory, setSelectedCompanyForHistory] = useState<Company | null>(null)
-  
-  const router = useRouter()
-  
-  const page = parseInt(searchParams.page || '1')
-  const search = searchParams.search || ''
-  const filter = searchParams.filter || ''
-  const perPage = parseInt(searchParams.per_page || '10')
+  const [companyHistoryModalOpen, setCompanyHistoryModalOpen] = useState(false);
+  const [selectedCompanyForHistory, setSelectedCompanyForHistory] =
+    useState<Company | null>(null);
+
+  const router = useRouter();
+
+  const page = parseInt(searchParams.page || "1");
+  const search = searchParams.search || "";
+  const filter = searchParams.filter || "";
+  const perPage = parseInt(searchParams.per_page || "10");
 
   const fetchCompanies = async () => {
     try {
-      setLoading(true)
-      setError(null)
+      setLoading(true);
+      setError(null);
       const params = new URLSearchParams({
         page: page.toString(),
         search,
         filter,
-        per_page: perPage.toString()
-      })
-      
-      const response = await fetch(`/api/admin/companies?${params}`)
-      const data = await response.json()
-      
+        per_page: perPage.toString(),
+      });
+
+      const response = await fetch(`/api/admin/companies?${params}`);
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error(data.error || 'İşletmeler yüklenirken hata oluştu')
+        throw new Error(data.error || "İşletmeler yüklenirken hata oluştu");
       }
-      
-      console.log('API Response:', data)
-      const companiesData = data.data || []
-      setCompanies(companiesData)
-      setPagination(data.pagination || null)
-      setRetryCount(0) // Reset retry count on success
+
+      console.log("API Response:", data);
+      const companiesData = data.data || [];
+      setCompanies(companiesData);
+      setPagination(data.pagination || null);
+      setRetryCount(0); // Reset retry count on success
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bilinmeyen hata')
-      setRetryCount(prev => prev + 1)
+      setError(err instanceof Error ? err.message : "Bilinmeyen hata");
+      setRetryCount((prev) => prev + 1);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchCompanies()
-  }, [page, search, filter, perPage])
+    fetchCompanies();
+  }, [page, search, filter, perPage]);
+
+  // Real-time search with debounce
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      if (searchInput !== search) {
+        const params = new URLSearchParams();
+        if (searchInput.trim()) params.set("search", searchInput.trim());
+        if (filterInput) params.set("filter", filterInput);
+        params.set("page", "1");
+        params.set("per_page", perPage.toString());
+
+        router.push(`/admin/isletmeler?${params.toString()}`);
+      }
+    }, 500);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchInput, filterInput, router, search, perPage]);
 
   // Listen for custom event from IsletmelerClient to open create modal
   useEffect(() => {
     const handleOpenCreateModalEvent = () => {
       setYeniIsletmeFormData({
-        name: '',
-        contact: '',
-        phone: '',
-        email: '',
-        address: '',
-        taxNumber: '',
-        pin: '',
-        usta_ogretici_ad: '',
-        usta_ogretici_telefon: ''
-      })
-      setYeniIsletmeModalOpen(true)
-    }
+        name: "",
+        contact: "",
+        phone: "",
+        email: "",
+        address: "",
+        taxNumber: "",
+        pin: "",
+        usta_ogretici_ad: "",
+        usta_ogretici_telefon: "",
+      });
+      setYeniIsletmeModalOpen(true);
+    };
 
-    window.addEventListener('openCreateModal', handleOpenCreateModalEvent)
+    window.addEventListener("openCreateModal", handleOpenCreateModalEvent);
     return () => {
-      window.removeEventListener('openCreateModal', handleOpenCreateModalEvent)
-    }
-  }, [])
+      window.removeEventListener("openCreateModal", handleOpenCreateModalEvent);
+    };
+  }, []);
 
   useEffect(() => {
-    setSearchInput(search)
-    setFilterInput(filter)
-  }, [search, filter])
+    setSearchInput(search);
+    setFilterInput(filter);
+  }, [search, filter]);
 
   // Security status kontrollerini devre dışı bırak - gereksiz
   // useEffect(() => {
@@ -190,213 +243,209 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
 
   // Handle unlock company
   const handleUnlockCompany = async (companyId: string) => {
-    setUnlockingCompanies(prev => new Set(prev).add(companyId))
+    setUnlockingCompanies((prev) => new Set(prev).add(companyId));
     try {
-      const response = await fetch('/api/admin/security/unlock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entityType: 'company', entityId: companyId })
-      })
+      const response = await fetch("/api/admin/security/unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entityType: "company", entityId: companyId }),
+      });
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Blok açılırken hata oluştu')
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Blok açılırken hata oluştu");
       }
 
-      toast.success('İşletme bloğu başarıyla açıldı!')
-      
+      toast.success("İşletme bloğu başarıyla açıldı!");
+
       // Refresh security status for this company
-      const statusResponse = await fetch('/api/admin/security/status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entityType: 'company', entityId: companyId })
-      })
-      
+      const statusResponse = await fetch("/api/admin/security/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entityType: "company", entityId: companyId }),
+      });
+
       if (statusResponse.ok) {
-        const status = await statusResponse.json()
-        setSecurityStatuses(prev => ({ ...prev, [companyId]: status }))
+        const status = await statusResponse.json();
+        setSecurityStatuses((prev) => ({ ...prev, [companyId]: status }));
       }
     } catch (error: any) {
-      toast.error(error.message || 'Blok açılırken hata oluştu.')
+      toast.error(error.message || "Blok açılırken hata oluştu.");
     } finally {
-      setUnlockingCompanies(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(companyId)
-        return newSet
-      })
+      setUnlockingCompanies((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(companyId);
+        return newSet;
+      });
     }
-  }
+  };
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedCompanies(companies.map(c => c.id))
+      setSelectedCompanies(companies.map((c) => c.id));
     } else {
-      setSelectedCompanies([])
+      setSelectedCompanies([]);
     }
-  }
+  };
 
   const handleSelectCompany = (companyId: string, checked: boolean) => {
     if (checked) {
-      setSelectedCompanies(prev => [...prev, companyId])
+      setSelectedCompanies((prev) => [...prev, companyId]);
     } else {
-      setSelectedCompanies(prev => prev.filter(id => id !== companyId))
+      setSelectedCompanies((prev) => prev.filter((id) => id !== companyId));
     }
-  }
+  };
 
   const handleSendMesaj = async () => {
     if (!mesajData.title.trim() || !mesajData.content.trim()) {
-      toast.error('Başlık ve içerik zorunludur!')
-      return
+      toast.error("Başlık ve içerik zorunludur!");
+      return;
     }
 
     if (selectedCompanies.length === 0) {
-      toast.error('Lütfen en az bir işletme seçin!')
-      return
+      toast.error("Lütfen en az bir işletme seçin!");
+      return;
     }
 
-    setSending(true)
+    setSending(true);
     try {
       // Seçili işletmelere mesaj gönder (işletme contact'larına)
-      const notifications = selectedCompanies.map(companyId => ({
+      const notifications = selectedCompanies.map((companyId) => ({
         recipient_id: companyId,
-        recipient_type: 'isletme',
+        recipient_type: "isletme",
         title: mesajData.title,
         content: mesajData.content,
         priority: mesajData.priority,
-        sent_by: 'Admin',
-        is_read: false
-      }))
+        sent_by: "Admin",
+        is_read: false,
+      }));
 
-      const response = await fetch('/api/admin/notifications', {
-        method: 'POST',
+      const response = await fetch("/api/admin/notifications", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(notifications)
-      })
+        body: JSON.stringify(notifications),
+      });
 
       if (!response.ok) {
-        throw new Error('API isteği başarısız')
+        throw new Error("API isteği başarısız");
       }
 
-      toast.success(`${selectedCompanies.length} işletmeye mesaj başarıyla gönderildi!`)
-      setMesajModalOpen(false)
-      setMesajData({ title: '', content: '', priority: 'NORMAL' })
-      setSelectedCompanies([])
+      toast.success(
+        `${selectedCompanies.length} işletmeye mesaj başarıyla gönderildi!`
+      );
+      setMesajModalOpen(false);
+      setMesajData({ title: "", content: "", priority: "NORMAL" });
+      setSelectedCompanies([]);
     } catch (error) {
-      console.error('Mesaj gönderme hatası:', error)
-      toast.error('Mesaj gönderilirken hata oluştu!')
+      console.error("Mesaj gönderme hatası:", error);
+      toast.error("Mesaj gönderilirken hata oluştu!");
     } finally {
-      setSending(false)
+      setSending(false);
     }
-  }
+  };
 
-  const isAllSelected = companies.length > 0 && selectedCompanies.length === companies.length
-  const isPartiallySelected = selectedCompanies.length > 0 && selectedCompanies.length < companies.length
-
-  const handleSearch = () => {
-    const params = new URLSearchParams()
-    if (searchInput) params.set('search', searchInput)
-    if (filterInput) params.set('filter', filterInput)
-    params.set('page', '1')
-    params.set('per_page', perPage.toString())
-    
-    router.push(`/admin/isletmeler?${params.toString()}`)
-  }
+  const isAllSelected =
+    companies.length > 0 && selectedCompanies.length === companies.length;
+  const isPartiallySelected =
+    selectedCompanies.length > 0 && selectedCompanies.length < companies.length;
 
   const handlePageChange = (newPage: number) => {
-    const params = new URLSearchParams()
-    if (search) params.set('search', search)
-    if (filter) params.set('filter', filter)
-    params.set('page', newPage.toString())
-    params.set('per_page', perPage.toString())
-    
-    router.push(`/admin/isletmeler?${params.toString()}`)
-  }
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (filter) params.set("filter", filter);
+    params.set("page", newPage.toString());
+    params.set("per_page", perPage.toString());
+
+    router.push(`/admin/isletmeler?${params.toString()}`);
+  };
 
   const clearFilters = () => {
-    setSearchInput('')
-    setFilterInput('')
-    router.push('/admin/isletmeler')
-  }
+    setSearchInput("");
+    setFilterInput("");
+    router.push("/admin/isletmeler");
+  };
 
   const handleRetry = () => {
-    fetchCompanies()
-  }
+    fetchCompanies();
+  };
 
   // Open create modal
   const handleOpenCreateModal = async () => {
     setYeniIsletmeFormData({
-      name: '',
-      contact: '',
-      phone: '',
-      email: '',
-      address: '',
-      taxNumber: '',
-      pin: '',
-      usta_ogretici_ad: '',
-      usta_ogretici_telefon: ''
-    })
-    setYeniIsletmeModalOpen(true)
-  }
+      name: "",
+      contact: "",
+      phone: "",
+      email: "",
+      address: "",
+      taxNumber: "",
+      pin: "",
+      usta_ogretici_ad: "",
+      usta_ogretici_telefon: "",
+    });
+    setYeniIsletmeModalOpen(true);
+  };
 
   // Validate form data
   const validateFormData = (data: YeniIsletmeFormData): string[] => {
-    const errors: string[] = []
+    const errors: string[] = [];
 
     if (!data.name.trim()) {
-      errors.push('İşletme adı zorunludur')
+      errors.push("İşletme adı zorunludur");
     } else if (data.name.trim().length < 2) {
-      errors.push('İşletme adı en az 2 karakter olmalıdır')
+      errors.push("İşletme adı en az 2 karakter olmalıdır");
     }
 
     if (!data.contact.trim()) {
-      errors.push('Yetkili kişi zorunludur')
+      errors.push("Yetkili kişi zorunludur");
     } else if (data.contact.trim().length < 2) {
-      errors.push('Yetkili kişi en az 2 karakter olmalıdır')
+      errors.push("Yetkili kişi en az 2 karakter olmalıdır");
     }
 
     if (data.email.trim()) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(data.email.trim())) {
-        errors.push('Geçerli bir e-posta adresi girin')
+        errors.push("Geçerli bir e-posta adresi girin");
       }
     }
 
     if (data.pin.trim()) {
-      const pinRegex = /^\d{4}$/
+      const pinRegex = /^\d{4}$/;
       if (!pinRegex.test(data.pin.trim())) {
-        errors.push('PIN kodu 4 haneli sayı olmalıdır')
+        errors.push("PIN kodu 4 haneli sayı olmalıdır");
       }
     }
 
     if (data.phone.trim()) {
       // Daha esnek telefon validasyonu - uluslararası formatları da destekler
-      const cleanPhone = data.phone.trim().replace(/[\s\-\(\)]/g, '')
-      const phoneRegex = /^(\+\d{1,3})?\d{10,14}$/
+      const cleanPhone = data.phone.trim().replace(/[\s\-\(\)]/g, "");
+      const phoneRegex = /^(\+\d{1,3})?\d{10,14}$/;
       if (!phoneRegex.test(cleanPhone)) {
-        errors.push('Geçerli bir telefon numarası girin (örn: +90 555 123 45 67 veya +1 555 123 4567)')
+        errors.push(
+          "Geçerli bir telefon numarası girin (örn: +90 555 123 45 67 veya +1 555 123 4567)"
+        );
       }
     }
 
-    return errors
-  }
+    return errors;
+  };
 
   // Handle create company
   const handleCreateCompany = async () => {
-    const errors = validateFormData(yeniIsletmeFormData)
-    
+    const errors = validateFormData(yeniIsletmeFormData);
+
     if (errors.length > 0) {
-      errors.forEach(error => toast.error(error))
-      return
+      errors.forEach((error) => toast.error(error));
+      return;
     }
 
-    setCreateLoading(true)
+    setCreateLoading(true);
     try {
-      const response = await fetch('/api/admin/companies', {
-        method: 'POST',
+      const response = await fetch("/api/admin/companies", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           name: yeniIsletmeFormData.name.trim(),
@@ -407,85 +456,91 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
           taxNumber: yeniIsletmeFormData.taxNumber.trim() || null,
           pin: yeniIsletmeFormData.pin.trim() || null,
           usta_ogretici_ad: yeniIsletmeFormData.usta_ogretici_ad.trim() || null,
-          usta_ogretici_telefon: yeniIsletmeFormData.usta_ogretici_telefon.trim() || null,
+          usta_ogretici_telefon:
+            yeniIsletmeFormData.usta_ogretici_telefon.trim() || null,
         }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'İşletme oluşturulurken hata oluştu')
+        throw new Error(data.error || "İşletme oluşturulurken hata oluştu");
       }
 
-      toast.success(data.message || 'İşletme başarıyla oluşturuldu!')
-      setYeniIsletmeModalOpen(false)
-      
+      toast.success(data.message || "İşletme başarıyla oluşturuldu!");
+      setYeniIsletmeModalOpen(false);
+
       // Reset form
       setYeniIsletmeFormData({
-        name: '',
-        contact: '',
-        phone: '',
-        email: '',
-        address: '',
-        taxNumber: '',
-        pin: '',
-        usta_ogretici_ad: '',
-        usta_ogretici_telefon: ''
-      })
+        name: "",
+        contact: "",
+        phone: "",
+        email: "",
+        address: "",
+        taxNumber: "",
+        pin: "",
+        usta_ogretici_ad: "",
+        usta_ogretici_telefon: "",
+      });
 
       // Refresh companies list
-      await fetchCompanies()
+      await fetchCompanies();
     } catch (error: any) {
-      toast.error(error.message || 'İşletme oluşturulurken hata oluştu')
+      toast.error(error.message || "İşletme oluşturulurken hata oluştu");
     } finally {
-      setCreateLoading(false)
+      setCreateLoading(false);
     }
-  }
+  };
 
   // Handle form field changes
-  const handleFormFieldChange = (field: keyof YeniIsletmeFormData, value: string) => {
-    setYeniIsletmeFormData(prev => ({
+  const handleFormFieldChange = (
+    field: keyof YeniIsletmeFormData,
+    value: string
+  ) => {
+    setYeniIsletmeFormData((prev) => ({
       ...prev,
-      [field]: value
-    }))
-  }
+      [field]: value,
+    }));
+  };
 
   // Fetch company students
   const fetchCompanyStudents = async (company: Company) => {
-    setStudentsLoading(true)
-    setSelectedCompanyForStudents(company)
-    setStudentsModalOpen(true)
-    
+    setStudentsLoading(true);
+    setSelectedCompanyForStudents(company);
+    setStudentsModalOpen(true);
+
     try {
-      const response = await fetch(`/api/admin/companies/${company.id}/students`)
-      const data = await response.json()
-      
+      const response = await fetch(
+        `/api/admin/companies/${company.id}/students`
+      );
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error(data.error || 'Öğrenci listesi alınamadı')
+        throw new Error(data.error || "Öğrenci listesi alınamadı");
       }
 
-      setSelectedCompanyStudents(data || [])
+      setSelectedCompanyStudents(data || []);
     } catch (error) {
-      console.error('Students fetch error:', error)
-      toast.error('Öğrenci listesi yüklenirken hata oluştu')
-      setSelectedCompanyStudents([])
+      console.error("Students fetch error:", error);
+      toast.error("Öğrenci listesi yüklenirken hata oluştu");
+      setSelectedCompanyStudents([]);
     } finally {
-      setStudentsLoading(false)
+      setStudentsLoading(false);
     }
-  }
+  };
 
   // Handle student count click
   const handleStudentCountClick = (company: Company) => {
     if (company._count?.students && company._count.students > 0) {
-      fetchCompanyStudents(company)
+      fetchCompanyStudents(company);
     }
-  }
+  };
 
   // Handle company history
   const handleCompanyHistory = (company: Company) => {
-    setSelectedCompanyForHistory(company)
-    setCompanyHistoryModalOpen(true)
-  }
+    setSelectedCompanyForHistory(company);
+    setCompanyHistoryModalOpen(true);
+  };
 
   if (loading) {
     return (
@@ -495,7 +550,7 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
           <p className="text-gray-600">İşletmeler yükleniyor...</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -503,7 +558,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
       <div className="bg-red-50 border border-red-200 rounded-lg p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-medium text-red-800 mb-2">Veri Yükleme Hatası</h3>
+            <h3 className="text-lg font-medium text-red-800 mb-2">
+              Veri Yükleme Hatası
+            </h3>
             <p className="text-red-700 mb-4">{error}</p>
             {retryCount > 0 && (
               <p className="text-sm text-red-600">
@@ -516,12 +573,14 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
             disabled={loading}
             className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}
+            />
             Tekrar Dene
           </button>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -529,11 +588,18 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-lg sm:text-2xl font-bold text-gray-900">İşletme Yönetimi</h1>
-          <p className="text-gray-600 mt-0.5 sm:mt-1 text-xs sm:text-base">Sistemdeki tüm işletmeleri yönetin</p>
+          <h1 className="text-lg sm:text-2xl font-bold text-gray-900">
+            İşletme Yönetimi
+          </h1>
+          <p className="text-gray-600 mt-0.5 sm:mt-1 text-xs sm:text-base">
+            Sistemdeki tüm işletmeleri yönetin
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          <IsletmelerActions companies={companies} searchParams={searchParams} />
+          <IsletmelerActions
+            companies={companies}
+            searchParams={searchParams}
+          />
         </div>
       </div>
 
@@ -548,11 +614,10 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
               placeholder="İşletme adı, yetkili veya telefon ile ara..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
             />
           </div>
-          
+
           {/* Filtre ve Butonlar */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
@@ -571,14 +636,8 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
             </div>
             <div className="flex gap-2 sm:flex-shrink-0">
               <button
-                onClick={handleSearch}
-                className="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
-              >
-                Ara
-              </button>
-              <button
                 onClick={clearFilters}
-                className="flex-1 sm:flex-none px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium"
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium"
               >
                 Temizle
               </button>
@@ -608,7 +667,7 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                 </div>
               </div>
             )}
-            
+
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -616,8 +675,8 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                     <input
                       type="checkbox"
                       checked={isAllSelected}
-                      ref={input => {
-                        if (input) input.indeterminate = isPartiallySelected
+                      ref={(input) => {
+                        if (input) input.indeterminate = isPartiallySelected;
                       }}
                       onChange={(e) => handleSelectAll(e.target.checked)}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -642,12 +701,17 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {companies.map((company) => (
-                  <tr key={company.id} className="hover:bg-gray-50 transition-colors">
+                  <tr
+                    key={company.id}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
                     <td className="px-6 py-4">
                       <input
                         type="checkbox"
                         checked={selectedCompanies.includes(company.id)}
-                        onChange={(e) => handleSelectCompany(company.id, e.target.checked)}
+                        onChange={(e) =>
+                          handleSelectCompany(company.id, e.target.checked)
+                        }
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
                     </td>
@@ -675,7 +739,7 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="space-y-1">
                         <div className="text-sm text-gray-900">
-                          {company.contact || '-'}
+                          {company.contact || "-"}
                         </div>
                         {company.phone && (
                           <a
@@ -691,19 +755,22 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                       <div className="text-sm text-gray-900">
                         {company.teacher
                           ? `${company.teacher.name} ${company.teacher.surname}`
-                          : '-'
-                        }
+                          : "-"}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <button
                         onClick={() => handleStudentCountClick(company)}
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
-                          company._count?.students && company._count.students > 0
-                            ? 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 cursor-pointer'
-                            : 'bg-gray-100 text-gray-600 cursor-default'
+                          company._count?.students &&
+                          company._count.students > 0
+                            ? "bg-indigo-100 text-indigo-800 hover:bg-indigo-200 cursor-pointer"
+                            : "bg-gray-100 text-gray-600 cursor-default"
                         }`}
-                        disabled={!company._count?.students || company._count.students === 0}
+                        disabled={
+                          !company._count?.students ||
+                          company._count.students === 0
+                        }
                       >
                         {company._count?.students || 0} öğrenci
                       </button>
@@ -727,7 +794,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                         >
                           <History className="h-4 w-4" />
                         </button>
-                        <CompanyQuickPinButton company={{ id: company.id, name: company.name }} />
+                        <CompanyQuickPinButton
+                          company={{ id: company.id, name: company.name }}
+                        />
                         <Link
                           href={`/admin/isletmeler/${company.id}`}
                           className="inline-flex items-center p-1.5 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -745,12 +814,13 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
             <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">İşletme bulunamadı</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              İşletme bulunamadı
+            </h3>
             <p className="text-gray-600 mb-6">
               {companies.length === 0 && !error && !loading
                 ? "Sistemde henüz işletme kaydı bulunmuyor."
-                : "Arama kriterlerinizle eşleşen işletme bulunmuyor."
-              }
+                : "Arama kriterlerinizle eşleşen işletme bulunmuyor."}
             </p>
           </div>
         )}
@@ -775,15 +845,15 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
             </div>
           </div>
         )}
-        
+
         {/* Select All for Mobile */}
         <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 mb-4">
           <label className="flex items-center">
             <input
               type="checkbox"
               checked={isAllSelected}
-              ref={input => {
-                if (input) input.indeterminate = isPartiallySelected
+              ref={(input) => {
+                if (input) input.indeterminate = isPartiallySelected;
               }}
               onChange={(e) => handleSelectAll(e.target.checked)}
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
@@ -791,7 +861,7 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
             <span className="text-sm text-gray-700">Tümünü Seç</span>
           </label>
         </div>
-        
+
         {companies.length > 0 ? (
           <div className="grid grid-cols-1 gap-4">
             {companies.map((company) => (
@@ -804,7 +874,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                     <input
                       type="checkbox"
                       checked={selectedCompanies.includes(company.id)}
-                      onChange={(e) => handleSelectCompany(company.id, e.target.checked)}
+                      onChange={(e) =>
+                        handleSelectCompany(company.id, e.target.checked)
+                      }
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3 mt-1"
                     />
                     <div className="flex-1 min-w-0">
@@ -818,11 +890,15 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                         <button
                           onClick={() => handleStudentCountClick(company)}
                           className={`text-xs transition-colors ${
-                            company._count?.students && company._count.students > 0
-                              ? 'text-indigo-600 hover:text-indigo-900 cursor-pointer'
-                              : 'text-gray-500 cursor-default'
+                            company._count?.students &&
+                            company._count.students > 0
+                              ? "text-indigo-600 hover:text-indigo-900 cursor-pointer"
+                              : "text-gray-500 cursor-default"
                           }`}
-                          disabled={!company._count?.students || company._count.students === 0}
+                          disabled={
+                            !company._count?.students ||
+                            company._count.students === 0
+                          }
                         >
                           {company._count?.students || 0} öğrenci
                         </button>
@@ -853,7 +929,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                     >
                       <History className="h-3.5 w-3.5" />
                     </button>
-                    <CompanyQuickPinButton company={{ id: company.id, name: company.name }} />
+                    <CompanyQuickPinButton
+                      company={{ id: company.id, name: company.name }}
+                    />
                     <Link
                       href={`/admin/isletmeler/${company.id}`}
                       className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex-shrink-0"
@@ -868,7 +946,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                   {company.contact && (
                     <p className="text-xs text-gray-600">
                       <span className="font-medium">Yetkili:</span>
-                      <span className="ml-1 break-words">{company.contact}</span>
+                      <span className="ml-1 break-words">
+                        {company.contact}
+                      </span>
                     </p>
                   )}
                   {company.phone && (
@@ -885,13 +965,17 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                   {company.teacher && (
                     <p className="text-xs text-gray-600">
                       <span className="font-medium">Koordinatör:</span>
-                      <span className="ml-1">{company.teacher.name} {company.teacher.surname}</span>
+                      <span className="ml-1">
+                        {company.teacher.name} {company.teacher.surname}
+                      </span>
                     </p>
                   )}
                   {company.address && (
                     <p className="text-xs text-gray-600 line-clamp-2">
                       <span className="font-medium">Adres:</span>
-                      <span className="ml-1 break-words">{company.address}</span>
+                      <span className="ml-1 break-words">
+                        {company.address}
+                      </span>
                     </p>
                   )}
                 </div>
@@ -901,12 +985,13 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
         ) : (
           <div className="text-center py-8">
             <Building2 className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-            <h3 className="text-base font-medium text-gray-900 mb-2">İşletme bulunamadı</h3>
+            <h3 className="text-base font-medium text-gray-900 mb-2">
+              İşletme bulunamadı
+            </h3>
             <p className="text-sm text-gray-600 mb-4 px-4">
               {companies.length === 0 && !error && !loading
                 ? "Sistemde henüz işletme kaydı bulunmuyor."
-                : "Arama kriterlerinizle eşleşen işletme bulunmuyor."
-              }
+                : "Arama kriterlerinizle eşleşen işletme bulunmuyor."}
             </p>
           </div>
         )}
@@ -927,11 +1012,11 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
               </span>
             </div>
             <div className="mt-2 text-sm text-blue-600">
-              Seçili işletmeler: {companies
-                .filter(c => selectedCompanies.includes(c.id))
-                .map(c => c.name)
-                .join(', ')
-              }
+              Seçili işletmeler:{" "}
+              {companies
+                .filter((c) => selectedCompanies.includes(c.id))
+                .map((c) => c.name)
+                .join(", ")}
             </div>
           </div>
 
@@ -942,7 +1027,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
             <input
               type="text"
               value={mesajData.title}
-              onChange={(e) => setMesajData({...mesajData, title: e.target.value})}
+              onChange={(e) =>
+                setMesajData({ ...mesajData, title: e.target.value })
+              }
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Mesaj başlığını girin"
             />
@@ -954,7 +1041,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
             </label>
             <textarea
               value={mesajData.content}
-              onChange={(e) => setMesajData({...mesajData, content: e.target.value})}
+              onChange={(e) =>
+                setMesajData({ ...mesajData, content: e.target.value })
+              }
               rows={4}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Mesaj içeriğini girin"
@@ -967,7 +1056,12 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
             </label>
             <select
               value={mesajData.priority}
-              onChange={(e) => setMesajData({...mesajData, priority: e.target.value as 'LOW' | 'NORMAL' | 'HIGH'})}
+              onChange={(e) =>
+                setMesajData({
+                  ...mesajData,
+                  priority: e.target.value as "LOW" | "NORMAL" | "HIGH",
+                })
+              }
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="LOW">Düşük</option>
@@ -989,7 +1083,7 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
               disabled={sending}
               className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 disabled:opacity-50"
             >
-              {sending ? 'Gönderiliyor...' : 'Mesaj Gönder'}
+              {sending ? "Gönderiliyor..." : "Mesaj Gönder"}
             </button>
           </div>
         </div>
@@ -1008,7 +1102,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
               <div className="w-8 h-8 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center mr-3">
                 <Building2 className="h-4 w-4 text-indigo-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">Temel Bilgiler</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Temel Bilgiler
+              </h3>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1019,7 +1115,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                 <input
                   type="text"
                   value={yeniIsletmeFormData.name}
-                  onChange={(e) => handleFormFieldChange('name', e.target.value)}
+                  onChange={(e) =>
+                    handleFormFieldChange("name", e.target.value)
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="İşletme adını girin"
                 />
@@ -1032,7 +1130,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                 <input
                   type="text"
                   value={yeniIsletmeFormData.contact}
-                  onChange={(e) => handleFormFieldChange('contact', e.target.value)}
+                  onChange={(e) =>
+                    handleFormFieldChange("contact", e.target.value)
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="Yetkili kişi adı soyadı"
                 />
@@ -1046,7 +1146,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                 <input
                   type="tel"
                   value={yeniIsletmeFormData.phone}
-                  onChange={(e) => handleFormFieldChange('phone', e.target.value)}
+                  onChange={(e) =>
+                    handleFormFieldChange("phone", e.target.value)
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="0555 123 45 67"
                 />
@@ -1060,7 +1162,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                 <input
                   type="email"
                   value={yeniIsletmeFormData.email}
-                  onChange={(e) => handleFormFieldChange('email', e.target.value)}
+                  onChange={(e) =>
+                    handleFormFieldChange("email", e.target.value)
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="ornek@sirket.com"
                 />
@@ -1074,7 +1178,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
               </label>
               <textarea
                 value={yeniIsletmeFormData.address}
-                onChange={(e) => handleFormFieldChange('address', e.target.value)}
+                onChange={(e) =>
+                  handleFormFieldChange("address", e.target.value)
+                }
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="İşletme adresi"
@@ -1088,7 +1194,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
               <div className="w-8 h-8 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center mr-3">
                 <CreditCard className="h-4 w-4 text-indigo-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">Teknik & Mali Bilgiler</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Teknik & Mali Bilgiler
+              </h3>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1100,7 +1208,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                 <input
                   type="text"
                   value={yeniIsletmeFormData.taxNumber}
-                  onChange={(e) => handleFormFieldChange('taxNumber', e.target.value)}
+                  onChange={(e) =>
+                    handleFormFieldChange("taxNumber", e.target.value)
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="1234567890"
                 />
@@ -1115,8 +1225,8 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                   value={yeniIsletmeFormData.pin}
                   onChange={(e) => {
                     // Sadece sayı girişine izin ver
-                    const value = e.target.value.replace(/[^0-9]/g, '');
-                    handleFormFieldChange('pin', value);
+                    const value = e.target.value.replace(/[^0-9]/g, "");
+                    handleFormFieldChange("pin", value);
                   }}
                   maxLength={4}
                   pattern="[0-9]{4}"
@@ -1125,7 +1235,6 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                   placeholder="0000 (boş bırakılırsa otomatik oluşturulur)"
                 />
               </div>
-
             </div>
           </div>
 
@@ -1135,12 +1244,15 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
               <div className="w-8 h-8 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center mr-3">
                 <UserPlus className="h-4 w-4 text-indigo-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">Usta Öğretici</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Usta Öğretici
+              </h3>
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
               <p className="text-sm text-blue-800">
-                <strong>Usta Öğretici:</strong> İşletmede stajyer öğrencilere rehberlik edecek deneyimli personel bilgileri.
+                <strong>Usta Öğretici:</strong> İşletmede stajyer öğrencilere
+                rehberlik edecek deneyimli personel bilgileri.
               </p>
             </div>
 
@@ -1153,7 +1265,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                 <input
                   type="text"
                   value={yeniIsletmeFormData.usta_ogretici_ad}
-                  onChange={(e) => handleFormFieldChange('usta_ogretici_ad', e.target.value)}
+                  onChange={(e) =>
+                    handleFormFieldChange("usta_ogretici_ad", e.target.value)
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="Örn: Ahmet Yılmaz"
                 />
@@ -1167,7 +1281,12 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                 <input
                   type="tel"
                   value={yeniIsletmeFormData.usta_ogretici_telefon}
-                  onChange={(e) => handleFormFieldChange('usta_ogretici_telefon', e.target.value)}
+                  onChange={(e) =>
+                    handleFormFieldChange(
+                      "usta_ogretici_telefon",
+                      e.target.value
+                    )
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="0555 123 45 67"
                 />
@@ -1187,7 +1306,11 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
             </button>
             <button
               onClick={handleCreateCompany}
-              disabled={createLoading || !yeniIsletmeFormData.name.trim() || !yeniIsletmeFormData.contact.trim()}
+              disabled={
+                createLoading ||
+                !yeniIsletmeFormData.name.trim() ||
+                !yeniIsletmeFormData.contact.trim()
+              }
               className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center"
             >
               {createLoading ? (
@@ -1210,7 +1333,9 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
       <Modal
         isOpen={studentsModalOpen}
         onClose={() => setStudentsModalOpen(false)}
-        title={`${selectedCompanyForStudents?.name || 'İşletme'} - Öğrenci Listesi`}
+        title={`${
+          selectedCompanyForStudents?.name || "İşletme"
+        } - Öğrenci Listesi`}
       >
         <div className="space-y-4">
           {studentsLoading ? (
@@ -1228,8 +1353,12 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                     <Users className="h-5 w-5 text-indigo-600" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">Aktif Stajyer Öğrenciler</h3>
-                    <p className="text-sm text-gray-600">{selectedCompanyStudents.length} öğrenci</p>
+                    <h3 className="font-semibold text-gray-900">
+                      Aktif Stajyer Öğrenciler
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      {selectedCompanyStudents.length} öğrenci
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1237,7 +1366,10 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
               <div className="max-h-96 overflow-y-auto">
                 <div className="space-y-3">
                   {selectedCompanyStudents.map((student: any) => (
-                    <div key={student.id} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
+                    <div
+                      key={student.id}
+                      className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
+                    >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center mb-2">
@@ -1253,15 +1385,21 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                               </p>
                             </div>
                           </div>
-                          
+
                           <div className="space-y-3 ml-11">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               <div className="text-xs">
-                                <span className="font-medium text-gray-700">Alan:</span>
-                                <span className="ml-1 text-gray-600">{student.alanlar?.name || 'Bilinmiyor'}</span>
+                                <span className="font-medium text-gray-700">
+                                  Alan:
+                                </span>
+                                <span className="ml-1 text-gray-600">
+                                  {student.alanlar?.name || "Bilinmiyor"}
+                                </span>
                               </div>
                               <div className="text-xs">
-                                <span className="font-medium text-gray-700">Koordinatör:</span>
+                                <span className="font-medium text-gray-700">
+                                  Koordinatör:
+                                </span>
                                 <span className="ml-1 text-gray-600">
                                   {student.ogretmen_ad} {student.ogretmen_soyad}
                                   {student.ogretmen_alan && (
@@ -1272,7 +1410,7 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                                 </span>
                               </div>
                             </div>
-                            
+
                             {/* Staj Dönemi */}
                             <div className="bg-white rounded-lg border border-indigo-100 p-3">
                               <div className="flex items-center justify-between">
@@ -1280,21 +1418,29 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                                   <div className="flex items-center">
                                     <Calendar className="h-4 w-4 text-green-600 mr-1.5" />
                                     <div>
-                                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Başlangıç</div>
+                                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                                        Başlangıç
+                                      </div>
                                       <div className="text-sm font-semibold text-gray-900">
-                                        {new Date(student.baslangic_tarihi).toLocaleDateString('tr-TR')}
+                                        {new Date(
+                                          student.baslangic_tarihi
+                                        ).toLocaleDateString("tr-TR")}
                                       </div>
                                     </div>
                                   </div>
-                                  
+
                                   <div className="h-8 w-px bg-gray-300"></div>
-                                  
+
                                   <div className="flex items-center">
                                     <Calendar className="h-4 w-4 text-red-600 mr-1.5" />
                                     <div>
-                                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Bitiş</div>
+                                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                                        Bitiş
+                                      </div>
                                       <div className="text-sm font-semibold text-gray-900">
-                                        {new Date(student.bitis_tarihi).toLocaleDateString('tr-TR')}
+                                        {new Date(
+                                          student.bitis_tarihi
+                                        ).toLocaleDateString("tr-TR")}
                                       </div>
                                     </div>
                                   </div>
@@ -1312,11 +1458,15 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
           ) : (
             <div className="text-center py-8">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Öğrenci Bulunamadı</h3>
-              <p className="text-gray-600">Bu işletmede aktif staj yapan öğrenci bulunmuyor.</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Öğrenci Bulunamadı
+              </h3>
+              <p className="text-gray-600">
+                Bu işletmede aktif staj yapan öğrenci bulunmuyor.
+              </p>
             </div>
           )}
-          
+
           <div className="flex justify-end pt-4 border-t">
             <button
               onClick={() => setStudentsModalOpen(false)}
@@ -1335,14 +1485,19 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
             {/* Mobil: Basit sayfa bilgisi */}
             <div className="text-xs sm:text-sm text-gray-700 text-center sm:text-left">
               <span className="sm:hidden">
-                Sayfa {pagination.page} / {pagination.totalPages} ({pagination.totalCount} kayıt)
+                Sayfa {pagination.page} / {pagination.totalPages} (
+                {pagination.totalCount} kayıt)
               </span>
               <span className="hidden sm:inline">
-                Toplam <span className="font-medium">{pagination.totalCount}</span> işletme,
-                <span className="font-medium"> {pagination.page}</span> / <span className="font-medium">{pagination.totalPages}</span> sayfa
+                Toplam{" "}
+                <span className="font-medium">{pagination.totalCount}</span>{" "}
+                işletme,
+                <span className="font-medium"> {pagination.page}</span> /{" "}
+                <span className="font-medium">{pagination.totalPages}</span>{" "}
+                sayfa
               </span>
             </div>
-            
+
             {/* Sayfalama butonları */}
             <div className="flex items-center justify-center sm:justify-end gap-1 sm:gap-2">
               <button
@@ -1350,41 +1505,44 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                 disabled={!pagination.hasPrev}
                 className={`inline-flex items-center px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors ${
                   pagination.hasPrev
-                    ? 'bg-white border border-gray-300 text-gray-500 hover:bg-gray-50'
-                    : 'bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed'
+                    ? "bg-white border border-gray-300 text-gray-500 hover:bg-gray-50"
+                    : "bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed"
                 }`}
               >
                 <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
                 <span className="hidden sm:inline">Önceki</span>
               </button>
-              
+
               <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(3, pagination.totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (pagination.totalPages <= 3) {
-                    pageNum = i + 1;
-                  } else if (pagination.page <= 2) {
-                    pageNum = i + 1;
-                  } else if (pagination.page >= pagination.totalPages - 1) {
-                    pageNum = pagination.totalPages - 2 + i;
-                  } else {
-                    pageNum = pagination.page - 1 + i;
+                {Array.from(
+                  { length: Math.min(3, pagination.totalPages) },
+                  (_, i) => {
+                    let pageNum;
+                    if (pagination.totalPages <= 3) {
+                      pageNum = i + 1;
+                    } else if (pagination.page <= 2) {
+                      pageNum = i + 1;
+                    } else if (pagination.page >= pagination.totalPages - 1) {
+                      pageNum = pagination.totalPages - 2 + i;
+                    } else {
+                      pageNum = pagination.page - 1 + i;
+                    }
+
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors ${
+                          pageNum === pagination.page
+                            ? "bg-indigo-600 text-white"
+                            : "bg-white border border-gray-300 text-gray-500 hover:bg-gray-50"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
                   }
-                  
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => handlePageChange(pageNum)}
-                      className={`px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors ${
-                        pageNum === pagination.page
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-white border border-gray-300 text-gray-500 hover:bg-gray-50'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
+                )}
               </div>
 
               <button
@@ -1392,8 +1550,8 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
                 disabled={!pagination.hasNext}
                 className={`inline-flex items-center px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors ${
                   pagination.hasNext
-                    ? 'bg-white border border-gray-300 text-gray-500 hover:bg-gray-50'
-                    : 'bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed'
+                    ? "bg-white border border-gray-300 text-gray-500 hover:bg-gray-50"
+                    : "bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed"
                 }`}
               >
                 <span className="hidden sm:inline">Sonraki</span>
@@ -1413,5 +1571,5 @@ export default function IsletmelerServerPrisma({ searchParams }: IsletmelerServe
         />
       )}
     </div>
-  )
+  );
 }

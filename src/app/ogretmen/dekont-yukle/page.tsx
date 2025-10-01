@@ -534,15 +534,15 @@ function DekontYukleInner() {
             </div>
 
             <div>
-              <label className="hidden sm:block text-sm font-medium mb-1">
-                Açıklama (opsiyonel)
+              <label className="block text-sm font-medium mb-2">
+                Açıklama (isteğe bağlı)
               </label>
-              <input
-                type="text"
+              <textarea
                 value={aciklama}
                 onChange={(e) => setAciklama(e.target.value)}
-                className="w-full border rounded px-2.5 py-2 text-sm"
-                placeholder="Örn: Eylül 2025 dekontu"
+                rows={2}
+                className="w-full border rounded px-2.5 py-2 text-sm resize-none"
+                placeholder="Belirtmek istediğiniz birşey varsa yazınız"
               />
             </div>
 
@@ -619,26 +619,61 @@ function DekontYukleInner() {
               )}
             </div>
 
-            <div className="flex gap-2 pt-2 sm:pt-3">
+            <div className="flex gap-3 pt-3 sm:pt-4">
               <button
                 type="button"
-                className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 rounded-lg bg-indigo-600 text-white disabled:opacity-50 shadow-sm hover:bg-indigo-700 transition-colors text-sm"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 sm:px-8 sm:py-3 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white disabled:opacity-50 shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 text-sm font-semibold disabled:cursor-not-allowed"
                 onClick={handleSubmit}
                 disabled={
                   isSubmitting || !selectedIsletme || !selectedOgrenci || !file
                 }
               >
-                {isSubmitting ? "Yükleniyor..." : "Yükle"}
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    Yükleniyor...
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                    Dekont Yükle
+                  </>
+                )}
               </button>
               <button
                 type="button"
-                className="px-3 py-2 sm:px-4 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm"
+                className="px-4 py-3 sm:px-6 sm:py-3 rounded-lg bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white text-sm font-semibold shadow-lg transition-all duration-200"
                 onClick={() => {
                   setFile(null);
                   if (inputRef.current) inputRef.current.value = "";
                   setUploadStatus("");
                 }}
               >
+                <svg
+                  className="w-4 h-4 mr-2 inline"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
                 Sıfırla
               </button>
             </div>
