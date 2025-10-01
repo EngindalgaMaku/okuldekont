@@ -286,6 +286,34 @@ export async function POST(request: Request) {
       )
     }
     
+    // Determine which internship (staj) to attach the dekont to
+    let uploadStaj = staj;
+    if (authResult.user?.role === 'TEACHER') {
+      const sessionTeacherId = authResult.user?.id;
+      if (!sessionTeacherId) {
+        return NextResponse.json({ error: 'Kimlik doğrulama başarısız' }, { status: 401 })
+      }
+      if (staj.teacherId !== sessionTeacherId) {
+        // Try to find a historical staj for this student that belongs to this teacher
+        const historical = await prisma.staj.findFirst({
+          where: {
+            studentId: staj.studentId,
+            teacherId: sessionTeacherId
+          },
+          orderBy: { startDate: 'desc' },
+          include: {
+            student: { include: { alan: { select: { name: true } } } },
+            company: { select: { name: true, contact: true } },
+            teacher: { select: { name: true, surname: true } },
+          },
+        });
+        if (!historical) {
+          return NextResponse.json({ error: 'Bu öğrenci için yetkiniz yok' }, { status: 403 })
+        }
+        uploadStaj = historical as typeof staj;
+      }
+    }
+
     // Dekont yükleme kuralları kontrolü
     const ayNum = ay ? ay : new Date().getMonth() + 1;
     const yilNum = yil ? yil : new Date().getFullYear();
@@ -319,31 +347,34 @@ export async function POST(request: Request) {
       )
     }
     
-    // Tarih validasyonu 2: Staj başlama tarihi kontrolü
-    const stajBaslangic = new Date(staj.startDate);
-    const stajBaslangicYear = stajBaslangic.getFullYear();
-    const stajBaslangicMonth = stajBaslangic.getMonth() + 1; // 0-based to 1-based
-    
-    // Sadece yıl ve ay karşılaştırması yap (gün önemli değil)
-    if (yilNum < stajBaslangicYear || (yilNum === stajBaslangicYear && ayNum < stajBaslangicMonth)) {
-      const stajBaslangicStr = stajBaslangic.toLocaleDateString('tr-TR', {
-        year: 'numeric',
-        month: 'long'
-      });
-      const dekontTarihiStr = new Date(yilNum, ayNum - 1, 1).toLocaleDateString('tr-TR', {
-        year: 'numeric',
-        month: 'long'
-      });
+    // Tarih validasyonlarını öğretmenler için esnet: TEACHER rolünde bu kontrolleri atla
+    if (authResult.user?.role !== 'TEACHER') {
+      // Tarih validasyonu 2: Staj başlama tarihi kontrolü
+      const stajBaslangic = new Date(uploadStaj.startDate);
+      const stajBaslangicYear = stajBaslangic.getFullYear();
+      const stajBaslangicMonth = stajBaslangic.getMonth() + 1; // 0-based to 1-based
       
-      return NextResponse.json({
-        error: `Staj başlama tarihinden (${stajBaslangicStr}) öncesine dekont yüklenemez. Seçilen ay: ${dekontTarihiStr}`
-      }, { status: 400 });
+      // Sadece yıl ve ay karşılaştırması yap (gün önemli değil)
+      if (yilNum < stajBaslangicYear || (yilNum === stajBaslangicYear && ayNum < stajBaslangicMonth)) {
+        const stajBaslangicStr = stajBaslangic.toLocaleDateString('tr-TR', {
+          year: 'numeric',
+          month: 'long'
+        });
+        const dekontTarihiStr = new Date(yilNum, ayNum - 1, 1).toLocaleDateString('tr-TR', {
+          year: 'numeric',
+          month: 'long'
+        });
+        
+        return NextResponse.json({
+          error: `Staj başlama tarihinden (${stajBaslangicStr}) öncesine dekont yüklenemez. Seçilen ay: ${dekontTarihiStr}`
+        }, { status: 400 });
+      }
     }
     
     // Bu öğrenci ve ay için mevcut dekontları kontrol et
     const mevcutDekontlar = await prisma.dekont.findMany({
       where: {
-        studentId: staj.studentId,
+        studentId: uploadStaj.studentId,
         month: ayNum,
         year: yilNum
       },
@@ -481,12 +512,12 @@ export async function POST(request: Request) {
 
       // Generate meaningful filename for reference with correct extension (same as company panel)
       const dekontNamingData: DekontNamingData = {
-        studentName: fullStudent?.name || staj.student.name,
-        studentSurname: fullStudent?.surname || staj.student.surname,
-        studentClass: fullStudent?.className || staj.student.className || 'Bilinmeyen',
-        studentNumber: fullStudent?.number || staj.student.number || undefined,
-        fieldName: fullStudent?.alan?.name || staj.student.alan?.name || 'Bilinmeyen',
-        companyName: staj.company.name,
+        studentName: fullStudent?.name || uploadStaj.student.name,
+        studentSurname: fullStudent?.surname || uploadStaj.student.surname,
+        studentClass: fullStudent?.className || uploadStaj.student.className || 'Bilinmeyen',
+        studentNumber: fullStudent?.number || uploadStaj.student.number || undefined,
+        fieldName: fullStudent?.alan?.name || uploadStaj.student.alan?.name || 'Bilinmeyen',
+        companyName: uploadStaj.company.name,
         month: ay,
         year: yil,
         originalFileName: dosya.name, // Use original filename to preserve extension
@@ -541,10 +572,10 @@ export async function POST(request: Request) {
     })
     
     const createDekontData = {
-      stajId: stajId,
-      companyId: staj.companyId,
+      stajId: uploadStaj.id,
+      companyId: uploadStaj.companyId,
       teacherId: ogretmenId,
-      studentId: staj.studentId,
+      studentId: uploadStaj.studentId,
       amount: encryptedAmount,
       paymentDate: new Date(),
       month: ay ? ay : new Date().getMonth() + 1,
@@ -577,8 +608,8 @@ export async function POST(request: Request) {
     // Format the response to match what frontend expects with decrypted amount
     const formattedData = {
       id: data.id,
-      isletme_ad: data.staj?.company?.name || staj.company.name || 'Bilinmiyor',
-      ogrenci_ad: data.staj?.student ? `${data.staj.student.name} ${data.staj.student.surname}` : `${staj.student.name} ${staj.student.surname}`,
+      isletme_ad: data.staj?.company?.name || uploadStaj.company.name || 'Bilinmiyor',
+      ogrenci_ad: data.staj?.student ? `${data.staj.student.name} ${data.staj.student.surname}` : `${uploadStaj.student.name} ${uploadStaj.student.surname}`,
       miktar: data.amount ? Number(decryptFinancialData(data.amount.toString())) : null,
       odeme_tarihi: data.paymentDate,
       onay_durumu: data.status,
