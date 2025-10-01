@@ -1,28 +1,35 @@
-'use client'
+"use client";
 
-import { memo } from 'react'
-import { Search, X } from 'lucide-react'
+import { memo } from "react";
+import { Search, X } from "lucide-react";
 
 interface FilterSectionProps {
-  activeTab: string
-  searchTerm: string
-  setSearchTerm: (value: string) => void
-  filterAlan: string
-  setFilterAlan: (value: string) => void
-  filterSinif: string
-  setFilterSinif: (value: string) => void
-  filterIsletme: string
-  setFilterIsletme: (value: string) => void
-  filterOgretmen: string
-  setFilterOgretmen: (value: string) => void
-  filterEgitimYili: string
-  setFilterEgitimYili: (value: string) => void
-  uniqueAlanlar: Array<{ id: string; name: string }>
-  uniqueClassNames: string[]
-  uniqueIsletmeler: Array<{ id: string; name: string }>
-  uniqueOgretmenler: Array<{ id: string; name: string; surname: string }>
-  uniqueEgitimYillari: Array<{ id: string; year: string; active: boolean; archived?: boolean }>
-  onClearAllFilters: () => void
+  activeTab: string;
+  searchTerm: string;
+  setSearchTerm: (value: string) => void;
+  filterAlan: string;
+  setFilterAlan: (value: string) => void;
+  filterSinif: string;
+  setFilterSinif: (value: string) => void;
+  filterIsletme: string;
+  setFilterIsletme: (value: string) => void;
+  filterOgretmen: string;
+  setFilterOgretmen: (value: string) => void;
+  filterEgitimYili: string;
+  setFilterEgitimYili: (value: string) => void;
+  filterStatus: string;
+  setFilterStatus: (value: string) => void;
+  uniqueAlanlar: Array<{ id: string; name: string }>;
+  uniqueClassNames: string[];
+  uniqueIsletmeler: Array<{ id: string; name: string }>;
+  uniqueOgretmenler: Array<{ id: string; name: string; surname: string }>;
+  uniqueEgitimYillari: Array<{
+    id: string;
+    year: string;
+    active: boolean;
+    archived?: boolean;
+  }>;
+  onClearAllFilters: () => void;
 }
 
 const FilterSection = memo(function FilterSection({
@@ -39,14 +46,33 @@ const FilterSection = memo(function FilterSection({
   setFilterOgretmen,
   filterEgitimYili,
   setFilterEgitimYili,
+  filterStatus,
+  setFilterStatus,
   uniqueAlanlar,
   uniqueClassNames,
   uniqueIsletmeler,
   uniqueOgretmenler,
   uniqueEgitimYillari,
-  onClearAllFilters
+  onClearAllFilters,
 }: FilterSectionProps) {
-  const hasActiveFilters = searchTerm || filterAlan || filterSinif || filterIsletme || filterOgretmen || filterEgitimYili
+  const hasActiveFilters =
+    searchTerm ||
+    filterAlan ||
+    filterSinif ||
+    filterIsletme ||
+    filterOgretmen ||
+    filterEgitimYili ||
+    filterStatus;
+
+  // Status options from Prisma schema
+  const statusOptions = [
+    { value: "ACTIVE", label: "Aktif" },
+    { value: "COMPLETED", label: "Tamamlanmış" },
+    { value: "TERMINATED", label: "Feshedilmiş" },
+    { value: "CANCELLED", label: "İptal Edilmiş" },
+    { value: "SUSPENDED", label: "Durdurulmuş" },
+    { value: "PENDING_TERMINATION", label: "Fesih Bekliyor" },
+  ];
 
   return (
     <div className="p-6 border-b border-gray-200">
@@ -58,8 +84,9 @@ const FilterSection = memo(function FilterSection({
             <input
               type="text"
               placeholder={
-                activeTab === 'bost' ? 'Öğrenci ara...' :
-                'Öğrenci veya işletme ara...'
+                activeTab === "bost"
+                  ? "Öğrenci ara..."
+                  : "Öğrenci veya işletme ara..."
               }
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -67,7 +94,7 @@ const FilterSection = memo(function FilterSection({
             />
           </div>
         </div>
-        
+
         {/* Filtreler */}
         <div className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -110,7 +137,7 @@ const FilterSection = memo(function FilterSection({
             </div>
 
             {/* Eğitim Yılı Filtresi - Sadece stajlar için */}
-            {activeTab !== 'bost' && (
+            {activeTab !== "bost" && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Eğitim Yılı
@@ -125,7 +152,7 @@ const FilterSection = memo(function FilterSection({
                     .filter((yil) => !yil.archived) // Arşivlenen dönemleri gizle
                     .map((yil) => (
                       <option key={yil.id} value={yil.id}>
-                        {yil.year} {yil.active ? '(Aktif)' : ''}
+                        {yil.year} {yil.active ? "(Aktif)" : ""}
                       </option>
                     ))}
                 </select>
@@ -133,8 +160,32 @@ const FilterSection = memo(function FilterSection({
             )}
           </div>
 
+          {/* Status Filter Row - Sadece stajlar için */}
+          {activeTab !== "bost" && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Status Filtresi */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Durum
+                </label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="">Tüm Durumlar</option>
+                  {statusOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
           {/* İşletme ve Öğretmen Filtreleri - Sadece stajlar için */}
-          {activeTab !== 'bost' && (
+          {activeTab !== "bost" && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {/* İşletme Filtresi */}
               <div>
@@ -186,7 +237,7 @@ const FilterSection = memo(function FilterSection({
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                   Arama: {searchTerm}
                   <button
-                    onClick={() => setSearchTerm('')}
+                    onClick={() => setSearchTerm("")}
                     className="ml-1 text-indigo-600 hover:text-indigo-800"
                   >
                     <X className="h-3 w-3" />
@@ -195,9 +246,9 @@ const FilterSection = memo(function FilterSection({
               )}
               {filterAlan && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                  Alan: {uniqueAlanlar.find(a => a.id === filterAlan)?.name}
+                  Alan: {uniqueAlanlar.find((a) => a.id === filterAlan)?.name}
                   <button
-                    onClick={() => setFilterAlan('')}
+                    onClick={() => setFilterAlan("")}
                     className="ml-1 text-indigo-600 hover:text-indigo-800"
                   >
                     <X className="h-3 w-3" />
@@ -208,7 +259,7 @@ const FilterSection = memo(function FilterSection({
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                   Sınıf: {filterSinif}
                   <button
-                    onClick={() => setFilterSinif('')}
+                    onClick={() => setFilterSinif("")}
                     className="ml-1 text-indigo-600 hover:text-indigo-800"
                   >
                     <X className="h-3 w-3" />
@@ -217,9 +268,10 @@ const FilterSection = memo(function FilterSection({
               )}
               {filterIsletme && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                  İşletme: {uniqueIsletmeler.find(i => i.id === filterIsletme)?.name}
+                  İşletme:{" "}
+                  {uniqueIsletmeler.find((i) => i.id === filterIsletme)?.name}
                   <button
-                    onClick={() => setFilterIsletme('')}
+                    onClick={() => setFilterIsletme("")}
                     className="ml-1 text-indigo-600 hover:text-indigo-800"
                   >
                     <X className="h-3 w-3" />
@@ -228,9 +280,14 @@ const FilterSection = memo(function FilterSection({
               )}
               {filterOgretmen && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                  Koordinatör: {uniqueOgretmenler.find(o => o.id === filterOgretmen)?.name} {uniqueOgretmenler.find(o => o.id === filterOgretmen)?.surname}
+                  Koordinatör:{" "}
+                  {uniqueOgretmenler.find((o) => o.id === filterOgretmen)?.name}{" "}
+                  {
+                    uniqueOgretmenler.find((o) => o.id === filterOgretmen)
+                      ?.surname
+                  }
                   <button
-                    onClick={() => setFilterOgretmen('')}
+                    onClick={() => setFilterOgretmen("")}
                     className="ml-1 text-indigo-600 hover:text-indigo-800"
                   >
                     <X className="h-3 w-3" />
@@ -239,9 +296,25 @@ const FilterSection = memo(function FilterSection({
               )}
               {filterEgitimYili && (
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                  Dönem: {uniqueEgitimYillari.find(y => y.id === filterEgitimYili)?.year}
+                  Dönem:{" "}
+                  {
+                    uniqueEgitimYillari.find((y) => y.id === filterEgitimYili)
+                      ?.year
+                  }
                   <button
-                    onClick={() => setFilterEgitimYili('')}
+                    onClick={() => setFilterEgitimYili("")}
+                    className="ml-1 text-indigo-600 hover:text-indigo-800"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {filterStatus && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                  Durum:{" "}
+                  {statusOptions.find((s) => s.value === filterStatus)?.label}
+                  <button
+                    onClick={() => setFilterStatus("")}
                     className="ml-1 text-indigo-600 hover:text-indigo-800"
                   >
                     <X className="h-3 w-3" />
@@ -259,7 +332,7 @@ const FilterSection = memo(function FilterSection({
         )}
       </div>
     </div>
-  )
-})
+  );
+});
 
-export default FilterSection
+export default FilterSection;

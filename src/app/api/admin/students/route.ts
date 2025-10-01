@@ -44,19 +44,16 @@ export async function GET(request: NextRequest) {
             {
               name: {
                 contains: t,
-                mode: "insensitive",
               },
             },
             {
               surname: {
                 contains: t,
-                mode: "insensitive",
               },
             },
             {
               number: {
                 contains: t,
-                mode: "insensitive",
               },
             },
           ],
@@ -87,7 +84,7 @@ export async function GET(request: NextRequest) {
           };
           break;
         case "unassigned":
-          whereClause.AND = [
+          const statusConditions = [
             {
               OR: [{ companyId: null }, { companyId: "" }],
             },
@@ -101,6 +98,14 @@ export async function GET(request: NextRequest) {
               },
             },
           ];
+
+          if (whereClause.AND) {
+            // Merge existing search conditions with status conditions
+            whereClause.AND = [...whereClause.AND, ...statusConditions];
+          } else {
+            // No existing conditions, just set status conditions
+            whereClause.AND = statusConditions;
+          }
           break;
         case "terminated":
           whereClause.stajlar = {
@@ -288,7 +293,7 @@ export async function POST(request: NextRequest) {
 
     // Check if student number already exists
     const existingStudent = await prisma.student.findFirst({
-      where: { number: number }
+      where: { number: number },
     });
 
     if (existingStudent) {
@@ -305,16 +310,16 @@ export async function POST(request: NextRequest) {
         surname,
         number,
         className,
-        alanId
+        alanId,
       },
       include: {
         alan: {
           select: {
             id: true,
-            name: true
-          }
-        }
-      }
+            name: true,
+          },
+        },
+      },
     });
 
     return NextResponse.json({
@@ -326,10 +331,9 @@ export async function POST(request: NextRequest) {
         no: newStudent.number,
         sinif: newStudent.className,
         alanId: newStudent.alanId,
-        alan: newStudent.alan
-      }
+        alan: newStudent.alan,
+      },
     });
-
   } catch (error) {
     console.error("Student creation error:", error);
     return NextResponse.json(

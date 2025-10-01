@@ -187,6 +187,7 @@ model Student {
   @@index([alanId], map: "students_alanId_fkey")
   @@index([classId], map: "students_classId_fkey")
   @@index([companyId], map: "students_companyId_fkey")
+  @@index([name, surname, number], map: "idx_students_search_composite")
   @@map("students")
 }
 
@@ -224,6 +225,7 @@ model Staj {
   @@index([studentId, status])
   @@index([companyId, status])
   @@index([teacherId, status])
+  @@index([status, educationYearId, teacherId], map: "idx_internships_filter_composite")
   @@index([educationYearId], map: "internships_educationYearId_fkey")
   @@index([lastModifiedBy], map: "internships_lastModifiedBy_fkey")
   @@index([terminatedBy], map: "internships_terminatedBy_fkey")
@@ -661,8 +663,8 @@ model CompanyHistory {
   companyId     String
   changeType    CompanyChangeType
   fieldName     String
-  previousValue String?
-  newValue      String?
+  previousValue String? @db.LongText
+  newValue      String? @db.LongText
   validFrom     DateTime          @default(now())
   validTo       DateTime?
   changedBy     String
@@ -686,8 +688,8 @@ model TeacherHistory {
   teacherId     String
   changeType    TeacherChangeType
   fieldName     String
-  previousValue String?
-  newValue      String?
+  previousValue String? @db.LongText
+  newValue      String? @db.LongText
   validFrom     DateTime          @default(now())
   validTo       DateTime?
   changedBy     String
@@ -711,8 +713,8 @@ model StudentHistory {
   studentId     String
   changeType    StudentChangeType
   fieldName     String
-  previousValue String?
-  newValue      String?
+  previousValue String? @db.LongText
+  newValue      String? @db.LongText
   validFrom     DateTime          @default(now())
   validTo       DateTime?
   changedBy     String

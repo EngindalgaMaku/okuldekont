@@ -8,6 +8,10 @@ export interface Ogrenci {
   alan: string;
   staj_id?: string;
   baslangic_tarihi: string;
+  aktif?: boolean;
+  durum?: string;
+  fesih_tarihi?: string | null;
+  fesih_nedeni?: string | null;
 }
 
 export interface Isletme {
@@ -16,8 +20,15 @@ export interface Isletme {
   ogrenciler: Ogrenci[];
   yukleyen_kisi: string;
   telefon?: string | null;
-  company_type?: 'tech' | 'accounting' | 'other';
+  company_type?: "tech" | "accounting" | "other";
   total_students?: number;
+  active_students?: number;
+  inactive_students?: number;
+  has_active_internships?: boolean;
+  has_inactive_internships?: boolean;
+  is_fully_terminated?: boolean;
+  latest_termination_date?: string | null;
+  termination_reason?: string | null;
   color_scheme?: {
     primary: string;
     secondary: string;
@@ -34,7 +45,7 @@ export interface Dekont {
   ogrenci_ad: string;
   miktar: number | null;
   odeme_tarihi: string;
-  onay_durumu: 'bekliyor' | 'onaylandi' | 'reddedildi';
+  onay_durumu: "bekliyor" | "onaylandi" | "reddedildi";
   ay: number;
   yil: number;
   dosya_url?: string;
@@ -52,7 +63,7 @@ export interface Belge {
   belge_turu: string;
   yukleme_tarihi: string;
   yukleyen_kisi?: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  status: "PENDING" | "APPROVED" | "REJECTED";
   onaylanma_tarihi?: string;
   red_nedeni?: string;
 }
@@ -61,7 +72,7 @@ export interface Notification {
   id: string;
   title: string;
   content: string;
-  priority: 'low' | 'normal' | 'high';
+  priority: "low" | "normal" | "high";
   sent_by: string;
   is_read: boolean;
   read_at?: string;

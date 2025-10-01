@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   User,
   Plus,
-  Edit,
   Search,
   Filter,
   ChevronLeft,
@@ -15,7 +14,6 @@ import {
   History,
   Users,
   Minus,
-  ChevronDown,
   Eye,
 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
@@ -108,71 +106,6 @@ export default function OgrencilerServer({
   const [terminationModalOpen, setTerminationModalOpen] = useState(false);
   const [selectedOgrenci, setSelectedOgrenci] = useState<Ogrenci | null>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
-  // Past internship modal state
-  const [pastInternshipModalOpen, setPastInternshipModalOpen] = useState(false);
-  const [pastForm, setPastForm] = useState({
-    companyId: "",
-    teacherId: "",
-    startDate: "",
-    endDate: "",
-  });
-  // Autocomplete states for company and teacher
-  const [companyQuery, setCompanyQuery] = useState("");
-  const [companyResults, setCompanyResults] = useState<any[]>([]);
-  const [selectedCompanyLabel, setSelectedCompanyLabel] = useState<string>("");
-  const [teacherQuery, setTeacherQuery] = useState("");
-  const [teacherResults, setTeacherResults] = useState<any[]>([]);
-  const [selectedTeacherLabel, setSelectedTeacherLabel] = useState<string>("");
-
-  // Debounced company search
-  useEffect(() => {
-    const t = setTimeout(async () => {
-      const q = companyQuery.trim();
-      if (q.length < 2) {
-        setCompanyResults([]);
-        return;
-      }
-      try {
-        const res = await fetch(`/api/search/companies?query=${encodeURIComponent(q)}`);
-        if (res.ok) {
-          const data = await res.json();
-          // Normalize to array of { id, name, contact }
-          const arr = Array.isArray(data) ? data : (data.data || []);
-          setCompanyResults(arr);
-        } else {
-          setCompanyResults([]);
-        }
-      } catch {
-        setCompanyResults([]);
-      }
-    }, 300);
-    return () => clearTimeout(t);
-  }, [companyQuery]);
-
-  // Debounced teacher search
-  useEffect(() => {
-    const t = setTimeout(async () => {
-      const q = teacherQuery.trim();
-      if (q.length < 2) {
-        setTeacherResults([]);
-        return;
-      }
-      try {
-        const res = await fetch(`/api/search/teachers?query=${encodeURIComponent(q)}`);
-        if (res.ok) {
-          const data = await res.json();
-          // Normalize to array of { id, name, surname }
-          const arr = Array.isArray(data) ? data : (data.data || []);
-          setTeacherResults(arr);
-        } else {
-          setTeacherResults([]);
-        }
-      } catch {
-        setTeacherResults([]);
-      }
-    }, 300);
-    return () => clearTimeout(t);
-  }, [teacherQuery]);
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
@@ -184,6 +117,9 @@ export default function OgrencilerServer({
   // Dropdown state
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Ref to handle initial mount
+  const isInitialMount = useRef(true);
 
   // Deletion confirmation state
   const [confirmationText, setConfirmationText] = useState("");
@@ -304,7 +240,8 @@ export default function OgrencilerServer({
     search: string = "",
     alanFilter: string = "all",
     sinifFilter: string = "all",
-    statusFilter: string = "all"
+    statusFilter: string = "all",
+    updateUrl: boolean = true
   ) => {
     setLoading(true);
     try {
@@ -314,8 +251,10 @@ export default function OgrencilerServer({
       });
       if (search && search.trim()) params.set("search", search.trim());
       if (alanFilter && alanFilter !== "all") params.set("alanId", alanFilter);
-      if (sinifFilter && sinifFilter !== "all") params.set("sinif", sinifFilter);
-      if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
+      if (sinifFilter && sinifFilter !== "all")
+        params.set("sinif", sinifFilter);
+      if (statusFilter && statusFilter !== "all")
+        params.set("status", statusFilter);
       // keep sort in API for server-side consistency
       params.set("sort", sortBy);
 
@@ -328,22 +267,27 @@ export default function OgrencilerServer({
       setTotalPages(data.totalPages || 1);
       setCurrentPage(page);
 
-      // Update URL without refresh
-      const newParams = new URLSearchParams(urlSearchParams);
-      newParams.set("page", page.toString());
-      if (search && search.trim()) newParams.set("search", search.trim());
-      else newParams.delete("search");
-      if (alanFilter && alanFilter !== "all") newParams.set("alanId", alanFilter);
-      else newParams.delete("alanId");
-      if (sinifFilter && sinifFilter !== "all") newParams.set("sinif", sinifFilter);
-      else newParams.delete("sinif");
-      if (statusFilter && statusFilter !== "all") newParams.set("status", statusFilter);
-      else newParams.delete("status");
-      newParams.set("sort", sortBy);
+      // Update URL without refresh only if updateUrl is true
+      if (updateUrl) {
+        const newParams = new URLSearchParams(urlSearchParams);
+        newParams.set("page", page.toString());
+        if (search && search.trim()) newParams.set("search", search.trim());
+        else newParams.delete("search");
+        if (alanFilter && alanFilter !== "all")
+          newParams.set("alanId", alanFilter);
+        else newParams.delete("alanId");
+        if (sinifFilter && sinifFilter !== "all")
+          newParams.set("sinif", sinifFilter);
+        else newParams.delete("sinif");
+        if (statusFilter && statusFilter !== "all")
+          newParams.set("status", statusFilter);
+        else newParams.delete("status");
+        newParams.set("sort", sortBy);
 
-      router.push(`/admin/ogrenciler?${newParams.toString()}`, {
-        scroll: false,
-      });
+        router.push(`/admin/ogrenciler?${newParams.toString()}`, {
+          scroll: false,
+        });
+      }
     } catch (error: any) {
       toast.error(`Hata: ${error.message}`);
     } finally {
@@ -368,13 +312,15 @@ export default function OgrencilerServer({
     fetchInitialData();
   }, []);
 
-  // Fetch students when component mounts and when filters change
+  // Handle search and filters with debounce (API calls only)
   useEffect(() => {
-    fetchOgrenciler(page, search, alanId, sinif, status);
-  }, [page, search, alanId, sinif, status, perPage]);
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      // Initial load from URL params
+      fetchOgrenciler(page, search, alanId, sinif, status);
+      return;
+    }
 
-  // Handle search and filters with debounce
-  useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (
         searchTerm !== search ||
@@ -383,15 +329,55 @@ export default function OgrencilerServer({
         selectedStatus !== status ||
         sortBy !== (urlSearchParams.get("sort") || "number")
       ) {
+        // Call API without updating URL during debounce
         fetchOgrenciler(
           1,
           searchTerm,
           selectedAlan,
           selectedSinif,
-          selectedStatus
+          selectedStatus,
+          false
         );
       }
     }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, selectedAlan, selectedSinif, selectedStatus, sortBy]);
+
+  // Separate URL synchronization with longer debounce
+  useEffect(() => {
+    if (isInitialMount.current) return;
+
+    const timeoutId = setTimeout(() => {
+      if (
+        searchTerm !== search ||
+        selectedAlan !== alanId ||
+        selectedSinif !== sinif ||
+        selectedStatus !== status ||
+        sortBy !== (urlSearchParams.get("sort") || "number")
+      ) {
+        // Update URL only
+        const newParams = new URLSearchParams(urlSearchParams);
+        newParams.set("page", "1");
+        if (searchTerm && searchTerm.trim())
+          newParams.set("search", searchTerm.trim());
+        else newParams.delete("search");
+        if (selectedAlan && selectedAlan !== "all")
+          newParams.set("alanId", selectedAlan);
+        else newParams.delete("alanId");
+        if (selectedSinif && selectedSinif !== "all")
+          newParams.set("sinif", selectedSinif);
+        else newParams.delete("sinif");
+        if (selectedStatus && selectedStatus !== "all")
+          newParams.set("status", selectedStatus);
+        else newParams.delete("status");
+        newParams.set("sort", sortBy);
+
+        router.push(`/admin/ogrenciler?${newParams.toString()}`, {
+          scroll: false,
+        });
+      }
+    }, 600);
 
     return () => clearTimeout(timeoutId);
   }, [searchTerm, selectedAlan, selectedSinif, selectedStatus, sortBy]);
@@ -1374,17 +1360,6 @@ export default function OgrencilerServer({
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end space-x-2">
                           <button
-                            onClick={() => {
-                              setSelectedOgrenci(ogrenci);
-                              setPastForm({ companyId: "", teacherId: "", startDate: "", endDate: "" });
-                              setPastInternshipModalOpen(true);
-                            }}
-                            className="p-2 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors"
-                            title="Geçmiş Staj Ekle"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </button>
-                          <button
                             onClick={() => handleOgrenciGecmis(ogrenci)}
                             className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors"
                             title="Staj Geçmişini Görüntüle"
@@ -1642,164 +1617,6 @@ export default function OgrencilerServer({
         </div>
       )}
 
-      {/* Geçmiş Staj Ekle Modal */}
-      <Modal
-        isOpen={pastInternshipModalOpen}
-        onClose={() => setPastInternshipModalOpen(false)}
-        title={`Geçmiş Staj Ekle${selectedOgrenci ? `: ${selectedOgrenci.ad} ${selectedOgrenci.soyad}` : ''}`}
-      >
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">İşletme</label>
-              <input
-                type="text"
-                value={selectedCompanyLabel || companyQuery}
-                onChange={(e) => {
-                  setSelectedCompanyLabel("");
-                  setPastForm({ ...pastForm, companyId: "" });
-                  setCompanyQuery(e.target.value);
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="İşletme ara (en az 2 harf)"
-              />
-              {companyResults.length > 0 && !selectedCompanyLabel && (
-                <div className="mt-2 max-h-44 overflow-y-auto border border-gray-200 rounded-lg divide-y">
-                  {companyResults.map((c: any) => (
-                    <button
-                      type="button"
-                      key={c.id}
-                      onClick={() => {
-                        setPastForm({ ...pastForm, companyId: c.id });
-                        setSelectedCompanyLabel(c.name);
-                        setCompanyResults([]);
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-50"
-                    >
-                      <div className="text-sm font-medium text-gray-900">{c.name}</div>
-                      {(c.contact || c.phone) && (
-                        <div className="text-xs text-gray-500">
-                          {c.contact ? `Yetkili: ${c.contact}` : ''}
-                          {c.contact && c.phone ? ' · ' : ''}
-                          {c.phone ? `Tel: ${c.phone}` : ''}
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {pastForm.companyId && selectedCompanyLabel && (
-                <div className="text-xs text-green-700 mt-1">Seçildi: {selectedCompanyLabel}</div>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Koordinatör Öğretmen</label>
-              <input
-                type="text"
-                value={selectedTeacherLabel || teacherQuery}
-                onChange={(e) => {
-                  setSelectedTeacherLabel("");
-                  setPastForm({ ...pastForm, teacherId: "" });
-                  setTeacherQuery(e.target.value);
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Öğretmen ara (en az 2 harf)"
-              />
-              {teacherResults.length > 0 && !selectedTeacherLabel && (
-                <div className="mt-2 max-h-44 overflow-y-auto border border-gray-200 rounded-lg divide-y">
-                  {teacherResults.map((t: any) => (
-                    <button
-                      type="button"
-                      key={t.id}
-                      onClick={() => {
-                        const label = `${t.name || ""} ${t.surname || ""}`.trim();
-                        setPastForm({ ...pastForm, teacherId: t.id });
-                        setSelectedTeacherLabel(label || t.id);
-                        setTeacherResults([]);
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-gray-50"
-                    >
-                      <div className="text-sm font-medium text-gray-900">{`${t.name || ""} ${t.surname || ""}`.trim() || t.id}</div>
-                      {t.alan?.name && (
-                        <div className="text-xs text-gray-500">Alan: {t.alan.name}</div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {pastForm.teacherId && selectedTeacherLabel && (
-                <div className="text-xs text-green-700 mt-1">Seçildi: {selectedTeacherLabel}</div>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Başlangıç Tarihi</label>
-              <input
-                type="date"
-                value={pastForm.startDate}
-                onChange={(e) => setPastForm({ ...pastForm, startDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bitiş Tarihi</label>
-              <input
-                type="date"
-                value={pastForm.endDate}
-                onChange={(e) => setPastForm({ ...pastForm, endDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button
-              onClick={() => setPastInternshipModalOpen(false)}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              İptal
-            </button>
-            <button
-              onClick={async () => {
-                if (!selectedOgrenci) return;
-                if (!pastForm.companyId || !pastForm.teacherId || !pastForm.startDate || !pastForm.endDate) {
-                  toast.error('Tüm alanlar zorunludur');
-                  return;
-                }
-                setSubmitLoading(true);
-                try {
-                  const res = await fetch(`/api/admin/students/${selectedOgrenci.id}/internship-history`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      companyId: pastForm.companyId.trim(),
-                      teacherId: pastForm.teacherId.trim(),
-                      startDate: pastForm.startDate,
-                      endDate: pastForm.endDate,
-                    })
-                  });
-                  if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    throw new Error(err.error || 'Geçmiş staj eklenemedi');
-                  }
-                  toast.success('Geçmiş staj eklendi');
-                  setPastInternshipModalOpen(false);
-                  setSelectedOgrenci(null);
-                  setPastForm({ companyId: '', teacherId: '', startDate: '', endDate: '' });
-                  // Refresh list
-                  fetchOgrenciler(currentPage, searchTerm, selectedAlan, selectedSinif, selectedStatus);
-                } catch (e: any) {
-                  toast.error(e.message);
-                } finally {
-                  setSubmitLoading(false);
-                }
-              }}
-              disabled={submitLoading}
-              className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
-            >
-              Kaydet
-            </button>
-          </div>
-        </div>
-      </Modal>
       {/* Add Student Modal - Kapsamlı 12 Alanlı Form */}
       <Modal
         isOpen={ogrenciModalOpen}
@@ -2886,21 +2703,6 @@ export default function OgrencilerServer({
               }
             : null
         }
-        onAddPastInternship={(s) => {
-          // set selected student, open past internship modal
-          if (!s) return;
-          const ogr = ogrenciler.find(o => o.id === s.id);
-          if (ogr) setSelectedOgrenci(ogr);
-          setPastForm({ companyId: "", teacherId: "", startDate: "", endDate: "" });
-          setCompanyQuery("");
-          setCompanyResults([]);
-          setSelectedCompanyLabel("");
-          setTeacherQuery("");
-          setTeacherResults([]);
-          setSelectedTeacherLabel("");
-          setStudentHistoryModalOpen(false);
-          setPastInternshipModalOpen(true);
-        }}
       />
 
       {/* CSV Upload Modal */}
