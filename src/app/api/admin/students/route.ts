@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
     const alanId = searchParams.get("alanId") || "";
     const sinif = searchParams.get("sinif") || "";
     const status = searchParams.get("status") || "";
-    const itemsPerPage = 12;
+    const sort = (searchParams.get("sort") || "number").toLowerCase();
+    const itemsPerPage = parseInt(searchParams.get("per_page") || "12");
     const skip = (page - 1) * itemsPerPage;
 
     // Active education year scope
@@ -181,21 +182,18 @@ export async function GET(request: NextRequest) {
         },
         skip: skip,
         take: itemsPerPage,
+        orderBy:
+          sort === "name"
+            ? [{ name: "asc" }, { surname: "asc" }]
+            : [{ number: "asc" }],
       }),
       prisma.student.count({
         where: whereClause,
       }),
     ]);
 
-    // Sort students by number as integer
-    const sortedStudents = students.sort((a, b) => {
-      const numA = parseInt(a.number || '0');
-      const numB = parseInt(b.number || '0');
-      return numA - numB;
-    });
-
     // Transform data to match expected format
-    const transformedStudents = sortedStudents.map((student) => {
+    const transformedStudents = students.map((student) => {
       // Use active internship if available
       const activeInternship = student.stajlar?.[0];
       const currentCompany = activeInternship?.company;

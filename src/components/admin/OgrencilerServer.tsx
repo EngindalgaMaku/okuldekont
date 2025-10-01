@@ -114,7 +114,7 @@ export default function OgrencilerServer({
   const [selectedAlan, setSelectedAlan] = useState<string>("all");
   const [selectedSinif, setSelectedSinif] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<string>("name"); // 'name' or 'number'
+  const [sortBy, setSortBy] = useState<string>("number"); // 'name' or 'number'
 
   // Dropdown state
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -246,11 +246,13 @@ export default function OgrencilerServer({
       const params = new URLSearchParams({
         page: page.toString(),
         per_page: perPage.toString(),
-        ...(search && { search }),
-        ...(alanFilter !== "all" && { alanId: alanFilter }),
-        ...(sinifFilter !== "all" && { sinif: sinifFilter }),
-        ...(statusFilter !== "all" && { status: statusFilter }),
       });
+      if (search && search.trim()) params.set("search", search.trim());
+      if (alanFilter && alanFilter !== "all") params.set("alanId", alanFilter);
+      if (sinifFilter && sinifFilter !== "all") params.set("sinif", sinifFilter);
+      if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
+      // keep sort in API for server-side consistency
+      params.set("sort", sortBy);
 
       const response = await fetch(`/api/admin/students?${params}`);
       if (!response.ok) throw new Error("Öğrenciler getirilemedi");
@@ -264,16 +266,15 @@ export default function OgrencilerServer({
       // Update URL without refresh
       const newParams = new URLSearchParams(urlSearchParams);
       newParams.set("page", page.toString());
-      if (search) newParams.set("search", search);
+      if (search && search.trim()) newParams.set("search", search.trim());
       else newParams.delete("search");
-      if (alanFilter !== "all") newParams.set("alanId", alanFilter);
+      if (alanFilter && alanFilter !== "all") newParams.set("alanId", alanFilter);
       else newParams.delete("alanId");
-      if (sinifFilter !== "all") newParams.set("sinif", sinifFilter);
+      if (sinifFilter && sinifFilter !== "all") newParams.set("sinif", sinifFilter);
       else newParams.delete("sinif");
-      if (statusFilter !== "all") newParams.set("status", statusFilter);
+      if (statusFilter && statusFilter !== "all") newParams.set("status", statusFilter);
       else newParams.delete("status");
-      if (sortBy !== "name") newParams.set("sort", sortBy);
-      else newParams.delete("sort");
+      newParams.set("sort", sortBy);
 
       router.push(`/admin/ogrenciler?${newParams.toString()}`, {
         scroll: false,
@@ -288,9 +289,9 @@ export default function OgrencilerServer({
   // Initialize filters from URL params
   useEffect(() => {
     setSearchTerm(search);
-    setSelectedAlan(alanId);
-    setSelectedSinif(sinif);
-    setSelectedStatus(status);
+    setSelectedAlan(alanId || "all");
+    setSelectedSinif(sinif || "all");
+    setSelectedStatus(status || "all");
     setCurrentPage(page);
     // Initialize sort from URL or default to 'number'
     const urlSort = urlSearchParams.get("sort") || "number";
@@ -315,7 +316,7 @@ export default function OgrencilerServer({
         selectedAlan !== alanId ||
         selectedSinif !== sinif ||
         selectedStatus !== status ||
-        sortBy !== (urlSearchParams.get("sort") || "name")
+        sortBy !== (urlSearchParams.get("sort") || "number")
       ) {
         fetchOgrenciler(
           1,
@@ -1507,7 +1508,7 @@ export default function OgrencilerServer({
                         {Array.from(
                           { length: Math.min(5, totalPages) },
                           (_, i) => {
-                            let pageNum;
+                            let pageNum: number;
                             if (totalPages <= 5) {
                               pageNum = i + 1;
                             } else if (currentPage <= 3) {
