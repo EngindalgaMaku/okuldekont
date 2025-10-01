@@ -67,6 +67,9 @@ const TeacherPanel = () => {
   const [schoolName, setSchoolName] = useState('Okul Adı');
   const [ogrenciSecimModalOpen, setOgrenciSecimModalOpen] = useState(false);
   const [isletmeSecimModalOpen, setIsletmeSecimModalOpen] = useState(false);
+  // Öğrenciye özel işletme seçimi için state
+  const [ogrenciIcinIsletmeSecimOpen, setOgrenciIcinIsletmeSecimOpen] = useState(false);
+  const [ogrenciIcinIsletmeSecimi, setOgrenciIcinIsletmeSecimi] = useState<Ogrenci | null>(null);
   
   // Bildirim states
   const [notifications, setNotifications] = useState<Notification[]>([]);

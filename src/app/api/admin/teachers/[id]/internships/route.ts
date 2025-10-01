@@ -89,9 +89,10 @@ export async function GET(
         sinif: internship.student.className,
         alan: internship.student.alan?.name || 'Alan bilgisi eksik',
         baslangic_tarihi: internship.startDate,
+        bitis_tarihi: internship.endDate || null,
+        aktif: !internship.endDate,
         staj_id: internship.id
       });
-      
       // Update student count
       acc[companyId].total_students = acc[companyId].ogrenciler.length;
       
