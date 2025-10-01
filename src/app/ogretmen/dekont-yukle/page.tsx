@@ -247,18 +247,19 @@ function DekontYukleInner() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-4">
       <div className="max-w-2xl mx-auto">
-        <div className="bg-white/90 backdrop-blur rounded-xl border shadow-sm p-5 sm:p-6">
-          <div className="mb-4">
+        <div className="bg-white/90 backdrop-blur rounded-xl border shadow-sm p-4 sm:p-6">
+          <div className="mb-3 sm:mb-4">
             <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Dekont Yükle</h1>
-            <p className="text-sm text-gray-500 mt-1">İlgili ay ve yıl için dekont bilgilerini girin ve dosyayı ekleyin.</p>
+            <p className="hidden sm:block text-sm text-gray-500 mt-1">İlgili ay ve yıl için dekont bilgilerini girin ve dosyayı ekleyin.</p>
           </div>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-2.5 sm:space-y-4">
+          {/* İşletme / Öğrenci: mobilde de 2 kolon ile kısalt */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3">
             <div>
-              <label className="block text-sm font-medium mb-1">İşletme</label>
+              <label className="block text-xs sm:text-sm font-medium mb-1">İşletme</label>
               <select
                 value={selectedIsletmeId}
                 onChange={(e) => {
@@ -266,7 +267,7 @@ function DekontYukleInner() {
                   setSelectedOgrenciId("");
                   setErrors(prev => ({ ...prev, isletme: undefined }));
                 }}
-                className={`w-full border rounded px-3 py-2 ${errors.isletme ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+                className={`w-full border rounded px-2.5 py-2 text-sm ${errors.isletme ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
               >
                 <option value="">Seçiniz</option>
                 {isletmeler.map(i => (
@@ -276,11 +277,11 @@ function DekontYukleInner() {
               {errors.isletme && <p className="mt-1 text-xs text-red-600">{errors.isletme}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Öğrenci</label>
+              <label className="block text-xs sm:text-sm font-medium mb-1">Öğrenci</label>
               <select
                 value={selectedOgrenciId}
                 onChange={(e) => { setSelectedOgrenciId(e.target.value); setErrors(prev => ({ ...prev, ogrenci: undefined })); }}
-                className={`w-full border rounded px-3 py-2 ${errors.ogrenci ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+                className={`w-full border rounded px-2.5 py-2 text-sm ${errors.ogrenci ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
                 disabled={!selectedIsletme}
               >
                 <option value="">Seçiniz</option>
@@ -292,10 +293,10 @@ function DekontYukleInner() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             <div>
-              <label className="block text-sm font-medium mb-1">Ay</label>
-              <select value={ay} onChange={e => setAy(Number(e.target.value))} className="w-full border rounded px-3 py-2">
+              <label className="block text-xs sm:text-sm font-medium mb-1">Ay</label>
+              <select value={ay} onChange={e => setAy(Number(e.target.value))} className="w-full border rounded px-2.5 py-2 text-sm">
                 {aylar.map((a, idx) => {
                   const val = idx + 1;
                   if (val > maxAyForYil) return null;
@@ -306,7 +307,7 @@ function DekontYukleInner() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Yıl</label>
+              <label className="block text-xs sm:text-sm font-medium mb-1">Yıl</label>
               <input
                 type="number"
                 value={yil}
@@ -318,35 +319,44 @@ function DekontYukleInner() {
                   const clamped = Math.min(next, currentYear);
                   setYil(clamped);
                 }}
-                className="w-full border rounded px-3 py-2"
+                className="w-full border rounded px-2.5 py-2 text-sm"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Miktar (TL)</label>
+            <label className="block text-xs sm:text-sm font-medium mb-1">Miktar (TL)</label>
             <div className="relative">
               <input
                 type="number"
                 value={miktar}
                 onChange={e => { setMiktar(e.target.value === "" ? "" : Number(e.target.value)); setErrors(prev => ({ ...prev, miktar: undefined })); }}
-                className={`w-full border rounded-lg px-3 py-2 pr-12 focus:ring-2 ${errors.miktar ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'focus:ring-indigo-500 focus:border-indigo-500'}`}
+                className={`w-full border rounded-lg px-2.5 py-2 pr-10 sm:px-3 sm:pr-12 text-sm focus:ring-2 ${errors.miktar ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'focus:ring-indigo-500 focus:border-indigo-500'}`}
                 min={0}
-                step={1}
+                step={0.01}
+                onBlur={() => {
+                  if (miktar !== "") {
+                    const num = Number(miktar);
+                    if (!isNaN(num)) setMiktar(Number(num.toFixed(2)));
+                  }
+                }}
                 required
               />
-              <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 text-sm">₺</span>
+              <span className="absolute inset-y-0 right-0 flex items-center pr-2 sm:pr-3 text-gray-500 text-xs sm:text-sm">₺</span>
             </div>
             {errors.miktar && <p className="mt-1 text-xs text-red-600">{errors.miktar}</p>}
+            {miktar !== "" && Number(miktar) >= 0 && (
+              <p className="mt-1 text-xs text-gray-500">≈ {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(Number(miktar))}</p>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Açıklama (opsiyonel)</label>
+            <label className="hidden sm:block text-sm font-medium mb-1">Açıklama (opsiyonel)</label>
             <input
               type="text"
               value={aciklama}
               onChange={e => setAciklama(e.target.value)}
-              className="w-full border rounded px-3 py-2"
+              className="w-full border rounded px-2.5 py-2 text-sm"
               placeholder="Örn: Eylül 2025 dekontu"
             />
           </div>
@@ -355,25 +365,31 @@ function DekontYukleInner() {
             <label className="block text-sm font-medium mb-2">Dosya</label>
             <div
               onClick={() => inputRef.current?.click()}
-              className="cursor-pointer border-2 border-dashed rounded-lg p-4 text-center hover:bg-gray-50 transition-colors"
+              className="cursor-pointer border-2 border-dashed rounded-lg p-2.5 sm:p-4 text-center hover:bg-gray-50 transition-colors"
             >
               <div className="text-sm text-gray-600">
                 {file ? (
                   <div className="flex flex-col items-center justify-center gap-2">
                     {previewUrl && !isPdf ? (
-                      <img src={previewUrl} alt="Önizleme" className="h-32 w-auto object-contain rounded" />
+                      <img src={previewUrl} alt="Önizleme" className="h-24 sm:h-32 w-auto object-contain rounded" />
                     ) : (
                       <div className="flex items-center gap-2 text-gray-700">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-rose-600">
                           <path d="M6 2a2 2 0 00-2 2v16a2 2 0 002 2h8.5a2 2 0 001.414-.586l3.5-3.5A2 2 0 0020 16.5V4a2 2 0 00-2-2H6zM8 7h8v2H8V7zm0 4h8v2H8v-2z" />
                         </svg>
                         <span className="font-medium">PDF seçildi</span>
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-rose-100 text-rose-700">PDF</span>
                       </div>
                     )}
                     <div className="flex items-center gap-2 text-gray-600">
                       <span className="inline-flex h-2 w-2 rounded-full bg-green-500"></span>
-                      <span className="truncate max-w-[220px]">{file.name}</span>
+                      <span className="truncate max-w-[180px] sm:max-w-[220px]">{file.name}</span>
                       <span className="text-gray-400">({file.type || 'dosya'})</span>
+                      {!isPdf && (
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700">
+                          {(file.type?.split('/')?.[1] || file.name.split('.').pop() || 'IMG').toUpperCase()}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -391,10 +407,10 @@ function DekontYukleInner() {
             {errors.file && <p className="mt-1 text-xs text-red-600">{errors.file}</p>}
           </div>
 
-          <div className="flex gap-2 pt-3">
+          <div className="flex gap-2 pt-2 sm:pt-3">
             <button
               type="button"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white disabled:opacity-50 shadow-sm hover:bg-indigo-700 transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-2 sm:px-4 rounded-lg bg-indigo-600 text-white disabled:opacity-50 shadow-sm hover:bg-indigo-700 transition-colors text-sm"
               onClick={handleSubmit}
               disabled={isSubmitting || !selectedIsletme || !selectedOgrenci || !file}
             >
@@ -402,7 +418,7 @@ function DekontYukleInner() {
             </button>
             <button
               type="button"
-              className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700"
+              className="px-3 py-2 sm:px-4 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm"
               onClick={() => {
                 setFile(null);
                 if (inputRef.current) inputRef.current.value = "";
