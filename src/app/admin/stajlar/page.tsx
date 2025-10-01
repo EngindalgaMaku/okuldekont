@@ -406,6 +406,9 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
       if (filterIsletme) params.append('companyId', filterIsletme)
       if (filterOgretmen) params.append('teacherId', filterOgretmen)
       if (filterEgitimYili) params.append('educationYearId', filterEgitimYili)
+      if (searchTerm) params.append('search', searchTerm)
+      if (filterAlan) params.append('alanId', filterAlan)
+      if (filterSinif) params.append('sinif', filterSinif)
       if (activeTab === 'bast') {
         params.append('status', 'ACTIVE')
       }
@@ -816,27 +819,11 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
     return Array.from(new Set(classNames)).sort()
   }, [activeTab, bostOgrenciler, stajlar])
 
-  // Basitleştirilmiş filtreleme mantığı - backend'de filtreleme yapıldığı için sadece client-side search ve alan filtreleri
+  // Tüm filtreler backend'e taşındı; burada gelen sayfalanmış veriyi aynen kullan
   const filteredStajlar = useMemo(() => {
-    if (!Array.isArray(stajlar)) {
-      return []
-    }
-    
-    return stajlar.filter(staj => {
-      const searchMatch = searchTerm === '' ||
-        staj.student?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        staj.student?.surname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        staj.company?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-      
-      const alanMatch = filterAlan === '' ||
-        (staj.student?.alan?.name &&
-         alanlar.find(alan => alan.id === filterAlan)?.name === staj.student.alan.name)
-      
-      const sinifMatch = filterSinif === '' || staj.student?.className === filterSinif
-      
-      return searchMatch && alanMatch && sinifMatch
-    })
-  }, [stajlar, searchTerm, filterAlan, filterSinif, alanlar])
+    if (!Array.isArray(stajlar)) return []
+    return stajlar
+  }, [stajlar])
 
 
 

@@ -19,6 +19,9 @@ export async function GET(request: Request) {
     const companyId = searchParams.get('companyId')
     const teacherId = searchParams.get('teacherId')
     const educationYearIdParam = searchParams.get('educationYearId')
+    const search = (searchParams.get('search') || '').trim()
+    const alanId = searchParams.get('alanId')
+    const sinif = searchParams.get('sinif')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
     
@@ -56,6 +59,43 @@ export async function GET(request: Request) {
     // Filter by education year: use provided param or default to active year
     const effectiveEducationYearId = educationYearIdParam || await getActiveEducationYearId()
     whereClause.educationYearId = effectiveEducationYearId
+
+    // Filter by alan (field) and sınıf on related student
+    if (alanId) {
+      whereClause.student = {
+        ...(whereClause.student || {}),
+        is: {
+          ...(whereClause.student?.is || {}),
+          alanId: alanId
+        }
+      }
+    }
+
+    if (sinif) {
+      whereClause.student = {
+        ...(whereClause.student || {}),
+        is: {
+          ...(whereClause.student?.is || {}),
+          className: sinif
+        }
+      }
+    }
+
+    // Search across student name/surname/number and company name
+    if (search) {
+      const tokens = search.split(/\s+/).map(t => t.trim()).filter(Boolean)
+      if (tokens.length > 0) {
+        const tokenAndClauses = tokens.map(t => ({
+          OR: [
+            { student: { is: { name: { contains: t, mode: 'insensitive' } } } },
+            { student: { is: { surname: { contains: t, mode: 'insensitive' } } } },
+            { student: { is: { number: { contains: t, mode: 'insensitive' } } } },
+            { company: { is: { name: { contains: t, mode: 'insensitive' } } } }
+          ]
+        }))
+        whereClause.AND = [ ...(whereClause.AND || []), ...tokenAndClauses ]
+      }
+    }
     
     // Get total count for pagination
     const totalCount = await prisma.staj.count({
