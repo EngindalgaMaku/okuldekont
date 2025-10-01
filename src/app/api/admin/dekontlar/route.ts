@@ -20,11 +20,17 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Şimdilik TÜM yılları göster (filtreyi kaldır)
-    const useAllYears = true
-    const educationYearId = undefined
+    // educationYearId query param'ını destekle; yoksa aktif yılı kullan. 'all' ise filtreyi kaldır.
+    const { searchParams } = new URL(request.url)
+    const queryEducationYearId = searchParams.get('educationYearId')
+    const activeEducationYearId = await getActiveEducationYearId()
+    const useAllYears = queryEducationYearId === 'all'
+    const educationYearId = useAllYears ? undefined : (queryEducationYearId || activeEducationYearId)
 
     const whereClause: any = { archived: false }
+    if (educationYearId) {
+      whereClause.staj = { educationYearId }
+    }
 
     const rawData = await prisma.dekont.findMany({
       where: whereClause,
@@ -127,17 +133,18 @@ export async function GET(request: Request) {
       };
     })
 
-    // Staja giden toplam öğrenci sayısını hesapla
+    // Staja giden toplam öğrenci sayısını hesapla (aktif yıl veya tüm yıllar)
     const totalStudentsWithInternship = await prisma.staj.count({
       where: {
-        archived: false
+        archived: false,
+        ...(educationYearId ? { educationYearId } : {})
       }
     })
 
     return NextResponse.json({ 
       data: formattedData,
       totalStudents: totalStudentsWithInternship,
-      filter: 'all'
+      filter: useAllYears ? 'all' : educationYearId
     })
   } catch (error) {
     console.error('Dekont listesi alınırken hata:', error)

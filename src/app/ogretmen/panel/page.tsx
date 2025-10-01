@@ -842,40 +842,18 @@ const parseDateFlexible = (value: string): Date => {
   };
 
   const handleOpenDekontUpload = async (ogrenci: Ogrenci, isletme: Isletme) => {
-    const stajId = await findStajId(ogrenci.id, isletme.id);
-    if (stajId) {
-      // Güncel ay ve gelecek aylar için dekont yüklemeyi engelle
-      const currentMonth = getCurrentMonth();
-      const currentYear = getCurrentYear();
-      
-      // Dekont yüklemek için seçilen ay/yıl modal'da belirleneceği için
-      // şimdilik sadece genel kontrolü yapıyoruz
-      // Normal dekont yükleme - modal'da ay kısıtlaması uygulanacak
-      setSelectedStudent({ ...ogrenci, staj_id: stajId.toString() });
-      setSelectedIsletme(isletme);
-      setDekontUploadModalOpen(true);
-    }
+    router.push(`/ogretmen/dekont-yukle?isletmeId=${encodeURIComponent(isletme.id)}&ogrenciId=${encodeURIComponent(ogrenci.id)}`);
   };
+
   
   const handleEkDekontOnay = () => {
     if (ekDekontData) {
-      setSelectedStudent({ ...ekDekontData.ogrenci, staj_id: '' });
-      setSelectedIsletme(ekDekontData.isletme);
       setEkDekontModalOpen(false);
-      setDekontUploadModalOpen(true);
+      router.push(`/ogretmen/dekont-yukle?isletmeId=${encodeURIComponent(ekDekontData.isletme.id)}&ogrenciId=${encodeURIComponent(ekDekontData.ogrenci.id)}`);
     }
   };
 
   const handleDekontSubmit = async (formData: DekontFormData) => {
-    if (!teacher || !selectedStudent || !selectedIsletme) {
-      setErrorModal({
-        isOpen: true,
-        title: 'Eksik Bilgi',
-        message: 'Gerekli bilgiler eksik, işlem iptal edildi.'
-      });
-      return;
-    }
-    
     setIsSubmitting(true);
     try {
       const submitData = new FormData();
