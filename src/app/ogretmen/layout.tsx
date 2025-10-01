@@ -26,19 +26,17 @@ export default function OgretmenLayout({ children }: { children: React.ReactNode
     >
       <div className="min-h-[100dvh] flex flex-col bg-gray-50">
         {/* Header */}
-        <header className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-gray-200" style={{ paddingTop: "env(safe-area-inset-top)" }}>
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-            <div className="flex items-center gap-3 min-w-0">
-              <Link href="/ogretmen/panel" className="text-base sm:text-lg font-semibold text-gray-900 truncate">
-                Öğretmen Paneli
-              </Link>
-              <span className="hidden sm:inline text-gray-300">/</span>
-              {!isOnPanel && (
+        {!isOnPanel && (
+          <header className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-gray-200" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+            <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+              <div className="flex items-center gap-3 min-w-0">
+                <Link href="/ogretmen/panel" className="text-base sm:text-lg font-semibold text-gray-900 truncate">
+                  Öğretmen Paneli
+                </Link>
+                <span className="hidden sm:inline text-gray-300">/</span>
                 <span className="hidden sm:inline text-sm text-gray-600 truncate">Dekont Yükle</span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {!isOnPanel && (
+              </div>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => router.push("/ogretmen/panel?tab=isletmeler")}
@@ -46,10 +44,10 @@ export default function OgretmenLayout({ children }: { children: React.ReactNode
                 >
                   Panele Dön
                 </button>
-              )}
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
+        )}
 
         {/* Content */}
         <main className="flex-1">
