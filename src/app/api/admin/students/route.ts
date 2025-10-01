@@ -30,28 +30,38 @@ export async function GET(request: NextRequest) {
     // Build where clause
     const whereClause: any = {};
 
-    // Search filter
+    // Search filter (supports multi-word queries like "Ahmet Yılmaz")
     if (search) {
-      whereClause.OR = [
-        {
-          name: {
-            contains: search,
-            mode: "insensitive",
-          },
-        },
-        {
-          surname: {
-            contains: search,
-            mode: "insensitive",
-          },
-        },
-        {
-          number: {
-            contains: search,
-            mode: "insensitive",
-          },
-        },
-      ];
+      const tokens = search
+        .split(/\s+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+
+      if (tokens.length > 0) {
+        // Each token must match at least one of the fields (AND of ORs)
+        whereClause.AND = tokens.map((t) => ({
+          OR: [
+            {
+              name: {
+                contains: t,
+                mode: "insensitive",
+              },
+            },
+            {
+              surname: {
+                contains: t,
+                mode: "insensitive",
+              },
+            },
+            {
+              number: {
+                contains: t,
+                mode: "insensitive",
+              },
+            },
+          ],
+        }));
+      }
     }
 
     // Alan filter
