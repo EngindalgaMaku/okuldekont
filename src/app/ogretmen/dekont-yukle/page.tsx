@@ -149,6 +149,50 @@ function DekontYukleInner() {
       const stajData = await stajRes.json();
       const stajId = String(stajData.id || "");
 
+      // Görsel ise istemci tarafında boyut/kalite küçültme uygula (PDF'lere dokunma)
+      const maybeCompressed = await (async () => {
+        try {
+          if (!file || !file.type?.startsWith("image/")) return file;
+          // 10 MB üzeri ise kesin sıkıştır, altı ise de 2MB üzerini sıkıştır
+          const sizeMB = file.size / (1024 * 1024);
+          const mustCompress = sizeMB > 2;
+          if (!mustCompress) return file;
+
+          const blobUrl = URL.createObjectURL(file);
+          const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = reject;
+            image.src = blobUrl;
+          });
+
+          const maxW = 1600; // max genişlik
+          const maxH = 1600; // max yükseklik
+          let { width, height } = img;
+          const ratio = Math.min(maxW / width, maxH / height, 1);
+          const targetW = Math.max(1, Math.round(width * ratio));
+          const targetH = Math.max(1, Math.round(height * ratio));
+
+          const canvas = document.createElement("canvas");
+          canvas.width = targetW;
+          canvas.height = targetH;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return file;
+          ctx.drawImage(img, 0, 0, targetW, targetH);
+
+          const outType = file.type.includes("png") ? "image/png" : "image/jpeg";
+          const quality = outType === "image/png" ? 0.92 : 0.8; // jpeg için kalite
+          const blob: Blob = await new Promise((resolve) => canvas.toBlob(b => resolve(b as Blob), outType, quality));
+          URL.revokeObjectURL(blobUrl);
+          if (!blob) return file;
+          // Orijinal isim + -compressed eki
+          const newName = file.name.replace(/(\.[^.]+)?$/, (m) => `-compressed${m || ''}`);
+          return new File([blob], newName, { type: outType, lastModified: Date.now() });
+        } catch {
+          return file;
+        }
+      })();
+
       const fd = new FormData();
       fd.append("staj_id", stajId);
       if (miktar !== "" && Number(miktar) > 0) fd.append("miktar", String(miktar));
@@ -156,7 +200,7 @@ function DekontYukleInner() {
       fd.append("yil", String(yil));
       fd.append("aciklama", aciklama);
       fd.append("ogretmen_id", teacherId);
-      fd.append("dosya", file);
+      fd.append("dosya", maybeCompressed || file);
 
       const res = await fetch("/api/admin/dekontlar", { method: "POST", body: fd });
 
@@ -286,7 +330,7 @@ function DekontYukleInner() {
             )}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 pt-2">
             <button
               type="button"
               className="px-4 py-2 rounded bg-indigo-600 text-white disabled:opacity-50"
@@ -306,23 +350,16 @@ function DekontYukleInner() {
             >
               Sıfırla
             </button>
-            <button
-              type="button"
-              className="px-4 py-2 rounded bg-gray-100"
-              onClick={() => router.push("/ogretmen/panel?tab=isletmeler")}
-            >
-              Panele Dön
-            </button>
           </div>
 
           {uploadStatus && (
             <div className="text-sm mt-2 p-2 rounded bg-gray-50 border">{uploadStatus}</div>
           )}
-        </div>
+          </div>
 
-        {null}
+          {null}
+        </div>
       </div>
-    </div>
   );
 }
 
