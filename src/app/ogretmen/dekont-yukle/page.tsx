@@ -45,12 +45,31 @@ function DekontYukleInner() {
   const [aciklama, setAciklama] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string>("");
+  const [errors, setErrors] = useState<{ isletme?: string; ogrenci?: string; miktar?: string; file?: string }>({});
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isPdf, setIsPdf] = useState(false);
 
   const { ay: defaultAy, yil: defaultYil } = useMemo(() => getPrevMonthYear(), []);
   const [ay, setAy] = useState<number>(defaultAy);
   const [yil, setYil] = useState<number>(defaultYil);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Dosya önizleme yönetimi
+  useEffect(() => {
+    if (!file) {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+      setIsPdf(false);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    setIsPdf(!!file.type && file.type.includes('pdf'));
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [file]);
 
   // Auth ve veri çekme (panel ile aynı mantık)
   useEffect(() => {
@@ -131,20 +150,23 @@ function DekontYukleInner() {
   const selectedOgrenci = useMemo(() => selectedIsletme?.ogrenciler.find(o => o.id === selectedOgrenciId) || null, [selectedIsletme, selectedOgrenciId]);
 
   const handleSubmit = async () => {
-    if (!teacherId || !selectedIsletme || !selectedOgrenci) {
-      setUploadStatus("Eksik seçimler var.");
-      return;
-    }
-    if (!file) {
-      setUploadStatus("Lütfen dosya seçin.");
+    const newErrors: { isletme?: string; ogrenci?: string; miktar?: string; file?: string } = {};
+    if (!selectedIsletmeId) newErrors.isletme = 'İşletme seçiniz';
+    if (!selectedOgrenciId) newErrors.ogrenci = 'Öğrenci seçiniz';
+    if (miktar === "" || Number(miktar) <= 0) newErrors.miktar = 'Geçerli bir miktar (TL) giriniz';
+    if (!file) newErrors.file = 'Lütfen bir dosya seçiniz (PDF veya görsel)';
+    if (!teacherId) newErrors.isletme = newErrors.isletme || 'Oturum doğrulanamadı';
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) {
+      setUploadStatus("");
       return;
     }
 
     setIsSubmitting(true);
     setUploadStatus("Yükleniyor...");
     try {
-      // Staj ID'yi bul
-      const stajRes = await fetch(`/api/admin/internships/find?ogrenci_id=${selectedOgrenci.id}&isletme_id=${selectedIsletme.id}`);
+      // Staj ID'yi bul (doğrudan ID'lerden kullan, TS null uyarısını önle)
+      const stajRes = await fetch(`/api/admin/internships/find?ogrenci_id=${encodeURIComponent(selectedOgrenciId)}&isletme_id=${encodeURIComponent(selectedIsletmeId)}`);
       if (!stajRes.ok) throw new Error("Staj ID bulunamadı");
       const stajData = await stajRes.json();
       const stajId = String(stajData.id || "");
@@ -195,12 +217,13 @@ function DekontYukleInner() {
 
       const fd = new FormData();
       fd.append("staj_id", stajId);
-      if (miktar !== "" && Number(miktar) > 0) fd.append("miktar", String(miktar));
+      // Miktar artık zorunlu
+      fd.append("miktar", String(miktar));
       fd.append("ay", String(ay));
       fd.append("yil", String(yil));
       fd.append("aciklama", aciklama);
       fd.append("ogretmen_id", teacherId);
-      fd.append("dosya", maybeCompressed || file);
+      fd.append("dosya", (maybeCompressed || file) as File);
 
       const res = await fetch("/api/admin/dekontlar", { method: "POST", body: fd });
 
@@ -226,9 +249,13 @@ function DekontYukleInner() {
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-4">Dekont Yükle (Sayfa)</h1>
+        <div className="bg-white/90 backdrop-blur rounded-xl border shadow-sm p-5 sm:p-6">
+          <div className="mb-4">
+            <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Dekont Yükle</h1>
+            <p className="text-sm text-gray-500 mt-1">İlgili ay ve yıl için dekont bilgilerini girin ve dosyayı ekleyin.</p>
+          </div>
 
-        <div className="space-y-4 bg-white p-4 rounded-lg border">
+        <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium mb-1">İşletme</label>
@@ -237,21 +264,23 @@ function DekontYukleInner() {
                 onChange={(e) => {
                   setSelectedIsletmeId(e.target.value);
                   setSelectedOgrenciId("");
+                  setErrors(prev => ({ ...prev, isletme: undefined }));
                 }}
-                className="w-full border rounded px-3 py-2"
+                className={`w-full border rounded px-3 py-2 ${errors.isletme ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
               >
                 <option value="">Seçiniz</option>
                 {isletmeler.map(i => (
                   <option key={i.id} value={i.id}>{i.ad}</option>
                 ))}
               </select>
+              {errors.isletme && <p className="mt-1 text-xs text-red-600">{errors.isletme}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Öğrenci</label>
               <select
                 value={selectedOgrenciId}
-                onChange={(e) => setSelectedOgrenciId(e.target.value)}
-                className="w-full border rounded px-3 py-2"
+                onChange={(e) => { setSelectedOgrenciId(e.target.value); setErrors(prev => ({ ...prev, ogrenci: undefined })); }}
+                className={`w-full border rounded px-3 py-2 ${errors.ogrenci ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
                 disabled={!selectedIsletme}
               >
                 <option value="">Seçiniz</option>
@@ -259,6 +288,7 @@ function DekontYukleInner() {
                   <option key={o.id} value={o.id}>{o.ad} {o.soyad}</option>
                 ))}
               </select>
+              {errors.ogrenci && <p className="mt-1 text-xs text-red-600">{errors.ogrenci}</p>}
             </div>
           </div>
 
@@ -294,15 +324,20 @@ function DekontYukleInner() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Miktar (TL, opsiyonel)</label>
-            <input
-              type="number"
-              value={miktar}
-              onChange={e => setMiktar(e.target.value === "" ? "" : Number(e.target.value))}
-              className="w-full border rounded px-3 py-2"
-              min={0}
-              step={1}
-            />
+            <label className="block text-sm font-medium mb-1">Miktar (TL)</label>
+            <div className="relative">
+              <input
+                type="number"
+                value={miktar}
+                onChange={e => { setMiktar(e.target.value === "" ? "" : Number(e.target.value)); setErrors(prev => ({ ...prev, miktar: undefined })); }}
+                className={`w-full border rounded-lg px-3 py-2 pr-12 focus:ring-2 ${errors.miktar ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'focus:ring-indigo-500 focus:border-indigo-500'}`}
+                min={0}
+                step={1}
+                required
+              />
+              <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 text-sm">₺</span>
+            </div>
+            {errors.miktar && <p className="mt-1 text-xs text-red-600">{errors.miktar}</p>}
           </div>
 
           <div>
@@ -318,22 +353,48 @@ function DekontYukleInner() {
 
           <div>
             <label className="block text-sm font-medium mb-2">Dosya</label>
+            <div
+              onClick={() => inputRef.current?.click()}
+              className="cursor-pointer border-2 border-dashed rounded-lg p-4 text-center hover:bg-gray-50 transition-colors"
+            >
+              <div className="text-sm text-gray-600">
+                {file ? (
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    {previewUrl && !isPdf ? (
+                      <img src={previewUrl} alt="Önizleme" className="h-32 w-auto object-contain rounded" />
+                    ) : (
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-rose-600">
+                          <path d="M6 2a2 2 0 00-2 2v16a2 2 0 002 2h8.5a2 2 0 001.414-.586l3.5-3.5A2 2 0 0020 16.5V4a2 2 0 00-2-2H6zM8 7h8v2H8V7zm0 4h8v2H8v-2z" />
+                        </svg>
+                        <span className="font-medium">PDF seçildi</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <span className="inline-flex h-2 w-2 rounded-full bg-green-500"></span>
+                      <span className="truncate max-w-[220px]">{file.name}</span>
+                      <span className="text-gray-400">({file.type || 'dosya'})</span>
+                    </div>
+                  </div>
+                ) : (
+                  <span>Dosyayı buraya bırakın veya tıklayarak seçin (PDF veya Görsel)</span>
+                )}
+              </div>
+            </div>
             <input
               ref={inputRef}
               type="file"
               accept="image/*,application/pdf"
-              className="block w-full"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              className="hidden"
+              onChange={(e) => { setFile(e.target.files?.[0] || null); setErrors(prev => ({ ...prev, file: undefined })); }}
             />
-            {file && (
-              <div className="text-xs text-gray-600 mt-1">Seçildi: {file.name} ({file.type || "?"})</div>
-            )}
+            {errors.file && <p className="mt-1 text-xs text-red-600">{errors.file}</p>}
           </div>
 
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2 pt-3">
             <button
               type="button"
-              className="px-4 py-2 rounded bg-indigo-600 text-white disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white disabled:opacity-50 shadow-sm hover:bg-indigo-700 transition-colors"
               onClick={handleSubmit}
               disabled={isSubmitting || !selectedIsletme || !selectedOgrenci || !file}
             >
@@ -341,7 +402,7 @@ function DekontYukleInner() {
             </button>
             <button
               type="button"
-              className="px-4 py-2 rounded bg-gray-100"
+              className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700"
               onClick={() => {
                 setFile(null);
                 if (inputRef.current) inputRef.current.value = "";
@@ -353,13 +414,12 @@ function DekontYukleInner() {
           </div>
 
           {uploadStatus && (
-            <div className="text-sm mt-2 p-2 rounded bg-gray-50 border">{uploadStatus}</div>
+            <div className="text-sm mt-2 p-2 rounded bg-indigo-50 border border-indigo-200 text-indigo-700">{uploadStatus}</div>
           )}
           </div>
-
-          {null}
         </div>
       </div>
+    </div>
   );
 }
 
