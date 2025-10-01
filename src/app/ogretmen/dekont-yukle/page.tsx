@@ -130,21 +130,57 @@ function DekontYukleInner() {
     }
   }, [isletmeler, search, selectedIsletmeId, selectedOgrenciId]);
 
-  // Yıla göre izin verilen maksimum ay (mevcut yıl için: geçen ay; geçmiş yıllar için: 12)
-  const maxAyForYil = useMemo(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth(); // 1-12
-    if (yil < currentYear) return 12;
-    if (yil === currentYear) return prevMonth;
-    // Gelecek yıl seçildiyse kısıtla
-    return prevMonth;
-  }, [yil]);
+  // Öğrencinin başlangıcına göre izinli yıl/ay sınırlarını hesapla
+  const ogrenciStart = useMemo(() => {
+    const isl = isletmeler.find(i => i.id === selectedIsletmeId);
+    const ogr = isl?.ogrenciler.find(o => o.id === selectedOgrenciId);
+    if (!ogr?.baslangic_tarihi) return null;
+    const d = new Date(ogr.baslangic_tarihi);
+    if (isNaN(d.getTime())) return null;
+    return d;
+  }, [isletmeler, selectedIsletmeId, selectedOgrenciId]);
 
-  // Yıl değiştiğinde, seçili ay izin verilen aralığın üstündeyse kırp
+  const nowDate = useMemo(() => new Date(), []);
+  const currentYear = nowDate.getFullYear();
+  const prevMonth = nowDate.getMonth() === 0 ? 12 : nowDate.getMonth(); // 1-12, içinde bulunduğumuz aydan bir önceki
+
+  const allowedYears = useMemo(() => {
+    if (!ogrenciStart) return [yil];
+    const startYear = ogrenciStart.getFullYear();
+    const endYear = currentYear;
+    const years: number[] = [];
+    for (let y = startYear; y <= endYear; y++) years.push(y);
+    return years;
+  }, [ogrenciStart, currentYear, yil]);
+
+  const getMonthBounds = (year: number) => {
+    if (!ogrenciStart) {
+      return { min: 1, max: prevMonth };
+    }
+    const startYear = ogrenciStart.getFullYear();
+    const startMonth = ogrenciStart.getMonth() + 1; // 1-12
+    if (year < startYear) return { min: 1, max: 0 };
+    if (year > currentYear) return { min: 13, max: 12 };
+    const min = year === startYear ? startMonth : 1;
+    const max = year === currentYear ? prevMonth : 12;
+    return { min, max };
+  };
+
+  // Öğrenci veya yıl değiştiğinde ayı sınırlar içinde tut
   useEffect(() => {
-    if (ay > maxAyForYil) setAy(maxAyForYil);
-  }, [maxAyForYil, ay]);
+    const { min, max } = getMonthBounds(yil);
+    if (ay < min) setAy(min);
+    if (ay > max) setAy(max);
+  }, [yil, selectedOgrenciId]);
+
+  // Öğrenci seçimi değiştiğinde uygun en yakın ay-yılı seç
+  useEffect(() => {
+    if (!ogrenciStart) return;
+    const y = Math.min(currentYear, Math.max(ogrenciStart.getFullYear(), yil));
+    const { max } = getMonthBounds(y);
+    setYil(y);
+    setAy(max);
+  }, [ogrenciStart]);
 
   const selectedIsletme = useMemo(() => isletmeler.find(i => i.id === selectedIsletmeId) || null, [isletmeler, selectedIsletmeId]);
   const selectedOgrenci = useMemo(() => selectedIsletme?.ogrenciler.find(o => o.id === selectedOgrenciId) || null, [selectedIsletme, selectedOgrenciId]);
@@ -299,28 +335,23 @@ function DekontYukleInner() {
               <select value={ay} onChange={e => setAy(Number(e.target.value))} className="w-full border rounded px-2.5 py-2 text-sm">
                 {aylar.map((a, idx) => {
                   const val = idx + 1;
-                  if (val > maxAyForYil) return null;
-                  return (
-                    <option key={val} value={val}>{a}</option>
-                  );
+                  const { min, max } = getMonthBounds(yil);
+                  if (val < min || val > max) return null;
+                  return <option key={val} value={val}>{a}</option>;
                 })}
               </select>
             </div>
             <div>
               <label className="block text-xs sm:text-sm font-medium mb-1">Yıl</label>
-              <input
-                type="number"
+              <select
                 value={yil}
-                onChange={e => {
-                  const next = Number(e.target.value);
-                  const now = new Date();
-                  const currentYear = now.getFullYear();
-                  // Gelecek yıllara izin verme; en fazla mevcut yıl
-                  const clamped = Math.min(next, currentYear);
-                  setYil(clamped);
-                }}
+                onChange={e => setYil(Number(e.target.value))}
                 className="w-full border rounded px-2.5 py-2 text-sm"
-              />
+              >
+                {allowedYears.map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
             </div>
           </div>
 
