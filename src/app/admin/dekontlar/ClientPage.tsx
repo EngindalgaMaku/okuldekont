@@ -546,7 +546,7 @@ export default function ClientDekontlarPage() {
     )}?inline=true`;
 
     setSelectedImageUrl(downloadUrl);
-    setSelectedImageName(filename);
+    setSelectedImageName(actualFilename); // Gerçek dosya adını kullan
     setShowImageModal(true);
   }, []);
 
@@ -1045,17 +1045,13 @@ export default function ClientDekontlarPage() {
                       {/* Önizleme Butonu */}
                       {dekont.dosya_url && dekont.dosya_url.trim() !== "" ? (
                         <button
-                          onClick={() =>
-                            handleFileAction(
-                              dekont.dosya_url!,
-                              `dekont-${dekont.ogrenci_ad.replace(
-                                /\s+/g,
-                                "_"
-                              )}-${MONTHS[dekont.ay - 1]}-${
-                                dekont.yil
-                              }.${getFileExtFromUrl(dekont.dosya_url!)}`
-                            )
-                          }
+                          onClick={() => {
+                            // Gerçek dosya adını çıkar
+                            const urlParts = dekont.dosya_url!.split("/");
+                            const actualFilename =
+                              urlParts[urlParts.length - 1];
+                            handleFileAction(dekont.dosya_url!, actualFilename);
+                          }}
                           className="flex items-center justify-center w-8 h-8 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full transition-colors"
                           title={
                             isPreviewableFile(dekont.dosya_url!)
@@ -1382,17 +1378,13 @@ export default function ClientDekontlarPage() {
                     <>
                       {isPreviewableFile(dekont.dosya_url) ? (
                         <button
-                          onClick={() =>
-                            openImageModal(
-                              dekont.dosya_url!,
-                              `dekont-${dekont.ogrenci_ad.replace(
-                                /\s+/g,
-                                "_"
-                              )}-${MONTHS[dekont.ay - 1]}-${
-                                dekont.yil
-                              }.${getFileExtFromUrl(dekont.dosya_url!)}`
-                            )
-                          }
+                          onClick={() => {
+                            // Gerçek dosya adını çıkar
+                            const urlParts = dekont.dosya_url!.split("/");
+                            const actualFilename =
+                              urlParts[urlParts.length - 1];
+                            openImageModal(dekont.dosya_url!, actualFilename);
+                          }}
                           className="inline-flex items-center px-3 py-1.5 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md"
                         >
                           <Eye className="h-4 w-4 mr-2" />
@@ -1402,17 +1394,13 @@ export default function ClientDekontlarPage() {
                         </button>
                       ) : (
                         <button
-                          onClick={() =>
-                            downloadFile(
-                              dekont.dosya_url!,
-                              `dekont-${dekont.ogrenci_ad.replace(
-                                /\s+/g,
-                                "_"
-                              )}-${MONTHS[dekont.ay - 1]}-${
-                                dekont.yil
-                              }.${getFileExtFromUrl(dekont.dosya_url!)}`
-                            )
-                          }
+                          onClick={() => {
+                            // Gerçek dosya adını çıkar
+                            const urlParts = dekont.dosya_url!.split("/");
+                            const actualFilename =
+                              urlParts[urlParts.length - 1];
+                            downloadFile(dekont.dosya_url!, actualFilename);
+                          }}
                           className="inline-flex items-center px-3 py-1.5 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
                         >
                           <Download className="h-4 w-4 mr-2" />

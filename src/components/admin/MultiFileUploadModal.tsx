@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   X,
   Upload,
@@ -19,32 +19,6 @@ interface FileWithProgress {
   error?: string;
 }
 
-interface Student {
-  id: string;
-  name: string;
-  surname: string;
-  className: string;
-  number?: string;
-  alan?: { name: string };
-}
-
-interface Teacher {
-  id: string;
-  name: string;
-  surname: string;
-}
-
-interface Staj {
-  id: string;
-  studentId: string;
-  teacherId: string;
-  student: Student;
-  teacher: Teacher;
-  company: {
-    name: string;
-  };
-}
-
 interface MultiFileUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -59,63 +33,7 @@ export default function MultiFileUploadModal({
   const [files, setFiles] = useState<FileWithProgress[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [stajlar, setStajlar] = useState<Staj[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [selectedStaj, setSelectedStaj] = useState<string>("");
-  const [selectedTeacher, setSelectedTeacher] = useState<string>("");
-  const [amount, setAmount] = useState<string>("");
-  const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
-  const [year, setYear] = useState<number>(new Date().getFullYear());
-  const [description, setDescription] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const MONTHS = [
-    "Ocak",
-    "Şubat",
-    "Mart",
-    "Nisan",
-    "Mayıs",
-    "Haziran",
-    "Temmuz",
-    "Ağustos",
-    "Eylül",
-    "Ekim",
-    "Kasım",
-    "Aralık",
-  ];
-
-  // Fetch data when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      fetchStajlar();
-      fetchTeachers();
-    }
-  }, [isOpen]);
-
-  const fetchStajlar = async () => {
-    try {
-      const response = await fetch("/api/admin/internships?status=ACTIVE");
-      if (response.ok) {
-        const data = await response.json();
-        setStajlar(data.stajlar || []);
-      }
-    } catch (error) {
-      console.error("Error fetching stajlar:", error);
-    }
-  };
-
-  const fetchTeachers = async () => {
-    try {
-      const response = await fetch("/api/admin/teachers");
-      if (response.ok) {
-        const data = await response.json();
-        setTeachers(data.teachers || []);
-      }
-    } catch (error) {
-      console.error("Error fetching teachers:", error);
-    }
-  };
 
   const generateFileId = () => Math.random().toString(36).substr(2, 9);
 
@@ -213,15 +131,7 @@ export default function MultiFileUploadModal({
       );
 
       const formData = new FormData();
-      formData.append("dosya", fileWithProgress.file);
-      formData.append("staj_id", selectedStaj);
-      formData.append("ogretmen_id", selectedTeacher);
-      formData.append("miktar", amount);
-      formData.append("ay", month.toString());
-      formData.append("yil", year.toString());
-      if (description) {
-        formData.append("aciklama", description);
-      }
+      formData.append("file", fileWithProgress.file);
 
       const xhr = new XMLHttpRequest();
 
@@ -278,7 +188,7 @@ export default function MultiFileUploadModal({
           reject(new Error(errorMessage));
         });
 
-        xhr.open("POST", "/api/admin/dekontlar");
+        xhr.open("POST", "/api/admin/file-restore");
         xhr.send(formData);
       });
     } catch (error) {
@@ -299,17 +209,6 @@ export default function MultiFileUploadModal({
     const validFiles = files.filter((f) => f.status === "waiting");
 
     if (validFiles.length === 0) return;
-
-    // Validate form
-    if (!selectedStaj) {
-      alert("Lütfen bir staj seçin");
-      return;
-    }
-
-    if (!selectedTeacher) {
-      alert("Lütfen bir öğretmen seçin");
-      return;
-    }
 
     setIsUploading(true);
 
@@ -336,12 +235,6 @@ export default function MultiFileUploadModal({
   const handleClose = () => {
     if (!isUploading) {
       clearFiles();
-      setSelectedStaj("");
-      setSelectedTeacher("");
-      setAmount("");
-      setMonth(new Date().getMonth() + 1);
-      setYear(new Date().getFullYear());
-      setDescription("");
       onClose();
     }
   };
@@ -396,7 +289,7 @@ export default function MultiFileUploadModal({
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">
-            Çoklu Dosya Yükleme
+            Dosya Geri Yükleme
           </h2>
           <button
             onClick={handleClose}
@@ -409,111 +302,25 @@ export default function MultiFileUploadModal({
 
         {/* Content */}
         <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-          {/* Form Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Staj Selection */}
-            <div className="lg:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Staj Seçin *
-              </label>
-              <select
-                value={selectedStaj}
-                onChange={(e) => setSelectedStaj(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              >
-                <option value="">Staj seçin...</option>
-                {stajlar.map((staj) => (
-                  <option key={staj.id} value={staj.id}>
-                    {staj.student.name} {staj.student.surname} -{" "}
-                    {staj.company.name}
-                  </option>
-                ))}
-              </select>
+          {/* Info Message */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <AlertCircle className="h-5 w-5 text-blue-400" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-blue-800">
+                  Dosya Geri Yükleme
+                </h3>
+                <div className="mt-2 text-sm text-blue-700">
+                  <p>
+                    Bu alan yanlışlıkla silinen dekont dosyalarını geri yüklemek
+                    için kullanılır. Dosyalar otomatik olarak doğru klasöre
+                    yüklenecektir.
+                  </p>
+                </div>
+              </div>
             </div>
-
-            {/* Teacher Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Öğretmen Seçin *
-              </label>
-              <select
-                value={selectedTeacher}
-                onChange={(e) => setSelectedTeacher(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              >
-                <option value="">Öğretmen seçin...</option>
-                {teachers.map((teacher) => (
-                  <option key={teacher.id} value={teacher.id}>
-                    {teacher.name} {teacher.surname}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Amount */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Miktar (₺)
-              </label>
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                min="0"
-                step="0.01"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Miktar girin (opsiyonel)"
-              />
-            </div>
-
-            {/* Month */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Ay
-              </label>
-              <select
-                value={month}
-                onChange={(e) => setMonth(parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                {MONTHS.map((monthName, index) => (
-                  <option key={index} value={index + 1}>
-                    {monthName}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Year */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Yıl
-              </label>
-              <input
-                type="number"
-                value={year}
-                onChange={(e) => setYear(parseInt(e.target.value))}
-                min="2020"
-                max="2030"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Açıklama
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Açıklama girin (opsiyonel)"
-            />
           </div>
 
           {/* Drop Zone */}
@@ -664,12 +471,7 @@ export default function MultiFileUploadModal({
           {waitingFiles > 0 && (
             <button
               onClick={handleUpload}
-              disabled={
-                isUploading ||
-                waitingFiles === 0 ||
-                !selectedStaj ||
-                !selectedTeacher
-              }
+              disabled={isUploading || waitingFiles === 0}
               className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
             >
               {isUploading ? (
@@ -680,7 +482,7 @@ export default function MultiFileUploadModal({
               ) : (
                 <>
                   <Upload className="h-4 w-4" />
-                  <span>Yükle ({waitingFiles})</span>
+                  <span>Dosyaları Geri Yükle ({waitingFiles})</span>
                 </>
               )}
             </button>
