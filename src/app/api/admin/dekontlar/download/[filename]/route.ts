@@ -29,8 +29,14 @@ export async function GET(
       return NextResponse.json({ error: "Invalid filename" }, { status: 400 });
     }
 
-    // Dosya yolu - uploads dizini project root'a göre
-    const filePath = join(process.cwd(), "uploads", "dekontlar", filename);
+    // Dosya yolu - public/uploads dizini project root'a göre
+    const filePath = join(
+      process.cwd(),
+      "public",
+      "uploads",
+      "dekontlar",
+      filename
+    );
 
     // Dosya varlığı kontrolü
     if (!existsSync(filePath)) {

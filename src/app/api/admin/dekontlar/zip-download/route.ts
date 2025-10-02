@@ -123,7 +123,12 @@ export async function POST(request: NextRequest) {
 
     // Her öğretmen için klasör oluştur ve dosyalarını ekle
     let fileCount = 0;
-    const uploadsDir = path.join(process.cwd(), "uploads", "dekontlar");
+    const uploadsDir = path.join(
+      process.cwd(),
+      "public",
+      "uploads",
+      "dekontlar"
+    );
 
     for (const [teacherName, teacherDekontlar] of Object.entries(
       dekontlarByTeacher
