@@ -1,6 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -57,6 +64,8 @@ function DekontYukleInner() {
   const [aciklama, setAciklama] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string>("");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
   const [errors, setErrors] = useState<{
     isletme?: string;
     ogrenci?: string;
@@ -247,6 +256,69 @@ function DekontYukleInner() {
     [selectedIsletme, selectedOgrenciId]
   );
 
+  // Session kontrolü ve refresh fonksiyonu
+  const checkAndRefreshSession = useCallback(async () => {
+    if (status === "unauthenticated") {
+      router.push("/ogretmen/login");
+      return false;
+    }
+    return true;
+  }, [status, router]);
+
+  // Retry logic ile upload fonksiyonu
+  const uploadWithRetry = async (
+    formData: FormData,
+    maxRetries = 2
+  ): Promise<Response> => {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        // Session kontrolü
+        const sessionValid = await checkAndRefreshSession();
+        if (!sessionValid) {
+          throw new Error("Session expired");
+        }
+
+        setUploadProgress(10 + attempt * 10); // Progress simulation
+
+        const response = await fetch("/api/admin/dekontlar", {
+          method: "POST",
+          body: formData,
+        });
+
+        setUploadProgress(90);
+
+        // Eğer 401 (Unauthorized) alırsak, session yenilemeyi dene
+        if (response.status === 401 && attempt < maxRetries) {
+          setUploadStatus(
+            `Oturum yenileniyor... (Deneme ${attempt + 1}/${maxRetries + 1})`
+          );
+          await new Promise((resolve) =>
+            setTimeout(resolve, 1000 * (attempt + 1))
+          ); // Exponential backoff
+          continue;
+        }
+
+        setUploadProgress(100);
+        return response;
+      } catch (error: any) {
+        if (attempt === maxRetries) {
+          throw error;
+        }
+
+        setUploadStatus(
+          `Bağlantı hatası, tekrar deneniyor... (${attempt + 1}/${
+            maxRetries + 1
+          })`
+        );
+        await new Promise((resolve) =>
+          setTimeout(resolve, 2000 * (attempt + 1))
+        );
+      }
+    }
+
+    throw new Error("Max retry attempts reached");
+  };
+
   const handleSubmit = async () => {
     const newErrors: {
       isletme?: string;
@@ -268,7 +340,9 @@ function DekontYukleInner() {
     }
 
     setIsSubmitting(true);
-    setUploadStatus("Yükleniyor...");
+    setUploadStatus("Hazırlanıyor...");
+    setUploadProgress(0);
+    setRetryCount(0);
     try {
       // Staj ID'yi bul (doğrudan ID'lerden kullan, TS null uyarısını önle)
       const stajRes = await fetch(
@@ -344,10 +418,8 @@ function DekontYukleInner() {
       fd.append("ogretmen_id", teacherId);
       fd.append("dosya", (maybeCompressed || file) as File);
 
-      const res = await fetch("/api/admin/dekontlar", {
-        method: "POST",
-        body: fd,
-      });
+      setUploadStatus("Dosya yükleniyor...");
+      const res = await uploadWithRetry(fd, 2);
 
       if (res.status === 409) {
         const warn = await res.json();
@@ -366,7 +438,27 @@ function DekontYukleInner() {
       // 2 sn sonra dekont listesine yönlendir
       setTimeout(() => router.push("/ogretmen/panel?tab=dekontlar"), 1500);
     } catch (e: any) {
-      setUploadStatus(`Hata: ${e?.message || e}`);
+      let errorMessage = e?.message || e?.toString() || "Bilinmeyen hata";
+
+      // Session timeout durumunda özel mesaj
+      if (
+        errorMessage.includes("401") ||
+        errorMessage.includes("Unauthorized") ||
+        errorMessage.includes("Session expired")
+      ) {
+        errorMessage = "Oturum süresi doldu. Lütfen tekrar giriş yapın.";
+        setTimeout(() => router.push("/ogretmen/login"), 2000);
+      }
+      // Network hatası durumunda özel mesaj
+      else if (
+        errorMessage.includes("fetch") ||
+        errorMessage.includes("NetworkError")
+      ) {
+        errorMessage = "İnternet bağlantınızı kontrol edip tekrar deneyin.";
+      }
+
+      setUploadStatus(`Hata: ${errorMessage}`);
+      setUploadProgress(0);
     } finally {
       setIsSubmitting(false);
     }
@@ -679,8 +771,31 @@ function DekontYukleInner() {
             </div>
 
             {uploadStatus && (
-              <div className="text-sm mt-2 p-2 rounded bg-indigo-50 border border-indigo-200 text-indigo-700">
-                {uploadStatus}
+              <div className="mt-2">
+                <div
+                  className={`text-sm p-2 rounded border ${
+                    uploadStatus.includes("Hata")
+                      ? "bg-red-50 border-red-200 text-red-700"
+                      : uploadStatus.includes("Başarılı")
+                      ? "bg-green-50 border-green-200 text-green-700"
+                      : "bg-indigo-50 border-indigo-200 text-indigo-700"
+                  }`}
+                >
+                  {uploadStatus}
+                </div>
+                {isSubmitting && uploadProgress > 0 && (
+                  <div className="mt-2">
+                    <div className="bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      ></div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {uploadProgress}% tamamlandı
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

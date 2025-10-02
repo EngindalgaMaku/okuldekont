@@ -22,7 +22,9 @@ import {
   Shield,
   MoreVertical,
   ChevronDown,
+  Upload,
 } from "lucide-react";
+import MultiFileUploadModal from "@/components/admin/MultiFileUploadModal";
 
 interface Dekont {
   id: string;
@@ -61,6 +63,12 @@ const formatDate = (dateString: string | null | undefined): string => {
 const formatCurrency = (amount: number | null | undefined): string => {
   if (amount === null || amount === undefined || isNaN(amount)) return "-";
   return `₺${amount.toLocaleString("tr-TR")}`;
+};
+
+// Parantez içindeki bilgileri kaldıran fonksiyon
+const removeParentheses = (text: string): string => {
+  if (!text) return text;
+  return text.replace(/\s*\([^)]*\)/g, "").trim();
 };
 
 // Dosya tipini kontrol eden fonksiyonlar
@@ -167,6 +175,7 @@ export default function ClientDekontlarPage() {
   const [warningMessage, setWarningMessage] = useState("");
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [totalStudentsCount, setTotalStudentsCount] = useState(0);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   // Memoized fetch function - prevents re-creation on every render
   const fetchDekontlar = useCallback(async () => {
@@ -652,8 +661,17 @@ export default function ClientDekontlarPage() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-900">Dekont Yönetimi</h1>
-          <div className="text-sm text-gray-600">
-            Toplam: {filteredDekontlar.length} dekont
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Dosya Yükle
+            </button>
+            <div className="text-sm text-gray-600">
+              Toplam: {filteredDekontlar.length} dekont
+            </div>
           </div>
         </div>
 
@@ -938,6 +956,9 @@ export default function ClientDekontlarPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Tarih
                   </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Önizle
+                  </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     İşlemler
                   </th>
@@ -1012,13 +1033,49 @@ export default function ClientDekontlarPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {dekont.yukleyen_kisi}
+                        {removeParentheses(dekont.yukleyen_kisi)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
                         {formatDate(dekont.created_at)}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      {/* Önizleme Butonu */}
+                      {dekont.dosya_url && dekont.dosya_url.trim() !== "" ? (
+                        <button
+                          onClick={() =>
+                            handleFileAction(
+                              dekont.dosya_url!,
+                              `dekont-${dekont.ogrenci_ad.replace(
+                                /\s+/g,
+                                "_"
+                              )}-${MONTHS[dekont.ay - 1]}-${
+                                dekont.yil
+                              }.${getFileExtFromUrl(dekont.dosya_url!)}`
+                            )
+                          }
+                          className="flex items-center justify-center w-8 h-8 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full transition-colors"
+                          title={
+                            isPreviewableFile(dekont.dosya_url!)
+                              ? isImageFile(dekont.dosya_url!)
+                                ? "Resmi Görüntüle"
+                                : "PDF Önizle"
+                              : "Dosyayı İndir"
+                          }
+                        >
+                          {isPreviewableFile(dekont.dosya_url!) ? (
+                            <Eye className="h-5 w-5" />
+                          ) : (
+                            <Download className="h-5 w-5" />
+                          )}
+                        </button>
+                      ) : (
+                        <div className="flex items-center justify-center w-8 h-8 text-gray-300">
+                          <Eye className="h-5 w-5" />
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium overflow-visible relative">
                       <div className="flex items-center justify-end gap-3">
@@ -1066,52 +1123,6 @@ export default function ClientDekontlarPage() {
                                 }}
                               >
                                 <div className="py-1">
-                                  {/* Dosya İşlemleri */}
-                                  {dekont.dosya_url &&
-                                  dekont.dosya_url.trim() !== "" ? (
-                                    <>
-                                      <button
-                                        onClick={() => {
-                                          handleFileAction(
-                                            dekont.dosya_url!,
-                                            `dekont-${dekont.ogrenci_ad.replace(
-                                              /\s+/g,
-                                              "_"
-                                            )}-${MONTHS[dekont.ay - 1]}-${
-                                              dekont.yil
-                                            }.${getFileExtFromUrl(
-                                              dekont.dosya_url!
-                                            )}`
-                                          );
-                                          closeDropdown();
-                                        }}
-                                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                      >
-                                        {isPreviewableFile(
-                                          dekont.dosya_url!
-                                        ) ? (
-                                          <Eye className="h-4 w-4 mr-3" />
-                                        ) : (
-                                          <Download className="h-4 w-4 mr-3" />
-                                        )}
-                                        {isPreviewableFile(dekont.dosya_url!)
-                                          ? isImageFile(dekont.dosya_url!)
-                                            ? "Resmi Görüntüle"
-                                            : "PDF Önizle"
-                                          : "Dosyayı İndir"}
-                                      </button>
-
-                                      <div className="border-t border-gray-100 my-1"></div>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <div className="px-4 py-2 text-sm text-gray-400">
-                                        Dosya bulunamadı
-                                      </div>
-                                      <div className="border-t border-gray-100 my-1"></div>
-                                    </>
-                                  )}
-
                                   {/* Onay İşlemleri */}
                                   {dekont.onay_durumu === "bekliyor" && (
                                     <>
@@ -1286,47 +1297,6 @@ export default function ClientDekontlarPage() {
                         />
                         <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-20">
                           <div className="py-1">
-                            {/* Dosya İşlemleri */}
-                            {dekont.dosya_url &&
-                            dekont.dosya_url.trim() !== "" ? (
-                              <>
-                                <button
-                                  onClick={() => {
-                                    handleFileAction(
-                                      dekont.dosya_url!,
-                                      `dekont-${dekont.ogrenci_ad.replace(
-                                        /\s+/g,
-                                        "_"
-                                      )}-${MONTHS[dekont.ay - 1]}-${
-                                        dekont.yil
-                                      }.${getFileExtFromUrl(dekont.dosya_url!)}`
-                                    );
-                                    closeDropdown();
-                                  }}
-                                  className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                >
-                                  {isPreviewableFile(dekont.dosya_url!) ? (
-                                    <Eye className="h-4 w-4 mr-3" />
-                                  ) : (
-                                    <Download className="h-4 w-4 mr-3" />
-                                  )}
-                                  {isPreviewableFile(dekont.dosya_url!)
-                                    ? isImageFile(dekont.dosya_url!)
-                                      ? "Resmi Görüntüle"
-                                      : "PDF Önizle"
-                                    : "Dosyayı İndir"}
-                                </button>
-                                <div className="border-t border-gray-100 my-1"></div>
-                              </>
-                            ) : (
-                              <>
-                                <div className="px-4 py-2 text-sm text-gray-400">
-                                  Dosya bulunamadı
-                                </div>
-                                <div className="border-t border-gray-100 my-1"></div>
-                              </>
-                            )}
-
                             {/* Onay İşlemleri */}
                             {dekont.onay_durumu === "bekliyor" && (
                               <>
@@ -1399,7 +1369,7 @@ export default function ClientDekontlarPage() {
                   </div>
 
                   <div className="text-xs text-gray-500">
-                    Yükleyen: {dekont.yukleyen_kisi}
+                    Yükleyen: {removeParentheses(dekont.yukleyen_kisi)}
                   </div>
                   <div className="text-xs text-gray-500">
                     Tarih: {formatDate(dekont.created_at)}
@@ -1761,6 +1731,16 @@ export default function ClientDekontlarPage() {
             </div>
           </div>
         )}
+
+        {/* Multi File Upload Modal */}
+        <MultiFileUploadModal
+          isOpen={showUploadModal}
+          onClose={() => setShowUploadModal(false)}
+          onUploadComplete={() => {
+            setShowUploadModal(false);
+            fetchDekontlar(); // Refresh the list
+          }}
+        />
       </div>
     </Suspense>
   );

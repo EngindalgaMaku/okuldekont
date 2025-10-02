@@ -265,6 +265,7 @@ model Dekont {
   paymentDate       DateTime
   month             Int
   year              Int
+  sequenceNumber    Int             @default(1)
   status            DekontStatus    @default(PENDING)
   approvedBy        String?
   approvedAt        DateTime?
@@ -289,6 +290,7 @@ model Dekont {
   student           Student         @relation(fields: [studentId], references: [id])
   teacher           TeacherProfile? @relation(fields: [teacherId], references: [id])
 
+  @@unique([stajId, month, year, sequenceNumber])
   @@index([companyId], map: "dekonts_companyId_fkey")
   @@index([stajId], map: "dekonts_stajId_fkey")
   @@index([studentId], map: "dekonts_studentId_fkey")

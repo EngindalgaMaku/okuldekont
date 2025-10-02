@@ -114,6 +114,27 @@ export async function GET(request: Request) {
       // Type assertion for new analysis fields until Prisma client is fully regenerated
       const dekontWithAnalysis = dekont as any;
 
+      const sequenceNumber = dekontWithAnalysis.sequenceNumber || 1;
+      const monthNames = [
+        "Ocak",
+        "Şubat",
+        "Mart",
+        "Nisan",
+        "Mayıs",
+        "Haziran",
+        "Temmuz",
+        "Ağustos",
+        "Eylül",
+        "Ekim",
+        "Kasım",
+        "Aralık",
+      ];
+      const monthName = monthNames[dekont.month - 1] || dekont.month;
+      const dekontLabel =
+        sequenceNumber > 1
+          ? `${monthName} ${dekont.year} - ${sequenceNumber}`
+          : `${monthName} ${dekont.year}`;
+
       return {
         id: dekont.id,
         isletme_ad:
@@ -136,6 +157,8 @@ export async function GET(request: Request) {
         onay_durumu: statusMapping[dekont.status] || dekont.status,
         ay: dekont.month,
         yil: dekont.year,
+        sequence_number: sequenceNumber,
+        dekont_label: dekontLabel,
         dosya_url: dekont.fileUrl,
         aciklama: dekont.rejectReason,
         red_nedeni: dekont.rejectReason,
@@ -476,6 +499,34 @@ export async function POST(request: Request) {
       },
     });
 
+    // Business rule: Maximum 3 dekonts per month
+    if (mevcutDekontlar.length >= 3) {
+      const ayAdi = [
+        "Ocak",
+        "Şubat",
+        "Mart",
+        "Nisan",
+        "Mayıs",
+        "Haziran",
+        "Temmuz",
+        "Ağustos",
+        "Eylül",
+        "Ekim",
+        "Kasım",
+        "Aralık",
+      ];
+      return NextResponse.json(
+        {
+          error: `${
+            ayAdi[ayNum - 1]
+          } ${yilNum} ayı için maksimum 3 dekont yüklenebilir. Şu anda ${
+            mevcutDekontlar.length
+          } dekont mevcut.`,
+        },
+        { status: 400 }
+      );
+    }
+
     // Onaylanmış dekont varsa yükleme yapılamaz
     const onaylanmisDekont = mevcutDekontlar.find(
       (d) => d.status === "APPROVED"
@@ -505,6 +556,14 @@ export async function POST(request: Request) {
       );
     }
 
+    // Calculate next sequence number
+    const nextSequenceNumber =
+      mevcutDekontlar.length > 0
+        ? Math.max(
+            ...mevcutDekontlar.map((d) => (d as any).sequenceNumber || 1)
+          ) + 1
+        : 1;
+
     // Beklemede dekont varsa ek dekont uyarısı ver
     const beklemedeDekont = mevcutDekontlar.find((d) => d.status === "PENDING");
     if (beklemedeDekont) {
@@ -529,6 +588,7 @@ export async function POST(request: Request) {
           } ${yilNum} ayı için zaten dekont var. Yükleyeceğiniz dekont ek dekont olarak eklenecektir.`,
           isEkDekont: true,
           mevcutDekontSayisi: mevcutDekontlar.length,
+          nextSequenceNumber: nextSequenceNumber,
         },
         { status: 409 }
       );
@@ -724,6 +784,7 @@ export async function POST(request: Request) {
       paymentDate: new Date(),
       month: ay ? ay : new Date().getMonth() + 1,
       year: yil ? yil : new Date().getFullYear(),
+      sequenceNumber: nextSequenceNumber,
       status: "PENDING" as const,
       fileUrl: fileUrl,
     };
@@ -731,7 +792,7 @@ export async function POST(request: Request) {
     console.log("Final dekont data:", createDekontData);
 
     const data = await prisma.dekont.create({
-      data: createDekontData,
+      data: createDekontData as any, // Type assertion until Prisma client is regenerated
       include: {
         staj: {
           include: {

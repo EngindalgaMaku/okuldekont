@@ -94,42 +94,67 @@ export async function GET(
       },
     });
 
-    const transformedDekontlar = dekontlar.map((dekont: any) => ({
-      id: dekont.id,
-      companyId: dekont.companyId,
-      staj_id: dekont.stajId,
-      ay: dekont.month,
-      yil: dekont.year,
-      miktar: dekont.amount
-        ? parseFloat(decryptFinancialData(dekont.amount.toString()))
-        : null,
-      aciklama: `${dekont.student.name} ${dekont.student.surname} - ${dekont.month}/${dekont.year}`,
-      dosya_url: dekont.fileUrl,
-      onay_durumu:
-        dekont.status === "APPROVED"
-          ? "onaylandi"
-          : dekont.status === "REJECTED"
-          ? "reddedildi"
-          : "bekliyor",
-      red_nedeni: dekont.rejectReason,
-      yukleyen_kisi: dekont.company?.contact
-        ? `${dekont.company.contact} (İşletme)`
-        : "İşletme",
-      odeme_tarihi: dekont.paymentDate.toISOString(),
-      created_at: dekont.createdAt || new Date().toISOString(),
-      // Nested relations for compatibility
-      stajlar: {
-        ogrenciler: {
-          ad: dekont.student.name || "",
-          soyad: dekont.student.surname || "",
-          sinif: dekont.student.className || "",
-          no: dekont.student.number || "",
-          alanlar: dekont.student.alan
-            ? { ad: dekont.student.alan.name }
-            : { ad: "" },
+    const transformedDekontlar = dekontlar.map((dekont: any) => {
+      const sequenceNumber = dekont.sequenceNumber || 1;
+      const monthNames = [
+        "Ocak",
+        "Şubat",
+        "Mart",
+        "Nisan",
+        "Mayıs",
+        "Haziran",
+        "Temmuz",
+        "Ağustos",
+        "Eylül",
+        "Ekim",
+        "Kasım",
+        "Aralık",
+      ];
+      const monthName = monthNames[dekont.month - 1] || dekont.month;
+      const dekontLabel =
+        sequenceNumber > 1
+          ? `${monthName} ${dekont.year} - ${sequenceNumber}`
+          : `${monthName} ${dekont.year}`;
+
+      return {
+        id: dekont.id,
+        companyId: dekont.companyId,
+        staj_id: dekont.stajId,
+        ay: dekont.month,
+        yil: dekont.year,
+        sequence_number: sequenceNumber,
+        dekont_label: dekontLabel,
+        miktar: dekont.amount
+          ? parseFloat(decryptFinancialData(dekont.amount.toString()))
+          : null,
+        aciklama: `${dekont.student.name} ${dekont.student.surname} - ${dekontLabel}`,
+        dosya_url: dekont.fileUrl,
+        onay_durumu:
+          dekont.status === "APPROVED"
+            ? "onaylandi"
+            : dekont.status === "REJECTED"
+            ? "reddedildi"
+            : "bekliyor",
+        red_nedeni: dekont.rejectReason,
+        yukleyen_kisi: dekont.company?.contact
+          ? `${dekont.company.contact} (İşletme)`
+          : "İşletme",
+        odeme_tarihi: dekont.paymentDate.toISOString(),
+        created_at: dekont.createdAt || new Date().toISOString(),
+        // Nested relations for compatibility
+        stajlar: {
+          ogrenciler: {
+            ad: dekont.student.name || "",
+            soyad: dekont.student.surname || "",
+            sinif: dekont.student.className || "",
+            no: dekont.student.number || "",
+            alanlar: dekont.student.alan
+              ? { ad: dekont.student.alan.name }
+              : { ad: "" },
+          },
         },
-      },
-    }));
+      };
+    });
 
     const response = NextResponse.json(transformedDekontlar);
 
@@ -283,6 +308,54 @@ export async function POST(
       );
     }
 
+    // Check for existing dekontlar for this month to handle additional dekontlar and sequence numbering
+    const existingDekontlar = await prisma.dekont.findMany({
+      where: {
+        stajId: stajId,
+        month: ay,
+        year: yil,
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
+
+    // Business rule: Maximum 3 dekonts per month
+    if (existingDekontlar.length >= 3) {
+      const monthNames = [
+        "Ocak",
+        "Şubat",
+        "Mart",
+        "Nisan",
+        "Mayıs",
+        "Haziran",
+        "Temmuz",
+        "Ağustos",
+        "Eylül",
+        "Ekim",
+        "Kasım",
+        "Aralık",
+      ];
+      return NextResponse.json(
+        {
+          error: `${
+            monthNames[ay - 1]
+          } ${yil} ayı için maksimum 3 dekont yüklenebilir. Şu anda ${
+            existingDekontlar.length
+          } dekont mevcut.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Calculate next sequence number
+    const nextSequenceNumber =
+      existingDekontlar.length > 0
+        ? Math.max(
+            ...existingDekontlar.map((d) => (d as any).sequenceNumber || 1)
+          ) + 1
+        : 1;
+
     // Handle file upload to local storage with SECURITY SCANNING
     let fileUrl = null;
     if (dosya && dosya.size > 0) {
@@ -346,15 +419,6 @@ export async function POST(
         const uploadDir = path.join(process.cwd(), "uploads", "dekontlar");
         await mkdir(uploadDir, { recursive: true });
         console.log("📁 Upload dizini oluşturuldu:", uploadDir);
-
-        // Check for existing dekontlar for this month to handle additional dekontlar
-        const existingDekontlar = await prisma.dekont.findMany({
-          where: {
-            stajId: stajId,
-            month: ay,
-            year: yil,
-          },
-        });
 
         // Generate SECURE filename with hash but preserve extension
         const originalExtension =
@@ -472,11 +536,12 @@ export async function POST(
         // Don't connect teacher for company uploads (teacherId will be null)
         month: ay,
         year: yil,
+        sequenceNumber: nextSequenceNumber,
         amount: encryptedAmount,
         fileUrl: fileUrl,
         status: "PENDING",
         paymentDate: new Date(),
-      },
+      } as any, // Type assertion until Prisma client is regenerated
     });
 
     // Student info is already available from staj relation
@@ -585,7 +650,10 @@ export async function DELETE(
     if (dekont.fileUrl) {
       try {
         const fs = require("fs").promises;
-        const filePath = path.join(process.cwd(), "public", dekont.fileUrl);
+        const filePath = path.join(
+          process.cwd(),
+          dekont.fileUrl.replace(/^\//, "")
+        );
 
         // Check if file exists before attempting to delete
         try {
