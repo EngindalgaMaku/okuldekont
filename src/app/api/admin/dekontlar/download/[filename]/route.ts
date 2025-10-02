@@ -29,8 +29,8 @@ export async function GET(
       return NextResponse.json({ error: "Invalid filename" }, { status: 400 });
     }
 
-    // Dosya yolu - uploads dizini root seviyede
-    const filePath = join("/uploads", "dekontlar", filename);
+    // Dosya yolu - uploads dizini project root'a göre
+    const filePath = join(process.cwd(), "uploads", "dekontlar", filename);
 
     // Dosya varlığı kontrolü
     if (!existsSync(filePath)) {
@@ -72,13 +72,17 @@ export async function GET(
           break;
       }
 
+      // Check if this is for inline preview or download
+      const url = new URL(request.url);
+      const inline = url.searchParams.get("inline") === "true";
+
       // Response oluştur
       return new Response(new Uint8Array(fileBuffer), {
         headers: {
           "Content-Type": contentType,
-          "Content-Disposition": `attachment; filename="${encodeURIComponent(
-            filename
-          )}"`,
+          "Content-Disposition": inline
+            ? `inline; filename="${encodeURIComponent(filename)}"`
+            : `attachment; filename="${encodeURIComponent(filename)}"`,
           "Cache-Control": "no-cache, no-store, must-revalidate",
           Pragma: "no-cache",
           Expires: "0",

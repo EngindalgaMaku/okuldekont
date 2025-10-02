@@ -343,7 +343,7 @@ export async function POST(
         console.log("✅ FILE SECURITY: Dekont file passed security scan");
 
         // Create uploads directory if it doesn't exist
-        const uploadDir = path.join("/uploads", "dekontlar");
+        const uploadDir = path.join(process.cwd(), "uploads", "dekontlar");
         await mkdir(uploadDir, { recursive: true });
         console.log("📁 Upload dizini oluşturuldu:", uploadDir);
 

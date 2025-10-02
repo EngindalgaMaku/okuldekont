@@ -239,7 +239,7 @@ export async function POST(
 
       try {
         // Create uploads directory if it doesn't exist
-        const uploadDir = path.join("/uploads", "dekontlar");
+        const uploadDir = path.join(process.cwd(), "uploads", "dekontlar");
         await mkdir(uploadDir, { recursive: true });
 
         // Check for existing dekontlar for this month to handle additional dekontlar

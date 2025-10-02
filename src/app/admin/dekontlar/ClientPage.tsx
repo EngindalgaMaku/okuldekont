@@ -529,7 +529,14 @@ export default function ClientDekontlarPage() {
 
   // Resim modalını açma fonksiyonu
   const openImageModal = useCallback((fileUrl: string, filename: string) => {
-    setSelectedImageUrl(fileUrl);
+    // Dosya URL'inden dosya adını çıkar ve download API'sini kullan
+    const urlParts = fileUrl.split("/");
+    const actualFilename = urlParts[urlParts.length - 1];
+    const downloadUrl = `/api/admin/dekontlar/download/${encodeURIComponent(
+      actualFilename
+    )}?inline=true`;
+
+    setSelectedImageUrl(downloadUrl);
     setSelectedImageName(filename);
     setShowImageModal(true);
   }, []);
