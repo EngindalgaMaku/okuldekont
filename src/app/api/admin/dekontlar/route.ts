@@ -383,6 +383,15 @@ export async function POST(request: Request) {
     const ayNum = ay ? ay : new Date().getMonth() + 1;
     const yilNum = yil ? yil : new Date().getFullYear();
 
+    console.log("🔍 DEBUG: Dekont POST received", {
+      forceAdditional,
+      stajId,
+      teacherId: ogretmenId,
+      ayNum,
+      yilNum,
+      role: authResult.user?.role,
+    });
+
     // Tarih validasyonu 1: Ayın son günü veya sonrasında o ayın dekontunu yükleyebilir
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
@@ -512,8 +521,19 @@ export async function POST(request: Request) {
       },
     });
 
+    console.log("🔍 DEBUG: Existing dekontlar fetched", {
+      count: mevcutDekontlar.length,
+      statuses: mevcutDekontlar.map((d) => d.status),
+    });
+
     // Business rule: Maximum 3 dekonts per month
     if (mevcutDekontlar.length >= 3) {
+      console.warn("⛔ RULE: Max 3 dekont per month reached", {
+        studentId: uploadStaj.studentId,
+        ayNum,
+        yilNum,
+        existingCount: mevcutDekontlar.length,
+      });
       const ayAdi = [
         "Ocak",
         "Şubat",
@@ -545,6 +565,12 @@ export async function POST(request: Request) {
       (d) => d.status === "APPROVED"
     );
     if (onaylanmisDekont) {
+      console.warn("⛔ RULE: Approved dekont exists for month, blocking upload", {
+        studentId: uploadStaj.studentId,
+        ayNum,
+        yilNum,
+        approvedDekontId: onaylanmisDekont.id,
+      });
       const ayAdi = [
         "Ocak",
         "Şubat",
@@ -577,9 +603,14 @@ export async function POST(request: Request) {
           ) + 1
         : 1;
 
-    // Beklemede dekont varsa ek dekont uyarısı ver (forceAdditional yoksa)
+    // Beklemede dekont varsa: TEACHER için otomatik ek dekont oluştur (409 verme).
+    // ADMIN veya diğer roller için (veya forceAdditional yoksa) 409 uyarısı döndür.
     const beklemedeDekont = mevcutDekontlar.find((d) => d.status === "PENDING");
-    if (beklemedeDekont && !forceAdditional) {
+    if (
+      beklemedeDekont &&
+      authResult.user?.role !== "TEACHER" &&
+      !forceAdditional
+    ) {
       const ayAdi = [
         "Ocak",
         "Şubat",
@@ -594,6 +625,13 @@ export async function POST(request: Request) {
         "Kasım",
         "Aralık",
       ];
+      console.warn("⚠️ WARNING: Pending dekont exists, returning 409 warning", {
+        studentId: uploadStaj.studentId,
+        ayNum,
+        yilNum,
+        existingCount: mevcutDekontlar.length,
+        nextSequenceNumber,
+      });
       return NextResponse.json(
         {
           warning: `${
@@ -605,6 +643,16 @@ export async function POST(request: Request) {
         },
         { status: 409 }
       );
+    }
+
+    if (beklemedeDekont && forceAdditional) {
+      console.log("✅ DEBUG: forceAdditional=true, bypassing 409 and proceeding to create ek dekont", {
+        studentId: uploadStaj.studentId,
+        ayNum,
+        yilNum,
+        existingCount: mevcutDekontlar.length,
+        nextSequenceNumber,
+      });
     }
 
     const isEkDekont = false;
@@ -720,28 +768,22 @@ export async function POST(request: Request) {
         },
       });
 
-      // Generate meaningful filename for reference with correct extension (same as company panel)
+      // Generate meaningful, safe filename with underscore and _ekN suffix
       const dekontNamingData: DekontNamingData = {
         studentName: fullStudent?.name || uploadStaj.student.name,
         studentSurname: fullStudent?.surname || uploadStaj.student.surname,
         studentClass:
-          fullStudent?.className ||
-          uploadStaj.student.className ||
-          "Bilinmeyen",
-        studentNumber:
-          fullStudent?.number || uploadStaj.student.number || undefined,
+          fullStudent?.className || uploadStaj.student.className || "Bilinmeyen",
+        studentNumber: fullStudent?.number || uploadStaj.student.number || undefined,
         fieldName:
-          fullStudent?.alan?.name ||
-          uploadStaj.student.alan?.name ||
-          "Bilinmeyen",
+          fullStudent?.alan?.name || uploadStaj.student.alan?.name || "Bilinmeyen",
         companyName: uploadStaj.company.name,
         month: ay,
         year: yil,
-        originalFileName: dosya.name, // Use original filename to preserve extension
+        originalFileName: dosya.name, // preserve extension
         isAdditional: existingDekontlar.length > 0,
         additionalIndex: existingDekontlar.length + 1,
       };
-
       const fileName = generateDekontFileName(dekontNamingData);
       const filePath = join(uploadDir, fileName);
 
@@ -804,6 +846,7 @@ export async function POST(request: Request) {
 
     console.log("Final dekont data:", createDekontData);
 
+    console.log("🛠️ DEBUG: Creating dekont via prisma", createDekontData);
     const data = await prisma.dekont.create({
       data: createDekontData as any, // Type assertion until Prisma client is regenerated
       include: {

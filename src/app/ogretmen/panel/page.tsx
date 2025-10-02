@@ -2558,33 +2558,21 @@ const TeacherPanel = () => {
                                                         <div className="flex items-center gap-2">
                                                           <span
                                                             className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                              getDurum(
-                                                                dekont.onay_durumu
-                                                              ).bg
+                                                              getDurum(dekont.onay_durumu).bg
                                                             } ${
-                                                              getDurum(
-                                                                dekont.onay_durumu
-                                                              ).color
+                                                              getDurum(dekont.onay_durumu).color
                                                             }`}
                                                           >
-                                                            {
-                                                              getDurum(
-                                                                dekont.onay_durumu
-                                                              ).text
-                                                            }
+                                                            {getDurum(dekont.onay_durumu).text}
                                                           </span>
                                                           <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-bold border border-indigo-200">
-                                                            {
-                                                              aylar[
-                                                                dekont.ay - 1
-                                                              ]
-                                                            }{" "}
-                                                            {dekont.yil}
+                                                            {dekont.sequence_number && dekont.sequence_number > 1
+                                                              ? `${aylar[dekont.ay - 1]} ${dekont.yil} - ek${dekont.sequence_number - 1}`
+                                                              : `${aylar[dekont.ay - 1]} ${dekont.yil}`}
                                                           </span>
                                                           {dekont.koordinatorluk_donemi && (
                                                             <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs font-medium">
-                                                              Eski
-                                                              Koordinatörlük
+                                                              Eski Koordinatörlük
                                                             </span>
                                                           )}
                                                         </div>
