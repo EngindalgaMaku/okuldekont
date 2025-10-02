@@ -151,9 +151,9 @@ export default function DekontReportsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b">
+        <div className="flex justify-between items-center p-6 border-b flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900">
             Dekont Yükleme Raporu
           </h2>
@@ -166,7 +166,7 @@ export default function DekontReportsModal({
           </button>
         </div>
 
-        <div className="p-6">
+        <div className="p-6 flex-1 overflow-y-auto">
           {/* Filter Section */}
           <div className="flex items-center gap-4 mb-6">
             <div className="flex items-center gap-2">
@@ -310,7 +310,7 @@ export default function DekontReportsModal({
                   </h3>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-h-96 overflow-y-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
@@ -342,7 +342,16 @@ export default function DekontReportsModal({
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {reportData.teacherReports.map((teacher, index) => (
-                        <tr key={index} className="hover:bg-gray-50">
+                        <tr
+                          key={index}
+                          className={`${
+                            teacher.uploadRate === 100
+                              ? "bg-green-50 hover:bg-green-100 border-l-4 border-l-green-500"
+                              : teacher.uploadRate >= 80
+                              ? "bg-blue-50 hover:bg-blue-100"
+                              : "hover:bg-gray-50"
+                          }`}
+                        >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
                               {teacher.teacherName}
