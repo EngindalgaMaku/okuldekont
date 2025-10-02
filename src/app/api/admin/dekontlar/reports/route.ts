@@ -116,20 +116,12 @@ export async function GET(request: Request) {
       },
     });
 
-    // Get all internships (stajlar) for this period to include students without dekonts
+    // Get all internships (stajlar) - aligned with main dekont page logic
     const allInternships = await prisma.staj.findMany({
       where: {
         archived: false,
-        OR: [
-          {
-            startDate: {
-              lte: new Date(yearInt, monthInt, 0), // End of the month
-            },
-            endDate: {
-              gte: new Date(yearInt, monthInt - 1, 1), // Start of the month
-            },
-          },
-        ],
+        // Include all active internships, not just those active in the selected month
+        // This ensures consistency with the main dekont page count
       },
       include: {
         student: {
