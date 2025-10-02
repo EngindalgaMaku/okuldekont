@@ -25,7 +25,10 @@ import {
   Upload,
   Archive,
   FileText,
+  Edit3,
+  Save,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
 import MultiFileUploadModal from "@/components/admin/MultiFileUploadModal";
 import ZipDownloadModal from "@/components/admin/ZipDownloadModal";
 import DekontReportsModal from "@/components/admin/DekontReportsModal";
@@ -66,7 +69,7 @@ const formatDate = (dateString: string | null | undefined): string => {
 // Güvenli para formatlaması
 const formatCurrency = (amount: number | null | undefined): string => {
   if (amount === null || amount === undefined || isNaN(amount)) return "-";
-  return `₺${amount.toLocaleString("tr-TR")}`;
+  return `${amount.toLocaleString("tr-TR")} ₺`;
 };
 
 // Parantez içindeki bilgileri kaldıran fonksiyon
@@ -182,6 +185,11 @@ export default function ClientDekontlarPage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showZipModal, setShowZipModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
+
+  // Quick amount update states
+  const [editingAmountId, setEditingAmountId] = useState<string | null>(null);
+  const [editingAmount, setEditingAmount] = useState<string>("");
+  const [updatingAmountId, setUpdatingAmountId] = useState<string | null>(null);
 
   // Memoized fetch function - prevents re-creation on every render
   const fetchDekontlar = useCallback(async () => {
@@ -495,6 +503,82 @@ export default function ClientDekontlarPage() {
       }
     },
     [fetchDekontlar]
+  );
+
+  // Quick amount update handlers
+  const handleStartAmountEdit = useCallback((dekont: Dekont) => {
+    setEditingAmountId(dekont.id);
+    setEditingAmount(dekont.miktar?.toString() || "");
+  }, []);
+
+  const handleCancelAmountEdit = useCallback(() => {
+    setEditingAmountId(null);
+    setEditingAmount("");
+  }, []);
+
+  const handleSaveAmountEdit = useCallback(
+    async (dekontId: string) => {
+      if (updatingAmountId) return; // Prevent double submissions
+
+      const numericAmount = parseFloat(editingAmount);
+      if (editingAmount !== "" && (isNaN(numericAmount) || numericAmount < 0)) {
+        toast.error("Geçerli bir tutar giriniz");
+        return;
+      }
+
+      setUpdatingAmountId(dekontId);
+      try {
+        const response = await fetch(
+          `/api/admin/dekontlar/${dekontId}/update-amount`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              amount: editingAmount === "" ? null : numericAmount,
+            }),
+          }
+        );
+
+        if (response.ok) {
+          const result = await response.json();
+          toast.success("Tutar başarıyla güncellendi");
+
+          // Update the local state
+          setDekontlar((prev) =>
+            prev.map((d) =>
+              d.id === dekontId ? { ...d, miktar: result.amount } : d
+            )
+          );
+
+          setEditingAmountId(null);
+          setEditingAmount("");
+        } else {
+          const errorData = await response.json();
+          toast.error(errorData.error || "Tutar güncellenirken hata oluştu");
+        }
+      } catch (error) {
+        console.error("Amount update error:", error);
+        toast.error("Tutar güncellenirken hata oluştu");
+      } finally {
+        setUpdatingAmountId(null);
+      }
+    },
+    [editingAmount, updatingAmountId]
+  );
+
+  const handleAmountKeyDown = useCallback(
+    (e: React.KeyboardEvent, dekontId: string) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleSaveAmountEdit(dekontId);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        handleCancelAmountEdit();
+      }
+    },
+    [handleSaveAmountEdit, handleCancelAmountEdit]
   );
 
   // Memoized modal handlers
@@ -1029,8 +1113,59 @@ export default function ClientDekontlarPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {formatCurrency(dekont.miktar)}
+                      <div className="flex items-center space-x-2">
+                        {editingAmountId === dekont.id ? (
+                          // Inline editing mode
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="number"
+                              value={editingAmount}
+                              onChange={(e) => setEditingAmount(e.target.value)}
+                              onKeyDown={(e) =>
+                                handleAmountKeyDown(e, dekont.id)
+                              }
+                              className="w-24 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Tutar"
+                              min="0"
+                              step="0.01"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleSaveAmountEdit(dekont.id)}
+                              disabled={updatingAmountId === dekont.id}
+                              className="flex items-center justify-center w-6 h-6 text-green-600 hover:text-green-800 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+                              title="Kaydet"
+                            >
+                              {updatingAmountId === dekont.id ? (
+                                <Loader className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Save className="h-4 w-4" />
+                              )}
+                            </button>
+                            <button
+                              onClick={handleCancelAmountEdit}
+                              disabled={updatingAmountId === dekont.id}
+                              className="flex items-center justify-center w-6 h-6 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                              title="İptal"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          // Display mode with edit button
+                          <div className="flex items-center space-x-2 group">
+                            <span className="text-sm text-gray-900">
+                              {formatCurrency(dekont.miktar)}
+                            </span>
+                            <button
+                              onClick={() => handleStartAmountEdit(dekont)}
+                              className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-6 h-6 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-all"
+                              title="Tutarı Düzenle"
+                            >
+                              <Edit3 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -1304,8 +1439,60 @@ export default function ClientDekontlarPage() {
                       <div className="text-sm font-medium text-gray-900">
                         {MONTHS[dekont.ay - 1]} {dekont.yil}
                       </div>
-                      <div className="text-sm text-gray-900">
-                        {formatCurrency(dekont.miktar)}
+                      {/* Mobile inline editing for amount */}
+                      <div className="flex items-center space-x-2">
+                        {editingAmountId === dekont.id ? (
+                          // Mobile inline editing mode
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="number"
+                              value={editingAmount}
+                              onChange={(e) => setEditingAmount(e.target.value)}
+                              onKeyDown={(e) =>
+                                handleAmountKeyDown(e, dekont.id)
+                              }
+                              className="w-20 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Tutar"
+                              min="0"
+                              step="0.01"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleSaveAmountEdit(dekont.id)}
+                              disabled={updatingAmountId === dekont.id}
+                              className="flex items-center justify-center w-5 h-5 text-green-600 hover:text-green-800 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+                              title="Kaydet"
+                            >
+                              {updatingAmountId === dekont.id ? (
+                                <Loader className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Save className="h-3 w-3" />
+                              )}
+                            </button>
+                            <button
+                              onClick={handleCancelAmountEdit}
+                              disabled={updatingAmountId === dekont.id}
+                              className="flex items-center justify-center w-5 h-5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                              title="İptal"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          // Mobile display mode with edit button
+                          <div className="flex items-center space-x-2 group">
+                            <span className="text-sm text-gray-900">
+                              {formatCurrency(dekont.miktar)}
+                            </span>
+                            <button
+                              onClick={() => handleStartAmountEdit(dekont)}
+                              className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-all"
+                              title="Tutarı Düzenle"
+                            >
+                              <Edit3 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div>
