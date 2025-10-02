@@ -1,104 +1,114 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { Key, Eye, EyeOff, X } from 'lucide-react'
-import { toast } from 'react-hot-toast'
+import { useState, useEffect } from "react";
+import { Key, Eye, EyeOff, X } from "lucide-react";
+import { toast } from "react-hot-toast";
 
 interface Props {
-  companyId: string
-  companyName: string
-  isOpen: boolean
-  onClose: () => void
-  onSuccess: () => void
+  companyId: string;
+  companyName: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
 }
 
-export default function CompanyQuickPinModal({ companyId, companyName, isOpen, onClose, onSuccess }: Props) {
-  const [pin, setPin] = useState('')
-  const [confirmPin, setConfirmPin] = useState('')
-  const [showPin, setShowPin] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [currentPin, setCurrentPin] = useState('')
-  const [showCurrentPin, setShowCurrentPin] = useState(false)
+export default function CompanyQuickPinModal({
+  companyId,
+  companyName,
+  isOpen,
+  onClose,
+  onSuccess,
+}: Props) {
+  const [pin, setPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [showPin, setShowPin] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [currentPin, setCurrentPin] = useState("");
+  const [showCurrentPin, setShowCurrentPin] = useState(false);
 
   // Fetch current PIN when modal opens
   useEffect(() => {
     const fetchCurrentPin = async () => {
       if (isOpen && companyId) {
         try {
-          const response = await fetch(`/api/admin/companies/${companyId}`)
+          const response = await fetch(`/api/admin/companies/${companyId}`);
           if (response.ok) {
-            const data = await response.json()
-            setCurrentPin(data?.pin || '')
+            const data = await response.json();
+            setCurrentPin(data?.pin || "");
           } else {
-            setCurrentPin('')
+            setCurrentPin("");
           }
         } catch (error) {
-          console.error('PIN getirme hatası:', error)
-          setCurrentPin('')
+          console.error("PIN getirme hatası:", error);
+          setCurrentPin("");
         }
       }
-    }
-    
-    fetchCurrentPin()
-  }, [isOpen, companyId])
+    };
+
+    fetchCurrentPin();
+  }, [isOpen, companyId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (loading) return
-    
+    e.preventDefault();
+
+    if (loading) return;
+
     if (!pin || pin.length !== 4) {
-      toast.error('PIN 4 haneli olmalıdır')
-      return
+      toast.error("PIN 4 haneli olmalıdır");
+      return;
     }
-    
+
     if (pin !== confirmPin) {
-      toast.error('PIN\'ler eşleşmiyor')
-      return
+      toast.error("PIN'ler eşleşmiyor");
+      return;
     }
-    
+
     try {
-      setLoading(true)
-      
+      setLoading(true);
+
       const response = await fetch(`/api/admin/companies/${companyId}/pin`, {
-        method: 'POST',
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ pin })
-      })
-      
+        body: JSON.stringify({ pin }),
+      });
+
       if (!response.ok) {
-        throw new Error('PIN atama başarısız')
+        throw new Error("PIN atama başarısız");
       }
-      
-      toast.success('PIN başarıyla atandı')
-      setPin('')
-      setConfirmPin('')
-      onClose()
-      onSuccess()
-      
+
+      toast.success("PIN başarıyla atandı");
+      setPin("");
+      setConfirmPin("");
+      onClose();
+      onSuccess();
     } catch (error: any) {
-      console.error('PIN atama hatası:', error)
-      toast.error('PIN atanırken bir hata oluştu: ' + (error.message || 'Bilinmeyen hata'))
+      console.error("PIN atama hatası:", error);
+      toast.error(
+        "PIN atanırken bir hata oluştu: " + (error.message || "Bilinmeyen hata")
+      );
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleClose = () => {
-    setPin('')
-    setConfirmPin('')
-    onClose()
-  }
+    setPin("");
+    setConfirmPin("");
+    onClose();
+  };
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-          <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={handleClose}></div>
+          <div
+            className="absolute inset-0 bg-gray-500 opacity-75"
+            onClick={handleClose}
+          ></div>
         </div>
 
         <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
@@ -124,16 +134,18 @@ export default function CompanyQuickPinModal({ companyId, companyName, isOpen, o
                   <p className="text-sm text-gray-500 mt-2">
                     <strong>{companyName}</strong> için PIN oluşturun
                   </p>
-                  
+
                   {/* Current PIN Display */}
                   <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-700">Mevcut PIN:</span>
+                      <span className="text-sm font-medium text-gray-700">
+                        Mevcut PIN:
+                      </span>
                       <button
                         type="button"
                         onClick={() => setShowCurrentPin(!showCurrentPin)}
                         className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-md transition-colors"
-                        title={showCurrentPin ? 'PIN\'i gizle' : 'PIN\'i göster'}
+                        title={showCurrentPin ? "PIN'i gizle" : "PIN'i göster"}
                       >
                         {showCurrentPin ? (
                           <EyeOff className="h-5 w-5" />
@@ -143,10 +155,10 @@ export default function CompanyQuickPinModal({ companyId, companyName, isOpen, o
                       </button>
                     </div>
                     <div className="mt-2 text-lg font-mono text-gray-900">
-                      {showCurrentPin ? (currentPin || 'PIN bulunamadı') : '****'}
+                      {showCurrentPin ? currentPin || "PIN bulunamadı" : "****"}
                     </div>
                   </div>
-                  
+
                   <div className="mt-4 space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -157,8 +169,10 @@ export default function CompanyQuickPinModal({ companyId, companyName, isOpen, o
                           type={showPin ? "text" : "password"}
                           value={pin}
                           onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, '').slice(0, 4)
-                            setPin(value)
+                            const value = e.target.value
+                              .replace(/\D/g, "")
+                              .slice(0, 4);
+                            setPin(value);
                           }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                           placeholder="1234"
@@ -186,8 +200,10 @@ export default function CompanyQuickPinModal({ companyId, companyName, isOpen, o
                         type={showPin ? "text" : "password"}
                         value={confirmPin}
                         onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '').slice(0, 4)
-                          setConfirmPin(value)
+                          const value = e.target.value
+                            .replace(/\D/g, "")
+                            .slice(0, 4);
+                          setConfirmPin(value);
                         }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                         placeholder="1234"
@@ -213,7 +229,7 @@ export default function CompanyQuickPinModal({ companyId, companyName, isOpen, o
                 ) : (
                   <Key className="h-4 w-4 mr-2" />
                 )}
-                {loading ? 'Atanıyor...' : 'PIN Ata'}
+                {loading ? "Atanıyor..." : "PIN Ata"}
               </button>
               <button
                 type="button"
@@ -227,5 +243,5 @@ export default function CompanyQuickPinModal({ companyId, companyName, isOpen, o
         </div>
       </div>
     </div>
-  )
+  );
 }
