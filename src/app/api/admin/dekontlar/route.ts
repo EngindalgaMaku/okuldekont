@@ -182,13 +182,20 @@ export async function GET(request: Request) {
       };
     });
 
-    // Staja giden toplam öğrenci sayısını hesapla (aktif yıl veya tüm yıllar)
-    const totalStudentsWithInternship = await prisma.staj.count({
+    // Staja giden benzersiz öğrenci sayısını hesapla (aktif yıl veya tüm yıllar)
+    const allInternships = await prisma.staj.findMany({
       where: {
         archived: false,
         ...(educationYearId ? { educationYearId } : {}),
       },
+      select: {
+        studentId: true,
+      },
     });
+
+    // Benzersiz öğrenci sayısını hesapla - bir öğrenci birden fazla staj yapabilir
+    const uniqueStudentIds = new Set(allInternships.map((s) => s.studentId));
+    const totalStudentsWithInternship = uniqueStudentIds.size;
 
     return NextResponse.json({
       data: formattedData,
