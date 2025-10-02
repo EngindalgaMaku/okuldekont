@@ -24,9 +24,11 @@ import {
   ChevronDown,
   Upload,
   Archive,
+  FileText,
 } from "lucide-react";
 import MultiFileUploadModal from "@/components/admin/MultiFileUploadModal";
 import ZipDownloadModal from "@/components/admin/ZipDownloadModal";
+import DekontReportsModal from "@/components/admin/DekontReportsModal";
 
 interface Dekont {
   id: string;
@@ -179,6 +181,7 @@ export default function ClientDekontlarPage() {
   const [totalStudentsCount, setTotalStudentsCount] = useState(0);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showZipModal, setShowZipModal] = useState(false);
+  const [showReportsModal, setShowReportsModal] = useState(false);
 
   // Memoized fetch function - prevents re-creation on every render
   const fetchDekontlar = useCallback(async () => {
@@ -679,6 +682,13 @@ export default function ClientDekontlarPage() {
                 title="ZIP İndir"
               >
                 <Archive className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setShowReportsModal(true)}
+                className="inline-flex items-center justify-center w-10 h-10 border border-transparent rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                title="Raporlar"
+              >
+                <FileText className="h-4 w-4" />
               </button>
             </div>
             <div className="text-sm text-gray-600">
@@ -1750,6 +1760,12 @@ export default function ClientDekontlarPage() {
             dekontlar={filteredDekontlar}
           />
         )}
+
+        {/* Reports Modal */}
+        <DekontReportsModal
+          isOpen={showReportsModal}
+          onClose={() => setShowReportsModal(false)}
+        />
       </div>
     </Suspense>
   );
