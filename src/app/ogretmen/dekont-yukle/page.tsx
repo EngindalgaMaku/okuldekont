@@ -320,6 +320,32 @@ function DekontYukleInner() {
   };
 
   const handleSubmit = async () => {
+    // Mobil için ekstra session kontrolü
+    try {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobile =
+        /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/.test(
+          userAgent
+        );
+
+      if (isMobile) {
+        const sessionCheck = await fetch("/api/auth/session", {
+          credentials: "include",
+          headers: { "Cache-Control": "no-cache" },
+        });
+        if (!sessionCheck.ok) {
+          setUploadStatus("Oturum süresi dolmuş, yeniden giriş yapılıyor...");
+          setTimeout(() => {
+            window.location.href = "/ogretmen/login";
+          }, 1500);
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn("Mobile session check failed:", error);
+      // Continue with normal flow
+    }
+
     const newErrors: {
       isletme?: string;
       ogrenci?: string;

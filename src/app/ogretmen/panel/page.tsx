@@ -28,6 +28,7 @@ import {
   Key,
   ChevronDown,
   ChevronUp,
+  Eye,
 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import DekontUploadForm from "@/components/ui/DekontUpload";
@@ -49,6 +50,7 @@ import {
   getCompanyStyles,
   handleFileDownload,
   handleFileView,
+  handleDekontPreview,
 } from "@/utils/teacher-panel-utils";
 
 import {
@@ -2407,25 +2409,40 @@ const TeacherPanel = () => {
                                                       </div>
                                                       <div className="flex items-center gap-2 self-end sm:self-auto">
                                                         {dekont.dosya_url && (
-                                                          <button
-                                                            onClick={() =>
-                                                              handleFileDownload(
-                                                                dekont.dosya_url!,
-                                                                `dekont-${
-                                                                  dekont.ogrenci_ad
-                                                                }-${
-                                                                  aylar[
-                                                                    dekont.ay -
-                                                                      1
-                                                                  ]
-                                                                }-${dekont.yil}`
-                                                              )
-                                                            }
-                                                            className="p-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                                                            title="Dekontu İndir"
-                                                          >
-                                                            <Download className="h-5 w-5" />
-                                                          </button>
+                                                          <div className="flex items-center gap-1">
+                                                            <button
+                                                              onClick={() =>
+                                                                handleDekontPreview(
+                                                                  dekont.dosya_url!
+                                                                )
+                                                              }
+                                                              className="p-2 text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                                                              title="Dekont Önizle"
+                                                            >
+                                                              <Eye className="h-5 w-5" />
+                                                            </button>
+                                                            <button
+                                                              onClick={() =>
+                                                                handleFileDownload(
+                                                                  dekont.dosya_url!,
+                                                                  `dekont-${
+                                                                    dekont.ogrenci_ad
+                                                                  }-${
+                                                                    aylar[
+                                                                      dekont.ay -
+                                                                        1
+                                                                    ]
+                                                                  }-${
+                                                                    dekont.yil
+                                                                  }`
+                                                                )
+                                                              }
+                                                              className="p-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                                                              title="Dekontu İndir"
+                                                            >
+                                                              <Download className="h-4 w-4" />
+                                                            </button>
+                                                          </div>
                                                         )}
                                                         {dekont.onay_durumu !==
                                                           "onaylandi" &&
