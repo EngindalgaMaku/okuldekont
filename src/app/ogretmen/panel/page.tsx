@@ -896,9 +896,37 @@ const TeacherPanel = () => {
       };
     } = {};
 
-    filteredDekontlar.forEach((dekont) => {
+    // 🐛 DEBUG: Log dekont grouping process
+    console.log("🔍 DEBUG: Starting dekont grouping with filteredDekontlar:", {
+      totalDekontlar: filteredDekontlar.length,
+      sampleDekont: filteredDekontlar[0]
+        ? {
+            id: filteredDekontlar[0].id,
+            ogrenci_ad: filteredDekontlar[0].ogrenci_ad,
+            ay: filteredDekontlar[0].ay,
+            yil: filteredDekontlar[0].yil,
+            sequence_number: (filteredDekontlar[0] as any).sequence_number,
+            hasSequenceNumber: !!(filteredDekontlar[0] as any).sequence_number,
+          }
+        : null,
+    });
+
+    filteredDekontlar.forEach((dekont, index) => {
       const companyKey = dekont.isletme_ad;
       const studentKey = dekont.ogrenci_ad;
+
+      // 🐛 DEBUG: Log each dekont being processed
+      if (index < 5) {
+        // Only log first 5 to avoid spam
+        console.log(`🔍 DEBUG: Processing dekont ${index + 1}:`, {
+          id: dekont.id,
+          studentKey,
+          companyKey,
+          ay: dekont.ay,
+          yil: dekont.yil,
+          sequence_number: (dekont as any).sequence_number,
+        });
+      }
 
       if (!groups[companyKey]) {
         groups[companyKey] = {
@@ -929,6 +957,19 @@ const TeacherPanel = () => {
       groups[companyKey].students[studentKey].dekontlar.push(dekont);
       groups[companyKey].students[studentKey].count++;
       groups[companyKey].totalCount++;
+    });
+
+    // 🐛 DEBUG: Log final grouping results
+    Object.keys(groups).forEach((companyKey) => {
+      Object.keys(groups[companyKey].students).forEach((studentKey) => {
+        const studentGroup = groups[companyKey].students[studentKey];
+        console.log(`🔍 DEBUG: Final group for ${studentKey}:`, {
+          company: companyKey,
+          dekontCount: studentGroup.count,
+          dekontIds: studentGroup.dekontlar.map((d) => d.id),
+          dekontMonths: studentGroup.dekontlar.map((d) => `${d.ay}/${d.yil}`),
+        });
+      });
     });
 
     return groups;
@@ -1107,16 +1148,70 @@ const TeacherPanel = () => {
       const result = await response.json();
       const yeniDekont = result.data || result;
 
-      // Formatla ve state'e ekle
-      const formattedDekont: Dekont = {
-        ...yeniDekont,
-        isletme_ad: selectedIsletme.ad,
-        ogrenci_ad: `${selectedStudent.ad} ${selectedStudent.soyad}`,
-        yukleyen_kisi: `${teacher.name} ${teacher.surname} (Öğretmen)`,
-      };
+      // 🐛 DEBUG: Log the API response
+      console.log("🔍 DEBUG: Dekont upload API response:", {
+        result,
+        yeniDekont,
+        hasSequenceNumber: !!yeniDekont.sequenceNumber,
+        sequenceNumber: yeniDekont.sequenceNumber,
+      });
 
-      setDekontlar((prev) => [formattedDekont, ...prev]);
-      setFilteredDekontlar((prev) => [formattedDekont, ...prev]);
+      // 🐛 DEBUG: Log current dekont state before update
+      console.log("🔍 DEBUG: Current dekont state before adding new:", {
+        totalDekontlar: dekontlar.length,
+        studentDekontlar: dekontlar.filter(
+          (d) =>
+            d.ogrenci_ad === `${selectedStudent.ad} ${selectedStudent.soyad}` &&
+            d.ay === parseInt(formData.ay.toString()) &&
+            d.yil === parseInt(formData.yil.toString())
+        ).length,
+      });
+
+      // 🚨 ISSUE: Instead of manual state update, refresh from API
+      // Refresh dekont data from API to get correct sequenceNumber and grouping
+      if (teacher && teacher.id) {
+        try {
+          const refreshResponse = await fetch(
+            `/api/admin/teachers/${teacher.id}/dekontlar`
+          );
+          if (refreshResponse.ok) {
+            const freshDekontData = await refreshResponse.json();
+            console.log("🔍 DEBUG: Refreshed dekont data from API:", {
+              count: freshDekontData.length,
+              newDekontExists: freshDekontData.some(
+                (d: any) => d.id === yeniDekont.id
+              ),
+            });
+
+            setDekontlar(freshDekontData);
+            setFilteredDekontlar(freshDekontData);
+          } else {
+            // Fallback to manual update if API refresh fails
+            const formattedDekont: Dekont = {
+              ...yeniDekont,
+              isletme_ad: selectedIsletme.ad,
+              ogrenci_ad: `${selectedStudent.ad} ${selectedStudent.soyad}`,
+              yukleyen_kisi: `${teacher.name} ${teacher.surname} (Öğretmen)`,
+            };
+            setDekontlar((prev) => [formattedDekont, ...prev]);
+            setFilteredDekontlar((prev) => [formattedDekont, ...prev]);
+          }
+        } catch (refreshError) {
+          console.error(
+            "🔍 DEBUG: API refresh failed, using manual update:",
+            refreshError
+          );
+          // Fallback to manual update
+          const formattedDekont: Dekont = {
+            ...yeniDekont,
+            isletme_ad: selectedIsletme.ad,
+            ogrenci_ad: `${selectedStudent.ad} ${selectedStudent.soyad}`,
+            yukleyen_kisi: `${teacher.name} ${teacher.surname} (Öğretmen)`,
+          };
+          setDekontlar((prev) => [formattedDekont, ...prev]);
+          setFilteredDekontlar((prev) => [formattedDekont, ...prev]);
+        }
+      }
       setDekontUploadModalOpen(false);
 
       // Başarı modal'ını göster
