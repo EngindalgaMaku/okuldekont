@@ -49,12 +49,22 @@ export default function ZipDownloadModal({
   onClose,
   dekontlar,
 }: ZipDownloadModalProps) {
-  const [selectedMonth, setSelectedMonth] = useState<number>(
-    new Date().getMonth() + 1
-  );
-  const [selectedYear, setSelectedYear] = useState<number>(
-    new Date().getFullYear()
-  );
+  // Aktif ay bir önceki ay olmalı
+  const getPreviousMonth = () => {
+    const currentDate = new Date();
+    const previousMonth = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth() - 1
+    );
+    return {
+      month: previousMonth.getMonth() + 1,
+      year: previousMonth.getFullYear(),
+    };
+  };
+
+  const { month: defaultMonth, year: defaultYear } = getPreviousMonth();
+  const [selectedMonth, setSelectedMonth] = useState<number>(defaultMonth);
+  const [selectedYear, setSelectedYear] = useState<number>(defaultYear);
   const [isDownloading, setIsDownloading] = useState(false);
 
   if (!isOpen) return null;

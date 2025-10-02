@@ -196,7 +196,17 @@ export async function POST(request: NextRequest) {
       "Aralik",
     ];
 
-    const fileName = `dekontlar_${monthNames[month - 1]}_${year}.zip`;
+    // Dosya adının sonuna tarih ekle (YYYY-MM-DD_HH-MM formatında)
+    const currentDate = new Date();
+    const dateStr = currentDate
+      .toISOString()
+      .slice(0, 19)
+      .replace(/:/g, "-")
+      .replace("T", "_");
+
+    const fileName = `dekontlar_${
+      monthNames[month - 1]
+    }_${year}_${dateStr}.zip`;
 
     return new NextResponse(zipBuffer, {
       headers: {
