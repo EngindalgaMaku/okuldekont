@@ -159,6 +159,10 @@ const TeacherPanel = () => {
   } | null>(null);
   const [dekontSonGun, setDekontSonGun] = useState(10);
 
+  // Ek dekont form data - 409 durumunda orijinal form verisini saklamak için
+  const [pendingDekontData, setPendingDekontData] =
+    useState<DekontFormData | null>(null);
+
   // Önceki ay için dekont eksik olan öğrencileri tespit et
   const getEksikDekontOgrenciler = () => {
     const currentDate = new Date();
@@ -1085,18 +1089,105 @@ const TeacherPanel = () => {
     );
   };
 
-  const handleEkDekontOnay = () => {
-    if (ekDekontData) {
+  const handleEkDekontOnay = async () => {
+    if (!ekDekontData || !pendingDekontData || !teacher) {
+      console.error("Ek dekont onayı için gerekli veriler eksik");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
       setEkDekontModalOpen(false);
-      router.push(
-        `/ogretmen/dekont-yukle?isletmeId=${encodeURIComponent(
-          ekDekontData.isletme.id
-        )}&ogrenciId=${encodeURIComponent(ekDekontData.ogrenci.id)}`
-      );
+
+      // Orijinal form data'sını kullanarak tekrar API'ye gönder
+      const submitData = new FormData();
+      submitData.append("staj_id", pendingDekontData.staj_id || "");
+
+      if (
+        pendingDekontData.miktar !== undefined &&
+        pendingDekontData.miktar !== null &&
+        pendingDekontData.miktar > 0
+      ) {
+        submitData.append("miktar", pendingDekontData.miktar.toString());
+      }
+
+      submitData.append("ay", pendingDekontData.ay.toString());
+      submitData.append("yil", pendingDekontData.yil.toString());
+      submitData.append("aciklama", pendingDekontData.aciklama || "");
+      submitData.append("ogretmen_id", teacher.id);
+      submitData.append("force_additional", "true"); // Ek dekont olarak eklemek için flag
+
+      if (pendingDekontData.dosya) {
+        submitData.append("dosya", pendingDekontData.dosya);
+      }
+
+      const response = await fetch("/api/admin/dekontlar", {
+        method: "POST",
+        body: submitData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Ek dekont yüklenemedi");
+      }
+
+      const result = await response.json();
+      const yeniDekont = result.data || result;
+
+      // Dekont listesini API'den yenile
+      if (teacher && teacher.id) {
+        try {
+          const refreshResponse = await fetch(
+            `/api/admin/teachers/${teacher.id}/dekontlar`
+          );
+          if (refreshResponse.ok) {
+            const freshDekontData = await refreshResponse.json();
+            setDekontlar(freshDekontData);
+            setFilteredDekontlar(freshDekontData);
+          }
+        } catch (refreshError) {
+          console.error("API refresh hatası:", refreshError);
+        }
+      }
+
+      // Pending data'yı temizle
+      setPendingDekontData(null);
+      setEkDekontData(null);
+
+      // Başarı modal'ını göster
+      setSuccessModal({
+        isOpen: true,
+        title: "Ek Dekont Başarıyla Yüklendi!",
+        message: "Ek dekont başarıyla sisteme eklendi.",
+      });
+
+      // 2 saniye sonra dekont listesine geç
+      setTimeout(() => {
+        setSuccessModal({ isOpen: false, title: "", message: "" });
+        setActiveTab("dekontlar");
+      }, 2000);
+    } catch (error: any) {
+      console.error("Ek dekont yükleme hatası:", error);
+      setErrorModal({
+        isOpen: true,
+        title: "Ek Dekont Yükleme Hatası",
+        message: `Ek dekont yüklenirken hata oluştu: ${error.message}`,
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDekontSubmit = async (formData: DekontFormData) => {
+    if (!teacher || !selectedStudent || !selectedIsletme) {
+      setErrorModal({
+        isOpen: true,
+        title: "Hata",
+        message: "Gerekli bilgiler eksik. Lütfen tekrar deneyin.",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const submitData = new FormData();
@@ -1125,9 +1216,13 @@ const TeacherPanel = () => {
         body: submitData,
       });
 
-      // Ek dekont uyarısı (409 status code)
+      // ✅ Ek dekont uyarısı (409 status code) - Sayfa yenilenmesi engelleniyor!
       if (response.status === 409) {
         const warningData = await response.json();
+
+        // 📝 Orijinal form verisini sakla - ek dekont onayında kullanmak için
+        setPendingDekontData(formData);
+
         setEkDekontData({
           ogrenci: selectedStudent,
           isletme: selectedIsletme,
@@ -1135,9 +1230,11 @@ const TeacherPanel = () => {
           yil: parseInt(formData.yil.toString()),
           mevcutDekontSayisi: warningData.mevcutDekontSayisi || 1,
         });
+
+        // 🚫 Modal'ı kapat ve ek dekont modal'ını aç - SAYFA YENİLENMEZ!
         setDekontUploadModalOpen(false);
         setEkDekontModalOpen(true);
-        return;
+        return; // İşlemi burada sonlandır - sayfa yenilenmez
       }
 
       if (!response.ok) {
@@ -2890,7 +2987,8 @@ const TeacherPanel = () => {
                 );
               }
 
-              const allStudents = [];
+              const allStudents: Array<{ ogrenci: Ogrenci; isletme: Isletme }> =
+                [];
               isletmeler.forEach((isletme, isletmeIndex) => {
                 console.log(
                   `🏢 İşletme ${isletmeIndex + 1}:`,
