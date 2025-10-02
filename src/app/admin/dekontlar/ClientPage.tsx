@@ -941,7 +941,7 @@ export default function ClientDekontlarPage() {
 
         {/* Desktop Table View (hidden on mobile) */}
         <div className="hidden md:block bg-white rounded-lg shadow-sm border">
-          <div className="overflow-x-auto overflow-y-visible pb-64">
+          <div className="overflow-x-auto overflow-y-visible">
             <table
               className="min-w-full divide-y divide-gray-200"
               style={{ overflow: "visible" }}
@@ -961,7 +961,7 @@ export default function ClientDekontlarPage() {
                     />
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Öğrenci / İşletme
+                    Öğrenci / İşletme / Koordinatör
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Dönem
@@ -973,10 +973,7 @@ export default function ClientDekontlarPage() {
                     Durum
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Yükleyen
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tarih
+                    Yükleyen / Tarih
                   </th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Önizle
@@ -1021,8 +1018,8 @@ export default function ClientDekontlarPage() {
                         <div className="text-sm text-gray-500">
                           {dekont.isletme_ad}
                         </div>
-                        <div className="text-xs text-blue-600">
-                          Koordinatör: {dekont.koordinator_ogretmen}
+                        <div className="text-sm font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded-md inline-block mt-1">
+                          👤 {dekont.koordinator_ogretmen}
                         </div>
                       </div>
                     </td>
@@ -1054,13 +1051,13 @@ export default function ClientDekontlarPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {removeParentheses(dekont.yukleyen_kisi)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {formatDate(dekont.created_at)}
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {removeParentheses(dekont.yukleyen_kisi)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {formatDate(dekont.created_at)}
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -1095,95 +1092,35 @@ export default function ClientDekontlarPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium overflow-visible relative">
-                      <div className="flex items-center justify-end gap-3">
-                        {/* İşlemler Dropdown */}
-                        <div className="relative z-50">
-                          <button
-                            id={`dropdown-btn-${dekont.id}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleDropdown(dekont.id);
-                            }}
-                            className="flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-                            title="İşlemler"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </button>
-
-                          {/* Dropdown Menu */}
-                          {openDropdown === dekont.id && (
-                            <>
-                              {/* Backdrop to close dropdown */}
-                              <div
-                                className="fixed inset-0 z-[100]"
-                                onClick={closeDropdown}
-                              ></div>
-
-                              <div
-                                className="fixed w-48 bg-white rounded-md shadow-lg border border-gray-200 z-[101]"
-                                style={{
-                                  top: `${
-                                    document
-                                      .getElementById(
-                                        `dropdown-btn-${dekont.id}`
-                                      )
-                                      ?.getBoundingClientRect().bottom || 0
-                                  }px`,
-                                  right: `${
-                                    window.innerWidth -
-                                    (document
-                                      .getElementById(
-                                        `dropdown-btn-${dekont.id}`
-                                      )
-                                      ?.getBoundingClientRect().right || 0)
-                                  }px`,
-                                }}
-                              >
-                                <div className="py-1">
-                                  {/* Onay İşlemleri */}
-                                  {dekont.onay_durumu === "bekliyor" && (
-                                    <>
-                                      <button
-                                        onClick={() => {
-                                          handleApprove(dekont);
-                                          closeDropdown();
-                                        }}
-                                        className="flex items-center w-full px-4 py-2 text-sm text-green-700 hover:bg-green-50"
-                                      >
-                                        <Check className="h-4 w-4 mr-3" />
-                                        Onayla
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          handleReject(dekont);
-                                          closeDropdown();
-                                        }}
-                                        className="flex items-center w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
-                                      >
-                                        <X className="h-4 w-4 mr-3" />
-                                        Reddet
-                                      </button>
-                                      <div className="border-t border-gray-100 my-1"></div>
-                                    </>
-                                  )}
-
-                                  {/* Sil */}
-                                  <button
-                                    onClick={() => {
-                                      handleDelete(dekont);
-                                      closeDropdown();
-                                    }}
-                                    className="flex items-center w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-3" />
-                                    Sil
-                                  </button>
-                                </div>
-                              </div>
-                            </>
-                          )}
-                        </div>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex items-center justify-end gap-1">
+                        {/* Onay İşlemleri */}
+                        {dekont.onay_durumu === "bekliyor" && (
+                          <>
+                            <button
+                              onClick={() => handleApprove(dekont)}
+                              className="flex items-center justify-center w-8 h-8 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-full transition-colors"
+                              title="Onayla"
+                            >
+                              <Check className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleReject(dekont)}
+                              className="flex items-center justify-center w-8 h-8 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
+                              title="Reddet"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
+                        {/* Sil Butonu */}
+                        <button
+                          onClick={() => handleDelete(dekont)}
+                          className="flex items-center justify-center w-8 h-8 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                          title="Sil"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
