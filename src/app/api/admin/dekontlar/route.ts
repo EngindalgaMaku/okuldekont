@@ -612,7 +612,7 @@ export async function POST(request: Request) {
       console.log("✅ FILE SECURITY: Admin dekont file passed security scan");
 
       // Create upload directory if it doesn't exist
-      const uploadDir = join(process.cwd(), "public", "uploads", "dekontlar");
+      const uploadDir = join("/uploads", "dekontlar");
       if (!existsSync(uploadDir)) {
         await mkdir(uploadDir, { recursive: true });
       }
