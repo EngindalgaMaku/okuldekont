@@ -23,8 +23,10 @@ import {
   MoreVertical,
   ChevronDown,
   Upload,
+  Archive,
 } from "lucide-react";
 import MultiFileUploadModal from "@/components/admin/MultiFileUploadModal";
+import ZipDownloadModal from "@/components/admin/ZipDownloadModal";
 
 interface Dekont {
   id: string;
@@ -176,6 +178,7 @@ export default function ClientDekontlarPage() {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [totalStudentsCount, setTotalStudentsCount] = useState(0);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showZipModal, setShowZipModal] = useState(false);
 
   // Memoized fetch function - prevents re-creation on every render
   const fetchDekontlar = useCallback(async () => {
@@ -662,13 +665,22 @@ export default function ClientDekontlarPage() {
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-900">Dekont Yönetimi</h1>
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Dosya Yükle
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="inline-flex items-center justify-center w-10 h-10 border border-transparent rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                title="Dosya Yükle"
+              >
+                <Upload className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setShowZipModal(true)}
+                className="inline-flex items-center justify-center w-10 h-10 border border-transparent rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                title="ZIP İndir"
+              >
+                <Archive className="h-4 w-4" />
+              </button>
+            </div>
             <div className="text-sm text-gray-600">
               Toplam: {filteredDekontlar.length} dekont
             </div>
@@ -1729,6 +1741,15 @@ export default function ClientDekontlarPage() {
             fetchDekontlar(); // Refresh the list
           }}
         />
+
+        {/* ZIP Download Modal */}
+        {showZipModal && (
+          <ZipDownloadModal
+            isOpen={showZipModal}
+            onClose={() => setShowZipModal(false)}
+            dekontlar={filteredDekontlar}
+          />
+        )}
       </div>
     </Suspense>
   );

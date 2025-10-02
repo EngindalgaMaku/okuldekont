@@ -54,8 +54,8 @@ export async function POST(request: NextRequest) {
     const originalName = file.name;
     const fileName = originalName;
 
-    // Hedef klasörü oluştur (app/uploads/dekontlar)
-    const uploadDir = path.join(process.cwd(), "app", "uploads", "dekontlar");
+    // Hedef klasörü oluştur (uploads/dekontlar - ana sistemle aynı)
+    const uploadDir = path.join(process.cwd(), "uploads", "dekontlar");
 
     try {
       await mkdir(uploadDir, { recursive: true });
