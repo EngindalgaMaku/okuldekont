@@ -8,6 +8,7 @@ import {
   memo,
   Suspense,
 } from "react";
+import { parseDekontFileName } from "@/utils/dekontNaming";
 import {
   Eye,
   Download,
@@ -76,6 +77,62 @@ const formatCurrency = (amount: number | null | undefined): string => {
 const removeParentheses = (text: string): string => {
   if (!text) return text;
   return text.replace(/\s*\([^)]*\)/g, "").trim();
+};
+
+// Dekont sequence bilgisini çıkaran fonksiyon
+const getDekontSequenceInfo = (dekont: Dekont, allDekontlar: Dekont[]) => {
+  // Aynı öğrenci, aynı ay ve yıl için dekontları bul
+  const sameStudentSameMonth = allDekontlar
+    .filter(
+      (d) =>
+        d.ogrenci_ad === dekont.ogrenci_ad &&
+        d.ay === dekont.ay &&
+        d.yil === dekont.yil
+    )
+    .sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+  if (sameStudentSameMonth.length <= 1) {
+    return { displayName: dekont.ogrenci_ad, sequenceText: "" };
+  }
+
+  // Bu dekontun sırasını bul
+  const currentIndex = sameStudentSameMonth.findIndex(
+    (d) => d.id === dekont.id
+  );
+
+  if (currentIndex === 0) {
+    // İlk dekont - sequence gösterme
+    return { displayName: dekont.ogrenci_ad, sequenceText: "" };
+  } else {
+    // Sonraki dekontlar - ek1, ek2, vs.
+    const sequenceNumber = currentIndex;
+    return {
+      displayName: `${dekont.ogrenci_ad} (ek${sequenceNumber})`,
+      sequenceText: `ek${sequenceNumber}`,
+    };
+  }
+};
+
+// Dosya adından sequence bilgisini çıkaran yardımcı fonksiyon
+const extractSequenceFromFileName = (fileUrl: string | null): string => {
+  if (!fileUrl) return "";
+
+  const filename = fileUrl.split("/").pop();
+  if (!filename) return "";
+
+  const parsedData = parseDekontFileName(filename);
+  if (
+    parsedData?.isAdditional &&
+    parsedData.additionalIndex &&
+    parsedData.additionalIndex > 0
+  ) {
+    return `ek${parsedData.additionalIndex}`;
+  }
+
+  return "";
 };
 
 // Dosya tipini kontrol eden fonksiyonlar
@@ -1094,10 +1151,28 @@ export default function ClientDekontlarPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          {dekont.ogrenci_ad}{" "}
+                          {(() => {
+                            const sequenceInfo = getDekontSequenceInfo(
+                              dekont,
+                              filteredDekontlar
+                            );
+                            return sequenceInfo.displayName;
+                          })()}{" "}
                           {dekont.ogrenci_sinif &&
                             dekont.ogrenci_no &&
                             `(${dekont.ogrenci_sinif}-${dekont.ogrenci_no})`}
+                          {(() => {
+                            const sequenceFromFile =
+                              extractSequenceFromFileName(dekont.dosya_url);
+                            if (sequenceFromFile) {
+                              return (
+                                <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full font-medium">
+                                  {sequenceFromFile}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                         <div className="text-sm text-gray-500">
                           {dekont.isletme_ad}
@@ -1355,10 +1430,29 @@ export default function ClientDekontlarPage() {
                     />
                     <div className="ml-3">
                       <div className="text-sm font-medium text-gray-900">
-                        {dekont.ogrenci_ad}{" "}
+                        {(() => {
+                          const sequenceInfo = getDekontSequenceInfo(
+                            dekont,
+                            filteredDekontlar
+                          );
+                          return sequenceInfo.displayName;
+                        })()}{" "}
                         {dekont.ogrenci_sinif &&
                           dekont.ogrenci_no &&
                           `(${dekont.ogrenci_sinif}-${dekont.ogrenci_no})`}
+                        {(() => {
+                          const sequenceFromFile = extractSequenceFromFileName(
+                            dekont.dosya_url
+                          );
+                          if (sequenceFromFile) {
+                            return (
+                              <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded-full font-medium">
+                                {sequenceFromFile}
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                       <div className="text-sm text-gray-500">
                         {dekont.isletme_ad}
@@ -1436,8 +1530,21 @@ export default function ClientDekontlarPage() {
                 <div className="p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-gray-900 flex items-center">
                         {MONTHS[dekont.ay - 1]} {dekont.yil}
+                        {(() => {
+                          const sequenceFromFile = extractSequenceFromFileName(
+                            dekont.dosya_url
+                          );
+                          if (sequenceFromFile) {
+                            return (
+                              <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded-full font-medium">
+                                {sequenceFromFile}
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                       {/* Mobile inline editing for amount */}
                       <div className="flex items-center space-x-2">
