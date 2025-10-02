@@ -50,25 +50,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Dosya adını temizle ve güvenli hale getir
+    // Dosya adını orijinal haliyle kullan (değiştirme!)
     const originalName = file.name;
-    const timestamp = Date.now();
-    const randomString = Math.random().toString(36).substring(2, 8);
-    const fileExtension = path.extname(originalName);
-    const baseName = path
-      .basename(originalName, fileExtension)
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]/g, "_");
+    const fileName = originalName;
 
-    const fileName = `restored_${timestamp}_${randomString}_${baseName}${fileExtension}`;
-
-    // Hedef klasörü oluştur
-    const uploadDir = path.join(
-      process.cwd(),
-      "public",
-      "uploads",
-      "dekontlar"
-    );
+    // Hedef klasörü oluştur (app/uploads/dekontlar)
+    const uploadDir = path.join(process.cwd(), "app", "uploads", "dekontlar");
 
     try {
       await mkdir(uploadDir, { recursive: true });
