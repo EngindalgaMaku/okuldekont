@@ -232,6 +232,12 @@ export async function POST(request: Request) {
     const yil = parseInt(formData.get("yil") as string);
     const aciklama = formData.get("aciklama") as string;
     const ogretmenId = formData.get("ogretmen_id") as string;
+    // Ek dekont onayı sonrası gelen bayrak
+    const forceAdditionalRaw = formData.get("force_additional");
+    const forceAdditional =
+      typeof forceAdditionalRaw === "string"
+        ? forceAdditionalRaw === "true" || forceAdditionalRaw === "1"
+        : false;
     const dosya = formData.get("dosya") as File;
 
     // INPUT VALIDATION & SANITIZATION
@@ -571,9 +577,9 @@ export async function POST(request: Request) {
           ) + 1
         : 1;
 
-    // Beklemede dekont varsa ek dekont uyarısı ver
+    // Beklemede dekont varsa ek dekont uyarısı ver (forceAdditional yoksa)
     const beklemedeDekont = mevcutDekontlar.find((d) => d.status === "PENDING");
-    if (beklemedeDekont) {
+    if (beklemedeDekont && !forceAdditional) {
       const ayAdi = [
         "Ocak",
         "Şubat",
