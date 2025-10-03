@@ -1,28 +1,31 @@
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { validateAuthAndRole } from '@/middleware/auth'
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { validateAuthAndRole } from "@/middleware/auth";
 
 export async function GET(request: Request) {
   // KRİTİK: Şirket verileri - SADECE ADMIN
-  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  const authResult = await validateAuthAndRole(request, ["ADMIN"]);
   if (!authResult.success) {
-    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+    return NextResponse.json(
+      { error: authResult.error },
+      { status: authResult.status }
+    );
   }
 
   try {
-    const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const perPage = parseInt(searchParams.get('per_page') || '10')
-    const search = searchParams.get('search') || ''
-    const filter = searchParams.get('filter') || ''
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const perPage = parseInt(searchParams.get("per_page") || "10");
+    const search = searchParams.get("search") || "";
+    const filter = searchParams.get("filter") || "";
 
     // Calculate skip for pagination
-    const skip = (page - 1) * perPage
+    const skip = (page - 1) * perPage;
 
     // Build where condition
-    let whereCondition: any = {}
-    const conditions: any[] = []
-    
+    let whereCondition: any = {};
+    const conditions: any[] = [];
+
     // Search condition
     if (search) {
       conditions.push({
@@ -30,59 +33,59 @@ export async function GET(request: Request) {
           { name: { contains: search } },
           { contact: { contains: search } },
           { phone: { contains: search } },
-          { email: { contains: search } }
-        ]
-      })
+          { email: { contains: search } },
+        ],
+      });
     }
 
     // Filter condition
-    if (filter === 'active') {
+    if (filter === "active") {
       // Aktif: ya direkt öğrencisi olan ya da aktif stajı olan işletmeler
       conditions.push({
         OR: [
           {
             students: {
-              some: {}
-            }
+              some: {},
+            },
           },
           {
             stajlar: {
               some: {
-                status: 'ACTIVE'
-              }
-            }
-          }
-        ]
-      })
-    } else if (filter === 'empty') {
+                status: "ACTIVE",
+              },
+            },
+          },
+        ],
+      });
+    } else if (filter === "empty") {
       // Boş: ne direkt öğrencisi ne de aktif stajı olan işletmeler
       conditions.push({
         AND: [
           {
             students: {
-              none: {}
-            }
+              none: {},
+            },
           },
           {
             stajlar: {
               none: {
-                status: 'ACTIVE'
-              }
-            }
-          }
-        ]
-      })
+                status: "ACTIVE",
+              },
+            },
+          },
+        ],
+      });
     }
 
     // Combine conditions with AND
     if (conditions.length > 0) {
-      whereCondition.AND = conditions
+      whereCondition.AND = conditions;
     }
 
     // Get total count for pagination
     const totalCount = await prisma.companyProfile.count({
-      where: whereCondition
-    })
+      where: whereCondition,
+    });
 
     // Get companies with pagination (include internship coordinators)
     const companies = await prisma.companyProfile.findMany({
@@ -93,16 +96,17 @@ export async function GET(request: Request) {
         _count: {
           select: {
             students: true, // Direkt atanan öğrenciler
-            stajlar: { // Staj üzerinden gelen öğrenciler
+            stajlar: {
+              // Staj üzerinden gelen öğrenciler
               where: {
-                status: 'ACTIVE'
-              }
-            }
-          }
+                status: "ACTIVE",
+              },
+            },
+          },
         },
         stajlar: {
           where: {
-            status: 'ACTIVE'
+            status: "ACTIVE",
           },
           select: {
             teacherId: true,
@@ -110,47 +114,49 @@ export async function GET(request: Request) {
               select: {
                 id: true,
                 name: true,
-                surname: true
-              }
-            }
-          }
-        }
+                surname: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
-        name: 'asc'
+        name: "asc",
       },
       skip,
-      take: perPage
-    })
+      take: perPage,
+    });
 
     // Transform data to match expected interface
-    const transformedCompanies = companies.map(company => {
+    const transformedCompanies = companies.map((company) => {
       // Determine the coordinator: prioritize company's assigned teacher, then most frequent internship coordinator
       let coordinatorTeacher = company.teacher;
-      
+
       if (!coordinatorTeacher && company.stajlar.length > 0) {
         // Count occurrences of each coordinator
         const coordinatorCounts = new Map();
-        company.stajlar.forEach(staj => {
+        company.stajlar.forEach((staj) => {
           if (staj.teacher) {
             const teacherKey = staj.teacher.id;
             coordinatorCounts.set(teacherKey, {
               teacher: staj.teacher,
-              count: (coordinatorCounts.get(teacherKey)?.count || 0) + 1
+              count: (coordinatorCounts.get(teacherKey)?.count || 0) + 1,
             });
           }
         });
-        
+
         // Get the coordinator with most students
         if (coordinatorCounts.size > 0) {
-          const mostActiveCoordinator = Array.from(coordinatorCounts.values())
-            .sort((a, b) => b.count - a.count)[0];
+          const mostActiveCoordinator = Array.from(
+            coordinatorCounts.values()
+          ).sort((a, b) => b.count - a.count)[0];
           coordinatorTeacher = mostActiveCoordinator.teacher;
         }
       }
 
       // Toplam öğrenci sayısı: direkt atananlar + aktif stajdakiler
-      const totalStudentCount = company._count.students + company._count.stajlar;
+      const totalStudentCount =
+        company._count.students + company._count.stajlar;
 
       return {
         id: company.id,
@@ -161,21 +167,24 @@ export async function GET(request: Request) {
         address: company.address,
         taxNumber: company.taxNumber,
         pin: company.pin,
+        companyType: (company as any).companyType || "PRIVATE", // Add companyType field
         teacherId: coordinatorTeacher?.id || company.teacherId,
         masterTeacherName: company.masterTeacherName,
         masterTeacherPhone: company.masterTeacherPhone,
         _count: {
-          students: totalStudentCount // Toplam öğrenci sayısı
+          students: totalStudentCount, // Toplam öğrenci sayısı
         },
-        teacher: coordinatorTeacher ? {
-          id: coordinatorTeacher.id,
-          name: coordinatorTeacher.name,
-          surname: coordinatorTeacher.surname
-        } : null
-      }
-    })
+        teacher: coordinatorTeacher
+          ? {
+              id: coordinatorTeacher.id,
+              name: coordinatorTeacher.name,
+              surname: coordinatorTeacher.surname,
+            }
+          : null,
+      };
+    });
 
-    const totalPages = Math.ceil(totalCount / perPage)
+    const totalPages = Math.ceil(totalCount / perPage);
 
     return NextResponse.json({
       success: true,
@@ -186,41 +195,55 @@ export async function GET(request: Request) {
         totalCount,
         totalPages,
         hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
-    })
+        hasPrev: page > 1,
+      },
+    });
   } catch (error) {
-    console.error('Companies fetch error:', error)
+    console.error("Companies fetch error:", error);
     return NextResponse.json(
       {
         success: false,
-        error: 'Database bağlantı hatası - İşletmeler yüklenemedi',
-        data: []
+        error: "Database bağlantı hatası - İşletmeler yüklenemedi",
+        data: [],
       },
       { status: 500 }
-    )
+    );
   }
 }
 
 export async function POST(request: Request) {
   // KRİTİK: Şirket oluşturma - SADECE ADMIN
-  const authResult = await validateAuthAndRole(request, ['ADMIN'])
+  const authResult = await validateAuthAndRole(request, ["ADMIN"]);
   if (!authResult.success) {
-    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+    return NextResponse.json(
+      { error: authResult.error },
+      { status: authResult.status }
+    );
   }
 
   try {
-    const { name, contact, phone, email, address, taxNumber, pin, usta_ogretici_ad, usta_ogretici_telefon } = await request.json()
+    const {
+      name,
+      contact,
+      phone,
+      email,
+      address,
+      taxNumber,
+      pin,
+      usta_ogretici_ad,
+      usta_ogretici_telefon,
+    } = await request.json();
 
     if (!name || !contact) {
       return NextResponse.json(
-        { error: 'İşletme adı ve yetkili kişi zorunludur' },
+        { error: "İşletme adı ve yetkili kişi zorunludur" },
         { status: 400 }
-      )
+      );
     }
 
     // Use provided PIN or generate a random 4-digit PIN for the company
-    const companyPin = pin || Math.floor(1000 + Math.random() * 9000).toString()
+    const companyPin =
+      pin || Math.floor(1000 + Math.random() * 9000).toString();
 
     const company = await prisma.companyProfile.create({
       data: {
@@ -232,10 +255,10 @@ export async function POST(request: Request) {
         taxNumber: taxNumber?.trim() || null,
         pin: companyPin,
         masterTeacherName: usta_ogretici_ad?.trim() || null,
-        masterTeacherPhone: usta_ogretici_telefon?.trim() || null
+        masterTeacherPhone: usta_ogretici_telefon?.trim() || null,
         // teacherId and userId are handled via relations, not direct fields
-      }
-    })
+      },
+    });
 
     return NextResponse.json({
       id: company.id,
@@ -248,13 +271,16 @@ export async function POST(request: Request) {
       pin: company.pin,
       masterTeacherName: company.masterTeacherName,
       masterTeacherPhone: company.masterTeacherPhone,
-      message: `İşletme başarıyla oluşturuldu. Giriş PIN kodu: ${companyPin}`
-    })
+      message: `İşletme başarıyla oluşturuldu. Giriş PIN kodu: ${companyPin}`,
+    });
   } catch (error) {
-    console.error('Company creation error:', error)
+    console.error("Company creation error:", error);
     return NextResponse.json(
-      { error: 'İşletme oluşturulurken bir hata oluştu: ' + (error as Error).message },
+      {
+        error:
+          "İşletme oluşturulurken bir hata oluştu: " + (error as Error).message,
+      },
       { status: 500 }
-    )
+    );
   }
 }

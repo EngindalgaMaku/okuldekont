@@ -182,24 +182,27 @@ export async function GET(request: Request) {
       };
     });
 
-    // Staja giden benzersiz öğrenci sayısını hesapla (aktif yıl veya tüm yıllar)
+    // Dekont beklenen öğrenci sayısını hesapla (sadece özel sektör işletmelerinde staj yapanlar)
     const allInternships = await prisma.staj.findMany({
       where: {
         archived: false,
         ...(educationYearId ? { educationYearId } : {}),
+        company: {
+          companyType: "PRIVATE", // Sadece özel sektör şirketleri
+        },
       },
       select: {
         studentId: true,
       },
     });
 
-    // Benzersiz öğrenci sayısını hesapla - bir öğrenci birden fazla staj yapabilir
+    // Dekont beklenen benzersiz öğrenci sayısını hesapla (kamu kurumu öğrencileri hariç)
     const uniqueStudentIds = new Set(allInternships.map((s) => s.studentId));
-    const totalStudentsWithInternship = uniqueStudentIds.size;
+    const totalStudentsRequiringDekont = uniqueStudentIds.size;
 
     return NextResponse.json({
       data: formattedData,
-      totalStudents: totalStudentsWithInternship,
+      totalStudents: totalStudentsRequiringDekont,
       filter: useAllYears ? "all" : educationYearId,
     });
   } catch (error) {
@@ -565,12 +568,15 @@ export async function POST(request: Request) {
       (d) => d.status === "APPROVED"
     );
     if (onaylanmisDekont) {
-      console.warn("⛔ RULE: Approved dekont exists for month, blocking upload", {
-        studentId: uploadStaj.studentId,
-        ayNum,
-        yilNum,
-        approvedDekontId: onaylanmisDekont.id,
-      });
+      console.warn(
+        "⛔ RULE: Approved dekont exists for month, blocking upload",
+        {
+          studentId: uploadStaj.studentId,
+          ayNum,
+          yilNum,
+          approvedDekontId: onaylanmisDekont.id,
+        }
+      );
       const ayAdi = [
         "Ocak",
         "Şubat",
@@ -646,13 +652,16 @@ export async function POST(request: Request) {
     }
 
     if (beklemedeDekont && forceAdditional) {
-      console.log("✅ DEBUG: forceAdditional=true, bypassing 409 and proceeding to create ek dekont", {
-        studentId: uploadStaj.studentId,
-        ayNum,
-        yilNum,
-        existingCount: mevcutDekontlar.length,
-        nextSequenceNumber,
-      });
+      console.log(
+        "✅ DEBUG: forceAdditional=true, bypassing 409 and proceeding to create ek dekont",
+        {
+          studentId: uploadStaj.studentId,
+          ayNum,
+          yilNum,
+          existingCount: mevcutDekontlar.length,
+          nextSequenceNumber,
+        }
+      );
     }
 
     const isEkDekont = false;
@@ -773,10 +782,15 @@ export async function POST(request: Request) {
         studentName: fullStudent?.name || uploadStaj.student.name,
         studentSurname: fullStudent?.surname || uploadStaj.student.surname,
         studentClass:
-          fullStudent?.className || uploadStaj.student.className || "Bilinmeyen",
-        studentNumber: fullStudent?.number || uploadStaj.student.number || undefined,
+          fullStudent?.className ||
+          uploadStaj.student.className ||
+          "Bilinmeyen",
+        studentNumber:
+          fullStudent?.number || uploadStaj.student.number || undefined,
         fieldName:
-          fullStudent?.alan?.name || uploadStaj.student.alan?.name || "Bilinmeyen",
+          fullStudent?.alan?.name ||
+          uploadStaj.student.alan?.name ||
+          "Bilinmeyen",
         companyName: uploadStaj.company.name,
         month: ay,
         year: yil,

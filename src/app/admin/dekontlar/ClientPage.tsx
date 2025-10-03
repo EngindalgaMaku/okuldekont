@@ -381,8 +381,10 @@ export default function ClientDekontlarPage() {
     const uniqueStudents = new Set(targetDekontlar.map((d) => d.ogrenci_ad))
       .size;
 
-    // Dekont yüklenen öğrenci sayısı (tüm durumlar)
-    const withDekont = targetDekontlar.length;
+    // İşletme bazlı dekont yüklenen sayısı (aynı işletmeden birden fazla dekont karışıklığını önlemek)
+    const uniqueCompaniesWithDekont = new Set(
+      targetDekontlar.map((d) => d.isletme_ad)
+    ).size;
 
     // Onay bekleyen
     const pending = targetDekontlar.filter(
@@ -401,7 +403,7 @@ export default function ClientDekontlarPage() {
 
     return {
       totalStudents: uniqueStudents,
-      withDekont,
+      withDekont: uniqueCompaniesWithDekont,
       pending,
       approved,
       rejected,
@@ -971,7 +973,7 @@ export default function ClientDekontlarPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">
-                  Staja Giden Öğrenci
+                  Dekont Beklenen Öğrenci
                 </p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">
                   {totalStudentsCount}
@@ -999,7 +1001,7 @@ export default function ClientDekontlarPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">
-                  Dekont Yüklenen
+                  Dekont Yüklenen İşletme
                 </p>
                 <p className="text-2xl font-bold text-green-600 mt-1">
                   {statistics.withDekont}
