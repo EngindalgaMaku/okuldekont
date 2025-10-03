@@ -62,12 +62,21 @@ export async function GET(request: Request) {
       );
     }
 
-    // Get all dekontlar for the specified month/year with related data
+    // First get all private companies using raw SQL approach as a fallback
+    const privateCompanies = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM companies WHERE companyType = 'PRIVATE'
+    `;
+    const privateCompanyIds = privateCompanies.map((c) => c.id);
+
+    // Get all dekontlar for the specified month/year with related data (ONLY from private companies)
     const dekontlar = await prisma.dekont.findMany({
       where: {
         month: monthInt,
         year: yearInt,
         archived: false,
+        companyId: {
+          in: privateCompanyIds, // Only include dekontlar from private companies
+        },
       },
       include: {
         staj: {
@@ -116,10 +125,13 @@ export async function GET(request: Request) {
       },
     });
 
-    // Get all internships (stajlar) - aligned with main dekont page logic
+    // Get all internships (stajlar) - ONLY from private companies (exclude government institutions)
     const allInternships = await prisma.staj.findMany({
       where: {
         archived: false,
+        companyId: {
+          in: privateCompanyIds, // Only include internships from private companies
+        },
         // Include all active internships, not just those active in the selected month
         // This ensures consistency with the main dekont page count
       },
@@ -154,22 +166,29 @@ export async function GET(request: Request) {
       },
     });
 
-    // Create a map to group by teachers
+    // Create a map to group by teachers with dekont deduplication
     const teacherMap = new Map<
       string,
       {
         teacherName: string;
         students: Set<string>;
-        dekonts: Array<{
-          studentName: string;
-          status: "PENDING" | "APPROVED" | "REJECTED";
-          hasFile: boolean;
-        }>;
+        dekonts: Map<
+          string,
+          {
+            // Use Map to deduplicate by student-month key
+            studentName: string;
+            studentId: string;
+            status: "PENDING" | "APPROVED" | "REJECTED";
+            hasFile: boolean;
+          }
+        >;
       }
     >();
 
-    // Process all internships to get complete student list per teacher
+    // Process all internships to get complete student list per teacher (ONLY private sector)
     for (const internship of allInternships) {
+      // All internships are already filtered to be from private companies only
+
       const teacherName = internship.company?.teacher
         ? `${internship.company.teacher.name} ${internship.company.teacher.surname}`
         : internship.teacher
@@ -184,7 +203,7 @@ export async function GET(request: Request) {
         teacherMap.set(teacherName, {
           teacherName,
           students: new Set(),
-          dekonts: [],
+          dekonts: new Map(), // Changed to Map for deduplication
         });
       }
 
@@ -192,7 +211,7 @@ export async function GET(request: Request) {
       teacher.students.add(`${studentName}_${internship.studentId}`); // Use ID to avoid duplicates
     }
 
-    // Process dekontlar to add them to respective teachers
+    // Process dekontlar to add them to respective teachers with DEDUPLICATION
     for (const dekont of dekontlar) {
       const teacherName = dekont.company?.teacher
         ? `${dekont.company.teacher.name} ${dekont.company.teacher.surname}`
@@ -206,13 +225,37 @@ export async function GET(request: Request) {
         ? `${dekont.staj.student.name} ${dekont.staj.student.surname}`
         : "Bilinmiyor";
 
+      const studentId = dekont.staj?.studentId || dekont.studentId || "unknown";
+
       if (teacherMap.has(teacherName)) {
         const teacher = teacherMap.get(teacherName)!;
-        teacher.dekonts.push({
-          studentName,
-          status: dekont.status,
-          hasFile: !!dekont.fileUrl,
-        });
+
+        // Create unique key for student-month combination to deduplicate
+        const dekontKey = `${studentId}_${monthInt}_${yearInt}`;
+
+        // Only count the first dekont per student per month (deduplication)
+        if (!teacher.dekonts.has(dekontKey)) {
+          teacher.dekonts.set(dekontKey, {
+            studentName,
+            studentId,
+            status: dekont.status,
+            hasFile: !!dekont.fileUrl,
+          });
+        } else {
+          // If duplicate exists, update status to show the "best" status (approved > pending > rejected)
+          const existing = teacher.dekonts.get(dekontKey)!;
+          if (
+            dekont.status === "APPROVED" ||
+            (existing.status === "REJECTED" && dekont.status === "PENDING")
+          ) {
+            teacher.dekonts.set(dekontKey, {
+              studentName,
+              studentId,
+              status: dekont.status,
+              hasFile: !!dekont.fileUrl,
+            });
+          }
+        }
       }
     }
 
@@ -226,15 +269,16 @@ export async function GET(request: Request) {
 
     for (const [teacherName, data] of Array.from(teacherMap.entries())) {
       const totalStudents = data.students.size;
-      const studentsWithDekont = data.dekonts.length;
-      const pendingDekonts = data.dekonts.filter(
-        (d: any) => d.status === "PENDING"
+      const studentsWithDekont = data.dekonts.size; // Now using Map.size for deduplicated count
+      const dekontArray = Array.from(data.dekonts.values()); // Convert Map to Array for filtering
+      const pendingDekonts = dekontArray.filter(
+        (d) => d.status === "PENDING"
       ).length;
-      const approvedDekonts = data.dekonts.filter(
-        (d: any) => d.status === "APPROVED"
+      const approvedDekonts = dekontArray.filter(
+        (d) => d.status === "APPROVED"
       ).length;
-      const rejectedDekonts = data.dekonts.filter(
-        (d: any) => d.status === "REJECTED"
+      const rejectedDekonts = dekontArray.filter(
+        (d) => d.status === "REJECTED"
       ).length;
       const missingDekonts = totalStudents - studentsWithDekont;
       const uploadRate =
@@ -259,8 +303,8 @@ export async function GET(request: Request) {
       totalRejectedOverall += rejectedDekonts;
     }
 
-    // Sort teachers by upload rate (ascending) to show problematic teachers first
-    teacherReports.sort((a, b) => a.uploadRate - b.uploadRate);
+    // Sort teachers by upload rate (descending) to show best performers first
+    teacherReports.sort((a, b) => b.uploadRate - a.uploadRate);
 
     const totalMissingOverall = totalStudentsOverall - totalWithDekontOverall;
     const overallUploadRate =
