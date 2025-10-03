@@ -423,7 +423,16 @@ const TeacherPanel = () => {
         // Company types verilerini al
         if (companyTypesResponse.ok) {
           const companyTypesData = await companyTypesResponse.json();
+          console.log(
+            "🔍 DEBUG: Company types data received:",
+            companyTypesData
+          );
           setCompanyTypes(companyTypesData);
+        } else {
+          console.error(
+            "🔍 DEBUG: Company types API failed:",
+            companyTypesResponse.status
+          );
         }
 
         // Eski koordinatörlük dekontlarını getir
@@ -2065,7 +2074,7 @@ const TeacherPanel = () => {
                                 )}
                               </h3>
 
-                              {/* PROMINENTLY DISPLAY GOVERNMENT INSTITUTION STATUS */}
+                              {/* Government Institution Badge - Simple */}
                               {(() => {
                                 const companyType = companyTypes[isletme.id];
                                 const isGovCompany = companyType
@@ -2075,12 +2084,13 @@ const TeacherPanel = () => {
                                 if (isGovCompany) {
                                   return (
                                     <div className="flex items-center gap-2 mt-2 sm:mt-0">
-                                      <span className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-base font-bold rounded-xl border-2 border-blue-800 shadow-lg animate-pulse">
-                                        🏛️ KAMU KURUMU - DEKONT GEREKLİ DEĞİL
+                                      <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full border border-blue-300">
+                                        🏛️ KAMU KURUMU
                                       </span>
                                     </div>
                                   );
                                 }
+
                                 return null;
                               })()}
                             </div>
@@ -2201,16 +2211,6 @@ const TeacherPanel = () => {
                                         : "bg-gradient-to-r from-gray-50 to-indigo-50 border-blue-100 hover:border-blue-200"
                                     }`}
                                   >
-                                    {/* PROMINENT Government Institution Badge at Top */}
-                                    {isGovInstitution && (
-                                      <div className="flex justify-center mb-3">
-                                        <span className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-bold rounded-full border-2 border-blue-800 shadow-lg animate-pulse">
-                                          🏛️ KAMU KURUMU - DEKONT İŞLEMİ
-                                          YAPILMAMAKTADIR
-                                        </span>
-                                      </div>
-                                    )}
-
                                     {/* Student Status Badge */}
                                     {ogrenci.aktif === false && (
                                       <div className="flex justify-end mb-2">
@@ -2343,15 +2343,10 @@ const TeacherPanel = () => {
                                           Dekont Yükle
                                         </Link>
                                       ) : (
-                                        <div className="w-full p-3 bg-blue-50 border-2 border-blue-200 rounded-lg text-center">
-                                          <span className="text-sm font-bold text-blue-800">
-                                            🏛️ KAMU KURUMU - DEKONT İŞLEMİ
-                                            YAPILMAMAKTADIR
+                                        <div className="w-full p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                                          <span className="text-sm font-medium text-blue-800">
+                                            Kamu kurumu
                                           </span>
-                                          <p className="text-xs text-blue-600 mt-1">
-                                            Bu öğrenci için dekont yükleme
-                                            gerekli değildir
-                                          </p>
                                         </div>
                                       )}
                                     </div>
@@ -2405,28 +2400,6 @@ const TeacherPanel = () => {
                                               </div>
                                             );
                                           })}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* Government institution message - More Prominent */}
-                                    {isGovInstitution && (
-                                      <div className="mt-3 pt-3 border-t-2 border-blue-400">
-                                        <div className="text-center p-4 bg-gradient-to-r from-blue-100 to-blue-200 rounded-xl border-2 border-blue-300 shadow-md">
-                                          <div className="mb-2">
-                                            <span className="text-2xl">🏛️</span>
-                                          </div>
-                                          <span className="block text-sm text-blue-800 font-bold mb-2">
-                                            KAMU KURUMU STAJYERİ
-                                          </span>
-                                          <span className="block text-xs text-blue-700 font-medium">
-                                            Bu öğrenci kamu kurumunda staj
-                                            yapıyor
-                                          </span>
-                                          <span className="block text-xs text-blue-600 mt-1">
-                                            Dekont yüklemesi ve takibi gerekli
-                                            değildir
-                                          </span>
                                         </div>
                                       </div>
                                     )}

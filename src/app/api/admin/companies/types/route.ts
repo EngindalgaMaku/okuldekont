@@ -19,11 +19,6 @@ export async function GET(request: NextRequest) {
         id: true,
         companyType: true,
       },
-      where: {
-        companyType: {
-          not: null,
-        },
-      },
     });
 
     // Convert to object format for easier lookup
