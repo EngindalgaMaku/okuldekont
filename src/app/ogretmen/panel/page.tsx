@@ -2053,41 +2053,84 @@ const TeacherPanel = () => {
                         )}
                         <div className="flex items-center">
                           <div className="flex-1">
-                            <h3 className="text-lg font-bold text-gray-900 flex flex-col sm:flex-row sm:items-center sm:gap-2">
-                              <span className="break-words">{isletme.ad}</span>
-                              {isletme.total_students && (
-                                <span className="text-xs sm:text-sm font-normal text-gray-600 mt-1 sm:mt-0">
-                                  ({isletme.total_students} öğrenci)
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
+                              <h3 className="text-lg font-bold text-gray-900">
+                                <span className="break-words">
+                                  {isletme.ad}
                                 </span>
-                              )}
-                            </h3>
-
-                            {/* Company Status Information */}
-                            {showInactiveCompanies && (
-                              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                {isletme.active_students !== undefined &&
-                                  isletme.active_students > 0 && (
-                                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                                      ✅ {isletme.active_students} aktif öğrenci
-                                    </span>
-                                  )}
-                                {isletme.inactive_students !== undefined &&
-                                  isletme.inactive_students > 0 && (
-                                    <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">
-                                      ❌ {isletme.inactive_students} pasif
-                                      öğrenci
-                                    </span>
-                                  )}
-                                {isletme.latest_termination_date && (
-                                  <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
-                                    📅 Son fesih:{" "}
-                                    {new Date(
-                                      isletme.latest_termination_date
-                                    ).toLocaleDateString("tr-TR")}
+                                {isletme.total_students && (
+                                  <span className="text-sm font-normal text-gray-600 ml-2">
+                                    ({isletme.total_students} öğrenci)
                                   </span>
                                 )}
-                              </div>
-                            )}
+                              </h3>
+
+                              {/* PROMINENTLY DISPLAY GOVERNMENT INSTITUTION STATUS */}
+                              {(() => {
+                                const companyType = companyTypes[isletme.id];
+                                const isGovCompany = companyType
+                                  ? isGovernmentInstitution(companyType)
+                                  : false;
+
+                                if (isGovCompany) {
+                                  return (
+                                    <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                                      <span className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-base font-bold rounded-xl border-2 border-blue-800 shadow-lg animate-pulse">
+                                        🏛️ KAMU KURUMU - DEKONT GEREKLİ DEĞİL
+                                      </span>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
+
+                            {/* Company Status Information */}
+                            <div className="flex items-center gap-2 mt-3 flex-wrap">
+                              {/* Company Type Badge */}
+                              {(() => {
+                                const companyType = companyTypes[isletme.id];
+                                const isGovCompany = companyType
+                                  ? isGovernmentInstitution(companyType)
+                                  : false;
+
+                                if (!isGovCompany && companyType) {
+                                  return (
+                                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                                      🏢 Özel Sektör
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
+
+                              {showInactiveCompanies && (
+                                <>
+                                  {isletme.active_students !== undefined &&
+                                    isletme.active_students > 0 && (
+                                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                                        ✅ {isletme.active_students} aktif
+                                        öğrenci
+                                      </span>
+                                    )}
+                                  {isletme.inactive_students !== undefined &&
+                                    isletme.inactive_students > 0 && (
+                                      <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">
+                                        ❌ {isletme.inactive_students} pasif
+                                        öğrenci
+                                      </span>
+                                    )}
+                                  {isletme.latest_termination_date && (
+                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
+                                      📅 Son fesih:{" "}
+                                      {new Date(
+                                        isletme.latest_termination_date
+                                      ).toLocaleDateString("tr-TR")}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </div>
 
                             <div className="text-sm text-gray-600 font-medium space-y-1 mt-2">
                               <p>👤 Yetkili: {isletme.yukleyen_kisi}</p>
@@ -2154,10 +2197,20 @@ const TeacherPanel = () => {
                                       ogrenci.aktif === false
                                         ? "bg-gradient-to-r from-red-50 to-orange-50 border-red-200 hover:border-red-300 opacity-80"
                                         : isGovInstitution
-                                        ? "bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 hover:border-blue-300"
+                                        ? "bg-gradient-to-r from-blue-50 to-blue-100 border-4 border-blue-400 shadow-lg"
                                         : "bg-gradient-to-r from-gray-50 to-indigo-50 border-blue-100 hover:border-blue-200"
                                     }`}
                                   >
+                                    {/* PROMINENT Government Institution Badge at Top */}
+                                    {isGovInstitution && (
+                                      <div className="flex justify-center mb-3">
+                                        <span className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-sm font-bold rounded-full border-2 border-blue-800 shadow-lg animate-pulse">
+                                          🏛️ KAMU KURUMU - DEKONT İŞLEMİ
+                                          YAPILMAMAKTADIR
+                                        </span>
+                                      </div>
+                                    )}
+
                                     {/* Student Status Badge */}
                                     {ogrenci.aktif === false && (
                                       <div className="flex justify-end mb-2">
@@ -2176,30 +2229,29 @@ const TeacherPanel = () => {
                                       <div
                                         className={`h-10 w-10 rounded-lg flex items-center justify-center hidden sm:block ${
                                           isGovInstitution
-                                            ? "bg-gradient-to-br from-blue-100 to-blue-200"
+                                            ? "bg-gradient-to-br from-blue-200 to-blue-300 border border-blue-400"
                                             : "bg-gradient-to-br from-indigo-50 to-blue-50"
                                         }`}
                                       >
                                         <User
                                           className={`h-5 w-5 ${
                                             isGovInstitution
-                                              ? "text-blue-700"
+                                              ? "text-blue-800"
                                               : "text-indigo-600"
                                           }`}
                                         />
                                       </div>
                                       <div className="sm:ml-3 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                          <p className="text-sm font-medium text-gray-900">
+                                          <p
+                                            className={`text-sm font-medium ${
+                                              isGovInstitution
+                                                ? "text-blue-900"
+                                                : "text-gray-900"
+                                            }`}
+                                          >
                                             {ogrenci.ad} {ogrenci.soyad}
                                           </p>
-
-                                          {/* Government Institution Badge */}
-                                          {isGovInstitution && (
-                                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium border border-blue-200">
-                                              Kamu - Dekont Gerekli Değil
-                                            </span>
-                                          )}
 
                                           {/* Only show dekont counts for private institutions */}
                                           {!isGovInstitution &&
@@ -2278,24 +2330,28 @@ const TeacherPanel = () => {
                                         )}
                                       </div>
                                     </div>
-                                    {/* Only show dekont upload button for private institutions */}
-                                    <div className="flex justify-end">
+                                    {/* Show different actions based on institution type */}
+                                    <div className="flex justify-center">
                                       {!isGovInstitution ? (
                                         <Link
                                           href={`/ogretmen/dekont-yukle?isletmeId=${isletme.id}&ogrenciId=${ogrenci.id}`}
                                           onClick={(e) => e.stopPropagation()}
-                                          className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                                          className="flex items-center px-4 py-2 text-sm text-white bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 rounded-lg transition-colors shadow-md"
                                           title="Dekont Yükle (Sayfada)"
                                         >
                                           <Upload className="h-4 w-4 mr-1.5" />
                                           Dekont Yükle
                                         </Link>
                                       ) : (
-                                        <div className="flex items-center px-3 py-1.5 text-sm text-blue-600 bg-blue-50 rounded-lg">
-                                          <span className="text-xs font-medium">
-                                            🏛️ Kamu kurumu - Dekont gerekli
-                                            değil
+                                        <div className="w-full p-3 bg-blue-50 border-2 border-blue-200 rounded-lg text-center">
+                                          <span className="text-sm font-bold text-blue-800">
+                                            🏛️ KAMU KURUMU - DEKONT İŞLEMİ
+                                            YAPILMAMAKTADIR
                                           </span>
+                                          <p className="text-xs text-blue-600 mt-1">
+                                            Bu öğrenci için dekont yükleme
+                                            gerekli değildir
+                                          </p>
                                         </div>
                                       )}
                                     </div>
@@ -2353,14 +2409,23 @@ const TeacherPanel = () => {
                                       </div>
                                     )}
 
-                                    {/* Government institution message */}
+                                    {/* Government institution message - More Prominent */}
                                     {isGovInstitution && (
-                                      <div className="mt-3 pt-3 border-t border-blue-200">
-                                        <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
-                                          <span className="text-xs text-blue-700 font-medium">
-                                            🏛️ Bu öğrenci kamu kurumunda staj
-                                            yapıyor - dekont yüklemesi gerekli
-                                            değil
+                                      <div className="mt-3 pt-3 border-t-2 border-blue-400">
+                                        <div className="text-center p-4 bg-gradient-to-r from-blue-100 to-blue-200 rounded-xl border-2 border-blue-300 shadow-md">
+                                          <div className="mb-2">
+                                            <span className="text-2xl">🏛️</span>
+                                          </div>
+                                          <span className="block text-sm text-blue-800 font-bold mb-2">
+                                            KAMU KURUMU STAJYERİ
+                                          </span>
+                                          <span className="block text-xs text-blue-700 font-medium">
+                                            Bu öğrenci kamu kurumunda staj
+                                            yapıyor
+                                          </span>
+                                          <span className="block text-xs text-blue-600 mt-1">
+                                            Dekont yüklemesi ve takibi gerekli
+                                            değildir
                                           </span>
                                         </div>
                                       </div>
