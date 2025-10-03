@@ -103,17 +103,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [educationYearsLoading, setEducationYearsLoading] = useState(false);
   const [changingYear, setChangingYear] = useState(false);
 
-  // Tablet ve daha küçük ekranlar için media query
-  const isTabletOrSmaller = useMediaQuery("(max-width: 1279px)");
+  // Sadece mobil cihazlar için media query (tabletler hariç)
+  const isMobileOnly = useMediaQuery("(max-width: 1023px)");
 
-  // Tablet/mobil cihazlarda sidebar'ı otomatik küçült
+  // Sadece mobil cihazlarda sidebar'ı otomatik küçült, tabletlerde manuel kontrol bırak
   useEffect(() => {
-    if (isTabletOrSmaller) {
+    if (isMobileOnly) {
       setDesktopSidebarOpen(false);
-    } else {
-      setDesktopSidebarOpen(true);
     }
-  }, [isTabletOrSmaller]);
+    // Tablet ve masaüstünde otomatik değişiklik yapma, kullanıcının tercihini koru
+  }, [isMobileOnly]);
 
   // Okul ismini ayarlardan çek
   const fetchSchoolName = async () => {
@@ -325,7 +324,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <Transition.Root show={sidebarOpen} as={Fragment}>
         <Dialog
           as="div"
-          className="relative z-50 lg:hidden"
+          className="relative z-50 md:hidden"
           onClose={setSidebarOpen}
         >
           <Transition.Child
@@ -593,8 +592,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       {/* Desktop Sidebar */}
       <div
         className={classNames(
-          desktopSidebarOpen ? "lg:w-72" : "lg:w-20",
-          "hidden lg:fixed lg:inset-y-0 lg:z-40 lg:flex lg:flex-col transition-all duration-300"
+          desktopSidebarOpen ? "md:w-72" : "md:w-20",
+          "hidden md:fixed md:inset-y-0 md:z-40 md:flex md:flex-col transition-all duration-300"
         )}
       >
         <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white">
@@ -715,14 +714,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       {/* Main Content */}
       <div
         className={classNames(
-          desktopSidebarOpen ? "lg:pl-72" : "lg:pl-20",
-          "flex flex-1 flex-col lg:ml-0 transition-all duration-300"
+          desktopSidebarOpen ? "md:pl-72" : "md:pl-20",
+          "flex flex-1 flex-col md:ml-0 transition-all duration-300"
         )}
       >
         <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
           <button
             type="button"
-            className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
+            className="-m-2.5 p-2.5 text-gray-700 md:hidden"
             onClick={() => setSidebarOpen(true)}
           >
             <span className="sr-only">Menüyü aç</span>
@@ -731,7 +730,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
           <button
             type="button"
-            className="hidden lg:block -m-2.5 p-2.5 text-gray-700"
+            className="hidden md:block -m-2.5 p-2.5 text-gray-700"
             onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
           >
             <span className="sr-only">
@@ -743,7 +742,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6 justify-end">
             {/* Aktif Dönem Göstergesi - Sadece tablet/mobil için */}
             {activeEducationYear && (
-              <div className="flex items-center lg:hidden absolute left-4">
+              <div className="flex items-center md:hidden absolute left-4">
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg px-2 sm:px-3 py-1 sm:py-1.5">
                   <div className="flex items-center gap-x-1 sm:gap-x-2">
                     <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600 flex-shrink-0" />

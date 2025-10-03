@@ -1,17 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   X,
-  Calendar,
-  FileText,
+  User,
+  Building2,
+  Check,
+  AlertTriangle,
   Download,
-  Loader,
-  TrendingUp,
-  Users,
-  CheckCircle,
-  XCircle,
-  Clock,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 interface DekontReportsModalProps {
@@ -19,442 +18,623 @@ interface DekontReportsModalProps {
   onClose: () => void;
 }
 
-interface TeacherReportData {
-  teacherName: string;
-  totalStudents: number;
-  studentsWithDekont: number;
-  pendingDekonts: number;
-  approvedDekonts: number;
-  rejectedDekonts: number;
-  missingDekonts: number;
-  uploadRate: number;
+interface TeacherReport {
+  ogretmen_id: string;
+  ogretmen_ad: string;
+  isletmeler: CompanyReport[];
 }
 
-interface MonthlyReport {
-  month: number;
-  year: number;
-  teacherReports: TeacherReportData[];
-  totalStats: {
-    totalStudents: number;
-    totalWithDekont: number;
-    totalPending: number;
-    totalApproved: number;
-    totalRejected: number;
-    totalMissing: number;
-    overallUploadRate: number;
-  };
+interface StudentInfo {
+  id: string;
+  ad_soyad: string;
+  sinif: string;
+  no: string;
+  alan: string;
+  has_dekont: boolean;
+}
+
+interface CompanyReport {
+  isletme_id: string;
+  isletme_ad: string;
+  has_dekont: boolean;
+  dekont_sayisi: number;
+  toplam_ogrenci: number;
+  ogrenciler: StudentInfo[];
 }
 
 const MONTHS = [
-  "Ocak",
-  "Şubat",
-  "Mart",
-  "Nisan",
-  "Mayıs",
-  "Haziran",
-  "Temmuz",
-  "Ağustos",
-  "Eylül",
-  "Ekim",
-  "Kasım",
-  "Aralık",
+  { value: 1, label: "Ocak" },
+  { value: 2, label: "Şubat" },
+  { value: 3, label: "Mart" },
+  { value: 4, label: "Nisan" },
+  { value: 5, label: "Mayıs" },
+  { value: 6, label: "Haziran" },
+  { value: 7, label: "Temmuz" },
+  { value: 8, label: "Ağustos" },
+  { value: 9, label: "Eylül" },
+  { value: 10, label: "Ekim" },
+  { value: 11, label: "Kasım" },
+  { value: 12, label: "Aralık" },
 ];
 
-// Helper function to calculate previous month defaults
-const calculatePreviousMonthDefaults = () => {
-  const currentDate = new Date();
-  const previousMonth = new Date(
-    currentDate.getFullYear(),
-    currentDate.getMonth() - 1
-  );
-  const defaultMonth = (previousMonth.getMonth() + 1).toString();
-  const defaultYear = previousMonth.getFullYear().toString();
-  return { defaultMonth, defaultYear };
+// Geçen ayın değerlerini hesapla
+const getPreviousMonthDefaults = () => {
+  const now = new Date();
+  const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1);
+  return {
+    month: previousMonth.getMonth() + 1,
+    year: previousMonth.getFullYear(),
+  };
 };
 
 export default function DekontReportsModal({
   isOpen,
   onClose,
 }: DekontReportsModalProps) {
-  const { defaultMonth, defaultYear } = calculatePreviousMonthDefaults();
+  const { month: defaultMonth, year: defaultYear } = getPreviousMonthDefaults();
 
-  const [selectedMonth, setSelectedMonth] = useState<string>(defaultMonth);
-  const [selectedYear, setSelectedYear] = useState<string>(defaultYear);
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
+  const [selectedYear, setSelectedYear] = useState(defaultYear);
   const [loading, setLoading] = useState(false);
-  const [reportData, setReportData] = useState<MonthlyReport | null>(null);
-  const [error, setError] = useState<string>("");
-
-  const availableYears = Array.from(
-    { length: 5 },
-    (_, i) => new Date().getFullYear() - i
+  const [teacherReports, setTeacherReports] = useState<TeacherReport[]>([]);
+  const [sortBy, setSortBy] = useState<"name" | "completion">("name");
+  const [showOnlyIncomplete, setShowOnlyIncomplete] = useState(false);
+  const [expandedTeacherId, setExpandedTeacherId] = useState<string | null>(
+    null
   );
 
-  const fetchReport = async () => {
-    if (!selectedMonth || !selectedYear) return;
+  // Yıl seçenekleri (son 3 yıl)
+  const yearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return [currentYear - 1, currentYear, currentYear + 1];
+  }, []);
 
-    setLoading(true);
-    setError("");
-
+  // Rapor verilerini fetch et
+  const fetchReports = async () => {
     try {
+      setLoading(true);
       const response = await fetch(
-        `/api/admin/dekontlar/reports?month=${selectedMonth}&year=${selectedYear}`
+        `/api/admin/reports/dekont-status?month=${selectedMonth}&year=${selectedYear}`
       );
 
       if (!response.ok) {
-        throw new Error("Rapor alınamadı");
+        throw new Error("Rapor verileri alınamadı");
       }
 
       const data = await response.json();
-      setReportData(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Bir hata oluştu");
+      setTeacherReports(data.teachers || []);
+    } catch (error) {
+      console.error("Rapor fetch hatası:", error);
+      setTeacherReports([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const downloadReport = async () => {
-    if (!reportData) return;
-
-    try {
-      const response = await fetch(
-        `/api/admin/dekontlar/reports/download?month=${selectedMonth}&year=${selectedYear}`
-      );
-
-      if (!response.ok) {
-        throw new Error("Rapor indirilemedi");
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `dekont-raporu-${
-        MONTHS[parseInt(selectedMonth) - 1]
-      }-${selectedYear}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "İndirme hatası");
-    }
-  };
-
+  // Modal açıldığında ve ay/yıl değiştiğinde veri çek
   useEffect(() => {
-    if (isOpen && selectedMonth && selectedYear) {
-      fetchReport();
+    if (isOpen) {
+      fetchReports();
+      setExpandedTeacherId(null); // Modal açıldığında tüm accordion'ları kapat
     }
   }, [isOpen, selectedMonth, selectedYear]);
+
+  // Sıralama ve filtreleme
+  const filteredAndSortedReports = useMemo(() => {
+    let filtered = [...teacherReports];
+
+    // Sadece eksik olanları göster filtresi
+    if (showOnlyIncomplete) {
+      filtered = filtered.filter((teacher) =>
+        teacher.isletmeler.some((company) => !company.has_dekont)
+      );
+    }
+
+    // Sıralama
+    filtered.sort((a, b) => {
+      if (sortBy === "name") {
+        return a.ogretmen_ad.localeCompare(b.ogretmen_ad, "tr");
+      } else {
+        // completion
+        const aCompletion =
+          a.isletmeler.filter((c) => c.has_dekont).length / a.isletmeler.length;
+        const bCompletion =
+          b.isletmeler.filter((c) => c.has_dekont).length / b.isletmeler.length;
+        return bCompletion - aCompletion; // Yüksekten düşüğe
+      }
+    });
+
+    return filtered;
+  }, [teacherReports, sortBy, showOnlyIncomplete]);
+
+  // Genel istatistikler - Öğrenci bazlı
+  const statistics = useMemo(() => {
+    let totalStudents = 0;
+    let studentsWithDekont = 0;
+    let totalDekontlar = 0;
+    const totalTeachers = teacherReports.length;
+
+    teacherReports.forEach((teacher) => {
+      teacher.isletmeler.forEach((company) => {
+        if (company.ogrenciler) {
+          totalStudents += company.ogrenciler.length;
+          const studentsWithDekontInCompany = company.ogrenciler.filter(
+            (student) => student.has_dekont
+          ).length;
+          studentsWithDekont += studentsWithDekontInCompany;
+          totalDekontlar += company.dekont_sayisi;
+        }
+      });
+    });
+
+    const completionRate =
+      totalStudents > 0 ? (studentsWithDekont / totalStudents) * 100 : 0;
+
+    return {
+      totalTeachers,
+      totalStudents,
+      studentsWithDekont,
+      studentsWithoutDekont: totalStudents - studentsWithDekont,
+      totalDekontlar,
+      completionRate,
+    };
+  }, [teacherReports]);
+
+  // CSV Export fonksiyonu
+  const exportToCSV = () => {
+    const headers = [
+      "Öğretmen",
+      "İşletme",
+      "Öğrenci",
+      "Sınıf",
+      "No",
+      "Alan",
+      "Dekont Durumu",
+    ];
+    const rows: string[][] = [];
+
+    filteredAndSortedReports.forEach((teacher) => {
+      teacher.isletmeler.forEach((company) => {
+        if (company.ogrenciler && company.ogrenciler.length > 0) {
+          company.ogrenciler.forEach((student) => {
+            rows.push([
+              teacher.ogretmen_ad,
+              company.isletme_ad,
+              student.ad_soyad,
+              student.sinif || "",
+              student.no || "",
+              student.alan,
+              student.has_dekont ? "Gönderildi" : "Gönderilmedi",
+            ]);
+          });
+        } else {
+          rows.push([
+            teacher.ogretmen_ad,
+            company.isletme_ad,
+            "Öğrenci yok",
+            "-",
+            "-",
+            "-",
+            company.has_dekont ? "Gönderildi" : "Gönderilmedi",
+          ]);
+        }
+      });
+    });
+
+    const csvContent = [headers, ...rows]
+      .map((row: string[]) => row.map((cell: string) => `"${cell}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `dekont_raporu_detay_${selectedYear}_${selectedMonth
+        .toString()
+        .padStart(2, "0")}.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Accordion toggle handler
+  const toggleTeacher = (teacherId: string) => {
+    setExpandedTeacherId(expandedTeacherId === teacherId ? null : teacherId);
+  };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b flex-shrink-0">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Dekont Yükleme Raporu
-          </h2>
+        <div className="flex justify-between items-center p-6 border-b border-gray-200">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Aylık Dekont Raporu
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Öğretmen bazlı işletme dekont gönderme durumları
+            </p>
+          </div>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 transition-colors"
-            aria-label="Kapat"
+            title="Kapat"
           >
             <X className="h-6 w-6" />
           </button>
         </div>
 
-        <div className="p-6 flex-1 overflow-y-auto">
-          {/* Filter Section */}
-          <div className="flex items-center gap-4 mb-6">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-gray-500" />
+        {/* Filters */}
+        <div className="p-6 border-b border-gray-200 bg-gray-50">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {/* Ay Seçimi */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Ay
+              </label>
               <select
                 value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="">Ay Seçin</option>
-                {MONTHS.map((month, index) => (
-                  <option key={index} value={index + 1}>
-                    {month}
+                {MONTHS.map((month) => (
+                  <option key={month.value} value={month.value}>
+                    {month.label}
                   </option>
                 ))}
               </select>
             </div>
 
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">Yıl Seçin</option>
-              {availableYears.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-
-            <button
-              onClick={fetchReport}
-              disabled={loading || !selectedMonth || !selectedYear}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <Loader className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileText className="h-4 w-4" />
-              )}
-              Rapor Oluştur
-            </button>
-
-            {reportData && (
-              <button
-                onClick={downloadReport}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+            {/* Yıl Seçimi */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Yıl
+              </label>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <Download className="h-4 w-4" />
-                Excel İndir
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sıralama */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sırala
+              </label>
+              <select
+                value={sortBy}
+                onChange={(e) =>
+                  setSortBy(e.target.value as "name" | "completion")
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="name">Öğretmen Adına Göre</option>
+                <option value="completion">Tamamlanma Oranına Göre</option>
+              </select>
+            </div>
+
+            {/* Filtreler */}
+            <div className="flex items-end">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={showOnlyIncomplete}
+                  onChange={(e) => setShowOnlyIncomplete(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">
+                  Sadece eksik olanlar
+                </span>
+              </label>
+            </div>
+
+            {/* Export Butonu */}
+            <div className="flex items-end">
+              <button
+                onClick={exportToCSV}
+                disabled={loading || filteredAndSortedReports.length === 0}
+                className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                CSV İndir
               </button>
-            )}
+            </div>
           </div>
+        </div>
 
-          {/* Error Message */}
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-red-700">{error}</p>
+        {/* İstatistikler */}
+        {!loading && teacherReports.length > 0 && (
+          <div className="p-6 border-b border-gray-200">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-blue-50 rounded-lg p-4">
+                <div className="flex items-center">
+                  <User className="h-8 w-8 text-blue-600" />
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-blue-600">
+                      Dekont Bekleyen Öğrenci
+                    </p>
+                    <p className="text-2xl font-bold text-blue-900">
+                      {statistics.totalStudents}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-green-50 rounded-lg p-4">
+                <div className="flex items-center">
+                  <Check className="h-8 w-8 text-green-600" />
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-green-600">
+                      Dekont Gönderen Öğrenci
+                    </p>
+                    <p className="text-2xl font-bold text-green-900">
+                      {statistics.studentsWithDekont}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-purple-50 rounded-lg p-4">
+                <div className="flex items-center">
+                  <Building2 className="h-8 w-8 text-purple-600" />
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-purple-600">
+                      Toplam Gönderilen Dekont
+                    </p>
+                    <p className="text-2xl font-bold text-purple-900">
+                      {statistics.totalDekontlar}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-orange-50 rounded-lg p-4">
+                <div className="flex items-center">
+                  <AlertTriangle className="h-8 w-8 text-orange-600" />
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-orange-600">
+                      Tamamlanma Oranı
+                    </p>
+                    <p className="text-2xl font-bold text-orange-900">
+                      {statistics.completionRate.toFixed(1)}%
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Loading State */}
-          {loading && (
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto max-h-96">
+          {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <Loader className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
-                <p className="text-gray-600">Rapor hazırlanıyor...</p>
-              </div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-3 text-gray-600">Rapor yükleniyor...</span>
             </div>
-          )}
-
-          {/* Report Content */}
-          {reportData && !loading && (
-            <div className="space-y-6">
-              {/* Overall Stats Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-blue-600">
-                        Toplam Öğrenci
-                      </p>
-                      <p className="text-2xl font-bold text-blue-900">
-                        {reportData.totalStats.totalStudents}
-                      </p>
-                    </div>
-                    <Users className="h-8 w-8 text-blue-500" />
-                  </div>
-                </div>
-
-                <div className="bg-green-50 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-green-600">
-                        Dekont Yüklenen
-                      </p>
-                      <p className="text-2xl font-bold text-green-900">
-                        {reportData.totalStats.totalWithDekont}
-                      </p>
-                    </div>
-                    <CheckCircle className="h-8 w-8 text-green-500" />
-                  </div>
-                </div>
-
-                <div className="bg-yellow-50 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-yellow-600">
-                        Beklemede
-                      </p>
-                      <p className="text-2xl font-bold text-yellow-900">
-                        {reportData.totalStats.totalPending}
-                      </p>
-                    </div>
-                    <Clock className="h-8 w-8 text-yellow-500" />
-                  </div>
-                </div>
-
-                <div className="bg-purple-50 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-purple-600">
-                        Yükleme Oranı
-                      </p>
-                      <p className="text-2xl font-bold text-purple-900">
-                        {reportData.totalStats.overallUploadRate.toFixed(1)}%
-                      </p>
-                    </div>
-                    <TrendingUp className="h-8 w-8 text-purple-500" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Teacher Reports Table */}
-              <div className="bg-white border rounded-lg overflow-hidden">
-                <div className="px-4 py-3 border-b bg-gray-50">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Öğretmen Bazlı Rapor - {MONTHS[parseInt(selectedMonth) - 1]}{" "}
-                    {selectedYear}
-                  </h3>
-                </div>
-
-                <div className="overflow-x-auto max-h-96 overflow-y-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50 sticky top-0 z-10">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Öğretmen
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Toplam Öğrenci
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Dekont Yüklenen
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Onaylanan
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Beklemede
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Reddedilen
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Eksik
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Yükleme Oranı
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {reportData.teacherReports.map((teacher, index) => (
-                        <tr
-                          key={index}
-                          className={`${
-                            teacher.uploadRate === 100
-                              ? "bg-green-50 hover:bg-green-100 border-l-4 border-l-green-500"
-                              : teacher.uploadRate >= 80
-                              ? "bg-blue-50 hover:bg-blue-100"
-                              : "hover:bg-gray-50"
-                          }`}
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {teacher.teacherName}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {teacher.totalStudents}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
-                            {teacher.studentsWithDekont}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-emerald-600">
-                            {teacher.approvedDekonts}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-yellow-600">
-                            {teacher.pendingDekonts}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
-                            {teacher.rejectedDekonts}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {teacher.missingDekonts}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 w-16">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {teacher.uploadRate.toFixed(1)}%
-                                </div>
-                              </div>
-                              <div className="ml-4 flex-1">
-                                <div className="w-full bg-gray-200 rounded-full h-2">
-                                  <div
-                                    className={`h-2 rounded-full ${
-                                      teacher.uploadRate >= 80
-                                        ? "bg-green-600"
-                                        : teacher.uploadRate >= 60
-                                        ? "bg-yellow-500"
-                                        : "bg-red-500"
-                                    }`}
-                                    style={{
-                                      width: `${Math.min(
-                                        teacher.uploadRate,
-                                        100
-                                      )}%`,
-                                    }}
-                                  ></div>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Summary */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Özet</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">Toplam Öğrenci: </span>
-                    <span className="font-medium">
-                      {reportData.totalStats.totalStudents}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Dekont Yüklenen: </span>
-                    <span className="font-medium text-green-600">
-                      {reportData.totalStats.totalWithDekont}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Eksik: </span>
-                    <span className="font-medium text-red-600">
-                      {reportData.totalStats.totalMissing}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Genel Oran: </span>
-                    <span className="font-medium text-purple-600">
-                      {reportData.totalStats.overallUploadRate.toFixed(1)}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Empty State */}
-          {!reportData && !loading && selectedMonth && selectedYear && (
+          ) : filteredAndSortedReports.length === 0 ? (
             <div className="text-center py-12">
-              <FileText className="mx-auto h-12 w-12 text-gray-400" />
+              <Calendar className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">
                 Rapor bulunamadı
               </h3>
               <p className="mt-1 text-sm text-gray-500">
-                Seçilen dönem için veri bulunamadı.
+                Seçili dönem için veri bulunamadı.
               </p>
             </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {filteredAndSortedReports.map((teacher) => {
+                const completedCompanies = teacher.isletmeler.filter(
+                  (c) => c.has_dekont
+                ).length;
+                const totalCompanies = teacher.isletmeler.length;
+                const completionRate =
+                  totalCompanies > 0
+                    ? (completedCompanies / totalCompanies) * 100
+                    : 0;
+                const isExpanded = expandedTeacherId === teacher.ogretmen_id;
+
+                return (
+                  <div
+                    key={teacher.ogretmen_id}
+                    className="border-b border-gray-200"
+                  >
+                    {/* Öğretmen Başlığı - Tıklanabilir Accordion */}
+                    <button
+                      onClick={() => toggleTeacher(teacher.ogretmen_id)}
+                      className="w-full p-6 flex items-center justify-between hover:bg-gray-50 transition-colors duration-150"
+                    >
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                          <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                            <User className="h-5 w-5 text-indigo-600" />
+                          </div>
+                        </div>
+                        <div className="ml-4 text-left">
+                          <h4 className="text-lg font-medium text-gray-900">
+                            {teacher.ogretmen_ad}
+                          </h4>
+                          <p className="text-sm text-gray-500">
+                            {totalCompanies} işletme sorumlusu
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <div className="text-right">
+                          <div
+                            className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                              completionRate === 100
+                                ? "bg-green-100 text-green-800"
+                                : completionRate >= 75
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-red-100 text-red-800"
+                            }`}
+                          >
+                            {completionRate.toFixed(1)}% tamamlandı
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {completedCompanies}/{totalCompanies} işletme
+                          </p>
+                        </div>
+                        <div className="flex-shrink-0">
+                          {isExpanded ? (
+                            <ChevronUp className="h-5 w-5 text-gray-500" />
+                          ) : (
+                            <ChevronDown className="h-5 w-5 text-gray-500" />
+                          )}
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* İşletme Listesi - Genişletilebilir İçerik */}
+                    {isExpanded && (
+                      <div className="px-6 pb-6">
+                        <div className="ml-14 space-y-4">
+                          {teacher.isletmeler.map((company) => (
+                            <div
+                              key={company.isletme_id}
+                              className={`rounded-lg border p-4 ${
+                                company.has_dekont
+                                  ? "bg-green-50 border-green-200"
+                                  : "bg-red-50 border-red-200"
+                              }`}
+                            >
+                              {/* İşletme Başlığı */}
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center">
+                                  <Building2
+                                    className={`h-5 w-5 mr-3 ${
+                                      company.has_dekont
+                                        ? "text-green-600"
+                                        : "text-red-600"
+                                    }`}
+                                  />
+                                  <div>
+                                    <h5 className="font-semibold text-gray-900">
+                                      {company.isletme_ad}
+                                    </h5>
+                                    <p className="text-sm text-gray-600">
+                                      {company.toplam_ogrenci} öğrenci staj
+                                      yapıyor
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center">
+                                  {company.has_dekont ? (
+                                    <div className="flex items-center text-green-700">
+                                      <Check className="h-4 w-4 mr-1" />
+                                      <span className="text-sm font-medium">
+                                        {company.dekont_sayisi} dekont
+                                        gönderildi
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center text-red-700">
+                                      <AlertTriangle className="h-4 w-4 mr-1" />
+                                      <span className="text-sm font-medium">
+                                        Dekont gönderilmedi
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Öğrenci Listesi */}
+                              <div className="space-y-2">
+                                <h6 className="text-sm font-medium text-gray-700 mb-2">
+                                  Öğrenciler:
+                                </h6>
+                                {company.ogrenciler &&
+                                company.ogrenciler.length > 0 ? (
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    {company.ogrenciler.map((ogrenci) => (
+                                      <div
+                                        key={ogrenci.id}
+                                        className={`flex items-center justify-between p-3 rounded border ${
+                                          ogrenci.has_dekont
+                                            ? "bg-green-100 border-green-300 text-green-800"
+                                            : "bg-gray-100 border-gray-300 text-gray-700"
+                                        }`}
+                                      >
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center">
+                                            <span className="font-medium truncate">
+                                              {ogrenci.ad_soyad}
+                                            </span>
+                                            <span className="text-xs ml-2 flex-shrink-0">
+                                              {ogrenci.sinif} - {ogrenci.no}
+                                            </span>
+                                          </div>
+                                          <div className="text-xs opacity-75 mt-1">
+                                            {ogrenci.alan}
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center ml-3 flex-shrink-0">
+                                          {ogrenci.has_dekont ? (
+                                            <div className="flex items-center text-green-600">
+                                              <Check className="h-4 w-4 mr-1" />
+                                              <span className="text-xs font-medium">
+                                                Dekont var
+                                              </span>
+                                            </div>
+                                          ) : (
+                                            <div className="flex items-center text-red-600">
+                                              <X className="h-4 w-4 mr-1" />
+                                              <span className="text-xs font-medium">
+                                                Dekont yok
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-gray-500 italic p-3 bg-gray-100 rounded">
+                                    Bu işletmede staj yapan öğrenci bulunamadı
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-6 border-t border-gray-200 bg-gray-50">
+          <div className="flex justify-between items-center">
+            <p className="text-sm text-gray-600">
+              {MONTHS.find((m) => m.value === selectedMonth)?.label}{" "}
+              {selectedYear} dönemi raporu
+            </p>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              Kapat
+            </button>
+          </div>
         </div>
       </div>
     </div>
