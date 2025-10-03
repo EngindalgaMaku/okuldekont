@@ -54,6 +54,14 @@ import {
 } from "@/utils/teacher-panel-utils";
 
 import {
+  isGovernmentInstitution,
+  isDekontRequired,
+  getCompanyTypeLabel,
+  getCompanyTypeBadgeClass,
+  type CompanyType,
+} from "@/lib/company-utils";
+
+import {
   Ogrenci,
   Isletme,
   Dekont,
@@ -75,6 +83,9 @@ const TeacherPanel = () => {
   const [dekontlar, setDekontlar] = useState<Dekont[]>([]);
   const [filteredDekontlar, setFilteredDekontlar] = useState<Dekont[]>([]);
   const [historicalDekontlar, setHistoricalDekontlar] = useState<Dekont[]>([]);
+  const [companyTypes, setCompanyTypes] = useState<{
+    [companyId: string]: CompanyType;
+  }>({});
   const [showHistoricalDekontlar, setShowHistoricalDekontlar] = useState(false);
   const [showInactiveCompanies, setShowInactiveCompanies] = useState(false);
   const [dekontSearchTerm, setDekontSearchTerm] = useState("");
@@ -163,7 +174,7 @@ const TeacherPanel = () => {
   const [pendingDekontData, setPendingDekontData] =
     useState<DekontFormData | null>(null);
 
-  // Önceki ay için dekont eksik olan öğrencileri tespit et
+  // Önceki ay için dekont eksik olan öğrencileri tespit et (kamu kurumları hariç)
   const getEksikDekontOgrenciler = () => {
     const currentDate = new Date();
     const previousMonth =
@@ -182,6 +193,7 @@ const TeacherPanel = () => {
       isletme_ad: string;
       baslangic_tarihi: string;
       staj_id?: string;
+      isletme_id?: string;
     }> = [];
 
     isletmeler.forEach((isletme) => {
@@ -189,11 +201,18 @@ const TeacherPanel = () => {
         tumOgrenciler.push({
           ...ogrenci,
           isletme_ad: isletme.ad,
+          isletme_id: isletme.id,
         });
       });
     });
 
     return tumOgrenciler.filter((ogrenci) => {
+      // Kamu kurumu kontrolü - kamu kurumları için dekont gerekli değil
+      const companyType = companyTypes[ogrenci.isletme_id || ""];
+      if (companyType && isGovernmentInstitution(companyType)) {
+        return false; // Kamu kurumlarını filtrele
+      }
+
       // Öğrencinin başlangıç tarihini kontrol et
       const startDate = new Date(ogrenci.baslangic_tarihi);
       const startYear = startDate.getFullYear();
@@ -367,6 +386,7 @@ const TeacherPanel = () => {
           dekontlarResponse,
           belgelerResponse,
           notificationsResponse,
+          companyTypesResponse,
         ] = await Promise.all([
           fetch(`/api/admin/teachers/${teacherId}`),
           fetch("/api/admin/system-settings"),
@@ -376,6 +396,7 @@ const TeacherPanel = () => {
           fetch(`/api/admin/teachers/${teacherId}/dekontlar`),
           fetch(`/api/admin/teachers/${teacherId}/belgeler`),
           fetch(`/api/admin/teachers/${teacherId}/notifications`),
+          fetch("/api/admin/companies/types"),
         ]);
 
         if (!teacherResponse.ok) throw new Error("Öğretmen bulunamadı");
@@ -397,6 +418,12 @@ const TeacherPanel = () => {
           const dekontData = await dekontlarResponse.json();
           setDekontlar(dekontData);
           setFilteredDekontlar(dekontData);
+        }
+
+        // Company types verilerini al
+        if (companyTypesResponse.ok) {
+          const companyTypesData = await companyTypesResponse.json();
+          setCompanyTypes(companyTypesData);
         }
 
         // Eski koordinatörlük dekontlarını getir
@@ -2114,13 +2141,21 @@ const TeacherPanel = () => {
                                 const lastMonthStatus =
                                   getLastMonthDekontStatus(ogrenciFullName);
 
+                                // Company type check
+                                const companyType = companyTypes[isletme.id];
+                                const isGovInstitution = companyType
+                                  ? isGovernmentInstitution(companyType)
+                                  : false;
+
                                 return (
                                   <div
                                     key={ogrenci.id}
                                     className={`rounded-xl p-4 space-y-3 border transition-all duration-200 hover:shadow-md ${
                                       ogrenci.aktif === false
                                         ? "bg-gradient-to-r from-red-50 to-orange-50 border-red-200 hover:border-red-300 opacity-80"
-                                        : "bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100 hover:border-blue-200"
+                                        : isGovInstitution
+                                        ? "bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200 hover:border-blue-300"
+                                        : "bg-gradient-to-r from-gray-50 to-indigo-50 border-blue-100 hover:border-blue-200"
                                     }`}
                                   >
                                     {/* Student Status Badge */}
@@ -2138,37 +2173,71 @@ const TeacherPanel = () => {
                                       </div>
                                     )}
                                     <div className="flex items-center">
-                                      <div className="h-10 w-10 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-lg flex items-center justify-center hidden sm:block">
-                                        <User className="h-5 w-5 text-indigo-600" />
+                                      <div
+                                        className={`h-10 w-10 rounded-lg flex items-center justify-center hidden sm:block ${
+                                          isGovInstitution
+                                            ? "bg-gradient-to-br from-blue-100 to-blue-200"
+                                            : "bg-gradient-to-br from-indigo-50 to-blue-50"
+                                        }`}
+                                      >
+                                        <User
+                                          className={`h-5 w-5 ${
+                                            isGovInstitution
+                                              ? "text-blue-700"
+                                              : "text-indigo-600"
+                                          }`}
+                                        />
                                       </div>
                                       <div className="sm:ml-3 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
                                           <p className="text-sm font-medium text-gray-900">
                                             {ogrenci.ad} {ogrenci.soyad}
                                           </p>
-                                          {(pendingCount > 0 ||
-                                            rejectedCount > 0) && (
-                                            <div className="flex items-center gap-1 text-xs">
-                                              {pendingCount > 0 && (
-                                                <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full font-medium">
-                                                  ({pendingCount} bekliyor)
-                                                </span>
-                                              )}
-                                              {rejectedCount > 0 && (
-                                                <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full font-medium">
-                                                  ({rejectedCount} reddedilen)
-                                                </span>
-                                              )}
-                                            </div>
+
+                                          {/* Government Institution Badge */}
+                                          {isGovInstitution && (
+                                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium border border-blue-200">
+                                              Kamu - Dekont Gerekli Değil
+                                            </span>
                                           )}
+
+                                          {/* Only show dekont counts for private institutions */}
+                                          {!isGovInstitution &&
+                                            (pendingCount > 0 ||
+                                              rejectedCount > 0) && (
+                                              <div className="flex items-center gap-1 text-xs">
+                                                {pendingCount > 0 && (
+                                                  <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full font-medium">
+                                                    ({pendingCount} bekliyor)
+                                                  </span>
+                                                )}
+                                                {rejectedCount > 0 && (
+                                                  <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full font-medium">
+                                                    ({rejectedCount} reddedilen)
+                                                  </span>
+                                                )}
+                                              </div>
+                                            )}
                                         </div>
-                                        <div className="flex items-center space-x-3 mt-1 text-xs">
+                                        <div className="flex items-center space-x-3 mt-1 text-xs flex-wrap gap-2">
                                           <div className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-md font-medium">
                                             {ogrenci.sinif}-{ogrenci.no}
                                           </div>
                                           <div className="px-2 py-1 bg-green-50 text-green-700 rounded-md font-medium">
                                             {ogrenci.alan || "Alan bilgisi yok"}
                                           </div>
+
+                                          {/* Company Type Badge */}
+                                          {companyType && (
+                                            <div
+                                              className={`px-2 py-1 rounded-md font-medium text-xs border ${getCompanyTypeBadgeClass(
+                                                companyType
+                                              )}`}
+                                            >
+                                              {getCompanyTypeLabel(companyType)}
+                                            </div>
+                                          )}
+
                                           <div className="text-gray-500">
                                             <span>
                                               Başlangıç:{" "}
@@ -2199,73 +2268,103 @@ const TeacherPanel = () => {
                                               </span>
                                             </div>
                                           )}
-                                        {/* Son Ay Durumu */}
-                                        <div className="mt-2 text-xs">
-                                          <span className="font-medium text-gray-700">
-                                            {lastMonthStatus}
+                                        {/* Son Ay Durumu - only for private institutions */}
+                                        {!isGovInstitution && (
+                                          <div className="mt-2 text-xs">
+                                            <span className="font-medium text-gray-700">
+                                              {lastMonthStatus}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {/* Only show dekont upload button for private institutions */}
+                                    <div className="flex justify-end">
+                                      {!isGovInstitution ? (
+                                        <Link
+                                          href={`/ogretmen/dekont-yukle?isletmeId=${isletme.id}&ogrenciId=${ogrenci.id}`}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                                          title="Dekont Yükle (Sayfada)"
+                                        >
+                                          <Upload className="h-4 w-4 mr-1.5" />
+                                          Dekont Yükle
+                                        </Link>
+                                      ) : (
+                                        <div className="flex items-center px-3 py-1.5 text-sm text-blue-600 bg-blue-50 rounded-lg">
+                                          <span className="text-xs font-medium">
+                                            🏛️ Kamu kurumu - Dekont gerekli
+                                            değil
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Dekont Durumu Tablosu - only for private institutions */}
+                                    {!isGovInstitution && (
+                                      <div className="mt-3 pt-3 border-t border-blue-200">
+                                        <div className="text-xs font-medium text-gray-600 mb-2">
+                                          Dekont Durumu:
+                                        </div>
+                                        <div className="flex flex-wrap gap-1">
+                                          {getMonthsFromStartToPrevious(
+                                            ogrenci.baslangic_tarihi
+                                          ).map((monthData) => {
+                                            const dekontStatus =
+                                              getDekontStatus(
+                                                `${ogrenci.ad} ${ogrenci.soyad}`,
+                                                monthData.month,
+                                                monthData.year
+                                              );
+                                            return (
+                                              <div
+                                                key={`${monthData.year}-${monthData.month}`}
+                                                className="flex flex-col items-center"
+                                              >
+                                                <div className="text-xs font-medium text-gray-600 mb-1">
+                                                  {monthData.label}
+                                                </div>
+                                                <div
+                                                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                                    dekontStatus === "approved"
+                                                      ? "bg-green-100 text-green-600"
+                                                      : dekontStatus ===
+                                                        "pending"
+                                                      ? "bg-yellow-100 text-yellow-600"
+                                                      : dekontStatus ===
+                                                        "rejected"
+                                                      ? "bg-red-100 text-red-600"
+                                                      : "bg-red-100 text-red-600"
+                                                  }`}
+                                                >
+                                                  {dekontStatus === "approved"
+                                                    ? "✓"
+                                                    : dekontStatus === "pending"
+                                                    ? "?"
+                                                    : dekontStatus ===
+                                                      "rejected"
+                                                    ? "✗"
+                                                    : "–"}
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Government institution message */}
+                                    {isGovInstitution && (
+                                      <div className="mt-3 pt-3 border-t border-blue-200">
+                                        <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                          <span className="text-xs text-blue-700 font-medium">
+                                            🏛️ Bu öğrenci kamu kurumunda staj
+                                            yapıyor - dekont yüklemesi gerekli
+                                            değil
                                           </span>
                                         </div>
                                       </div>
-                                    </div>
-                                    <div className="flex justify-end">
-                                      <Link
-                                        href={`/ogretmen/dekont-yukle?isletmeId=${isletme.id}&ogrenciId=${ogrenci.id}`}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="flex items-center px-3 py-1.5 text-sm text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                                        title="Dekont Yükle (Sayfada)"
-                                      >
-                                        <Upload className="h-4 w-4 mr-1.5" />
-                                        Dekont Yükle
-                                      </Link>
-                                    </div>
-
-                                    {/* Dekont Durumu Tablosu */}
-                                    <div className="mt-3 pt-3 border-t border-blue-200">
-                                      <div className="text-xs font-medium text-gray-600 mb-2">
-                                        Dekont Durumu:
-                                      </div>
-                                      <div className="flex flex-wrap gap-1">
-                                        {getMonthsFromStartToPrevious(
-                                          ogrenci.baslangic_tarihi
-                                        ).map((monthData) => {
-                                          const dekontStatus = getDekontStatus(
-                                            `${ogrenci.ad} ${ogrenci.soyad}`,
-                                            monthData.month,
-                                            monthData.year
-                                          );
-                                          return (
-                                            <div
-                                              key={`${monthData.year}-${monthData.month}`}
-                                              className="flex flex-col items-center"
-                                            >
-                                              <div className="text-xs font-medium text-gray-600 mb-1">
-                                                {monthData.label}
-                                              </div>
-                                              <div
-                                                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                                                  dekontStatus === "approved"
-                                                    ? "bg-green-100 text-green-600"
-                                                    : dekontStatus === "pending"
-                                                    ? "bg-yellow-100 text-yellow-600"
-                                                    : dekontStatus ===
-                                                      "rejected"
-                                                    ? "bg-red-100 text-red-600"
-                                                    : "bg-red-100 text-red-600"
-                                                }`}
-                                              >
-                                                {dekontStatus === "approved"
-                                                  ? "✓"
-                                                  : dekontStatus === "pending"
-                                                  ? "?"
-                                                  : dekontStatus === "rejected"
-                                                  ? "✗"
-                                                  : "–"}
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
+                                    )}
                                   </div>
                                 );
                               })}
@@ -2558,21 +2657,49 @@ const TeacherPanel = () => {
                                                         <div className="flex items-center gap-2">
                                                           <span
                                                             className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                              getDurum(dekont.onay_durumu).bg
+                                                              getDurum(
+                                                                dekont.onay_durumu
+                                                              ).bg
                                                             } ${
-                                                              getDurum(dekont.onay_durumu).color
+                                                              getDurum(
+                                                                dekont.onay_durumu
+                                                              ).color
                                                             }`}
                                                           >
-                                                            {getDurum(dekont.onay_durumu).text}
+                                                            {
+                                                              getDurum(
+                                                                dekont.onay_durumu
+                                                              ).text
+                                                            }
                                                           </span>
                                                           <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-bold border border-indigo-200">
-                                                            {dekont.sequence_number && dekont.sequence_number > 1
-                                                              ? `${aylar[dekont.ay - 1]} ${dekont.yil} - ek${dekont.sequence_number - 1}`
-                                                              : `${aylar[dekont.ay - 1]} ${dekont.yil}`}
+                                                            {dekont.sequence_number &&
+                                                            dekont.sequence_number >
+                                                              1
+                                                              ? `${
+                                                                  aylar[
+                                                                    dekont.ay -
+                                                                      1
+                                                                  ]
+                                                                } ${
+                                                                  dekont.yil
+                                                                } - ek${
+                                                                  dekont.sequence_number -
+                                                                  1
+                                                                }`
+                                                              : `${
+                                                                  aylar[
+                                                                    dekont.ay -
+                                                                      1
+                                                                  ]
+                                                                } ${
+                                                                  dekont.yil
+                                                                }`}
                                                           </span>
                                                           {dekont.koordinatorluk_donemi && (
                                                             <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs font-medium">
-                                                              Eski Koordinatörlük
+                                                              Eski
+                                                              Koordinatörlük
                                                             </span>
                                                           )}
                                                         </div>

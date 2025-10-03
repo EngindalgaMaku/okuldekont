@@ -34,6 +34,11 @@ import IsletmelerActions from "./IsletmelerActions";
 import Modal from "@/components/ui/Modal";
 import CompanyHistoryModal from "./CompanyHistoryModal";
 import { toast } from "react-hot-toast";
+import {
+  getCompanyTypeLabel,
+  getCompanyTypeBadgeClass,
+  type CompanyType,
+} from "@/lib/company-utils";
 
 interface Company {
   id: string;
@@ -42,6 +47,7 @@ interface Company {
   phone?: string;
   address?: string;
   pin?: string;
+  companyType: CompanyType;
   _count?: {
     students: number;
   };
@@ -118,6 +124,14 @@ export default function IsletmelerServerPrisma({
     priority: "NORMAL" as "LOW" | "NORMAL" | "HIGH",
   });
   const [sending, setSending] = useState(false);
+
+  // Bulk Company Type Update States
+  const [bulkUpdateModalOpen, setBulkUpdateModalOpen] = useState(false);
+  const [bulkUpdateData, setBulkUpdateData] = useState({
+    companyType: "GOVERNMENT" as CompanyType,
+    reason: "",
+  });
+  const [bulkUpdating, setBulkUpdating] = useState(false);
 
   // Yeni İşletme Modal States
   const [yeniIsletmeModalOpen, setYeniIsletmeModalOpen] = useState(false);
@@ -343,6 +357,75 @@ export default function IsletmelerServerPrisma({
       toast.error("Mesaj gönderilirken hata oluştu!");
     } finally {
       setSending(false);
+    }
+  };
+
+  // Handle bulk company type update
+  const handleBulkCompanyTypeUpdate = async () => {
+    if (!bulkUpdateData.companyType) {
+      toast.error("Lütfen bir şirket türü seçin!");
+      return;
+    }
+
+    if (selectedCompanies.length === 0) {
+      toast.error("Lütfen en az bir işletme seçin!");
+      return;
+    }
+
+    setBulkUpdating(true);
+    try {
+      const response = await fetch("/api/admin/companies/bulk-update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          companyIds: selectedCompanies,
+          companyType: bulkUpdateData.companyType,
+          reason:
+            bulkUpdateData.reason ||
+            `Bulk update to ${getCompanyTypeLabel(bulkUpdateData.companyType)}`,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Bulk update failed");
+      }
+
+      if (data.success && data.results.updated > 0) {
+        toast.success(
+          `${data.results.updated} işletme başarıyla ${getCompanyTypeLabel(
+            bulkUpdateData.companyType
+          )} olarak işaretlendi!`
+        );
+
+        // Show details if there were any failures
+        if (data.results.failed > 0) {
+          toast.error(
+            `${data.results.failed} işletme güncellenirken hata oluştu.`
+          );
+        }
+      } else {
+        toast.error(data.message || "Bulk update başarısız oldu");
+      }
+
+      setBulkUpdateModalOpen(false);
+      setBulkUpdateData({ companyType: "GOVERNMENT", reason: "" });
+      setSelectedCompanies([]);
+
+      // Refresh companies list
+      await fetchCompanies();
+    } catch (error) {
+      console.error("Bulk update hatası:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Bulk update sırasında hata oluştu!"
+      );
+    } finally {
+      setBulkUpdating(false);
     }
   };
 
@@ -657,13 +740,22 @@ export default function IsletmelerServerPrisma({
                   <span className="text-sm text-blue-700">
                     {selectedCompanies.length} işletme seçildi
                   </span>
-                  <button
-                    onClick={() => setMesajModalOpen(true)}
-                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Send className="w-4 h-4 mr-2" />
-                    Mesaj Gönder
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setBulkUpdateModalOpen(true)}
+                      className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Building2 className="w-4 h-4 mr-2" />
+                      Kurum Türü Değiştir
+                    </button>
+                    <button
+                      onClick={() => setMesajModalOpen(true)}
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      Mesaj Gönder
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -684,6 +776,9 @@ export default function IsletmelerServerPrisma({
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     İşletme
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Kurum Türü
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Yetkili Kişi & İletişim
@@ -734,6 +829,17 @@ export default function IsletmelerServerPrisma({
                             Blokeli
                           </div>
                         )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getCompanyTypeBadgeClass(
+                            company.companyType
+                          )}`}
+                        >
+                          {getCompanyTypeLabel(company.companyType)}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -835,13 +941,22 @@ export default function IsletmelerServerPrisma({
               <span className="text-sm text-blue-700">
                 {selectedCompanies.length} işletme seçildi
               </span>
-              <button
-                onClick={() => setMesajModalOpen(true)}
-                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Mesaj Gönder
-              </button>
+              <div className="flex flex-col space-y-2">
+                <button
+                  onClick={() => setBulkUpdateModalOpen(true)}
+                  className="inline-flex items-center justify-center px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+                >
+                  <Building2 className="w-4 h-4 mr-2" />
+                  Kurum Türü Değiştir
+                </button>
+                <button
+                  onClick={() => setMesajModalOpen(true)}
+                  className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  Mesaj Gönder
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -909,6 +1024,15 @@ export default function IsletmelerServerPrisma({
                           </span>
                         )}
                       </div>
+                    </div>
+                    <div className="mt-2">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getCompanyTypeBadgeClass(
+                          company.companyType
+                        )}`}
+                      >
+                        {getCompanyTypeLabel(company.companyType)}
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -1473,6 +1597,114 @@ export default function IsletmelerServerPrisma({
               className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
               Kapat
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Bulk Company Type Update Modal */}
+      <Modal
+        isOpen={bulkUpdateModalOpen}
+        onClose={() => setBulkUpdateModalOpen(false)}
+        title="Toplu Kurum Türü Değişikliği"
+      >
+        <div className="space-y-6">
+          <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+            <div className="flex items-center gap-2 text-yellow-700">
+              <Building2 className="h-5 w-5" />
+              <span className="font-medium">
+                {selectedCompanies.length} işletmenin kurum türü değiştirilecek
+              </span>
+            </div>
+            <div className="mt-2 text-sm text-yellow-600">
+              Seçili işletmeler:{" "}
+              {companies
+                .filter((c) => selectedCompanies.includes(c.id))
+                .map((c) => c.name)
+                .slice(0, 3)
+                .join(", ")}
+              {selectedCompanies.length > 3 &&
+                ` ve ${selectedCompanies.length - 3} diğeri...`}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Yeni Kurum Türü <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={bulkUpdateData.companyType}
+              onChange={(e) =>
+                setBulkUpdateData({
+                  ...bulkUpdateData,
+                  companyType: e.target.value as CompanyType,
+                })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            >
+              <option value="GOVERNMENT">Kamu Kurumu</option>
+              <option value="PRIVATE">Özel Sektör</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              {bulkUpdateData.companyType === "GOVERNMENT"
+                ? "Kamu kurumları için dekont yüklemesi zorunlu değildir."
+                : "Özel sektör işletmeleri için dekont yüklemesi zorunludur."}
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Değişiklik Nedeni
+            </label>
+            <textarea
+              value={bulkUpdateData.reason}
+              onChange={(e) =>
+                setBulkUpdateData({ ...bulkUpdateData, reason: e.target.value })
+              }
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              placeholder="Toplu değişiklik nedeni (isteğe bağlı)"
+            />
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-medium text-blue-800 mb-2">
+              Bu işlem şunları yapacak:
+            </h4>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>
+                • Seçili {selectedCompanies.length} işletmenin kurum türünü
+                güncelleyecek
+              </li>
+              <li>• Her değişiklik için sistem geçmişinde kayıt oluşturacak</li>
+              <li>• Dekont yükleme gereksinimlerini otomatik güncelleyecek</li>
+            </ul>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              onClick={() => setBulkUpdateModalOpen(false)}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              disabled={bulkUpdating}
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleBulkCompanyTypeUpdate}
+              disabled={bulkUpdating}
+              className="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            >
+              {bulkUpdating ? (
+                <>
+                  <Loader className="animate-spin h-4 w-4 mr-2" />
+                  Güncelleniyor...
+                </>
+              ) : (
+                <>
+                  <Building2 className="h-4 w-4 mr-2" />
+                  {selectedCompanies.length} İşletmeyi Güncelle
+                </>
+              )}
             </button>
           </div>
         </div>

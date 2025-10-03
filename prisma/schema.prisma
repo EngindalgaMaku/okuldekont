@@ -96,6 +96,7 @@ model CompanyProfile {
   masterTeacherPhone       String?
   stateContributionRequest String?
   teacherAssignedAt        DateTime?
+  companyType              CompanyType                @default(PRIVATE)
   failedAttempts           Int                        @default(0)
   isLocked                 Boolean                    @default(false)
   lastFailedAttempt        DateTime?
@@ -113,6 +114,7 @@ model CompanyProfile {
   teacherAssignmentHistory TeacherAssignmentHistory[]
 
   @@index([teacherId], map: "companies_teacherId_fkey")
+  @@index([companyType])
   @@map("companies")
 }
 
@@ -875,4 +877,9 @@ enum StudentChangeType {
   PARENT_INFO_UPDATE
   SCHOOL_INFO_UPDATE
   OTHER_UPDATE
+}
+
+enum CompanyType {
+  PRIVATE
+  GOVERNMENT
 }

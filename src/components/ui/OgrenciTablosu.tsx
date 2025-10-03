@@ -1,46 +1,66 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Eye, Upload } from 'lucide-react'
-import DekontModal from './DekontModal'
-import Modal from './Modal'
-import type { Dekont } from '@/types/dekont'
+import { useState } from "react";
+import { Eye, Upload } from "lucide-react";
+import DekontModal from "./DekontModal";
+import Modal from "./Modal";
+import type { Dekont } from "@/types/dekont";
+import {
+  isGovernmentInstitution,
+  isDekontRequired,
+  getCompanyTypeLabel,
+  getCompanyTypeBadgeClass,
+  type CompanyType,
+} from "@/lib/company-utils";
 
 interface Ogrenci {
-  id: string
-  staj_id: number
-  ad: string
-  soyad: string
-  sinif: string
-  no: string
-  baslangic_tarihi: string
-  bitis_tarihi: string
+  id: string;
+  staj_id: number;
+  ad: string;
+  soyad: string;
+  sinif: string;
+  no: string;
+  baslangic_tarihi: string;
+  bitis_tarihi: string;
 }
 
 interface OgrenciTablosuProps {
-  ogrenciler: Ogrenci[]
-  isletmeId?: number
-  dekontlar?: Dekont[]
-  onDekontSuccess?: () => void
+  ogrenciler: Ogrenci[];
+  isletmeId?: number;
+  dekontlar?: Dekont[];
+  onDekontSuccess?: () => void;
+  companyType?: CompanyType;
+  companyName?: string;
 }
 
 export default function OgrenciTablosu({
   ogrenciler,
   isletmeId,
   dekontlar = [],
-  onDekontSuccess
+  onDekontSuccess,
+  companyType,
+  companyName,
 }: OgrenciTablosuProps) {
-  const [selectedOgrenci, setSelectedOgrenci] = useState<Ogrenci | null>(null)
-  const [dekontModalOpen, setDekontModalOpen] = useState(false)
-  const [dekontViewModalOpen, setDekontViewModalOpen] = useState(false)
-  const [selectedOgrenciDekontlar, setSelectedOgrenciDekontlar] = useState<Dekont[]>([])
+  const [selectedOgrenci, setSelectedOgrenci] = useState<Ogrenci | null>(null);
+  const [dekontModalOpen, setDekontModalOpen] = useState(false);
+  const [dekontViewModalOpen, setDekontViewModalOpen] = useState(false);
+  const [selectedOgrenciDekontlar, setSelectedOgrenciDekontlar] = useState<
+    Dekont[]
+  >([]);
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('tr-TR')
-  }
+    return new Date(dateString).toLocaleDateString("tr-TR");
+  };
 
   // Dekont işlemlerinin aktif olup olmadığını kontrol et
-  const isDekontEnabled = isletmeId !== undefined && onDekontSuccess !== undefined
+  const isDekontEnabled =
+    isletmeId !== undefined && onDekontSuccess !== undefined;
+
+  // Government institution check
+  const isGovInstitution = companyType
+    ? isGovernmentInstitution(companyType)
+    : false;
+  const showDekontFeatures = isDekontEnabled && !isGovInstitution;
 
   return (
     <div className="space-y-4">
@@ -48,72 +68,131 @@ export default function OgrenciTablosu({
         <div
           key={ogrenci.id}
           className={`rounded-xl p-4 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] ${
-            index % 2 === 0
-              ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 hover:from-blue-100 hover:to-indigo-100'
-              : 'bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 hover:from-purple-100 hover:to-pink-100'
+            isGovInstitution
+              ? "bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 hover:from-blue-100 hover:to-blue-200"
+              : index % 2 === 0
+              ? "bg-gradient-to-r from-gray-50 to-indigo-50 border border-blue-100 hover:from-blue-100 hover:to-indigo-100"
+              : "bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 hover:from-purple-100 hover:to-pink-100"
           }`}
         >
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-medium text-gray-900">
-                {ogrenci.ad} {ogrenci.soyad}
-              </h3>
-              <div className="flex items-center space-x-2 mt-2">
-                <p className={`text-sm font-medium px-2 py-1 rounded-lg ${
-                  index % 2 === 0
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-purple-100 text-purple-700'
-                }`}>
+            <div className="flex-1">
+              <div className="flex items-start justify-between">
+                <h3 className="text-lg font-medium text-gray-900">
+                  {ogrenci.ad} {ogrenci.soyad}
+                </h3>
+                {/* Government Institution Badge */}
+                {isGovInstitution && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                    Kamu - Dekont Gerekli Değil
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2 mt-2 flex-wrap gap-2">
+                <p
+                  className={`text-sm font-medium px-2 py-1 rounded-lg ${
+                    isGovInstitution
+                      ? "bg-blue-100 text-blue-700"
+                      : index % 2 === 0
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-purple-100 text-purple-700"
+                  }`}
+                >
                   {ogrenci.sinif}
                 </p>
-                <p className={`text-sm font-medium px-2 py-1 rounded-lg ${
-                  index % 2 === 0
-                    ? 'bg-indigo-100 text-indigo-700'
-                    : 'bg-pink-100 text-pink-700'
-                }`}>
+                <p
+                  className={`text-sm font-medium px-2 py-1 rounded-lg ${
+                    isGovInstitution
+                      ? "bg-blue-200 text-blue-800"
+                      : index % 2 === 0
+                      ? "bg-indigo-100 text-indigo-700"
+                      : "bg-pink-100 text-pink-700"
+                  }`}
+                >
                   No: {ogrenci.no}
                 </p>
+
+                {/* Company Type Badge */}
+                {companyType && (
+                  <span
+                    className={`inline-flex items-center px-2 py-1 rounded-md border text-xs font-medium ${getCompanyTypeBadgeClass(
+                      companyType
+                    )}`}
+                  >
+                    {getCompanyTypeLabel(companyType)}
+                  </span>
+                )}
+
+                {/* Company Name */}
+                {companyName && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-xs font-medium">
+                    {companyName}
+                  </span>
+                )}
               </div>
+
               <p className="text-xs text-gray-500 mt-2">
-                {formatDate(ogrenci.baslangic_tarihi)} - {formatDate(ogrenci.bitis_tarihi)}
+                {formatDate(ogrenci.baslangic_tarihi)} -{" "}
+                {formatDate(ogrenci.bitis_tarihi)}
               </p>
             </div>
-            {isDekontEnabled && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setSelectedOgrenci(ogrenci)
-                    setDekontModalOpen(true)
-                  }}
-                  className={`flex items-center gap-1 px-3 py-1 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md ${
-                    index % 2 === 0
-                      ? 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-200'
-                      : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200'
-                  }`}
-                >
-                  <Upload className="h-4 w-4" />
-                  Dekont Yükle
-                </button>
-                <button
-                  onClick={() => {
-                    const ogrenciDekontlari = dekontlar.filter(
-                      (d) => String(d.staj_id) === String(ogrenci.staj_id)
-                    )
-                    setSelectedOgrenciDekontlar(ogrenciDekontlari)
-                    setDekontViewModalOpen(true)
-                  }}
-                  className={`flex items-center gap-1 px-3 py-1 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md ${
-                    index % 2 === 0
-                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200'
-                      : 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-200'
-                  }`}
-                >
-                  <Eye className="h-4 w-4" />
-                  Dekontları Gör
-                </button>
-              </div>
-            )}
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 ml-4">
+              {showDekontFeatures ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setSelectedOgrenci(ogrenci);
+                      setDekontModalOpen(true);
+                    }}
+                    className={`flex items-center gap-1 px-3 py-1 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md ${
+                      index % 2 === 0
+                        ? "bg-green-100 text-green-700 hover:bg-green-200 border border-green-200"
+                        : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200"
+                    }`}
+                  >
+                    <Upload className="h-4 w-4" />
+                    Dekont Yükle
+                  </button>
+                  <button
+                    onClick={() => {
+                      const ogrenciDekontlari = dekontlar.filter(
+                        (d) => String(d.staj_id) === String(ogrenci.staj_id)
+                      );
+                      setSelectedOgrenciDekontlar(ogrenciDekontlari);
+                      setDekontViewModalOpen(true);
+                    }}
+                    className={`flex items-center gap-1 px-3 py-1 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md ${
+                      index % 2 === 0
+                        ? "bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200"
+                        : "bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-200"
+                    }`}
+                  >
+                    <Eye className="h-4 w-4" />
+                    Dekontları Gör
+                  </button>
+                </>
+              ) : isGovInstitution ? (
+                <div className="flex items-center px-3 py-2 bg-blue-50 rounded-lg border border-blue-200">
+                  <span className="text-xs text-blue-700 font-medium">
+                    🏛️ Dekont gerekli değil
+                  </span>
+                </div>
+              ) : null}
+            </div>
           </div>
+
+          {/* Government institution message */}
+          {isGovInstitution && (
+            <div className="mt-3 p-2 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-xs text-blue-700 text-center font-medium">
+                Bu öğrenci kamu kurumunda staj yapıyor - dekont yüklemesi
+                gerekli değildir
+              </p>
+            </div>
+          )}
         </div>
       ))}
 
@@ -124,36 +203,40 @@ export default function OgrenciTablosu({
       )}
 
       {/* Dekont Yükleme Modal */}
-      {isDekontEnabled && dekontModalOpen && selectedOgrenci && isletmeId && onDekontSuccess && (
-        <DekontModal
-          isOpen={dekontModalOpen}
-          onClose={() => {
-            setDekontModalOpen(false)
-            setSelectedOgrenci(null)
-          }}
-          ogrenci={{
-            id: selectedOgrenci.id,
-            staj_id: selectedOgrenci.staj_id,
-            ad: selectedOgrenci.ad,
-            soyad: selectedOgrenci.soyad,
-            sinif: selectedOgrenci.sinif
-          }}
-          isletmeId={isletmeId}
-          onSuccess={() => {
-            setDekontModalOpen(false)
-            setSelectedOgrenci(null)
-            onDekontSuccess()
-          }}
-        />
-      )}
+      {showDekontFeatures &&
+        dekontModalOpen &&
+        selectedOgrenci &&
+        isletmeId &&
+        onDekontSuccess && (
+          <DekontModal
+            isOpen={dekontModalOpen}
+            onClose={() => {
+              setDekontModalOpen(false);
+              setSelectedOgrenci(null);
+            }}
+            ogrenci={{
+              id: selectedOgrenci.id,
+              staj_id: selectedOgrenci.staj_id,
+              ad: selectedOgrenci.ad,
+              soyad: selectedOgrenci.soyad,
+              sinif: selectedOgrenci.sinif,
+            }}
+            isletmeId={isletmeId}
+            onSuccess={() => {
+              setDekontModalOpen(false);
+              setSelectedOgrenci(null);
+              onDekontSuccess();
+            }}
+          />
+        )}
 
       {/* Dekont Görüntüleme Modal */}
       {dekontViewModalOpen && (
         <Modal
           isOpen={dekontViewModalOpen}
           onClose={() => {
-            setDekontViewModalOpen(false)
-            setSelectedOgrenciDekontlar([])
+            setDekontViewModalOpen(false);
+            setSelectedOgrenciDekontlar([]);
           }}
           title="Öğrenci Dekontları"
         >
@@ -166,30 +249,35 @@ export default function OgrenciTablosu({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-500">
-                      Ödeme Tarihi: {dekont.odeme_tarihi ? formatDate(dekont.odeme_tarihi) : '-'}
+                      Ödeme Tarihi:{" "}
+                      {dekont.odeme_tarihi
+                        ? formatDate(dekont.odeme_tarihi)
+                        : "-"}
                     </p>
                     <p className="text-sm font-medium text-gray-900">
-                      {dekont.miktar != null ? dekont.miktar.toLocaleString('tr-TR') + ' ₺' : '-'}
+                      {dekont.miktar != null
+                        ? dekont.miktar.toLocaleString("tr-TR") + " ₺"
+                        : "-"}
                     </p>
                     <p className="text-xs text-gray-400">
-                      {dekont.aciklama || 'Açıklama yok'}
+                      {dekont.aciklama || "Açıklama yok"}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span
                       className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        dekont.onay_durumu === 'onaylandi'
-                          ? 'bg-green-100 text-green-800'
-                          : dekont.onay_durumu === 'reddedildi'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-yellow-100 text-yellow-800'
+                        dekont.onay_durumu === "onaylandi"
+                          ? "bg-green-100 text-green-800"
+                          : dekont.onay_durumu === "reddedildi"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-yellow-100 text-yellow-800"
                       }`}
                     >
-                      {dekont.onay_durumu === 'onaylandi'
-                        ? 'Onaylandı'
-                        : dekont.onay_durumu === 'reddedildi'
-                        ? 'Reddedildi'
-                        : 'Bekliyor'}
+                      {dekont.onay_durumu === "onaylandi"
+                        ? "Onaylandı"
+                        : dekont.onay_durumu === "reddedildi"
+                        ? "Reddedildi"
+                        : "Bekliyor"}
                     </span>
                     {dekont.dosya_url && (
                       <a
@@ -215,5 +303,5 @@ export default function OgrenciTablosu({
         </Modal>
       )}
     </div>
-  )
-} 
+  );
+}

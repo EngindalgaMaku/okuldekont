@@ -16,6 +16,7 @@ import {
   generateSecureFileName,
   quarantineFile,
 } from "@/lib/file-security";
+import { isDekontRequired } from "@/lib/company-utils";
 
 // Next.js cache'ini devre dışı bırak
 export const dynamic = "force-dynamic";
@@ -86,6 +87,7 @@ export async function GET(
         company: {
           select: {
             contact: true,
+            companyType: true,
           },
         },
       },
@@ -203,6 +205,32 @@ export async function POST(
   }
 
   try {
+    // First check if this company is a government institution
+    const company = await prisma.companyProfile.findUnique({
+      where: { id: companyId },
+      select: { id: true, name: true, companyType: true },
+    });
+
+    if (!company) {
+      return NextResponse.json(
+        { error: "İşletme bulunamadı" },
+        { status: 404 }
+      );
+    }
+
+    // Government institutions don't require dekont uploads
+    if (company.companyType === "GOVERNMENT") {
+      return NextResponse.json(
+        {
+          error: "Kamu kurumları için dekont yüklenmesi gerekmemektedir.",
+          companyType: "GOVERNMENT",
+          message:
+            "Bu işletme bir kamu kurumu olarak kayıtlı olduğu için dekont belgesi gerektirmez.",
+        },
+        { status: 400 }
+      );
+    }
+
     const formData = await request.formData();
 
     const stajId = formData.get("staj_id") as string;
@@ -239,6 +267,7 @@ export async function POST(
           select: {
             name: true,
             contact: true,
+            companyType: true,
           },
         },
         teacher: {
