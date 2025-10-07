@@ -103,9 +103,7 @@ export async function GET(request: NextRequest) {
             },
           },
           stajlar: {
-            where: {
-              status: "ACTIVE", // Get active internships
-            },
+            // Get all internships, not just active ones
             include: {
               company: {
                 include: {
@@ -117,21 +115,22 @@ export async function GET(request: NextRequest) {
               createdAt: "desc",
             },
           },
-          dekontlar:
-            month && year
-              ? {
-                  where: {
+          dekontlar: {
+            where:
+              month && year
+                ? {
                     month: parseInt(month),
                     year: parseInt(year),
-                  },
-                  include: {
-                    teacher: true,
-                  },
-                  orderBy: {
-                    createdAt: "desc",
-                  },
-                }
-              : false,
+                  }
+                : {},
+            include: {
+              teacher: true,
+              staj: true, // Include internship info
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
           alan: true,
         },
         orderBy: [
@@ -171,52 +170,161 @@ export async function GET(request: NextRequest) {
         }))
       );
 
-      const formattedStudents = students.map((student) => {
-        const hasDekont = Array.isArray(student.dekontlar)
-          ? student.dekontlar.length > 0
-          : false;
-        const latestDekont =
-          Array.isArray(student.dekontlar) && student.dekontlar.length > 0
-            ? student.dekontlar[0]
-            : null;
+      // Create student-internship combinations for better reporting
+      const formattedStudents: any[] = [];
 
-        // Get company info from active internship or direct company relation
-        const activeStaj =
-          Array.isArray(student.stajlar) && student.stajlar.length > 0
-            ? student.stajlar[0]
-            : null;
+      students.forEach((student) => {
+        const allStajlar = Array.isArray(student.stajlar)
+          ? student.stajlar
+          : [];
 
-        const companyInfo = activeStaj?.company || student.company;
+        // Debug for specific student
+        if (student.name === "Pakize Sude" || student.surname === "Güneri") {
+          console.log(`🔍 DEBUG - ${student.name} ${student.surname}:`, {
+            studentId: student.id,
+            totalStajlar: allStajlar.length,
+            stajlar: allStajlar.map((s) => ({
+              stajId: s.id,
+              companyName: s.company?.name,
+              startDate: s.startDate,
+              endDate: s.endDate,
+              status: s.status,
+            })),
+            totalDekontlar: Array.isArray(student.dekontlar)
+              ? student.dekontlar.length
+              : 0,
+            dekontlar: Array.isArray(student.dekontlar)
+              ? student.dekontlar.map((d) => ({
+                  dekontId: d.id,
+                  stajId: d.stajId,
+                  amount: d.amount,
+                  month: d.month,
+                  year: d.year,
+                  status: d.status,
+                }))
+              : [],
+          });
+        }
 
-        return {
-          id: student.id,
-          name: student.name,
-          surname: student.surname,
-          number: student.number,
-          fullName: `${student.name} ${student.surname}`,
-          className: student.className,
-          company: companyInfo
-            ? {
-                id: companyInfo.id,
-                name: companyInfo.name,
-                companyType: companyInfo.companyType, // PRIVATE or GOVERNMENT
-                teacher: companyInfo.teacher
-                  ? {
-                      name: companyInfo.teacher.name,
-                      surname: companyInfo.teacher.surname,
-                    }
-                  : null,
-              }
-            : null,
-          hasDekont: hasDekont,
-          dekontStatus: latestDekont ? latestDekont.status : null,
-          dekontAmount: latestDekont ? latestDekont.amount : null,
-          dekontCreatedAt: latestDekont ? latestDekont.createdAt : null,
-          dekontApprovedAt: latestDekont ? latestDekont.approvedAt : null,
-          dekontCount: Array.isArray(student.dekontlar)
-            ? student.dekontlar.length
-            : 0,
-        };
+        // If student has internships, show each internship as separate row
+        if (allStajlar.length > 0) {
+          allStajlar.forEach((staj) => {
+            // Filter dekontlar for this specific internship and time period
+            const stajDekontlar = Array.isArray(student.dekontlar)
+              ? student.dekontlar.filter(
+                  (d) =>
+                    d.stajId === staj.id &&
+                    (!month ||
+                      !year ||
+                      (d.month === parseInt(month) &&
+                        d.year === parseInt(year)))
+                )
+              : [];
+
+            const latestDekont =
+              stajDekontlar.length > 0 ? stajDekontlar[0] : null;
+
+            // Debug for specific student
+            if (
+              student.name === "Pakize Sude" ||
+              student.surname === "Güneri"
+            ) {
+              console.log(
+                `🎯 Creating row for ${student.name} ${student.surname} - ${staj.company?.name}:`,
+                {
+                  stajId: staj.id,
+                  companyName: staj.company?.name,
+                  stajDekontlar: stajDekontlar.length,
+                  latestDekontAmount: latestDekont?.amount,
+                  dekontlarForThisStaj: stajDekontlar.map((d) => ({
+                    id: d.id,
+                    amount: d.amount,
+                    status: d.status,
+                  })),
+                }
+              );
+            }
+
+            formattedStudents.push({
+              id: `${student.id}-${staj.id}`, // Unique ID for student-internship combo
+              studentId: student.id,
+              internshipId: staj.id,
+              name: student.name,
+              surname: student.surname,
+              number: student.number,
+              fullName: `${student.name} ${student.surname}`,
+              className: student.className,
+              company: staj.company
+                ? {
+                    id: staj.company.id,
+                    name: staj.company.name,
+                    companyType: staj.company.companyType,
+                    teacher: staj.company.teacher
+                      ? {
+                          name: staj.company.teacher.name,
+                          surname: staj.company.teacher.surname,
+                        }
+                      : null,
+                  }
+                : null,
+              internshipPeriod: {
+                startDate: staj.startDate,
+                endDate: staj.endDate,
+                status: staj.status,
+              },
+              hasDekont: stajDekontlar.length > 0,
+              dekontStatus: latestDekont ? latestDekont.status : null,
+              dekontAmount: latestDekont ? latestDekont.amount : null,
+              dekontCreatedAt: latestDekont ? latestDekont.createdAt : null,
+              dekontApprovedAt: latestDekont ? latestDekont.approvedAt : null,
+              dekontCount: stajDekontlar.length,
+            });
+          });
+        } else {
+          // Student without internships - show with direct company assignment if exists
+          const studentDekontlar = Array.isArray(student.dekontlar)
+            ? student.dekontlar.filter(
+                (d) =>
+                  !month ||
+                  !year ||
+                  (d.month === parseInt(month) && d.year === parseInt(year))
+              )
+            : [];
+
+          const latestDekont =
+            studentDekontlar.length > 0 ? studentDekontlar[0] : null;
+
+          formattedStudents.push({
+            id: student.id,
+            studentId: student.id,
+            internshipId: null,
+            name: student.name,
+            surname: student.surname,
+            number: student.number,
+            fullName: `${student.name} ${student.surname}`,
+            className: student.className,
+            company: student.company
+              ? {
+                  id: student.company.id,
+                  name: student.company.name,
+                  companyType: student.company.companyType,
+                  teacher: student.company.teacher
+                    ? {
+                        name: student.company.teacher.name,
+                        surname: student.company.teacher.surname,
+                      }
+                    : null,
+                }
+              : null,
+            internshipPeriod: null,
+            hasDekont: studentDekontlar.length > 0,
+            dekontStatus: latestDekont ? latestDekont.status : null,
+            dekontAmount: latestDekont ? latestDekont.amount : null,
+            dekontCreatedAt: latestDekont ? latestDekont.createdAt : null,
+            dekontApprovedAt: latestDekont ? latestDekont.approvedAt : null,
+            dekontCount: studentDekontlar.length,
+          });
+        }
       });
 
       // Sort students by student number numerically
@@ -232,15 +340,25 @@ export async function GET(request: NextRequest) {
         return numA - numB;
       });
 
-      // Calculate summary statistics
+      // Calculate summary statistics based on unique students, not student-internship combinations
+      const uniqueStudents = Array.from(
+        new Set(formattedStudents.map((s) => s.studentId))
+      );
+      const studentsWithAtLeastOneDekont = uniqueStudents.filter((studentId) =>
+        formattedStudents.some((s) => s.studentId === studentId && s.hasDekont)
+      );
+      const studentsWithAtLeastOneCompany = uniqueStudents.filter((studentId) =>
+        formattedStudents.some((s) => s.studentId === studentId && s.company)
+      );
+
       const summary = {
-        totalStudents: formattedStudents.length,
-        studentsWithDekont: formattedStudents.filter((s) => s.hasDekont).length,
-        studentsWithoutDekont: formattedStudents.filter((s) => !s.hasDekont)
-          .length,
-        studentsWithCompany: formattedStudents.filter((s) => s.company).length,
-        studentsWithoutCompany: formattedStudents.filter((s) => !s.company)
-          .length,
+        totalStudents: uniqueStudents.length,
+        studentsWithDekont: studentsWithAtLeastOneDekont.length,
+        studentsWithoutDekont:
+          uniqueStudents.length - studentsWithAtLeastOneDekont.length,
+        studentsWithCompany: studentsWithAtLeastOneCompany.length,
+        studentsWithoutCompany:
+          uniqueStudents.length - studentsWithAtLeastOneCompany.length,
         pendingDekonts: formattedStudents.filter(
           (s) => s.dekontStatus === "PENDING"
         ).length,

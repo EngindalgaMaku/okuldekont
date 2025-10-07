@@ -21,6 +21,8 @@ interface ClassInfo {
 
 interface Student {
   id: string;
+  studentId: string;
+  internshipId: string | null;
   name: string;
   surname: string;
   number: string;
@@ -34,6 +36,11 @@ interface Student {
       name: string;
       surname: string;
     } | null;
+  } | null;
+  internshipPeriod: {
+    startDate: string;
+    endDate: string;
+    status: string;
   } | null;
   hasDekont: boolean;
   dekontStatus: "PENDING" | "APPROVED" | "REJECTED" | null;
@@ -238,10 +245,18 @@ export default function ClassReportsModal({
         "Koordinatör Öğretmen": student.company?.teacher
           ? `${student.company.teacher.name} ${student.company.teacher.surname}`
           : "-",
-        "Dekont Durumu": student.hasDekont ? "Yüklenmiş" : "Yüklenmemiş",
-        "Onay Durumu": student.dekontStatus
-          ? STATUS_LABELS[student.dekontStatus]
-          : "-",
+        "Dekont Durumu":
+          student.company?.companyType === "GOVERNMENT"
+            ? "Kamu İşletmesi"
+            : student.hasDekont
+            ? "Yüklenmiş"
+            : "Yüklenmemiş",
+        "Onay Durumu":
+          student.company?.companyType === "GOVERNMENT"
+            ? "Kamu İşletmesi"
+            : student.dekontStatus
+            ? STATUS_LABELS[student.dekontStatus]
+            : "-",
         "Dekont Sayısı": student.dekontCount,
         Tutar: formatCurrency(student.dekontAmount),
         "Yüklenme Tarihi": formatDateTime(student.dekontCreatedAt),
@@ -510,6 +525,18 @@ export default function ClassReportsModal({
                                 <div className="text-sm text-gray-500">
                                   {student.className}
                                 </div>
+                                {student.internshipPeriod && (
+                                  <div className="text-xs text-blue-600">
+                                    Staj:{" "}
+                                    {new Date(
+                                      student.internshipPeriod.startDate
+                                    ).toLocaleDateString("tr-TR")}{" "}
+                                    -{" "}
+                                    {new Date(
+                                      student.internshipPeriod.endDate
+                                    ).toLocaleDateString("tr-TR")}
+                                  </div>
+                                )}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
