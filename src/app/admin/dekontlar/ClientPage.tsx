@@ -28,11 +28,13 @@ import {
   FileText,
   Edit3,
   Save,
+  Users,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import MultiFileUploadModal from "@/components/admin/MultiFileUploadModal";
 import ZipDownloadModal from "@/components/admin/ZipDownloadModal";
 import DekontReportsModal from "@/components/admin/DekontReportsModal";
+import ClassReportsModal from "@/components/admin/ClassReportsModal";
 
 interface Dekont {
   id: string;
@@ -267,6 +269,7 @@ export default function ClientDekontlarPage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showZipModal, setShowZipModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
+  const [showClassReportsModal, setShowClassReportsModal] = useState(false);
 
   // Quick amount update states
   const [editingAmountId, setEditingAmountId] = useState<string | null>(null);
@@ -907,6 +910,13 @@ export default function ClientDekontlarPage() {
                 title="Raporlar"
               >
                 <FileText className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setShowClassReportsModal(true)}
+                className="inline-flex items-center justify-center w-10 h-10 border border-transparent rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                title="Sınıf Raporları"
+              >
+                <Users className="h-4 w-4" />
               </button>
             </div>
             <div className="text-sm text-gray-600">
@@ -2197,6 +2207,12 @@ export default function ClientDekontlarPage() {
         <DekontReportsModal
           isOpen={showReportsModal}
           onClose={() => setShowReportsModal(false)}
+        />
+
+        {/* Class Reports Modal */}
+        <ClassReportsModal
+          isOpen={showClassReportsModal}
+          onClose={() => setShowClassReportsModal(false)}
         />
       </div>
     </Suspense>
