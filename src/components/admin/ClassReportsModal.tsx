@@ -29,6 +29,7 @@ interface Student {
   company: {
     id: string;
     name: string;
+    companyType: "PRIVATE" | "GOVERNMENT";
     teacher: {
       name: string;
       surname: string;
@@ -191,7 +192,31 @@ export default function ClassReportsModal({
       );
       if (response.ok) {
         const data = await response.json();
+        console.log("🔍 Frontend received data:", {
+          classInfo: data.classInfo,
+          studentsCount: data.students?.length || 0,
+          summaryTotalStudents: data.summary?.totalStudents || 0,
+          actualStudentsArray: data.students || [],
+        });
+
         setClassData(data);
+
+        // Debug render count with delay
+        setTimeout(() => {
+          console.log(
+            "🎯 Students to be rendered:",
+            data.students?.length || 0
+          );
+          console.log(
+            "📋 Students array:",
+            data.students?.map((s: any) => `${s.name} ${s.surname}`) || []
+          );
+          console.log("🗂️ Full students data:", data.students);
+
+          // Check if DOM elements are created
+          const tableRows = document.querySelectorAll("tbody tr");
+          console.log("🏗️ DOM table rows created:", tableRows.length);
+        }, 500);
       }
     } catch (error) {
       console.error("Error loading students:", error);
@@ -448,7 +473,7 @@ export default function ClassReportsModal({
 
                 {/* Students Table */}
                 <div className="bg-white rounded-lg border">
-                  <div className="overflow-x-auto">
+                  <div className="overflow-auto max-h-96">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
@@ -510,26 +535,36 @@ export default function ClassReportsModal({
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex flex-col space-y-1">
+                                {/* Single status message */}
                                 <span
                                   className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                    student.hasDekont
+                                    student.company?.companyType ===
+                                    "GOVERNMENT"
+                                      ? "bg-blue-100 text-blue-800"
+                                      : !student.hasDekont
+                                      ? "bg-red-100 text-red-800"
+                                      : student.dekontStatus === "PENDING"
+                                      ? "bg-yellow-100 text-yellow-800"
+                                      : student.dekontStatus === "APPROVED"
                                       ? "bg-green-100 text-green-800"
-                                      : "bg-red-100 text-red-800"
+                                      : student.dekontStatus === "REJECTED"
+                                      ? "bg-red-100 text-red-800"
+                                      : "bg-gray-100 text-gray-800"
                                   }`}
                                 >
-                                  {student.hasDekont
-                                    ? "Yüklenmiş"
-                                    : "Yüklenmemiş"}
+                                  {student.company?.companyType === "GOVERNMENT"
+                                    ? "Kamu İşletmesi"
+                                    : !student.hasDekont
+                                    ? "Yüklenmemiş"
+                                    : student.dekontStatus === "PENDING"
+                                    ? "Onay Bekliyor"
+                                    : student.dekontStatus === "APPROVED"
+                                    ? "Onaylandı"
+                                    : student.dekontStatus === "REJECTED"
+                                    ? "Reddedildi"
+                                    : "Yüklenmiş"}
                                 </span>
-                                {student.dekontStatus && (
-                                  <span
-                                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${
-                                      STATUS_COLORS[student.dekontStatus]
-                                    }`}
-                                  >
-                                    {STATUS_LABELS[student.dekontStatus]}
-                                  </span>
-                                )}
+                                {/* Show dekont count only if more than 1 */}
                                 {student.dekontCount > 1 && (
                                   <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
                                     {student.dekontCount} Dekont

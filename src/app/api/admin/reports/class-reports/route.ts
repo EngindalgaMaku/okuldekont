@@ -65,18 +65,56 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Class not found" }, { status: 404 });
       }
 
-      // Build where condition for students
-      const studentWhere: any = {
-        classId: classId,
-      };
+      // Build where condition for students - try both classId and className
+      // First get class name to match with className field
+      const selectedClass = await prisma.class.findUnique({
+        where: { id: classId },
+        include: { alan: true },
+      });
 
-      // Get students in the class
+      if (!selectedClass) {
+        return NextResponse.json({ error: "Class not found" }, { status: 404 });
+      }
+
+      const possibleClassNames = [
+        selectedClass.name,
+        `${selectedClass.name} (${selectedClass.alan.name})`,
+        `${selectedClass.name} ${selectedClass.alan.name}`,
+        selectedClass.name.toUpperCase(),
+        selectedClass.name.toLowerCase(),
+      ];
+
+      console.log("Searching for students with classId:", classId);
+      console.log("Possible className matches:", possibleClassNames);
+
+      // Get students in the class using both classId and className
       const students = await prisma.student.findMany({
-        where: studentWhere,
+        where: {
+          OR: [
+            { classId: classId },
+            { className: { in: possibleClassNames } },
+            { className: { contains: selectedClass.name } },
+          ],
+        },
         include: {
           company: {
             include: {
               teacher: true,
+            },
+          },
+          stajlar: {
+            where: {
+              status: "ACTIVE", // Get active internships
+            },
+            include: {
+              company: {
+                include: {
+                  teacher: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: "desc",
             },
           },
           dekontlar:
@@ -106,6 +144,33 @@ export async function GET(request: NextRequest) {
         ],
       });
 
+      console.log(
+        `Found ${students.length} students for class ${classId} (${selectedClass.name})`
+      );
+      console.log(
+        "Student details:",
+        students.map((s) => ({
+          id: s.id,
+          name: s.name,
+          surname: s.surname,
+          number: s.number,
+          className: s.className,
+          classId: s.classId,
+          directCompanyId: s.companyId,
+          directCompanyName: s.company?.name || null,
+          activeStajCount: Array.isArray(s.stajlar) ? s.stajlar.length : 0,
+          activeStajCompany:
+            Array.isArray(s.stajlar) && s.stajlar.length > 0
+              ? s.stajlar[0].company?.name
+              : null,
+          finalCompany:
+            (Array.isArray(s.stajlar) && s.stajlar.length > 0
+              ? s.stajlar[0].company?.name
+              : s.company?.name) || "No Company",
+          dekontCount: Array.isArray(s.dekontlar) ? s.dekontlar.length : 0,
+        }))
+      );
+
       const formattedStudents = students.map((student) => {
         const hasDekont = Array.isArray(student.dekontlar)
           ? student.dekontlar.length > 0
@@ -115,6 +180,14 @@ export async function GET(request: NextRequest) {
             ? student.dekontlar[0]
             : null;
 
+        // Get company info from active internship or direct company relation
+        const activeStaj =
+          Array.isArray(student.stajlar) && student.stajlar.length > 0
+            ? student.stajlar[0]
+            : null;
+
+        const companyInfo = activeStaj?.company || student.company;
+
         return {
           id: student.id,
           name: student.name,
@@ -122,14 +195,15 @@ export async function GET(request: NextRequest) {
           number: student.number,
           fullName: `${student.name} ${student.surname}`,
           className: student.className,
-          company: student.company
+          company: companyInfo
             ? {
-                id: student.company.id,
-                name: student.company.name,
-                teacher: student.company.teacher
+                id: companyInfo.id,
+                name: companyInfo.name,
+                companyType: companyInfo.companyType, // PRIVATE or GOVERNMENT
+                teacher: companyInfo.teacher
                   ? {
-                      name: student.company.teacher.name,
-                      surname: student.company.teacher.surname,
+                      name: companyInfo.teacher.name,
+                      surname: companyInfo.teacher.surname,
                     }
                   : null,
               }
@@ -143,6 +217,19 @@ export async function GET(request: NextRequest) {
             ? student.dekontlar.length
             : 0,
         };
+      });
+
+      // Sort students by student number numerically
+      formattedStudents.sort((a, b) => {
+        const numA = parseInt(a.number || "0");
+        const numB = parseInt(b.number || "0");
+
+        // If numbers are equal, sort by name
+        if (numA === numB) {
+          return a.fullName.localeCompare(b.fullName, "tr");
+        }
+
+        return numA - numB;
       });
 
       // Calculate summary statistics
