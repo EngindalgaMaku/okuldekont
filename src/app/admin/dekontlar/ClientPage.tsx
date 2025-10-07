@@ -1004,10 +1004,10 @@ export default function ClientDekontlarPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">
-                  Dekont Beklenen Öğrenci
+                  Dekont Yükleyen Öğrenci
                 </p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">
-                  {totalStudentsCount}
+                  {statistics.totalStudents}
                 </p>
               </div>
               <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
