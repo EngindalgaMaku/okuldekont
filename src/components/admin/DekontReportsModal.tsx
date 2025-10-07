@@ -11,7 +11,9 @@ import {
   Calendar,
   ChevronDown,
   ChevronUp,
+  FileSpreadsheet,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 interface DekontReportsModalProps {
   isOpen: boolean;
@@ -180,8 +182,17 @@ export default function DekontReportsModal({
     };
   }, [teacherReports]);
 
-  // CSV Export fonksiyonu
-  const exportToCSV = () => {
+  // Excel Export fonksiyonu
+  const exportToExcel = async () => {
+    // Seçili ay/yıl için dekont detaylarını al
+    const dekontParams = new URLSearchParams({
+      month: selectedMonth.toString(),
+      year: selectedYear.toString(),
+    });
+    const dekontResponse = await fetch(`/api/admin/dekontlar?${dekontParams}`);
+    const dekontData = await dekontResponse.json();
+    const allDekontlar = dekontData.data || [];
+
     const headers = [
       "Öğretmen",
       "İşletme",
@@ -190,13 +201,28 @@ export default function DekontReportsModal({
       "No",
       "Alan",
       "Dekont Durumu",
+      "Tutar",
+      "Gönderen",
+      "Gönderme Tarihi",
     ];
-    const rows: string[][] = [];
+    const rows: any[][] = [];
 
     filteredAndSortedReports.forEach((teacher) => {
       teacher.isletmeler.forEach((company) => {
         if (company.ogrenciler && company.ogrenciler.length > 0) {
           company.ogrenciler.forEach((student) => {
+            // Bu öğrencinin dekontunu bul
+            const studentDekont = allDekontlar.find((dekont: any) => {
+              const dekontStudentName = `${dekont.ogrenci_ad}`
+                .trim()
+                .toLowerCase();
+              const currentStudentName = student.ad_soyad.trim().toLowerCase();
+              return (
+                dekontStudentName === currentStudentName &&
+                dekont.isletme_ad === company.isletme_ad
+              );
+            });
+
             rows.push([
               teacher.ogretmen_ad,
               company.isletme_ad,
@@ -205,6 +231,29 @@ export default function DekontReportsModal({
               student.no || "",
               student.alan,
               student.has_dekont ? "Gönderildi" : "Gönderilmedi",
+              studentDekont?.miktar
+                ? typeof studentDekont.miktar === "number"
+                  ? studentDekont.miktar.toLocaleString("tr-TR") + " ₺"
+                  : studentDekont.miktar
+                : "-",
+              studentDekont?.yukleyen_kisi
+                ? studentDekont.yukleyen_kisi
+                    .replace(/\s*\([^)]*\)/g, "")
+                    .trim()
+                : "-",
+              studentDekont?.created_at
+                ? new Date(studentDekont.created_at).toLocaleDateString(
+                    "tr-TR"
+                  ) +
+                  " " +
+                  new Date(studentDekont.created_at).toLocaleTimeString(
+                    "tr-TR",
+                    {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }
+                  )
+                : "-",
             ]);
           });
         } else {
@@ -216,29 +265,42 @@ export default function DekontReportsModal({
             "-",
             "-",
             company.has_dekont ? "Gönderildi" : "Gönderilmedi",
+            "-",
+            "-",
+            "-",
           ]);
         }
       });
     });
 
-    const csvContent = [headers, ...rows]
-      .map((row: string[]) => row.map((cell: string) => `"${cell}"`).join(","))
-      .join("\n");
+    // Excel workbook oluştur
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `dekont_raporu_detay_${selectedYear}_${selectedMonth
+    // Sütun genişliklerini ayarla
+    const colWidths = [
+      { wch: 20 }, // Öğretmen
+      { wch: 30 }, // İşletme
+      { wch: 25 }, // Öğrenci
+      { wch: 10 }, // Sınıf
+      { wch: 8 }, // No
+      { wch: 25 }, // Alan
+      { wch: 15 }, // Dekont Durumu
+      { wch: 15 }, // Tutar
+      { wch: 20 }, // Gönderen
+      { wch: 20 }, // Gönderme Tarihi
+    ];
+    worksheet["!cols"] = colWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Dekont Raporu");
+
+    // Dosyayı indir
+    XLSX.writeFile(
+      workbook,
+      `dekont_raporu_${selectedYear}_${selectedMonth
         .toString()
-        .padStart(2, "0")}.csv`
+        .padStart(2, "0")}.xlsx`
     );
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   // Accordion toggle handler
@@ -344,12 +406,12 @@ export default function DekontReportsModal({
             {/* Export Butonu */}
             <div className="flex items-end">
               <button
-                onClick={exportToCSV}
+                onClick={exportToExcel}
                 disabled={loading || filteredAndSortedReports.length === 0}
                 className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Download className="h-4 w-4 mr-2" />
-                CSV İndir
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Excel İndir
               </button>
             </div>
           </div>
