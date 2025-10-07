@@ -93,6 +93,7 @@ interface SearchParams {
   page?: string;
   search?: string;
   filter?: string;
+  companyType?: string;
   per_page?: string;
 }
 
@@ -110,6 +111,7 @@ export default function IsletmelerServerPrisma({
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [filterInput, setFilterInput] = useState("");
+  const [companyTypeFilter, setCompanyTypeFilter] = useState("");
   const [securityStatuses, setSecurityStatuses] = useState<Record<string, any>>(
     {}
   );
@@ -168,6 +170,7 @@ export default function IsletmelerServerPrisma({
   const page = parseInt(searchParams.page || "1");
   const search = searchParams.search || "";
   const filter = searchParams.filter || "";
+  const companyType = searchParams.companyType || "";
   const perPage = parseInt(searchParams.per_page || "10");
 
   const fetchCompanies = async () => {
@@ -178,6 +181,7 @@ export default function IsletmelerServerPrisma({
         page: page.toString(),
         search,
         filter,
+        companyType,
         per_page: perPage.toString(),
       });
 
@@ -203,15 +207,16 @@ export default function IsletmelerServerPrisma({
 
   useEffect(() => {
     fetchCompanies();
-  }, [page, search, filter, perPage]);
+  }, [page, search, filter, companyType, perPage]);
 
-  // Real-time search with debounce
+  // Real-time search with debounce (only for search input)
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
       if (searchInput !== search) {
         const params = new URLSearchParams();
         if (searchInput.trim()) params.set("search", searchInput.trim());
         if (filterInput) params.set("filter", filterInput);
+        if (companyTypeFilter) params.set("companyType", companyTypeFilter);
         params.set("page", "1");
         params.set("per_page", perPage.toString());
 
@@ -220,7 +225,29 @@ export default function IsletmelerServerPrisma({
     }, 500);
 
     return () => clearTimeout(debounceTimer);
-  }, [searchInput, filterInput, router, search, perPage]);
+  }, [searchInput, router, search, perPage]);
+
+  // Immediate filtering for dropdowns (no debounce)
+  useEffect(() => {
+    if (filterInput !== filter || companyTypeFilter !== companyType) {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (filterInput) params.set("filter", filterInput);
+      if (companyTypeFilter) params.set("companyType", companyTypeFilter);
+      params.set("page", "1");
+      params.set("per_page", perPage.toString());
+
+      router.push(`/admin/isletmeler?${params.toString()}`);
+    }
+  }, [
+    filterInput,
+    companyTypeFilter,
+    router,
+    search,
+    filter,
+    companyType,
+    perPage,
+  ]);
 
   // Listen for custom event from IsletmelerClient to open create modal
   useEffect(() => {
@@ -248,7 +275,8 @@ export default function IsletmelerServerPrisma({
   useEffect(() => {
     setSearchInput(search);
     setFilterInput(filter);
-  }, [search, filter]);
+    setCompanyTypeFilter(companyType);
+  }, [search, filter, companyType]);
 
   // Security status kontrollerini devre dışı bırak - gereksiz
   // useEffect(() => {
@@ -447,6 +475,7 @@ export default function IsletmelerServerPrisma({
   const clearFilters = () => {
     setSearchInput("");
     setFilterInput("");
+    setCompanyTypeFilter("");
     router.push("/admin/isletmeler");
   };
 
@@ -703,6 +732,7 @@ export default function IsletmelerServerPrisma({
 
           {/* Filtre ve Butonlar */}
           <div className="flex flex-col sm:flex-row gap-3">
+            {/* Status Filter */}
             <div className="flex-1">
               <div className="relative">
                 <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -711,9 +741,24 @@ export default function IsletmelerServerPrisma({
                   onChange={(e) => setFilterInput(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none text-sm"
                 >
-                  <option value="">Tümü</option>
+                  <option value="">Durum: Tümü</option>
                   <option value="active">Aktif Stajı Olanlar</option>
                   <option value="empty">Boş İşletmeler</option>
+                </select>
+              </div>
+            </div>
+            {/* Company Type Filter */}
+            <div className="flex-1">
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <select
+                  value={companyTypeFilter}
+                  onChange={(e) => setCompanyTypeFilter(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none text-sm"
+                >
+                  <option value="">Tür: Tümü</option>
+                  <option value="government">Kamu Kurumları</option>
+                  <option value="private">Özel İşletmeler</option>
                 </select>
               </div>
             </div>

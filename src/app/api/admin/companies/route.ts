@@ -18,6 +18,7 @@ export async function GET(request: Request) {
     const perPage = parseInt(searchParams.get("per_page") || "10");
     const search = searchParams.get("search") || "";
     const filter = searchParams.get("filter") || "";
+    const companyType = searchParams.get("companyType") || "";
 
     // Calculate skip for pagination
     const skip = (page - 1) * perPage;
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
       });
     }
 
-    // Filter condition
+    // Status filter condition (active/empty companies)
     if (filter === "active") {
       // Aktif: ya direkt öğrencisi olan ya da aktif stajı olan işletmeler
       conditions.push({
@@ -74,6 +75,19 @@ export async function GET(request: Request) {
             },
           },
         ],
+      });
+    }
+
+    // Company type filter condition (government/private)
+    if (companyType === "government") {
+      // Kamu kurumları
+      conditions.push({
+        companyType: "GOVERNMENT",
+      });
+    } else if (companyType === "private") {
+      // Özel işletmeler
+      conditions.push({
+        companyType: "PRIVATE",
       });
     }
 

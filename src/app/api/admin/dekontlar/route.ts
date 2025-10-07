@@ -512,10 +512,11 @@ export async function POST(request: Request) {
       }
     }
 
-    // Bu öğrenci ve ay için mevcut dekontları kontrol et
+    // Bu öğrenci ve ay için mevcut dekontları kontrol et - SADECE AYNI İŞLETME İÇİN
     const mevcutDekontlar = await prisma.dekont.findMany({
       where: {
         studentId: uploadStaj.studentId,
+        companyId: uploadStaj.companyId, // Sadece aynı işletmedeki dekontları kontrol et
         month: ayNum,
         year: yilNum,
       },
@@ -563,15 +564,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // Onaylanmış dekont varsa yükleme yapılamaz
+    // Onaylanmış dekont varsa yükleme yapılamaz (sadece aynı işletme için)
     const onaylanmisDekont = mevcutDekontlar.find(
       (d) => d.status === "APPROVED"
     );
     if (onaylanmisDekont) {
       console.warn(
-        "⛔ RULE: Approved dekont exists for month, blocking upload",
+        "⛔ RULE: Approved dekont exists for student-company-month combination, blocking upload",
         {
           studentId: uploadStaj.studentId,
+          companyId: uploadStaj.companyId,
           ayNum,
           yilNum,
           approvedDekontId: onaylanmisDekont.id,
@@ -593,9 +595,9 @@ export async function POST(request: Request) {
       ];
       return NextResponse.json(
         {
-          error: `${
+          error: `Bu işletme için ${
             ayAdi[ayNum - 1]
-          } ${yilNum} ayı için onaylanmış dekont bulunmaktadır. O ayla ilgili işlemler kapanmıştır.`,
+          } ${yilNum} ayında onaylanmış dekont bulunmaktadır. O ayla ilgili işlemler kapanmıştır.`,
         },
         { status: 400 }
       );
