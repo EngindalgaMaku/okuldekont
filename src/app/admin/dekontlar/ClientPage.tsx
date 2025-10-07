@@ -54,7 +54,27 @@ interface Dekont {
   created_at: string;
 }
 
-// Güvenli tarih formatlama yardımcısı
+// Güvenli tarih formatlama yardımcısı (tarih + saat)
+const formatDateTime = (dateString: string | null | undefined): string => {
+  if (!dateString) return "-";
+
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "-";
+    return (
+      date.toLocaleDateString("tr-TR") +
+      " " +
+      date.toLocaleTimeString("tr-TR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    );
+  } catch (error) {
+    return "-";
+  }
+};
+
+// Güvenli tarih formatlama yardımcısı (sadece tarih)
 const formatDate = (dateString: string | null | undefined): string => {
   if (!dateString) return "-";
 
@@ -474,11 +494,18 @@ export default function ClientDekontlarPage() {
     fetchDekontlar();
   }, [fetchDekontlar]);
 
-  // Reset page and selections when filters change
+  // Reset page and selections when filters change (but not when data changes)
   useEffect(() => {
     setCurrentPage(1);
     setSelectedIds([]);
-  }, [filteredDekontlar]);
+  }, [
+    selectedStatus,
+    selectedMonth,
+    selectedYear,
+    selectedAlan,
+    selectedSinif,
+    searchTerm,
+  ]);
 
   // Memoized API functions to prevent re-creation
   const updateDekontStatus = useCallback(
@@ -1268,7 +1295,7 @@ export default function ClientDekontlarPage() {
                           {removeParentheses(dekont.yukleyen_kisi)}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {formatDate(dekont.created_at)}
+                          {formatDateTime(dekont.created_at)}
                         </div>
                       </div>
                     </td>
@@ -1623,7 +1650,7 @@ export default function ClientDekontlarPage() {
                     Yükleyen: {removeParentheses(dekont.yukleyen_kisi)}
                   </div>
                   <div className="text-xs text-gray-500">
-                    Tarih: {formatDate(dekont.created_at)}
+                    Tarih: {formatDateTime(dekont.created_at)}
                   </div>
                 </div>
 
@@ -1740,21 +1767,79 @@ export default function ClientDekontlarPage() {
                   >
                     <span className="sr-only">Önceki</span>‹
                   </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                    (page) => (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                          currentPage === page
-                            ? "z-10 bg-blue-50 border-blue-500 text-blue-600"
-                            : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    )
-                  )}
+                  {(() => {
+                    const maxVisiblePages = 5;
+                    const pages = [];
+
+                    if (totalPages <= maxVisiblePages + 2) {
+                      // Show all pages if total is small
+                      for (let i = 1; i <= totalPages; i++) {
+                        pages.push(i);
+                      }
+                    } else {
+                      // Smart pagination logic
+                      if (currentPage <= 3) {
+                        // Show first pages + ellipsis + last
+                        for (let i = 1; i <= maxVisiblePages; i++) {
+                          pages.push(i);
+                        }
+                        pages.push("...");
+                        pages.push(totalPages);
+                      } else if (currentPage >= totalPages - 2) {
+                        // Show first + ellipsis + last pages
+                        pages.push(1);
+                        pages.push("...");
+                        for (
+                          let i = totalPages - maxVisiblePages + 1;
+                          i <= totalPages;
+                          i++
+                        ) {
+                          pages.push(i);
+                        }
+                      } else {
+                        // Show first + ellipsis + middle pages + ellipsis + last
+                        pages.push(1);
+                        pages.push("...");
+                        for (
+                          let i = currentPage - 1;
+                          i <= currentPage + 1;
+                          i++
+                        ) {
+                          pages.push(i);
+                        }
+                        pages.push("...");
+                        pages.push(totalPages);
+                      }
+                    }
+
+                    return pages.map((page, index) => {
+                      if (page === "...") {
+                        return (
+                          <span
+                            key={`ellipsis-${index}`}
+                            className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500"
+                          >
+                            ...
+                          </span>
+                        );
+                      }
+
+                      const pageNum = page as number;
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                            currentPage === pageNum
+                              ? "z-10 bg-blue-50 border-blue-500 text-blue-600"
+                              : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    });
+                  })()}
                   <button
                     onClick={() =>
                       setCurrentPage((prev) => Math.min(prev + 1, totalPages))
@@ -1924,35 +2009,89 @@ export default function ClientDekontlarPage() {
 
         {/* Image Preview Modal */}
         {showImageModal && selectedImageUrl && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] overflow-hidden">
-              <div className="flex justify-between items-center p-4 border-b">
-                <h2 className="text-lg font-semibold">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
+            onClick={(e) => {
+              // Overlay'e tıklanırsa modalı kapat
+              if (e.target === e.currentTarget) {
+                closeModals();
+              }
+            }}
+            onKeyDown={(e) => {
+              // ESC tuşuna basılırsa modalı kapat
+              if (e.key === "Escape") {
+                closeModals();
+              }
+            }}
+            tabIndex={-1}
+          >
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden relative">
+              {/* Sticky Header - Her zaman görünür */}
+              <div className="flex justify-between items-center p-4 border-b bg-white sticky top-0 z-10 shadow-sm">
+                <h2 className="text-lg font-semibold truncate pr-4">
                   {selectedImageName || "Dosya Önizleme"}
                 </h2>
                 <button
                   onClick={closeModals}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
                   aria-label="Kapat"
+                  title="Kapat (ESC)"
                 >
-                  ✕
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
                 </button>
               </div>
-              <div className="p-4 overflow-auto max-h-[75vh]">
+
+              {/* Scrollable Content Area */}
+              <div className="flex-1 overflow-auto p-4">
                 {isImageFile(selectedImageUrl) ? (
                   <img
                     src={selectedImageUrl}
                     alt={selectedImageName || "Dosya Önizleme"}
-                    className="max-w-full h-auto mx-auto"
+                    className="max-w-full h-auto mx-auto block"
+                    style={{ maxHeight: "none" }}
                   />
                 ) : (
                   <iframe
                     src={selectedImageUrl}
                     title="PDF Önizleme"
-                    className="w-full h-[70vh]"
+                    className="w-full h-[70vh] border-0"
                   />
                 )}
               </div>
+
+              {/* Fixed Close Button - Sağ üst köşede her zaman görünür */}
+              <button
+                onClick={closeModals}
+                className="absolute top-2 right-2 z-20 w-10 h-10 flex items-center justify-center text-white bg-black bg-opacity-60 hover:bg-opacity-80 rounded-full transition-all shadow-lg"
+                aria-label="Kapat"
+                title="Kapat (ESC)"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
             </div>
           </div>
         )}
