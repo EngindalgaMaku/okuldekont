@@ -259,6 +259,11 @@ export default function ClientDekontlarPage() {
   const [warningMessage, setWarningMessage] = useState("");
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [totalStudentsCount, setTotalStudentsCount] = useState(0);
+  const [modalStatistics, setModalStatistics] = useState({
+    totalStudents: 0,
+    studentsWithDekont: 0,
+    totalDekontlar: 0,
+  });
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showZipModal, setShowZipModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
@@ -267,6 +272,44 @@ export default function ClientDekontlarPage() {
   const [editingAmountId, setEditingAmountId] = useState<string | null>(null);
   const [editingAmount, setEditingAmount] = useState<string>("");
   const [updatingAmountId, setUpdatingAmountId] = useState<string | null>(null);
+
+  // Fetch modal statistics - same calculation as in modal
+  const fetchModalStatistics = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `/api/admin/reports/dekont-status?month=${selectedMonth}&year=${selectedYear}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        const teacherReports = data.teachers || [];
+
+        let totalStudents = 0;
+        let studentsWithDekont = 0;
+        let totalDekontlar = 0;
+
+        teacherReports.forEach((teacher: any) => {
+          teacher.isletmeler.forEach((company: any) => {
+            if (company.ogrenciler) {
+              totalStudents += company.ogrenciler.length;
+              const studentsWithDekontInCompany = company.ogrenciler.filter(
+                (student: any) => student.has_dekont
+              ).length;
+              studentsWithDekont += studentsWithDekontInCompany;
+              totalDekontlar += company.dekont_sayisi;
+            }
+          });
+        });
+
+        setModalStatistics({
+          totalStudents,
+          studentsWithDekont,
+          totalDekontlar,
+        });
+      }
+    } catch (error) {
+      console.error("Modal istatistik verisi alınırken hata:", error);
+    }
+  }, [selectedMonth, selectedYear]);
 
   // Memoized fetch function - prevents re-creation on every render
   const fetchDekontlar = useCallback(async () => {
@@ -496,7 +539,8 @@ export default function ClientDekontlarPage() {
 
   useEffect(() => {
     fetchDekontlar();
-  }, [fetchDekontlar]);
+    fetchModalStatistics();
+  }, [fetchDekontlar, fetchModalStatistics]);
 
   // Reset page and selections when filters change (but not when data changes)
   useEffect(() => {
@@ -1004,10 +1048,10 @@ export default function ClientDekontlarPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">
-                  Dekont Yükleyen Öğrenci
+                  Dekont Beklenen Öğrenci
                 </p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">
-                  {statistics.totalStudents}
+                  {modalStatistics.totalStudents}
                 </p>
               </div>
               <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
