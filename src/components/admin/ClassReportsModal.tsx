@@ -109,9 +109,11 @@ const formatDateTime = (dateString: string | null): string => {
 
 const getCurrentMonthYear = () => {
   const now = new Date();
+  // Previous month logic for dekont expectations
+  const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1);
   return {
-    month: (now.getMonth() + 1).toString(),
-    year: now.getFullYear().toString(),
+    month: (previousMonth.getMonth() + 1).toString(),
+    year: previousMonth.getFullYear().toString(),
   };
 };
 
