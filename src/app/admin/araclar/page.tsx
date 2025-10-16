@@ -87,6 +87,15 @@ const tools: Tool[] = [
     bgColor: "bg-teal-50 hover:bg-teal-100",
   },
   {
+    id: "dekont-dosya-yedek",
+    title: "Dekont Dosya Yedek",
+    description: "Tüm dekont dosyalarını ZIP olarak yedekleyin ve indirin",
+    icon: Download,
+    href: "/admin/araclar/dekont-dosya-yedek",
+    color: "text-purple-600",
+    bgColor: "bg-purple-50 hover:bg-purple-100",
+  },
+  {
     id: "veritabani-yonetimi",
     title: "Veritabanı Yönetimi",
     description:

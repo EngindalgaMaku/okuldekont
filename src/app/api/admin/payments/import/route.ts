@@ -1,233 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { v4 as uuidv4 } from "uuid";
 
-const prisma = new PrismaClient();
-
-interface ExcelRow {
-  [key: string]: any;
-}
-
 interface ParsedPayment {
   studentName?: string;
-  studentSurname?: string;
-  studentNumber?: string;
   studentTcNo?: string;
-  className?: string;
-  fieldName?: string;
   companyName?: string;
-  teacherName?: string;
   amount?: number;
-  month?: number;
-  year?: number;
-  paymentDate?: Date;
-  paymentType: "GOVERNMENT_CONTRIBUTION" | "SALARY_PAYMENT";
-}
-
-// Excel sütun eşlemeleri (farklı formatlar için)
-const COLUMN_MAPPINGS = {
-  // Öğrenci bilgileri
-  studentName: ["ad", "adi", "name", "öğrenci adı", "student_name"],
-  studentSurname: [
-    "soyad",
-    "soyadi",
-    "surname",
-    "öğrenci soyadı",
-    "student_surname",
-  ],
-  studentNumber: ["no", "numara", "number", "öğrenci no", "student_number"],
-  studentTcNo: ["tc", "tcno", "tc_no", "kimlik", "tc kimlik"],
-  className: ["sinif", "sınıf", "class", "class_name"],
-  fieldName: ["alan", "field", "meslek alanı", "alan adı"],
-  companyName: ["isletme", "işletme", "company", "firma", "şirket"],
-  teacherName: ["ogretmen", "öğretmen", "teacher", "koordinatör"],
-  amount: ["tutar", "miktar", "amount", "ödeme", "maaş", "katkı"],
-  month: ["ay", "month"],
-  year: ["yil", "yıl", "year"],
-  paymentDate: ["tarih", "date", "ödeme tarihi", "payment_date"],
-};
-
-function normalizeColumnName(columnName: string): string {
-  return columnName
-    .toLowerCase()
-    .replace(/[çğıöşü]/g, (char) => {
-      const map: { [key: string]: string } = {
-        ç: "c",
-        ğ: "g",
-        ı: "i",
-        ö: "o",
-        ş: "s",
-        ü: "u",
-      };
-      return map[char] || char;
-    })
-    .replace(/\s+/g, "_")
-    .replace(/[^\w]/g, "");
-}
-
-function mapColumnToField(columnName: string): string | null {
-  const normalized = normalizeColumnName(columnName);
-
-  for (const [field, variations] of Object.entries(COLUMN_MAPPINGS)) {
-    if (
-      variations.some(
-        (variation) =>
-          normalizeColumnName(variation) === normalized ||
-          normalized.includes(normalizeColumnName(variation))
-      )
-    ) {
-      return field;
-    }
-  }
-
-  return null;
-}
-
-function parseExcelRow(
-  row: ExcelRow,
-  headerMapping: { [key: string]: string }
-): ParsedPayment | null {
-  const parsed: ParsedPayment = {
-    paymentType: "GOVERNMENT_CONTRIBUTION",
-  };
-
-  let hasRequiredData = false;
-
-  for (const [excelColumn, fieldName] of Object.entries(headerMapping)) {
-    const value = row[excelColumn];
-
-    if (!value) continue;
-
-    switch (fieldName) {
-      case "studentName":
-        parsed.studentName = String(value).trim();
-        hasRequiredData = true;
-        break;
-      case "studentSurname":
-        parsed.studentSurname = String(value).trim();
-        hasRequiredData = true;
-        break;
-      case "studentNumber":
-        parsed.studentNumber = String(value).trim();
-        break;
-      case "studentTcNo":
-        parsed.studentTcNo = String(value).trim();
-        break;
-      case "className":
-        parsed.className = String(value).trim();
-        break;
-      case "fieldName":
-        parsed.fieldName = String(value).trim();
-        break;
-      case "companyName":
-        parsed.companyName = String(value).trim();
-        break;
-      case "teacherName":
-        parsed.teacherName = String(value).trim();
-        break;
-      case "amount":
-        const amount = parseFloat(
-          String(value)
-            .replace(/[^\d.,]/g, "")
-            .replace(",", ".")
-        );
-        if (!isNaN(amount)) {
-          parsed.amount = amount;
-        }
-        break;
-      case "month":
-        const month = parseInt(String(value));
-        if (month >= 1 && month <= 12) {
-          parsed.month = month;
-        }
-        break;
-      case "year":
-        const year = parseInt(String(value));
-        if (year >= 2020 && year <= 2030) {
-          parsed.year = year;
-        }
-        break;
-      case "paymentDate":
-        try {
-          const date = new Date(value);
-          if (!isNaN(date.getTime())) {
-            parsed.paymentDate = date;
-            if (!parsed.month) parsed.month = date.getMonth() + 1;
-            if (!parsed.year) parsed.year = date.getFullYear();
-          }
-        } catch (e) {
-          // Tarih parse edilemedi
-        }
-        break;
-    }
-  }
-
-  // Varsayılan değerler
-  if (!parsed.month && parsed.paymentDate) {
-    parsed.month = parsed.paymentDate.getMonth() + 1;
-  }
-  if (!parsed.year && parsed.paymentDate) {
-    parsed.year = parsed.paymentDate.getFullYear();
-  }
-
-  // Minimum gerekli alanlar var mı?
-  return hasRequiredData ? parsed : null;
-}
-
-async function findOrMatchStudent(
-  payment: ParsedPayment
-): Promise<string | null> {
-  // TC No ile ara
-  if (payment.studentTcNo) {
-    const student = await prisma.student.findFirst({
-      where: { tcNo: payment.studentTcNo },
-    });
-    if (student) return student.id;
-  }
-
-  // Öğrenci numarası ile ara
-  if (payment.studentNumber) {
-    const student = await prisma.student.findFirst({
-      where: { number: payment.studentNumber },
-    });
-    if (student) return student.id;
-  }
-
-  // Ad soyad ile ara
-  if (payment.studentName && payment.studentSurname) {
-    const student = await prisma.student.findFirst({
-      where: {
-        name: { contains: payment.studentName },
-        surname: { contains: payment.studentSurname },
-      },
-    });
-    if (student) return student.id;
-  }
-
-  return null;
-}
-
-async function findOrMatchCompany(
-  payment: ParsedPayment
-): Promise<string | null> {
-  if (!payment.companyName) return null;
-
-  const company = await prisma.companyProfile.findFirst({
-    where: {
-      name: { contains: payment.companyName },
-    },
-  });
-
-  return company?.id || null;
 }
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("🚀 New Excel Import API called");
+
     const formData = await request.formData();
     const file = formData.get("file") as File;
-    const paymentType =
-      (formData.get("paymentType") as string) || "GOVERNMENT_CONTRIBUTION";
     const monthOverride = formData.get("month")
       ? parseInt(formData.get("month") as string)
       : null;
@@ -237,106 +25,127 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Dosya yüklenmedi",
-        },
+        { success: false, message: "Dosya yüklenmedi" },
         { status: 400 }
       );
     }
 
-    // Dönem kontrolü
     if (!monthOverride || !yearOverride) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Dönem bilgisi (ay ve yıl) seçilmelidir",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (monthOverride < 1 || monthOverride > 12) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Geçersiz ay değeri (1-12 arası olmalıdır)",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (yearOverride < 2020 || yearOverride > 2030) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Geçersiz yıl değeri (2020-2030 arası olmalıdır)",
-        },
-        { status: 400 }
-      );
-    }
-
-    // Dosya tipini kontrol et
-    const allowedTypes = [
-      "application/vnd.ms-excel",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "application/octet-stream",
-    ];
-
-    if (
-      !allowedTypes.includes(file.type) &&
-      !file.name.match(/\.(xls|xlsx)$/i)
-    ) {
-      return NextResponse.json(
-        { error: "Sadece Excel dosyaları (.xls, .xlsx) desteklenmektedir" },
+        { success: false, message: "Dönem bilgisi (ay ve yıl) seçilmelidir" },
         { status: 400 }
       );
     }
 
     const importBatch = uuidv4();
+    console.log("📄 Processing file:", file.name, "Size:", file.size);
+
     const buffer = Buffer.from(await file.arrayBuffer());
     const workbook = XLSX.read(buffer, { type: "buffer" });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
 
-    if (jsonData.length === 0) {
-      return NextResponse.json({ error: "Excel dosyası boş" }, { status: 400 });
+    // Raw array ile parse et (header: 1 ile)
+    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+    console.log("📋 Total rows in Excel:", rawData.length);
+
+    // Header satırını bul
+    let headerRowIndex = -1;
+    for (let i = 0; i < Math.min(20, rawData.length); i++) {
+      const row = rawData[i] as any[];
+      if (row && Array.isArray(row)) {
+        const rowStr = row.join(" ").toLowerCase().replace(/\n/g, " ");
+        console.log(`🔍 Row ${i + 1} checking:`, rowStr);
+        if (rowStr.includes("tc kimlik") && rowStr.includes("adı soyadı")) {
+          headerRowIndex = i;
+          break;
+        }
+      }
     }
 
-    // Header mapping oluştur
-    const headers = Object.keys(jsonData[0] as object);
-    const headerMapping: { [key: string]: string } = {};
+    if (headerRowIndex === -1) {
+      console.log("❌ Header satırı bulunamadı");
+      return NextResponse.json(
+        { error: "Excel formatı tanınamadı. Header satırı bulunamadı." },
+        { status: 400 }
+      );
+    }
 
-    headers.forEach((header) => {
-      const mappedField = mapColumnToField(header);
-      if (mappedField) {
-        headerMapping[header] = mappedField;
+    const headerRow = rawData[headerRowIndex] as any[];
+    const dataStartIndex = headerRowIndex + 1;
+
+    console.log(
+      `📋 Header found at row ${headerRowIndex + 1}, data starts at row ${
+        dataStartIndex + 1
+      }`
+    );
+    console.log("📋 Headers:", headerRow);
+
+    // Sütun indekslerini bul
+    const columnIndexes = {
+      tcNo: -1,
+      studentName: -1,
+      amount: -1,
+      companyName: -1,
+    };
+
+    headerRow.forEach((header, index) => {
+      if (header) {
+        const headerStr = String(header).toLowerCase().replace(/\n/g, " ");
+        console.log(`  Column ${index}: "${headerStr}"`);
+
+        if (headerStr.includes("tc kimlik")) {
+          columnIndexes.tcNo = index;
+        } else if (headerStr.includes("adı soyadı")) {
+          columnIndexes.studentName = index;
+        } else if (headerStr.includes("maaş tutarı")) {
+          columnIndexes.amount = index;
+        } else if (headerStr.includes("adı") && headerStr.includes("unvanı")) {
+          columnIndexes.companyName = index;
+        }
       }
     });
 
-    // Import log oluştur (eğer tablo varsa)
-    let importLog: any = null;
-    try {
-      importLog = await prisma.paymentImportLog.create({
-        data: {
-          fileName: file.name,
-          importBatch,
-          totalRows: jsonData.length,
-          successfulRows: 0,
-          failedRows: 0,
-          importedBy: "admin", // TODO: Gerçek kullanıcı ID'si
-          status: "PROCESSING",
+    console.log("🗺️ Column indexes:", columnIndexes);
+
+    if (
+      columnIndexes.tcNo === -1 ||
+      columnIndexes.studentName === -1 ||
+      columnIndexes.amount === -1
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Gerekli sütunlar bulunamadı (TC Kimlik, Adı Soyadı, Maaş Tutarı)",
         },
-      });
-    } catch (error) {
-      console.log("PaymentImportLog table not found, skipping log creation");
-      // Continue without logging if table doesn't exist
+        { status: 400 }
+      );
     }
 
-    const errors: string[] = [];
-    const successfulPayments: any[] = [];
-    let successCount = 0;
+    // Data satırlarını al ve parse et
+    const dataRows = rawData.slice(dataStartIndex);
+    const validRows = dataRows.filter(
+      (row) =>
+        row &&
+        Array.isArray(row) &&
+        row.length >
+          Math.max(
+            columnIndexes.tcNo,
+            columnIndexes.studentName,
+            columnIndexes.amount
+          ) &&
+        row[columnIndexes.tcNo] &&
+        row[columnIndexes.studentName] &&
+        row[columnIndexes.amount]
+    );
+
+    console.log("📋 Valid data rows found:", validRows.length);
+
+    if (validRows.length === 0) {
+      return NextResponse.json(
+        { error: "Geçerli öğrenci verisi bulunamadı" },
+        { status: 400 }
+      );
+    }
 
     // Aktif eğitim yılını al
     const activeEducationYear = await prisma.egitimYili.findFirst({
@@ -350,144 +159,131 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Her satırı işle
-    for (let i = 0; i < jsonData.length; i++) {
-      try {
-        const row = jsonData[i] as ExcelRow;
-        const parsedPayment = parseExcelRow(row, headerMapping);
+    const errors: string[] = [];
+    let successCount = 0;
 
-        if (!parsedPayment) {
-          errors.push(`Satır ${i + 2}: Gerekli alanlar eksik`);
+    // Her veri satırını işle
+    for (let i = 0; i < validRows.length; i++) {
+      try {
+        const row = validRows[i] as any[];
+        const rowNumber = dataStartIndex + i + 2; // Excel row number
+
+        const tcNo = String(row[columnIndexes.tcNo]).trim().replace(/\*/g, "");
+        const fullName = String(row[columnIndexes.studentName]).trim();
+        const amount = parseFloat(String(row[columnIndexes.amount]));
+        const companyName = row[columnIndexes.companyName]
+          ? String(row[columnIndexes.companyName]).trim()
+          : "";
+
+        console.log(`📄 Row ${rowNumber}: ${fullName} (${tcNo}) - ${amount}₺`);
+
+        // Ad-soyadı ayır
+        const nameParts = fullName.split(" ");
+        const studentName = nameParts[0];
+        const studentSurname = nameParts.slice(1).join(" ");
+
+        // Öğrenciyi bul
+        let student = null;
+
+        // TC No ile ara (eğer tam TC varsa)
+        if (tcNo.length >= 11) {
+          student = await prisma.student.findFirst({
+            where: { tcNo: { contains: tcNo.slice(0, 3) } }, // İlk 3 rakam ile ara
+          });
+        }
+
+        // Bulunamazsa ad-soyad ile ara
+        if (!student) {
+          student = await prisma.student.findFirst({
+            where: {
+              name: { contains: studentName },
+              surname: { contains: studentSurname },
+            },
+          });
+        }
+
+        if (!student) {
+          console.log(`❌ Student not found: ${fullName} (${tcNo})`);
+          errors.push(`Satır ${rowNumber}: Öğrenci bulunamadı (${fullName})`);
           continue;
         }
 
-        // Override değerleri uygula
-        if (monthOverride) parsedPayment.month = monthOverride;
-        if (yearOverride) parsedPayment.year = yearOverride;
-        parsedPayment.paymentType = paymentType as any;
+        console.log(
+          `👤 Student found: ${student.name} ${student.surname} (${student.id})`
+        );
 
-        // Öğrenci bul
-        const studentId = await findOrMatchStudent(parsedPayment);
-        if (!studentId) {
+        // Company bul
+        let companyId = null;
+        if (companyName) {
+          const company = await prisma.companyProfile.findFirst({
+            where: { name: { contains: companyName.split(" ")[0] } },
+          });
+          companyId = company?.id;
+        }
+
+        // Default company kullan
+        if (!companyId) {
+          const defaultCompany = await prisma.companyProfile.findFirst({
+            select: { id: true },
+          });
+          companyId = defaultCompany?.id;
+        }
+
+        if (!companyId) {
+          errors.push(`Satır ${rowNumber}: İşletme bulunamadı`);
+          continue;
+        }
+
+        // Duplicate kontrol
+        const existingPayment = await prisma.monthlyPayment.findFirst({
+          where: {
+            studentId: student.id,
+            month: monthOverride,
+            year: yearOverride,
+            paymentType: "GOVERNMENT_CONTRIBUTION",
+          },
+        });
+
+        if (existingPayment) {
           errors.push(
-            `Satır ${i + 2}: Öğrenci bulunamadı (${parsedPayment.studentName} ${
-              parsedPayment.studentSurname
-            })`
+            `Satır ${rowNumber}: ${fullName} için ${monthOverride}/${yearOverride} dönemi zaten kayıtlı`
           );
           continue;
         }
 
-        // İşletme bul
-        const companyId = await findOrMatchCompany(parsedPayment);
-
-        // Öğrencinin aktif stajını bul
-        const activeInternship = await prisma.staj.findFirst({
-          where: {
-            studentId,
-            status: "ACTIVE",
+        // Ödeme kaydı oluştur
+        await prisma.monthlyPayment.create({
+          data: {
+            id: uuidv4(),
+            studentId: student.id,
+            companyId,
             educationYearId: activeEducationYear.id,
+            month: monthOverride,
+            year: yearOverride,
+            amount,
+            paymentType: "GOVERNMENT_CONTRIBUTION",
+            status: "IMPORTED",
+            importSource: file.name,
+            importBatch,
+            importedBy: "admin",
+            studentName: fullName.split(" ")[0],
+            studentSurname: fullName.split(" ").slice(1).join(" "),
+            studentTcNo: tcNo,
+            companyName,
+            verificationStatus: "PENDING",
+            archived: false,
           },
         });
 
-        const paymentData = {
-          studentId,
-          companyId: companyId || activeInternship?.companyId,
-          teacherId: activeInternship?.teacherId,
-          stajId: activeInternship?.id,
-          educationYearId: activeEducationYear.id,
-          month: parsedPayment.month || new Date().getMonth() + 1,
-          year: parsedPayment.year || new Date().getFullYear(),
-          amount: parsedPayment.amount || 0,
-          paymentDate: parsedPayment.paymentDate,
-          paymentType: parsedPayment.paymentType,
-          importSource: file.name,
-          importBatch,
-          importedBy: "admin", // TODO: Gerçek kullanıcı ID'si
-          studentName: parsedPayment.studentName,
-          studentSurname: parsedPayment.studentSurname,
-          studentNumber: parsedPayment.studentNumber,
-          studentTcNo: parsedPayment.studentTcNo,
-          className: parsedPayment.className,
-          fieldName: parsedPayment.fieldName,
-          companyName: parsedPayment.companyName,
-          teacherName: parsedPayment.teacherName,
-        };
-
-        // Duplicate kontrolü (raw SQL ile)
-        try {
-          const existing = await prisma.$queryRaw`
-            SELECT id FROM monthly_payments
-            WHERE studentId = ${paymentData.studentId}
-            AND month = ${paymentData.month}
-            AND year = ${paymentData.year}
-            AND paymentType = ${paymentData.paymentType}
-            LIMIT 1
-          `;
-
-          if (Array.isArray(existing) && existing.length > 0) {
-            errors.push(
-              `Satır ${i + 2}: Bu öğrenci için ${paymentData.month}/${
-                paymentData.year
-              } dönemi zaten kayıtlı`
-            );
-            continue;
-          }
-
-          // Raw SQL ile insert
-          await prisma.$executeRaw`
-            INSERT INTO monthly_payments (
-              id, studentId, companyId, teacherId, stajId, educationYearId,
-              month, year, amount, paymentDate, paymentType, importSource,
-              importBatch, importedBy, studentName, studentSurname,
-              studentNumber, studentTcNo, className, fieldName,
-              companyName, teacherName, importedAt
-            ) VALUES (
-              ${uuidv4()}, ${paymentData.studentId}, ${paymentData.companyId},
-              ${paymentData.teacherId}, ${paymentData.stajId}, ${
-            paymentData.educationYearId
-          },
-              ${paymentData.month}, ${paymentData.year}, ${paymentData.amount},
-              ${paymentData.paymentDate}, ${paymentData.paymentType},
-              ${paymentData.importSource}, ${paymentData.importBatch},
-              ${paymentData.importedBy}, ${paymentData.studentName},
-              ${paymentData.studentSurname}, ${paymentData.studentNumber},
-              ${paymentData.studentTcNo}, ${paymentData.className},
-              ${paymentData.fieldName}, ${paymentData.companyName},
-              ${paymentData.teacherName}, NOW()
-            )
-          `;
-        } catch (tableError) {
-          console.log("Monthly payments table not found, skipping row");
-          errors.push(`Satır ${i + 2}: Ödeme tablosu bulunamadı`);
-          continue;
-        }
-
-        successfulPayments.push(paymentData);
         successCount++;
+        console.log(`💾 Row ${rowNumber} saved successfully`);
       } catch (error) {
-        console.error(`Row ${i + 2} error:`, error);
+        console.error(`❌ Row error:`, error);
         errors.push(
-          `Satır ${i + 2}: ${
+          `Satır ${dataStartIndex + i + 2}: ${
             error instanceof Error ? error.message : "Bilinmeyen hata"
           }`
         );
-      }
-    }
-
-    // Import log güncelle (eğer log oluşturulmuşsa)
-    if (importLog) {
-      try {
-        await prisma.$executeRaw`
-          UPDATE payment_import_logs
-          SET successfulRows = ${successCount},
-              failedRows = ${errors.length},
-              status = ${errors.length === 0 ? "COMPLETED" : "PARTIAL_SUCCESS"},
-              errors = ${errors.length > 0 ? JSON.stringify(errors) : null},
-              summary = ${`${successCount} kayıt başarıyla import edildi, ${errors.length} kayıt hata aldı.`}
-          WHERE id = ${importLog.id}
-        `;
-      } catch (error) {
-        console.log("PaymentImportLog update failed, skipping log update");
       }
     }
 
@@ -513,8 +309,8 @@ export async function POST(request: NextRequest) {
       } ${yearOverride} dönemi için ${successCount} ödeme kaydı başarıyla içe aktarıldı`,
       details: {
         importId: importBatch,
-        totalRecords: jsonData.length,
-        successCount: successCount,
+        totalRecords: validRows.length,
+        successCount,
         errorCount: errors.length,
         errors: errors.slice(0, 10).map((error, index) => ({
           row: index + 2,
@@ -532,7 +328,5 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

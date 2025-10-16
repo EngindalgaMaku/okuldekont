@@ -235,9 +235,11 @@ export async function POST(request: Request) {
         }
 
         // CHECK FOR EXISTING DEKONTS AND CALCULATE SEQUENCE NUMBER
+        // Use consistent query with main upload route (studentId + companyId)
         const existingDekontlar = await prisma.dekont.findMany({
           where: {
             studentId: staj.studentId,
+            companyId: staj.companyId,
             month: month,
             year: year,
           },
@@ -322,7 +324,7 @@ export async function POST(request: Request) {
           year: year,
           originalFileName: file.name,
           isAdditional: existingDekontlar.length > 0,
-          additionalIndex: existingDekontlar.length + 1,
+          additionalIndex: existingDekontlar.length,
         };
 
         const fileName = generateDekontFileName(dekontNamingData);

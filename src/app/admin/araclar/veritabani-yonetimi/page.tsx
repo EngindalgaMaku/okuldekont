@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import {
   Database,
@@ -89,9 +89,9 @@ export default function VeritabaniYonetimiPage() {
   }, []);
 
   // Sayfa yüklendiğinde son yedekleri getir
-  useState(() => {
+  useEffect(() => {
     fetchRecentBackups();
-  });
+  }, [fetchRecentBackups]);
 
   return (
     <div className="space-y-6">

@@ -338,9 +338,11 @@ export async function POST(
     }
 
     // Check for existing dekontlar for this month to handle additional dekontlar and sequence numbering
+    // Use consistent query with admin routes (studentId + companyId)
     const existingDekontlar = await prisma.dekont.findMany({
       where: {
-        stajId: stajId,
+        studentId: staj.studentId,
+        companyId: companyId,
         month: ay,
         year: yil,
       },
@@ -489,7 +491,7 @@ export async function POST(
           year: yil,
           originalFileName: dosya.name, // Use original filename to preserve extension
           isAdditional: existingDekontlar.length > 0,
-          additionalIndex: existingDekontlar.length + 1,
+          additionalIndex: existingDekontlar.length,
         };
 
         const fileName = generateDekontFileName(dekontNamingData);

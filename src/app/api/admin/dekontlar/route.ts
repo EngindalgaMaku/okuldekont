@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
@@ -105,22 +106,36 @@ export async function GET(request: Request) {
     // Manuel olarak monthly payments'i çek (tablo varsa)
     const monthlyPaymentsData: any = {};
     try {
-      const monthlyPayments = await prisma.$queryRaw`
-        SELECT mp.id, mp.studentId, mp.amount, mp.month, mp.year, mp.paymentType, mp.status, mp.importedAt, mp.importSource
-        FROM monthly_payments mp
-        WHERE mp.studentId IN (${rawData
-          .map((d) => d.staj?.student?.id)
-          .filter(Boolean)
-          .join('","')})
-      `;
+      // Get unique student IDs
+      const studentIds = rawData
+        .map((d) => d.staj?.student?.id)
+        .filter(Boolean);
 
-      // Group by studentId for easy lookup
-      (monthlyPayments as any[]).forEach((payment) => {
-        const key = `${payment.studentId}-${payment.month}-${payment.year}`;
-        monthlyPaymentsData[key] = payment;
-      });
+      if (studentIds.length > 0) {
+        // Use Prisma's $queryRaw with proper parameter binding
+        const monthlyPayments = await prisma.$queryRaw(
+          Prisma.sql`SELECT mp.id, mp.studentId, mp.amount, mp.month, mp.year, mp.paymentType, mp.status, mp.importedAt, mp.importSource
+          FROM monthly_payments mp
+          WHERE mp.studentId IN (${Prisma.join(studentIds)})`
+        );
+
+        // Group by studentId for easy lookup
+        (monthlyPayments as any[]).forEach((payment) => {
+          const key = `${payment.studentId}-${payment.month}-${payment.year}`;
+          monthlyPaymentsData[key] = payment;
+        });
+
+        console.log(
+          `✅ Loaded ${
+            (monthlyPayments as any[]).length
+          } monthly payments for ${studentIds.length} students`
+        );
+      }
     } catch (error) {
-      console.log("Monthly payments table not found, skipping payment data");
+      console.log(
+        "Monthly payments table not found or error loading payment data:",
+        error
+      );
       // Table doesn't exist yet, continue without payment data
     }
 
@@ -788,11 +803,16 @@ export async function POST(request: Request) {
       console.log("📁 Upload dizini oluşturuldu:", uploadDir);
 
       // Check for existing dekontlar for this month to handle additional dekontlar
+      // Use consistent query with the main validation (studentId + companyId)
       const existingDekontlar = await prisma.dekont.findMany({
         where: {
-          stajId: stajId,
+          studentId: uploadStaj.studentId,
+          companyId: uploadStaj.companyId,
           month: ay ? ay : new Date().getMonth() + 1,
           year: yil ? yil : new Date().getFullYear(),
+        },
+        orderBy: {
+          createdAt: "asc",
         },
       });
 
@@ -835,7 +855,7 @@ export async function POST(request: Request) {
         year: yil,
         originalFileName: dosya.name, // preserve extension
         isAdditional: existingDekontlar.length > 0,
-        additionalIndex: existingDekontlar.length + 1,
+        additionalIndex: existingDekontlar.length,
       };
       const fileName = generateDekontFileName(dekontNamingData);
       const filePath = join(uploadDir, fileName);
