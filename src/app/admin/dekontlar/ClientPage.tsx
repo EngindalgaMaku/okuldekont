@@ -304,7 +304,6 @@ export default function ClientDekontlarPage() {
   const [showClassReportsModal, setShowClassReportsModal] = useState(false);
   const [showExcelImportModal, setShowExcelImportModal] = useState(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
-  const [creatingTables, setCreatingTables] = useState(false);
 
   // Quick amount update states
   const [editingAmountId, setEditingAmountId] = useState<string | null>(null);
@@ -901,45 +900,6 @@ export default function ClientDekontlarPage() {
     setOpenDropdown(null);
   }, []);
 
-  // Handle creating database tables
-  const handleCreateTables = useCallback(async () => {
-    if (creatingTables) return;
-
-    setCreatingTables(true);
-    try {
-      const response = await fetch("/api/admin/database/create-tables", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        toast.success("Veritabanı tabloları başarıyla oluşturuldu!");
-        // Refresh data to show new functionality
-        await fetchDekontlar();
-        await fetchModalStatistics();
-      } else {
-        if (result.error === "DISK_SPACE_ERROR") {
-          toast.error(
-            "Sunucuda disk alanı yetersiz. Lütfen sistem yöneticisi ile iletişime geçin."
-          );
-        } else if (result.created === false) {
-          toast.error(result.message || "Tablolar zaten mevcut");
-        } else {
-          toast.error(result.message || "Tablolar oluşturulurken hata oluştu");
-        }
-      }
-    } catch (error) {
-      console.error("Table creation error:", error);
-      toast.error("Tablolar oluşturulurken hata oluştu");
-    } finally {
-      setCreatingTables(false);
-    }
-  }, [creatingTables, fetchDekontlar, fetchModalStatistics]);
-
   // Extract current page data from memoized pagination
   const { totalPages, startIndex, endIndex, currentDekontlar } = paginationData;
 
@@ -1083,49 +1043,6 @@ export default function ClientDekontlarPage() {
                           </div>
                           <div className="text-gray-500 text-xs mt-1">
                             Sınıf bazında dekont durumu ve istatistikler
-                          </div>
-                        </div>
-                      </button>
-
-                      <div className="border-t border-gray-100 my-1"></div>
-
-                      <button
-                        onClick={() => {
-                          setShowActionsDropdown(false);
-                          handleCreateTables();
-                        }}
-                        disabled={creatingTables}
-                        className="flex items-start w-full px-4 py-3 text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-md mr-3 flex-shrink-0">
-                          {creatingTables ? (
-                            <Loader className="h-4 w-4 text-purple-600 animate-spin" />
-                          ) : (
-                            <svg
-                              className="h-4 w-4 text-purple-600"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M4 7v10c0 2.21 1.79 4 4 4h8c0 2.21 1.79 4 4 4h8c0-2.21-1.79-4-4-4V7c0-2.21-1.79-4-4-4H8c-2.21 0-4 1.79-4 4z"
-                              />
-                            </svg>
-                          )}
-                        </div>
-                        <div className="text-left">
-                          <div className="font-medium text-gray-900">
-                            {creatingTables
-                              ? "Tablolar Oluşturuluyor..."
-                              : "Veritabanı Tablolarını Oluştur"}
-                          </div>
-                          <div className="text-gray-500 text-xs mt-1">
-                            {creatingTables
-                              ? "Lütfen bekleyin..."
-                              : "Ödeme karşılaştırma tabloları oluştur"}
                           </div>
                         </div>
                       </button>

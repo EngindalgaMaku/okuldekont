@@ -55,16 +55,24 @@ export default function ExcelImportModal({
   onClose,
   onImportComplete,
 }: ExcelImportModalProps) {
+  // Calculate previous month defaults
+  const currentDate = new Date();
+  const previousMonth = new Date(
+    currentDate.getFullYear(),
+    currentDate.getMonth() - 1
+  );
+  const defaultMonth = (previousMonth.getMonth() + 1).toString(); // 1-based month
+  const defaultYear = previousMonth.getFullYear().toString();
+
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState<string>("");
-  const [selectedYear, setSelectedYear] = useState<string>("");
+  const [selectedMonth, setSelectedMonth] = useState<string>(defaultMonth);
+  const [selectedYear, setSelectedYear] = useState<string>(defaultYear);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Calculate current year and previous month defaults
-  const currentDate = new Date();
+  // Calculate available years
   const currentYear = currentDate.getFullYear();
   const availableYears = [currentYear - 1, currentYear, currentYear + 1];
 
@@ -72,10 +80,10 @@ export default function ExcelImportModal({
     setSelectedFile(null);
     setImportResult(null);
     setIsDragOver(false);
-    setSelectedMonth("");
-    setSelectedYear("");
+    setSelectedMonth(defaultMonth);
+    setSelectedYear(defaultYear);
     onClose();
-  }, [onClose]);
+  }, [onClose, defaultMonth, defaultYear]);
 
   const handleFileSelect = useCallback((file: File) => {
     // Validate file type
