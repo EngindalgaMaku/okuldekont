@@ -29,13 +29,15 @@ export async function GET(request: NextRequest) {
         ],
       });
 
-      const formattedClasses = classes.map((cls) => ({
-        id: cls.id,
-        name: cls.name,
-        alanName: cls.alan.name,
-        studentCount: cls._count.students,
-        fullName: `${cls.name} (${cls.alan.name})`,
-      }));
+      const formattedClasses = classes
+        .filter((cls) => cls._count.students > 0) // Only show classes with students
+        .map((cls) => ({
+          id: cls.id,
+          name: cls.name,
+          alanName: cls.alan.name,
+          studentCount: cls._count.students,
+          fullName: `${cls.name} (${cls.alan.name})`,
+        }));
 
       return NextResponse.json({ classes: formattedClasses });
     }
