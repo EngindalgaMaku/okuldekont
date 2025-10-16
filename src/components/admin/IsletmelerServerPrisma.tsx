@@ -40,6 +40,22 @@ import {
   type CompanyType,
 } from "@/lib/company-utils";
 
+// Helper function for government contribution badge
+const getContributionBadgeClass = (contribution?: string) => {
+  if (contribution === "Evet") {
+    return "bg-emerald-100 text-emerald-800 border-emerald-200";
+  } else if (contribution === "Hayır") {
+    return "bg-red-100 text-red-800 border-red-200";
+  }
+  return "bg-slate-100 text-slate-600 border-slate-200";
+};
+
+const getContributionLabel = (contribution?: string) => {
+  if (contribution === "Evet") return "✓ Devlet Katkısı";
+  if (contribution === "Hayır") return "✗ Katkısız";
+  return "? Belirtilmemiş";
+};
+
 interface Company {
   id: string;
   name: string;
@@ -48,6 +64,7 @@ interface Company {
   address?: string;
   pin?: string;
   companyType: CompanyType;
+  stateContributionRequest?: string;
   _count?: {
     students: number;
   };
@@ -94,6 +111,7 @@ interface SearchParams {
   search?: string;
   filter?: string;
   companyType?: string;
+  contributionFilter?: string;
   per_page?: string;
 }
 
@@ -112,6 +130,7 @@ export default function IsletmelerServerPrisma({
   const [searchInput, setSearchInput] = useState("");
   const [filterInput, setFilterInput] = useState("");
   const [companyTypeFilter, setCompanyTypeFilter] = useState("");
+  const [contributionFilterInput, setContributionFilterInput] = useState("");
   const [securityStatuses, setSecurityStatuses] = useState<Record<string, any>>(
     {}
   );
@@ -134,6 +153,16 @@ export default function IsletmelerServerPrisma({
     reason: "",
   });
   const [bulkUpdating, setBulkUpdating] = useState(false);
+
+  // Bulk Government Contribution Update States
+  const [bulkContributionModalOpen, setBulkContributionModalOpen] =
+    useState(false);
+  const [bulkContributionData, setBulkContributionData] = useState({
+    stateContributionRequest: "Evet" as string,
+    reason: "",
+  });
+  const [bulkContributionUpdating, setBulkContributionUpdating] =
+    useState(false);
 
   // Yeni İşletme Modal States
   const [yeniIsletmeModalOpen, setYeniIsletmeModalOpen] = useState(false);
@@ -171,6 +200,7 @@ export default function IsletmelerServerPrisma({
   const search = searchParams.search || "";
   const filter = searchParams.filter || "";
   const companyType = searchParams.companyType || "";
+  const contributionFilter = searchParams.contributionFilter || "";
   const perPage = parseInt(searchParams.per_page || "10");
 
   const fetchCompanies = async () => {
@@ -182,6 +212,7 @@ export default function IsletmelerServerPrisma({
         search,
         filter,
         companyType,
+        contributionFilter,
         per_page: perPage.toString(),
       });
 
@@ -207,7 +238,7 @@ export default function IsletmelerServerPrisma({
 
   useEffect(() => {
     fetchCompanies();
-  }, [page, search, filter, companyType, perPage]);
+  }, [page, search, filter, companyType, contributionFilter, perPage]);
 
   // Real-time search with debounce (only for search input)
   useEffect(() => {
@@ -217,6 +248,8 @@ export default function IsletmelerServerPrisma({
         if (searchInput.trim()) params.set("search", searchInput.trim());
         if (filterInput) params.set("filter", filterInput);
         if (companyTypeFilter) params.set("companyType", companyTypeFilter);
+        if (contributionFilterInput)
+          params.set("contributionFilter", contributionFilterInput);
         params.set("page", "1");
         params.set("per_page", perPage.toString());
 
@@ -229,11 +262,17 @@ export default function IsletmelerServerPrisma({
 
   // Immediate filtering for dropdowns (no debounce)
   useEffect(() => {
-    if (filterInput !== filter || companyTypeFilter !== companyType) {
+    if (
+      filterInput !== filter ||
+      companyTypeFilter !== companyType ||
+      contributionFilterInput !== contributionFilter
+    ) {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
       if (filterInput) params.set("filter", filterInput);
       if (companyTypeFilter) params.set("companyType", companyTypeFilter);
+      if (contributionFilterInput)
+        params.set("contributionFilter", contributionFilterInput);
       params.set("page", "1");
       params.set("per_page", perPage.toString());
 
@@ -242,10 +281,12 @@ export default function IsletmelerServerPrisma({
   }, [
     filterInput,
     companyTypeFilter,
+    contributionFilterInput,
     router,
     search,
     filter,
     companyType,
+    contributionFilter,
     perPage,
   ]);
 
@@ -276,7 +317,8 @@ export default function IsletmelerServerPrisma({
     setSearchInput(search);
     setFilterInput(filter);
     setCompanyTypeFilter(companyType);
-  }, [search, filter, companyType]);
+    setContributionFilterInput(contributionFilter);
+  }, [search, filter, companyType, contributionFilter]);
 
   // Security status kontrollerini devre dışı bırak - gereksiz
   // useEffect(() => {
@@ -457,6 +499,83 @@ export default function IsletmelerServerPrisma({
     }
   };
 
+  // Handle bulk government contribution update
+  const handleBulkContributionUpdate = async () => {
+    if (!bulkContributionData.stateContributionRequest) {
+      toast.error("Lütfen bir devlet katkısı durumu seçin!");
+      return;
+    }
+
+    if (selectedCompanies.length === 0) {
+      toast.error("Lütfen en az bir işletme seçin!");
+      return;
+    }
+
+    setBulkContributionUpdating(true);
+    try {
+      const response = await fetch(
+        "/api/admin/companies/bulk-contribution-update",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            companyIds: selectedCompanies,
+            stateContributionRequest:
+              bulkContributionData.stateContributionRequest,
+            reason:
+              bulkContributionData.reason ||
+              `Toplu güncelleme: ${getContributionLabel(
+                bulkContributionData.stateContributionRequest
+              )}`,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Toplu güncelleme başarısız oldu");
+      }
+
+      if (data.success && data.results.updated > 0) {
+        toast.success(
+          `${
+            data.results.updated
+          } işletmenin devlet katkısı durumu başarıyla ${getContributionLabel(
+            bulkContributionData.stateContributionRequest
+          )} olarak güncellendi!`
+        );
+
+        // Show details if there were any failures
+        if (data.results.failed > 0) {
+          toast.error(
+            `${data.results.failed} işletme güncellenirken hata oluştu.`
+          );
+        }
+      } else {
+        toast.error(data.message || "Toplu güncelleme başarısız oldu");
+      }
+
+      setBulkContributionModalOpen(false);
+      setBulkContributionData({ stateContributionRequest: "Evet", reason: "" });
+      setSelectedCompanies([]);
+
+      // Refresh companies list
+      await fetchCompanies();
+    } catch (error) {
+      console.error("Toplu devlet katkısı güncellemesi hatası:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Toplu güncelleme sırasında hata oluştu!"
+      );
+    } finally {
+      setBulkContributionUpdating(false);
+    }
+  };
+
   const isAllSelected =
     companies.length > 0 && selectedCompanies.length === companies.length;
   const isPartiallySelected =
@@ -476,6 +595,7 @@ export default function IsletmelerServerPrisma({
     setSearchInput("");
     setFilterInput("");
     setCompanyTypeFilter("");
+    setContributionFilterInput("");
     router.push("/admin/isletmeler");
   };
 
@@ -762,6 +882,21 @@ export default function IsletmelerServerPrisma({
                 </select>
               </div>
             </div>
+            {/* Government Contribution Filter */}
+            <div className="flex-1">
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <select
+                  value={contributionFilterInput}
+                  onChange={(e) => setContributionFilterInput(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none text-sm"
+                >
+                  <option value="">Katkı: Tümü</option>
+                  <option value="Evet">Devlet Katkısı İstiyor</option>
+                  <option value="Hayır">Devlet Katkısı İstemiyor</option>
+                </select>
+              </div>
+            </div>
             <div className="flex gap-2 sm:flex-shrink-0">
               <button
                 onClick={clearFilters}
@@ -794,12 +929,22 @@ export default function IsletmelerServerPrisma({
                       Kurum Türü Değiştir
                     </button>
                     <button
+                      onClick={() => setBulkContributionModalOpen(true)}
+                      className="inline-flex items-center px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      Katkı Durumu Değiştir
+                    </button>
+                    {/* Mesaj Gönder butonu şimdilik gizlendi */}
+                    {/*
+                    <button
                       onClick={() => setMesajModalOpen(true)}
                       className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Send className="w-4 h-4 mr-2" />
                       Mesaj Gönder
                     </button>
+                    */}
                   </div>
                 </div>
               </div>
@@ -824,6 +969,9 @@ export default function IsletmelerServerPrisma({
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Kurum Türü
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Devlet Katkısı
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Yetkili Kişi & İletişim
@@ -877,15 +1025,22 @@ export default function IsletmelerServerPrisma({
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getCompanyTypeBadgeClass(
-                            company.companyType
-                          )}`}
-                        >
-                          {getCompanyTypeLabel(company.companyType)}
-                        </span>
-                      </div>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getCompanyTypeBadgeClass(
+                          company.companyType
+                        )}`}
+                      >
+                        {getCompanyTypeLabel(company.companyType)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getContributionBadgeClass(
+                          company.stateContributionRequest
+                        )}`}
+                      >
+                        {getContributionLabel(company.stateContributionRequest)}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="space-y-1">
@@ -995,12 +1150,22 @@ export default function IsletmelerServerPrisma({
                   Kurum Türü Değiştir
                 </button>
                 <button
+                  onClick={() => setBulkContributionModalOpen(true)}
+                  className="inline-flex items-center justify-center px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700"
+                >
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Katkı Durumu Değiştir
+                </button>
+                {/* Mesaj Gönder butonu şimdilik gizlendi */}
+                {/*
+                <button
                   onClick={() => setMesajModalOpen(true)}
                   className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
                 >
                   <Send className="w-4 h-4 mr-2" />
                   Mesaj Gönder
                 </button>
+                */}
               </div>
             </div>
           </div>
@@ -1747,6 +1912,118 @@ export default function IsletmelerServerPrisma({
               ) : (
                 <>
                   <Building2 className="h-4 w-4 mr-2" />
+                  {selectedCompanies.length} İşletmeyi Güncelle
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Bulk Government Contribution Update Modal */}
+      <Modal
+        isOpen={bulkContributionModalOpen}
+        onClose={() => setBulkContributionModalOpen(false)}
+        title="Toplu Devlet Katkısı Güncelleme"
+      >
+        <div className="space-y-6">
+          <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+            <div className="flex items-center gap-2 text-emerald-700">
+              <CreditCard className="h-5 w-5" />
+              <span className="font-medium">
+                {selectedCompanies.length} işletmenin devlet katkısı durumu
+                değiştirilecek
+              </span>
+            </div>
+            <div className="mt-2 text-sm text-emerald-600">
+              Seçili işletmeler:{" "}
+              {companies
+                .filter((c) => selectedCompanies.includes(c.id))
+                .map((c) => c.name)
+                .slice(0, 3)
+                .join(", ")}
+              {selectedCompanies.length > 3 &&
+                ` ve ${selectedCompanies.length - 3} diğeri...`}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Devlet Katkısı Durumu <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={bulkContributionData.stateContributionRequest}
+              onChange={(e) =>
+                setBulkContributionData({
+                  ...bulkContributionData,
+                  stateContributionRequest: e.target.value,
+                })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              <option value="Evet">✓ Devlet Katkısı İstiyor</option>
+              <option value="Hayır">✗ Devlet Katkısı İstemiyor</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              {bulkContributionData.stateContributionRequest === "Evet"
+                ? "İşletmeler devlet katkısı isteyecek şekilde işaretlenecek."
+                : "İşletmeler devlet katkısı istemeyecek şekilde işaretlenecek."}
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Değişiklik Nedeni
+            </label>
+            <textarea
+              value={bulkContributionData.reason}
+              onChange={(e) =>
+                setBulkContributionData({
+                  ...bulkContributionData,
+                  reason: e.target.value,
+                })
+              }
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              placeholder="Toplu değişiklik nedeni (isteğe bağlı)"
+            />
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-medium text-blue-800 mb-2">
+              Bu işlem şunları yapacak:
+            </h4>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>
+                • Seçili {selectedCompanies.length} işletmenin devlet katkısı
+                durumunu güncelleyecek
+              </li>
+              <li>• Her değişiklik için sistem geçmişinde kayıt oluşturacak</li>
+              <li>• İşletme listesinde yeni durumu gösterecek</li>
+            </ul>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              onClick={() => setBulkContributionModalOpen(false)}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              disabled={bulkContributionUpdating}
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleBulkContributionUpdate}
+              disabled={bulkContributionUpdating}
+              className="px-6 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            >
+              {bulkContributionUpdating ? (
+                <>
+                  <Loader className="animate-spin h-4 w-4 mr-2" />
+                  Güncelleniyor...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="h-4 w-4 mr-2" />
                   {selectedCompanies.length} İşletmeyi Güncelle
                 </>
               )}

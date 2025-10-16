@@ -102,6 +102,28 @@ export async function GET(request: Request) {
       },
     });
 
+    // Manuel olarak monthly payments'i çek (tablo varsa)
+    const monthlyPaymentsData: any = {};
+    try {
+      const monthlyPayments = await prisma.$queryRaw`
+        SELECT mp.id, mp.studentId, mp.amount, mp.month, mp.year, mp.paymentType, mp.status, mp.importedAt, mp.importSource
+        FROM monthly_payments mp
+        WHERE mp.studentId IN (${rawData
+          .map((d) => d.staj?.student?.id)
+          .filter(Boolean)
+          .join('","')})
+      `;
+
+      // Group by studentId for easy lookup
+      (monthlyPayments as any[]).forEach((payment) => {
+        const key = `${payment.studentId}-${payment.month}-${payment.year}`;
+        monthlyPaymentsData[key] = payment;
+      });
+    } catch (error) {
+      console.log("Monthly payments table not found, skipping payment data");
+      // Table doesn't exist yet, continue without payment data
+    }
+
     // Status mapping from database enum to Turkish frontend values
     const statusMapping = {
       PENDING: "bekliyor",
@@ -134,6 +156,10 @@ export async function GET(request: Request) {
         sequenceNumber > 1
           ? `${monthName} ${dekont.year} - ${sequenceNumber}`
           : `${monthName} ${dekont.year}`;
+
+      // Aynı ay ve yıl için import edilen ödeme bilgisini bul
+      const paymentKey = `${dekont.staj?.studentId}-${dekont.month}-${dekont.year}`;
+      const monthlyPayment = monthlyPaymentsData[paymentKey];
 
       return {
         id: dekont.id,
@@ -170,6 +196,17 @@ export async function GET(request: Request) {
           ? `${dekont.staj.company.contact} (İşletme)`
           : "İşletme",
         created_at: dekont.createdAt.toISOString(),
+        // Excel'den import edilen ödeme bilgisi
+        monthlyPayment: monthlyPayment
+          ? {
+              id: monthlyPayment.id,
+              amount: Number(monthlyPayment.amount),
+              paymentType: monthlyPayment.paymentType,
+              status: monthlyPayment.status,
+              importedAt: monthlyPayment.importedAt.toISOString(),
+              importSource: monthlyPayment.importSource,
+            }
+          : null,
         // OCR ve AI Analiz Alanları - Type assertion kullanarak erişim
         isAnalyzed: dekontWithAnalysis.isAnalyzed || false,
         reliabilityScore: dekontWithAnalysis.reliabilityScore || null,

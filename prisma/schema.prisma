@@ -67,6 +67,7 @@ model TeacherProfile {
   gorevBelgeleri             GorevBelgesi[]
   stajlar                    Staj[]
   koordinatorlukProgrami     KoordinatorlukProgrami[]
+  monthlyPayments            MonthlyPayment[]
   pinAttempts                PinAttempt[]               @relation("TeacherPinAttempts")
   previousTeacherAssignments TeacherAssignmentHistory[] @relation("PreviousTeacherAssignment")
   teacherAssignments         TeacherAssignmentHistory[]
@@ -109,6 +110,7 @@ model CompanyProfile {
   dekontlar                Dekont[]
   stajlar                  Staj[]
   koordinatorlukProgrami   KoordinatorlukProgrami[]
+  monthlyPayments          MonthlyPayment[]
   pinAttempts              PinAttempt[]               @relation("CompanyPinAttempts")
   students                 Student[]
   teacherAssignmentHistory TeacherAssignmentHistory[]
@@ -129,6 +131,7 @@ model EgitimYili {
   archivedBy         String?
   stajlar            Staj[]
   studentEnrollments StudentEnrollment[]
+  monthlyPayments    MonthlyPayment[]
 
   @@map("education_years")
 }
@@ -177,11 +180,12 @@ model Student {
   birthDate      DateTime?
   gender         String?
   parentSurname  String?
-  attendance     Attendance[]
-  dekontlar      Dekont[]
-  stajlar        Staj[]
-  enrollments    StudentEnrollment[]
-  studentHistory StudentHistory[]
+  attendance      Attendance[]
+  dekontlar       Dekont[]
+  stajlar         Staj[]
+  enrollments     StudentEnrollment[]
+  studentHistory  StudentHistory[]
+  monthlyPayments MonthlyPayment[]
   alan           Alan                @relation(fields: [alanId], references: [id])
   class          Class?              @relation(fields: [classId], references: [id])
   company        CompanyProfile?     @relation(fields: [companyId], references: [id])
@@ -216,6 +220,7 @@ model Staj {
   relatedDocuments      Belge[]             @relation("RelatedInternship")
   dekontlar             Dekont[]
   history               InternshipHistory[]
+  monthlyPayments       MonthlyPayment[]
   company               CompanyProfile      @relation(fields: [companyId], references: [id])
   educationYear         EgitimYili          @relation(fields: [educationYearId], references: [id])
   lastModifiedByUser    User?               @relation("LastModifiedBy", fields: [lastModifiedBy], references: [id])
@@ -298,6 +303,77 @@ model Dekont {
   @@index([studentId], map: "dekonts_studentId_fkey")
   @@index([teacherId], map: "dekonts_teacherId_fkey")
   @@map("dekonts")
+}
+
+model MonthlyPayment {
+  id                  String           @id @default(cuid())
+  studentId           String
+  companyId           String
+  teacherId           String?
+  stajId              String?
+  educationYearId     String
+  month               Int
+  year                Int
+  amount              Decimal          @db.Decimal(10, 2)
+  paymentDate         DateTime?
+  paymentType         PaymentType      @default(GOVERNMENT_CONTRIBUTION)
+  status              PaymentStatus    @default(IMPORTED)
+  importSource        String?          // Excel dosya adı
+  importBatch         String?          // Aynı anda import edilen kayıtlar için
+  importedBy          String?
+  importedAt          DateTime         @default(now())
+  studentName         String?          // Excel'den gelen isim (verification için)
+  studentSurname      String?
+  studentNumber       String?
+  studentTcNo         String?
+  className           String?
+  fieldName           String?
+  companyName         String?          // Excel'den gelen işletme adı
+  teacherName         String?
+  notes               String?
+  verificationStatus  VerificationStatus @default(PENDING)
+  verifiedBy          String?
+  verifiedAt          DateTime?
+  discrepancies       String?          @db.LongText
+  archived            Boolean          @default(false)
+  archivedAt          DateTime?
+  archivedBy          String?
+  
+  // Relations
+  student             Student          @relation(fields: [studentId], references: [id])
+  company             CompanyProfile   @relation(fields: [companyId], references: [id])
+  teacher             TeacherProfile?  @relation(fields: [teacherId], references: [id])
+  staj                Staj?            @relation(fields: [stajId], references: [id])
+  educationYear       EgitimYili       @relation(fields: [educationYearId], references: [id])
+
+  @@unique([studentId, month, year, paymentType])
+  @@index([month, year])
+  @@index([importBatch])
+  @@index([verificationStatus])
+  @@index([companyId])
+  @@index([teacherId])
+  @@index([stajId])
+  @@index([educationYearId])
+  @@map("monthly_payments")
+}
+
+model PaymentImportLog {
+  id              String        @id @default(cuid())
+  fileName        String
+  filePath        String?
+  importBatch     String        @unique
+  totalRows       Int
+  successfulRows  Int
+  failedRows      Int
+  importedBy      String
+  importedAt      DateTime      @default(now())
+  status          ImportStatus  @default(PROCESSING)
+  errors          String?       @db.LongText
+  summary         String?       @db.LongText
+  
+  @@index([importedAt])
+  @@index([status])
+  @@map("payment_import_logs")
 }
 
 model GorevBelgesi {
@@ -882,4 +958,33 @@ enum StudentChangeType {
 enum CompanyType {
   PRIVATE
   GOVERNMENT
+}
+
+enum PaymentType {
+  GOVERNMENT_CONTRIBUTION
+  SALARY_PAYMENT
+  BONUS_PAYMENT
+  OTHER
+}
+
+enum PaymentStatus {
+  IMPORTED
+  PROCESSED
+  VERIFIED
+  DISPUTED
+  CANCELLED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  DISCREPANCY_FOUND
+  MANUAL_REVIEW_NEEDED
+}
+
+enum ImportStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+  PARTIAL_SUCCESS
 }

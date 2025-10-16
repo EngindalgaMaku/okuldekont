@@ -29,12 +29,24 @@ import {
   Edit3,
   Save,
   Users,
+  FileSpreadsheet,
+  Menu,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import MultiFileUploadModal from "@/components/admin/MultiFileUploadModal";
 import ZipDownloadModal from "@/components/admin/ZipDownloadModal";
 import DekontReportsModal from "@/components/admin/DekontReportsModal";
 import ClassReportsModal from "@/components/admin/ClassReportsModal";
+import ExcelImportModal from "@/components/admin/ExcelImportModal";
+
+interface MonthlyPaymentInfo {
+  id: string;
+  amount: number;
+  paymentType: string;
+  status: string;
+  importedAt: string;
+  importSource: string | null;
+}
 
 interface Dekont {
   id: string;
@@ -54,6 +66,7 @@ interface Dekont {
   red_nedeni: string | null;
   yukleyen_kisi: string;
   created_at: string;
+  monthlyPayment?: MonthlyPaymentInfo | null; // Import edilen ödeme bilgisi
 }
 
 // Güvenli tarih formatlama yardımcısı (tarih + saat)
@@ -99,6 +112,25 @@ const formatCurrency = (amount: number | null | undefined): string => {
 const removeParentheses = (text: string): string => {
   if (!text) return text;
   return text.replace(/\s*\([^)]*\)/g, "").trim();
+};
+
+// Metni kısaltan ve tooltip için hazırlayan fonksiyon
+const truncateText = (
+  text: string | null,
+  maxLength: number = 50
+): { truncated: string; isTruncated: boolean; original: string } => {
+  if (!text) return { truncated: "-", isTruncated: false, original: "" };
+
+  const trimmed = text.trim();
+  if (trimmed.length <= maxLength) {
+    return { truncated: trimmed, isTruncated: false, original: trimmed };
+  }
+
+  return {
+    truncated: trimmed.substring(0, maxLength) + "...",
+    isTruncated: true,
+    original: trimmed,
+  };
 };
 
 // Dekont sequence bilgisini çıkaran fonksiyon
@@ -270,6 +302,9 @@ export default function ClientDekontlarPage() {
   const [showZipModal, setShowZipModal] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [showClassReportsModal, setShowClassReportsModal] = useState(false);
+  const [showExcelImportModal, setShowExcelImportModal] = useState(false);
+  const [showActionsDropdown, setShowActionsDropdown] = useState(false);
+  const [creatingTables, setCreatingTables] = useState(false);
 
   // Quick amount update states
   const [editingAmountId, setEditingAmountId] = useState<string | null>(null);
@@ -866,6 +901,45 @@ export default function ClientDekontlarPage() {
     setOpenDropdown(null);
   }, []);
 
+  // Handle creating database tables
+  const handleCreateTables = useCallback(async () => {
+    if (creatingTables) return;
+
+    setCreatingTables(true);
+    try {
+      const response = await fetch("/api/admin/database/create-tables", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        toast.success("Veritabanı tabloları başarıyla oluşturuldu!");
+        // Refresh data to show new functionality
+        await fetchDekontlar();
+        await fetchModalStatistics();
+      } else {
+        if (result.error === "DISK_SPACE_ERROR") {
+          toast.error(
+            "Sunucuda disk alanı yetersiz. Lütfen sistem yöneticisi ile iletişime geçin."
+          );
+        } else if (result.created === false) {
+          toast.error(result.message || "Tablolar zaten mevcut");
+        } else {
+          toast.error(result.message || "Tablolar oluşturulurken hata oluştu");
+        }
+      }
+    } catch (error) {
+      console.error("Table creation error:", error);
+      toast.error("Tablolar oluşturulurken hata oluştu");
+    } finally {
+      setCreatingTables(false);
+    }
+  }, [creatingTables, fetchDekontlar, fetchModalStatistics]);
+
   // Extract current page data from memoized pagination
   const { totalPages, startIndex, endIndex, currentDekontlar } = paginationData;
 
@@ -889,35 +963,176 @@ export default function ClientDekontlarPage() {
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-900">Dekont Yönetimi</h1>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
+            <div className="relative">
               <button
-                onClick={() => setShowUploadModal(true)}
-                className="inline-flex items-center justify-center w-10 h-10 border border-transparent rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                title="Dosya Yükle"
+                onClick={() => setShowActionsDropdown(!showActionsDropdown)}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
-                <Upload className="h-4 w-4" />
+                <Menu className="h-4 w-4 mr-2" />
+                İşlemler
+                <ChevronDown
+                  className={`ml-2 h-4 w-4 transform transition-transform ${
+                    showActionsDropdown ? "rotate-180" : ""
+                  }`}
+                />
               </button>
-              <button
-                onClick={() => setShowZipModal(true)}
-                className="inline-flex items-center justify-center w-10 h-10 border border-transparent rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                title="ZIP İndir"
-              >
-                <Archive className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setShowReportsModal(true)}
-                className="inline-flex items-center justify-center w-10 h-10 border border-transparent rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-                title="Raporlar"
-              >
-                <FileText className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setShowClassReportsModal(true)}
-                className="inline-flex items-center justify-center w-10 h-10 border border-transparent rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                title="Sınıf Raporları"
-              >
-                <Users className="h-4 w-4" />
-              </button>
+
+              {showActionsDropdown && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowActionsDropdown(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg border border-gray-200 z-20">
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          setShowUploadModal(true);
+                          setShowActionsDropdown(false);
+                        }}
+                        className="flex items-start w-full px-4 py-3 text-sm hover:bg-gray-50"
+                      >
+                        <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-md mr-3 flex-shrink-0">
+                          <Upload className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <div className="text-left">
+                          <div className="font-medium text-gray-900">
+                            Dekont Yükle
+                          </div>
+                          <div className="text-gray-500 text-xs mt-1">
+                            Öğrenci dekontlarını toplu olarak yükleyin
+                          </div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowZipModal(true);
+                          setShowActionsDropdown(false);
+                        }}
+                        className="flex items-start w-full px-4 py-3 text-sm hover:bg-gray-50"
+                      >
+                        <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-md mr-3 flex-shrink-0">
+                          <Archive className="h-4 w-4 text-green-600" />
+                        </div>
+                        <div className="text-left">
+                          <div className="font-medium text-gray-900">
+                            ZIP İndir
+                          </div>
+                          <div className="text-gray-500 text-xs mt-1">
+                            Seçili dekontları ZIP dosyası olarak indirin
+                          </div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowExcelImportModal(true);
+                          setShowActionsDropdown(false);
+                        }}
+                        className="flex items-start w-full px-4 py-3 text-sm hover:bg-gray-50"
+                      >
+                        <div className="flex items-center justify-center w-8 h-8 bg-emerald-100 rounded-md mr-3 flex-shrink-0">
+                          <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                        </div>
+                        <div className="text-left">
+                          <div className="font-medium text-gray-900">
+                            Excel İçe Aktar
+                          </div>
+                          <div className="text-gray-500 text-xs mt-1">
+                            Aylık ödeme listelerini Excel'den içe aktarın
+                          </div>
+                        </div>
+                      </button>
+
+                      <div className="border-t border-gray-100 my-1"></div>
+
+                      <button
+                        onClick={() => {
+                          setShowReportsModal(true);
+                          setShowActionsDropdown(false);
+                        }}
+                        className="flex items-start w-full px-4 py-3 text-sm hover:bg-gray-50"
+                      >
+                        <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-md mr-3 flex-shrink-0">
+                          <FileText className="h-4 w-4 text-purple-600" />
+                        </div>
+                        <div className="text-left">
+                          <div className="font-medium text-gray-900">
+                            Dekont Raporları
+                          </div>
+                          <div className="text-gray-500 text-xs mt-1">
+                            Öğretmen ve işletme bazında detaylı raporlar
+                          </div>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowClassReportsModal(true);
+                          setShowActionsDropdown(false);
+                        }}
+                        className="flex items-start w-full px-4 py-3 text-sm hover:bg-gray-50"
+                      >
+                        <div className="flex items-center justify-center w-8 h-8 bg-indigo-100 rounded-md mr-3 flex-shrink-0">
+                          <Users className="h-4 w-4 text-indigo-600" />
+                        </div>
+                        <div className="text-left">
+                          <div className="font-medium text-gray-900">
+                            Sınıf Raporları
+                          </div>
+                          <div className="text-gray-500 text-xs mt-1">
+                            Sınıf bazında dekont durumu ve istatistikler
+                          </div>
+                        </div>
+                      </button>
+
+                      <div className="border-t border-gray-100 my-1"></div>
+
+                      <button
+                        onClick={() => {
+                          setShowActionsDropdown(false);
+                          handleCreateTables();
+                        }}
+                        disabled={creatingTables}
+                        className="flex items-start w-full px-4 py-3 text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-md mr-3 flex-shrink-0">
+                          {creatingTables ? (
+                            <Loader className="h-4 w-4 text-purple-600 animate-spin" />
+                          ) : (
+                            <svg
+                              className="h-4 w-4 text-purple-600"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M4 7v10c0 2.21 1.79 4 4 4h8c0 2.21 1.79 4 4 4h8c0-2.21-1.79-4-4-4V7c0-2.21-1.79-4-4-4H8c-2.21 0-4 1.79-4 4z"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="text-left">
+                          <div className="font-medium text-gray-900">
+                            {creatingTables
+                              ? "Tablolar Oluşturuluyor..."
+                              : "Veritabanı Tablolarını Oluştur"}
+                          </div>
+                          <div className="text-gray-500 text-xs mt-1">
+                            {creatingTables
+                              ? "Lütfen bekleyin..."
+                              : "Ödeme karşılaştırma tabloları oluştur"}
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
             <div className="text-sm text-gray-600">
               Toplam: {filteredDekontlar.length} dekont
@@ -1287,7 +1502,7 @@ export default function ClientDekontlarPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-2">
+                      <div className="flex flex-col space-y-1">
                         {editingAmountId === dekont.id ? (
                           // Inline editing mode
                           <div className="flex items-center space-x-2">
@@ -1326,18 +1541,62 @@ export default function ClientDekontlarPage() {
                             </button>
                           </div>
                         ) : (
-                          // Display mode with edit button
-                          <div className="flex items-center space-x-2 group">
-                            <span className="text-sm text-gray-900">
-                              {formatCurrency(dekont.miktar)}
-                            </span>
-                            <button
-                              onClick={() => handleStartAmountEdit(dekont)}
-                              className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-6 h-6 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-all"
-                              title="Tutarı Düzenle"
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </button>
+                          // Display mode with edit button and payment comparison
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2 group">
+                              <span className="text-sm text-gray-900 font-medium">
+                                Dekont: {formatCurrency(dekont.miktar)}
+                              </span>
+                              <button
+                                onClick={() => handleStartAmountEdit(dekont)}
+                                className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-6 h-6 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-all"
+                                title="Tutarı Düzenle"
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </button>
+                            </div>
+                            {dekont.monthlyPayment && (
+                              <div className="text-xs">
+                                <div className="flex items-center space-x-1">
+                                  <span className="text-emerald-600 font-medium">
+                                    Ödeme:{" "}
+                                    {formatCurrency(
+                                      dekont.monthlyPayment.amount
+                                    )}
+                                  </span>
+                                  {dekont.miktar &&
+                                    dekont.monthlyPayment.amount && (
+                                      <span
+                                        className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                                          Math.abs(
+                                            dekont.miktar -
+                                              dekont.monthlyPayment.amount
+                                          ) < 0.01
+                                            ? "bg-green-100 text-green-800"
+                                            : "bg-yellow-100 text-yellow-800"
+                                        }`}
+                                      >
+                                        {Math.abs(
+                                          dekont.miktar -
+                                            dekont.monthlyPayment.amount
+                                        ) < 0.01
+                                          ? "✓ Eşleşti"
+                                          : `${
+                                              dekont.miktar >
+                                              dekont.monthlyPayment.amount
+                                                ? "+"
+                                                : ""
+                                            }${(
+                                              dekont.miktar -
+                                              dekont.monthlyPayment.amount
+                                            ).toLocaleString("tr-TR", {
+                                              minimumFractionDigits: 2,
+                                            })} ₺`}
+                                      </span>
+                                    )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1354,7 +1613,25 @@ export default function ClientDekontlarPage() {
                         {dekont.onay_durumu === "reddedildi" &&
                           dekont.red_nedeni && (
                             <div className="mt-1 text-xs text-red-600 max-w-xs">
-                              <strong>Gerekçe:</strong> {dekont.red_nedeni}
+                              {(() => {
+                                const { truncated, isTruncated, original } =
+                                  truncateText(dekont.red_nedeni, 40);
+                                return (
+                                  <div>
+                                    <strong>Gerekçe:</strong>{" "}
+                                    {isTruncated ? (
+                                      <span
+                                        title={original}
+                                        className="cursor-help border-b border-dotted border-red-400"
+                                      >
+                                        {truncated}
+                                      </span>
+                                    ) : (
+                                      <span>{truncated}</span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           )}
                       </div>
@@ -1646,7 +1923,7 @@ export default function ClientDekontlarPage() {
                         })()}
                       </div>
                       {/* Mobile inline editing for amount */}
-                      <div className="flex items-center space-x-2">
+                      <div className="flex flex-col space-y-1">
                         {editingAmountId === dekont.id ? (
                           // Mobile inline editing mode
                           <div className="flex items-center space-x-2">
@@ -1685,18 +1962,62 @@ export default function ClientDekontlarPage() {
                             </button>
                           </div>
                         ) : (
-                          // Mobile display mode with edit button
-                          <div className="flex items-center space-x-2 group">
-                            <span className="text-sm text-gray-900">
-                              {formatCurrency(dekont.miktar)}
-                            </span>
-                            <button
-                              onClick={() => handleStartAmountEdit(dekont)}
-                              className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-all"
-                              title="Tutarı Düzenle"
-                            >
-                              <Edit3 className="h-3 w-3" />
-                            </button>
+                          // Mobile display mode with edit button and payment comparison
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-2 group">
+                              <span className="text-sm text-gray-900 font-medium">
+                                Dekont: {formatCurrency(dekont.miktar)}
+                              </span>
+                              <button
+                                onClick={() => handleStartAmountEdit(dekont)}
+                                className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-all"
+                                title="Tutarı Düzenle"
+                              >
+                                <Edit3 className="h-3 w-3" />
+                              </button>
+                            </div>
+                            {dekont.monthlyPayment && (
+                              <div className="text-xs">
+                                <div className="flex items-center space-x-1">
+                                  <span className="text-emerald-600 font-medium">
+                                    Ödeme:{" "}
+                                    {formatCurrency(
+                                      dekont.monthlyPayment.amount
+                                    )}
+                                  </span>
+                                  {dekont.miktar &&
+                                    dekont.monthlyPayment.amount && (
+                                      <span
+                                        className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                                          Math.abs(
+                                            dekont.miktar -
+                                              dekont.monthlyPayment.amount
+                                          ) < 0.01
+                                            ? "bg-green-100 text-green-800"
+                                            : "bg-yellow-100 text-yellow-800"
+                                        }`}
+                                      >
+                                        {Math.abs(
+                                          dekont.miktar -
+                                            dekont.monthlyPayment.amount
+                                        ) < 0.01
+                                          ? "✓ Eşleşti"
+                                          : `${
+                                              dekont.miktar >
+                                              dekont.monthlyPayment.amount
+                                                ? "+"
+                                                : ""
+                                            }${(
+                                              dekont.miktar -
+                                              dekont.monthlyPayment.amount
+                                            ).toLocaleString("tr-TR", {
+                                              minimumFractionDigits: 2,
+                                            })} ₺`}
+                                      </span>
+                                    )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2213,6 +2534,17 @@ export default function ClientDekontlarPage() {
         <ClassReportsModal
           isOpen={showClassReportsModal}
           onClose={() => setShowClassReportsModal(false)}
+        />
+
+        {/* Excel Import Modal */}
+        <ExcelImportModal
+          isOpen={showExcelImportModal}
+          onClose={() => setShowExcelImportModal(false)}
+          onImportComplete={() => {
+            setShowExcelImportModal(false);
+            fetchDekontlar(); // Refresh the list
+            fetchModalStatistics(); // Refresh statistics
+          }}
         />
       </div>
     </Suspense>

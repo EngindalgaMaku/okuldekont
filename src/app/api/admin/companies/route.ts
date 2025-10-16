@@ -19,6 +19,7 @@ export async function GET(request: Request) {
     const search = searchParams.get("search") || "";
     const filter = searchParams.get("filter") || "";
     const companyType = searchParams.get("companyType") || "";
+    const contributionFilter = searchParams.get("contributionFilter") || "";
 
     // Calculate skip for pagination
     const skip = (page - 1) * perPage;
@@ -88,6 +89,17 @@ export async function GET(request: Request) {
       // Özel işletmeler
       conditions.push({
         companyType: "PRIVATE",
+      });
+    }
+
+    // Government contribution filter condition
+    if (contributionFilter === "Evet") {
+      conditions.push({
+        stateContributionRequest: "Evet",
+      });
+    } else if (contributionFilter === "Hayır") {
+      conditions.push({
+        stateContributionRequest: "Hayır",
       });
     }
 
@@ -182,6 +194,7 @@ export async function GET(request: Request) {
         taxNumber: company.taxNumber,
         pin: company.pin,
         companyType: (company as any).companyType || "PRIVATE", // Add companyType field
+        stateContributionRequest: (company as any).stateContributionRequest,
         teacherId: coordinatorTeacher?.id || company.teacherId,
         masterTeacherName: company.masterTeacherName,
         masterTeacherPhone: company.masterTeacherPhone,
