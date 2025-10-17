@@ -304,6 +304,7 @@ export default function ClientDekontlarPage() {
   const [showClassReportsModal, setShowClassReportsModal] = useState(false);
   const [showExcelImportModal, setShowExcelImportModal] = useState(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
 
   // Quick amount update states
   const [editingAmountId, setEditingAmountId] = useState<string | null>(null);
@@ -789,6 +790,7 @@ export default function ClientDekontlarPage() {
     setShowApprovedDeleteWarning(false);
     setShowImageModal(false);
     setShowWarningModal(false);
+    setShowStatusModal(false);
     setSelectedDekont(null);
     setSelectedImageUrl(null);
     setSelectedImageName("");
@@ -1339,9 +1341,15 @@ export default function ClientDekontlarPage() {
                     Dönem
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Miktar
+                    Dekont Tutarı
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Ödeme Tutarı
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Fark
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
                     Durum
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1418,11 +1426,12 @@ export default function ClientDekontlarPage() {
                         {MONTHS[dekont.ay - 1]} {dekont.yil}
                       </div>
                     </td>
+                    {/* Dekont Tutarı Column */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-col space-y-1">
+                      <div className="flex items-center space-x-2 group">
                         {editingAmountId === dekont.id ? (
                           // Inline editing mode
-                          <div className="flex items-center space-x-2">
+                          <>
                             <input
                               type="number"
                               value={editingAmount}
@@ -1456,102 +1465,78 @@ export default function ClientDekontlarPage() {
                             >
                               <X className="h-4 w-4" />
                             </button>
-                          </div>
+                          </>
                         ) : (
-                          // Display mode with edit button and payment comparison
-                          <div className="space-y-1">
-                            <div className="flex items-center space-x-2 group">
-                              <span className="text-sm text-gray-900 font-medium">
-                                Dekont: {formatCurrency(dekont.miktar)}
-                              </span>
-                              <button
-                                onClick={() => handleStartAmountEdit(dekont)}
-                                className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-6 h-6 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-all"
-                                title="Tutarı Düzenle"
-                              >
-                                <Edit3 className="h-4 w-4" />
-                              </button>
-                            </div>
-                            {dekont.monthlyPayment && (
-                              <div className="text-xs">
-                                <div className="flex items-center space-x-1">
-                                  <span className="text-emerald-600 font-medium">
-                                    Ödeme:{" "}
-                                    {formatCurrency(
-                                      dekont.monthlyPayment.amount
-                                    )}
-                                  </span>
-                                  {dekont.miktar &&
-                                    dekont.monthlyPayment.amount && (
-                                      <span
-                                        className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                                          Math.abs(
-                                            dekont.miktar -
-                                              dekont.monthlyPayment.amount
-                                          ) < 0.01
-                                            ? "bg-green-100 text-green-800"
-                                            : "bg-yellow-100 text-yellow-800"
-                                        }`}
-                                      >
-                                        {Math.abs(
-                                          dekont.miktar -
-                                            dekont.monthlyPayment.amount
-                                        ) < 0.01
-                                          ? "✓ Eşleşti"
-                                          : `${
-                                              dekont.miktar >
-                                              dekont.monthlyPayment.amount
-                                                ? "+"
-                                                : ""
-                                            }${(
-                                              dekont.miktar -
-                                              dekont.monthlyPayment.amount
-                                            ).toLocaleString("tr-TR", {
-                                              minimumFractionDigits: 2,
-                                            })} ₺`}
-                                      </span>
-                                    )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                          // Display mode
+                          <>
+                            <span className="text-sm text-gray-900 font-medium">
+                              {formatCurrency(dekont.miktar)}
+                            </span>
+                            <button
+                              onClick={() => handleStartAmountEdit(dekont)}
+                              className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-6 h-6 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-all"
+                              title="Tutarı Düzenle"
+                            >
+                              <Edit3 className="h-4 w-4" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
+
+                    {/* Ödeme Tutarı Column */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
+                      <span className="text-sm text-emerald-600 font-medium">
+                        {dekont.monthlyPayment
+                          ? formatCurrency(dekont.monthlyPayment.amount)
+                          : "-"}
+                      </span>
+                    </td>
+
+                    {/* Fark Column */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {dekont.miktar && dekont.monthlyPayment?.amount ? (
                         <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${
-                            STATUS_COLORS[dekont.onay_durumu]
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            Math.abs(
+                              dekont.miktar - dekont.monthlyPayment.amount
+                            ) < 0.01
+                              ? "bg-green-100 text-green-800"
+                              : "bg-yellow-100 text-yellow-800"
                           }`}
                         >
-                          {STATUS_LABELS[dekont.onay_durumu]}
+                          {Math.abs(
+                            dekont.miktar - dekont.monthlyPayment.amount
+                          ) < 0.01
+                            ? "✓ Eşleşti"
+                            : `${
+                                dekont.miktar > dekont.monthlyPayment.amount
+                                  ? "+"
+                                  : ""
+                              }${(
+                                dekont.miktar - dekont.monthlyPayment.amount
+                              ).toLocaleString("tr-TR", {
+                                minimumFractionDigits: 2,
+                              })} ₺`}
                         </span>
-                        {dekont.onay_durumu === "reddedildi" &&
-                          dekont.red_nedeni && (
-                            <div className="mt-1 text-xs text-red-600 max-w-xs">
-                              {(() => {
-                                const { truncated, isTruncated, original } =
-                                  truncateText(dekont.red_nedeni, 40);
-                                return (
-                                  <div>
-                                    <strong>Gerekçe:</strong>{" "}
-                                    {isTruncated ? (
-                                      <span
-                                        title={original}
-                                        className="cursor-help border-b border-dotted border-red-400"
-                                      >
-                                        {truncated}
-                                      </span>
-                                    ) : (
-                                      <span>{truncated}</span>
-                                    )}
-                                  </div>
-                                );
-                              })()}
-                            </div>
-                          )}
-                      </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">-</span>
+                      )}
+                    </td>
+                    {/* Durum Column - Clickable */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => {
+                          setSelectedDekont(dekont);
+                          setShowStatusModal(true);
+                        }}
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border cursor-pointer hover:opacity-80 transition-opacity ${
+                          STATUS_COLORS[dekont.onay_durumu]
+                        }`}
+                        title="Durum detaylarını görüntüle"
+                      >
+                        {STATUS_LABELS[dekont.onay_durumu]}
+                      </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
@@ -1879,7 +1864,7 @@ export default function ClientDekontlarPage() {
                             </button>
                           </div>
                         ) : (
-                          // Mobile display mode with edit button and payment comparison
+                          // Mobile display mode with separate amounts
                           <div className="space-y-1">
                             <div className="flex items-center space-x-2 group">
                               <span className="text-sm text-gray-900 font-medium">
@@ -1894,16 +1879,17 @@ export default function ClientDekontlarPage() {
                               </button>
                             </div>
                             {dekont.monthlyPayment && (
-                              <div className="text-xs">
-                                <div className="flex items-center space-x-1">
-                                  <span className="text-emerald-600 font-medium">
-                                    Ödeme:{" "}
-                                    {formatCurrency(
-                                      dekont.monthlyPayment.amount
-                                    )}
-                                  </span>
-                                  {dekont.miktar &&
-                                    dekont.monthlyPayment.amount && (
+                              <div className="text-xs space-y-1">
+                                <div className="text-emerald-600 font-medium">
+                                  Ödeme:{" "}
+                                  {formatCurrency(dekont.monthlyPayment.amount)}
+                                </div>
+                                {dekont.miktar &&
+                                  dekont.monthlyPayment.amount && (
+                                    <div className="flex items-center">
+                                      <span className="text-gray-600 mr-2">
+                                        Fark:
+                                      </span>
                                       <span
                                         className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
                                           Math.abs(
@@ -1931,8 +1917,8 @@ export default function ClientDekontlarPage() {
                                               minimumFractionDigits: 2,
                                             })} ₺`}
                                       </span>
-                                    )}
-                                </div>
+                                    </div>
+                                  )}
                               </div>
                             )}
                           </div>
@@ -1940,13 +1926,18 @@ export default function ClientDekontlarPage() {
                       </div>
                     </div>
                     <div>
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${
+                      <button
+                        onClick={() => {
+                          setSelectedDekont(dekont);
+                          setShowStatusModal(true);
+                        }}
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border cursor-pointer hover:opacity-80 transition-opacity ${
                           STATUS_COLORS[dekont.onay_durumu]
                         }`}
+                        title="Durum detaylarını görüntüle"
                       >
                         {STATUS_LABELS[dekont.onay_durumu]}
-                      </span>
+                      </button>
                     </div>
                   </div>
 
@@ -2463,6 +2454,96 @@ export default function ClientDekontlarPage() {
             fetchModalStatistics(); // Refresh statistics
           }}
         />
+
+        {/* Status Detail Modal */}
+        {showStatusModal && selectedDekont && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+              <h2 className="text-lg font-semibold mb-4">Dekont Durumu</h2>
+
+              <div className="space-y-3">
+                <div>
+                  <span className="text-sm font-medium text-gray-700">
+                    Öğrenci:{" "}
+                  </span>
+                  <span className="text-sm text-gray-900">
+                    {selectedDekont.ogrenci_ad}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-sm font-medium text-gray-700">
+                    Dönem:{" "}
+                  </span>
+                  <span className="text-sm text-gray-900">
+                    {MONTHS[selectedDekont.ay - 1]} {selectedDekont.yil}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-sm font-medium text-gray-700">
+                    Tutar:{" "}
+                  </span>
+                  <span className="text-sm text-gray-900">
+                    {formatCurrency(selectedDekont.miktar)}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-sm font-medium text-gray-700">
+                    Durum:{" "}
+                  </span>
+                  <span
+                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${
+                      STATUS_COLORS[selectedDekont.onay_durumu]
+                    }`}
+                  >
+                    {STATUS_LABELS[selectedDekont.onay_durumu]}
+                  </span>
+                </div>
+
+                {selectedDekont.onay_durumu === "reddedildi" &&
+                  selectedDekont.red_nedeni && (
+                    <div>
+                      <span className="text-sm font-medium text-red-700">
+                        Red Gerekçesi:{" "}
+                      </span>
+                      <div className="text-sm text-red-600 mt-1 p-2 bg-red-50 rounded border border-red-200">
+                        {selectedDekont.red_nedeni}
+                      </div>
+                    </div>
+                  )}
+
+                {selectedDekont.aciklama && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">
+                      Açıklama:{" "}
+                    </span>
+                    <div className="text-sm text-gray-600 mt-1 p-2 bg-gray-50 rounded border border-gray-200">
+                      {selectedDekont.aciklama}
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-xs text-gray-500">
+                  <div>
+                    Yükleyen: {removeParentheses(selectedDekont.yukleyen_kisi)}
+                  </div>
+                  <div>Tarih: {formatDateTime(selectedDekont.created_at)}</div>
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-6">
+                <button
+                  onClick={closeModals}
+                  className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                >
+                  Kapat
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Suspense>
   );
