@@ -1341,10 +1341,10 @@ export default function ClientDekontlarPage() {
                     Dönem
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Dekont Tutarı
+                    Ödeme Tutarı
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ödeme Tutarı
+                    Dekont Tutarı
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Fark
@@ -1426,6 +1426,15 @@ export default function ClientDekontlarPage() {
                         {MONTHS[dekont.ay - 1]} {dekont.yil}
                       </div>
                     </td>
+                    {/* Ödeme Tutarı Column */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-emerald-600 font-medium">
+                        {dekont.monthlyPayment
+                          ? formatCurrency(dekont.monthlyPayment.amount)
+                          : "-"}
+                      </span>
+                    </td>
+
                     {/* Dekont Tutarı Column */}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2 group">
@@ -1482,15 +1491,6 @@ export default function ClientDekontlarPage() {
                           </>
                         )}
                       </div>
-                    </td>
-
-                    {/* Ödeme Tutarı Column */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-emerald-600 font-medium">
-                        {dekont.monthlyPayment
-                          ? formatCurrency(dekont.monthlyPayment.amount)
-                          : "-"}
-                      </span>
                     </td>
 
                     {/* Fark Column */}
