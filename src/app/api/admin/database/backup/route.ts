@@ -9,20 +9,82 @@ const execAsync = promisify(exec);
 
 export async function POST(request: NextRequest) {
   try {
-    // Environment variables'dan database connection bilgilerini al
-    const dbHost = process.env.DATABASE_HOST || "localhost";
-    const dbPort = process.env.DATABASE_PORT || "3306";
-    const dbName = process.env.DATABASE_NAME || "okuldekont";
-    const dbUser = process.env.DATABASE_USERNAME || process.env.DATABASE_USER;
-    const dbPassword = process.env.DATABASE_PASSWORD;
+    // Environment variables'dan database connection bilgilerini al - multiple fallbacks for different platforms
+    const dbHost =
+      process.env.DATABASE_HOST ||
+      process.env.DB_HOST ||
+      process.env.MYSQL_HOST ||
+      "localhost";
+
+    const dbPort =
+      process.env.DATABASE_PORT ||
+      process.env.DB_PORT ||
+      process.env.MYSQL_PORT ||
+      "3306";
+
+    const dbName =
+      process.env.DATABASE_NAME ||
+      process.env.DB_NAME ||
+      process.env.MYSQL_DATABASE ||
+      "okuldekont";
+
+    const dbUser =
+      process.env.DATABASE_USERNAME ||
+      process.env.DATABASE_USER ||
+      process.env.DB_USER ||
+      process.env.DB_USERNAME ||
+      process.env.MYSQL_USER;
+
+    const dbPassword =
+      process.env.DATABASE_PASSWORD ||
+      process.env.DB_PASSWORD ||
+      process.env.MYSQL_PASSWORD;
+
+    // Debug environment variables (remove in production)
+    console.log("🔍 Environment variables check:");
+    console.log("DB Host:", dbHost);
+    console.log("DB Port:", dbPort);
+    console.log("DB Name:", dbName);
+    console.log("DB User:", dbUser ? "✅ Found" : "❌ Missing");
+    console.log("DB Password:", dbPassword ? "✅ Found" : "❌ Missing");
 
     if (!dbName || !dbUser || !dbPassword) {
+      const availableEnvVars = Object.keys(process.env)
+        .filter(
+          (key) =>
+            key.toLowerCase().includes("database") ||
+            key.toLowerCase().includes("mysql") ||
+            key.toLowerCase().includes("db")
+        )
+        .sort();
+
       return NextResponse.json(
         {
           success: false,
           message:
             "Veritabanı bağlantı bilgileri eksik. Environment variables kontrol edin.",
           error: "MISSING_DB_CONFIG",
+          debug: {
+            missing: {
+              dbName: !dbName,
+              dbUser: !dbUser,
+              dbPassword: !dbPassword,
+            },
+            availableDbEnvVars: availableEnvVars,
+            checkedVars: {
+              host: ["DATABASE_HOST", "DB_HOST", "MYSQL_HOST"],
+              port: ["DATABASE_PORT", "DB_PORT", "MYSQL_PORT"],
+              name: ["DATABASE_NAME", "DB_NAME", "MYSQL_DATABASE"],
+              user: [
+                "DATABASE_USERNAME",
+                "DATABASE_USER",
+                "DB_USER",
+                "DB_USERNAME",
+                "MYSQL_USER",
+              ],
+              password: ["DATABASE_PASSWORD", "DB_PASSWORD", "MYSQL_PASSWORD"],
+            },
+          },
         },
         { status: 500 }
       );
