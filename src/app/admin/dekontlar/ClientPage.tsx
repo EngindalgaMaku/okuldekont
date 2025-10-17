@@ -135,11 +135,12 @@ const truncateText = (
 
 // Dekont sequence bilgisini çıkaran fonksiyon
 const getDekontSequenceInfo = (dekont: Dekont, allDekontlar: Dekont[]) => {
-  // Aynı öğrenci, aynı ay ve yıl için dekontları bul
+  // Aynı öğrenci, aynı işletme, aynı ay ve yıl için dekontları bul
   const sameStudentSameMonth = allDekontlar
     .filter(
       (d) =>
         d.ogrenci_ad === dekont.ogrenci_ad &&
+        d.isletme_ad === dekont.isletme_ad &&
         d.ay === dekont.ay &&
         d.yil === dekont.yil
     )
@@ -148,24 +149,49 @@ const getDekontSequenceInfo = (dekont: Dekont, allDekontlar: Dekont[]) => {
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
 
-  if (sameStudentSameMonth.length <= 1) {
-    return { displayName: dekont.ogrenci_ad, sequenceText: "" };
-  }
-
-  // Bu dekontun sırasını bul
+  const hasDuplicates = sameStudentSameMonth.length > 1;
   const currentIndex = sameStudentSameMonth.findIndex(
     (d) => d.id === dekont.id
   );
+  const firstDekont = sameStudentSameMonth[0];
+
+  if (!hasDuplicates) {
+    return {
+      displayName: dekont.ogrenci_ad,
+      sequenceText: "",
+      hasDuplicates: false,
+      isFirstDuplicate: false,
+      totalDuplicates: 1,
+      sequenceNumber: 0,
+      firstDekontAmount: null,
+      allDuplicates: [],
+    };
+  }
 
   if (currentIndex === 0) {
-    // İlk dekont - sequence gösterme
-    return { displayName: dekont.ogrenci_ad, sequenceText: "" };
+    // İlk dekont - ÇIFT DEKONT olduğunu vurgula
+    return {
+      displayName: dekont.ogrenci_ad,
+      sequenceText: "1. dekont",
+      hasDuplicates: true,
+      isFirstDuplicate: true,
+      totalDuplicates: sameStudentSameMonth.length,
+      sequenceNumber: 1,
+      firstDekontAmount: null,
+      allDuplicates: sameStudentSameMonth,
+    };
   } else {
     // Sonraki dekontlar - ek1, ek2, vs.
-    const sequenceNumber = currentIndex;
+    const sequenceNumber = currentIndex + 1;
     return {
-      displayName: `${dekont.ogrenci_ad} (ek${sequenceNumber})`,
-      sequenceText: `ek${sequenceNumber}`,
+      displayName: `${dekont.ogrenci_ad}`,
+      sequenceText: `${sequenceNumber}. dekont`,
+      hasDuplicates: true,
+      isFirstDuplicate: false,
+      totalDuplicates: sameStudentSameMonth.length,
+      sequenceNumber: sequenceNumber,
+      firstDekontAmount: firstDekont.miktar,
+      allDuplicates: sameStudentSameMonth,
     };
   }
 };
@@ -1367,254 +1393,341 @@ export default function ClientDekontlarPage() {
                 className="bg-white divide-y divide-gray-200"
                 style={{ overflow: "visible" }}
               >
-                {currentDekontlar.map((dekont) => (
-                  <tr
-                    key={dekont.id}
-                    className={`${
-                      selectedIds.includes(dekont.id)
-                        ? "bg-blue-50 hover:bg-blue-100"
-                        : "hover:bg-gray-50"
-                    } relative`}
-                    style={{
-                      zIndex: openDropdown === dekont.id ? 100 : "auto",
-                    }}
-                  >
-                    <td className="relative px-7 sm:w-12 sm:px-6">
-                      <input
-                        type="checkbox"
-                        className="absolute left-4 top-1/2 -mt-2 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        checked={selectedIds.includes(dekont.id)}
-                        onChange={() => handleSelectOne(dekont.id)}
-                      />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {(() => {
-                            const sequenceInfo = getDekontSequenceInfo(
-                              dekont,
-                              filteredDekontlar
-                            );
-                            return sequenceInfo.displayName;
-                          })()}{" "}
-                          {dekont.ogrenci_sinif &&
-                            dekont.ogrenci_no &&
-                            `(${dekont.ogrenci_sinif}-${dekont.ogrenci_no})`}
-                          {(() => {
-                            const sequenceFromFile =
-                              extractSequenceFromFileName(dekont.dosya_url);
-                            if (sequenceFromFile) {
-                              return (
-                                <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full font-medium">
-                                  {sequenceFromFile}
-                                </span>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {dekont.isletme_ad}
-                        </div>
-                        <div className="text-sm font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded-md inline-block mt-1">
-                          👤 {dekont.koordinator_ogretmen}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {MONTHS[dekont.ay - 1]} {dekont.yil}
-                      </div>
-                    </td>
-                    {/* Ödeme Tutarı Column */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-emerald-600 font-medium">
-                        {dekont.monthlyPayment
-                          ? formatCurrency(dekont.monthlyPayment.amount)
-                          : "-"}
-                      </span>
-                    </td>
+                {currentDekontlar.map((dekont) => {
+                  const sequenceInfo = getDekontSequenceInfo(
+                    dekont,
+                    filteredDekontlar
+                  );
+                  const isDuplicate = sequenceInfo.hasDuplicates;
 
-                    {/* Dekont Tutarı Column */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-2 group">
-                        {editingAmountId === dekont.id ? (
-                          // Inline editing mode
-                          <>
-                            <input
-                              type="number"
-                              value={editingAmount}
-                              onChange={(e) => setEditingAmount(e.target.value)}
-                              onKeyDown={(e) =>
-                                handleAmountKeyDown(e, dekont.id)
-                              }
-                              className="w-24 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="Tutar"
-                              min="0"
-                              step="0.01"
-                              autoFocus
-                            />
-                            <button
-                              onClick={() => handleSaveAmountEdit(dekont.id)}
-                              disabled={updatingAmountId === dekont.id}
-                              className="flex items-center justify-center w-6 h-6 text-green-600 hover:text-green-800 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
-                              title="Kaydet"
-                            >
-                              {updatingAmountId === dekont.id ? (
-                                <Loader className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Save className="h-4 w-4" />
-                              )}
-                            </button>
-                            <button
-                              onClick={handleCancelAmountEdit}
-                              disabled={updatingAmountId === dekont.id}
-                              className="flex items-center justify-center w-6 h-6 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                              title="İptal"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </>
-                        ) : (
-                          // Display mode
-                          <>
-                            <span className="text-sm text-gray-900 font-medium">
-                              {formatCurrency(dekont.miktar)}
+                  return (
+                    <tr
+                      key={dekont.id}
+                      className={`${
+                        selectedIds.includes(dekont.id)
+                          ? "bg-blue-50 hover:bg-blue-100"
+                          : isDuplicate
+                          ? "bg-orange-50 hover:bg-orange-100 border-l-4 border-orange-500"
+                          : "hover:bg-gray-50"
+                      } relative ${isDuplicate ? "shadow-sm" : ""}`}
+                      style={{
+                        zIndex: openDropdown === dekont.id ? 100 : "auto",
+                      }}
+                    >
+                      <td className="relative px-7 sm:w-12 sm:px-6">
+                        <input
+                          type="checkbox"
+                          className="absolute left-4 top-1/2 -mt-2 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          checked={selectedIds.includes(dekont.id)}
+                          onChange={() => handleSelectOne(dekont.id)}
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900 flex items-center flex-wrap gap-1">
+                            <span>
+                              {sequenceInfo.displayName}{" "}
+                              {dekont.ogrenci_sinif &&
+                                dekont.ogrenci_no &&
+                                `(${dekont.ogrenci_sinif}-${dekont.ogrenci_no})`}
                             </span>
-                            <button
-                              onClick={() => handleStartAmountEdit(dekont)}
-                              className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-6 h-6 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-all"
-                              title="Tutarı Düzenle"
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
 
-                    {/* Fark Column */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {dekont.miktar && dekont.monthlyPayment?.amount ? (
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            Math.abs(
-                              dekont.miktar - dekont.monthlyPayment.amount
-                            ) < 0.01
-                              ? "bg-green-100 text-green-800"
-                              : dekont.miktar > dekont.monthlyPayment.amount
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-orange-100 text-orange-800"
-                          }`}
-                        >
-                          {Math.abs(
-                            dekont.miktar - dekont.monthlyPayment.amount
-                          ) < 0.01
-                            ? "✓ Eşleşti"
-                            : `${
-                                dekont.miktar > dekont.monthlyPayment.amount
-                                  ? "+"
-                                  : ""
-                              }${(
-                                dekont.miktar - dekont.monthlyPayment.amount
-                              ).toLocaleString("tr-TR", {
-                                minimumFractionDigits: 2,
-                              })} ₺`}
+                            {/* Çift dekont badge'i - daha büyük ve belirgin */}
+                            {sequenceInfo.hasDuplicates && (
+                              <span
+                                className={`text-xs px-3 py-1 rounded-full font-bold shadow-md ${
+                                  sequenceInfo.isFirstDuplicate
+                                    ? "bg-red-500 text-white animate-pulse"
+                                    : "bg-orange-500 text-white"
+                                }`}
+                              >
+                                {sequenceInfo.sequenceText} /{" "}
+                                {sequenceInfo.totalDuplicates}
+                              </span>
+                            )}
+
+                            {/* Dosya sequence badge'i (eski sistem) */}
+                            {(() => {
+                              const sequenceFromFile =
+                                extractSequenceFromFileName(dekont.dosya_url);
+                              if (
+                                sequenceFromFile &&
+                                !sequenceInfo.hasDuplicates
+                              ) {
+                                return (
+                                  <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full font-medium">
+                                    {sequenceFromFile}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {dekont.isletme_ad}
+                          </div>
+                          <div className="text-sm font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded-md inline-block mt-1">
+                            👤 {dekont.koordinator_ogretmen}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {MONTHS[dekont.ay - 1]} {dekont.yil}
+                        </div>
+                      </td>
+                      {/* Ödeme Tutarı Column */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-emerald-600 font-medium">
+                          {dekont.monthlyPayment
+                            ? formatCurrency(dekont.monthlyPayment.amount)
+                            : "-"}
                         </span>
-                      ) : (
-                        <span className="text-sm text-gray-400">-</span>
-                      )}
-                    </td>
-                    {/* Durum Column - Clickable */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => {
-                          setSelectedDekont(dekont);
-                          setShowStatusModal(true);
-                        }}
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border cursor-pointer hover:opacity-80 transition-opacity ${
-                          STATUS_COLORS[dekont.onay_durumu]
-                        }`}
-                        title="Durum detaylarını görüntüle"
-                      >
-                        {STATUS_LABELS[dekont.onay_durumu]}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {removeParentheses(dekont.yukleyen_kisi)}
+                      </td>
+
+                      {/* Dekont Tutarı Column */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-2 group">
+                          {editingAmountId === dekont.id ? (
+                            // Inline editing mode
+                            <>
+                              <input
+                                type="number"
+                                value={editingAmount}
+                                onChange={(e) =>
+                                  setEditingAmount(e.target.value)
+                                }
+                                onKeyDown={(e) =>
+                                  handleAmountKeyDown(e, dekont.id)
+                                }
+                                className="w-24 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Tutar"
+                                min="0"
+                                step="0.01"
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => handleSaveAmountEdit(dekont.id)}
+                                disabled={updatingAmountId === dekont.id}
+                                className="flex items-center justify-center w-6 h-6 text-green-600 hover:text-green-800 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+                                title="Kaydet"
+                              >
+                                {updatingAmountId === dekont.id ? (
+                                  <Loader className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Save className="h-4 w-4" />
+                                )}
+                              </button>
+                              <button
+                                onClick={handleCancelAmountEdit}
+                                disabled={updatingAmountId === dekont.id}
+                                className="flex items-center justify-center w-6 h-6 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                                title="İptal"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </>
+                          ) : (
+                            // Display mode
+                            <div className="flex flex-col">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-gray-900 font-medium">
+                                  {formatCurrency(dekont.miktar)}
+                                </span>
+                                <button
+                                  onClick={() => handleStartAmountEdit(dekont)}
+                                  className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-6 h-6 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-all"
+                                  title="Tutarı Düzenle"
+                                >
+                                  <Edit3 className="h-4 w-4" />
+                                </button>
+                              </div>
+
+                              {/* 2. ve sonraki dekontlarda 1. dekontun tutarını göster */}
+                              {sequenceInfo.firstDekontAmount &&
+                                !sequenceInfo.isFirstDuplicate && (
+                                  <div className="text-xs text-blue-600 mt-1">
+                                    + 1. dekont:{" "}
+                                    {formatCurrency(
+                                      sequenceInfo.firstDekontAmount
+                                    )}
+                                  </div>
+                                )}
+                            </div>
+                          )}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {formatDateTime(dekont.created_at)}
+                      </td>
+
+                      {/* Fark Column */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex flex-col space-y-1">
+                          {/* Ana fark hesaplama (ödeme tutarına göre) */}
+                          {dekont.miktar && dekont.monthlyPayment?.amount ? (
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                Math.abs(
+                                  dekont.miktar - dekont.monthlyPayment.amount
+                                ) < 0.01
+                                  ? "bg-green-100 text-green-800"
+                                  : dekont.miktar > dekont.monthlyPayment.amount
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-orange-100 text-orange-800"
+                              }`}
+                            >
+                              {Math.abs(
+                                dekont.miktar - dekont.monthlyPayment.amount
+                              ) < 0.01
+                                ? "✓ Eşleşti"
+                                : `${
+                                    dekont.miktar > dekont.monthlyPayment.amount
+                                      ? "+"
+                                      : ""
+                                  }${(
+                                    dekont.miktar - dekont.monthlyPayment.amount
+                                  ).toLocaleString("tr-TR", {
+                                    minimumFractionDigits: 2,
+                                  })} ₺`}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
+
+                          {/* 2. dekont ve sonraki dekontlarda toplam fark (1. dekont + 2. dekont vs ödeme) */}
+                          {sequenceInfo.firstDekontAmount &&
+                            !sequenceInfo.isFirstDuplicate &&
+                            dekont.miktar &&
+                            dekont.monthlyPayment?.amount && (
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs font-medium ${(() => {
+                                  const totalAmount =
+                                    dekont.miktar +
+                                    sequenceInfo.firstDekontAmount;
+                                  const paymentAmount =
+                                    dekont.monthlyPayment.amount;
+                                  return Math.abs(totalAmount - paymentAmount) <
+                                    0.01
+                                    ? "bg-purple-100 text-purple-800"
+                                    : totalAmount > paymentAmount
+                                    ? "bg-indigo-100 text-indigo-800"
+                                    : "bg-pink-100 text-pink-800";
+                                })()}`}
+                              >
+                                Toplam fark:{" "}
+                                {(() => {
+                                  const totalAmount =
+                                    dekont.miktar +
+                                    sequenceInfo.firstDekontAmount;
+                                  const paymentAmount =
+                                    dekont.monthlyPayment.amount;
+                                  return Math.abs(totalAmount - paymentAmount) <
+                                    0.01
+                                    ? "✓ Eşleşti"
+                                    : `${
+                                        totalAmount > paymentAmount ? "+" : ""
+                                      }${(
+                                        totalAmount - paymentAmount
+                                      ).toLocaleString("tr-TR", {
+                                        minimumFractionDigits: 2,
+                                      })} ₺`;
+                                })()}
+                              </span>
+                            )}
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      {/* Önizleme Butonu */}
-                      {dekont.dosya_url && dekont.dosya_url.trim() !== "" ? (
+                      </td>
+                      {/* Durum Column - Clickable */}
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <button
                           onClick={() => {
-                            // Gerçek dosya adını çıkar
-                            const urlParts = dekont.dosya_url!.split("/");
-                            const actualFilename =
-                              urlParts[urlParts.length - 1];
-                            handleFileAction(dekont.dosya_url!, actualFilename);
+                            setSelectedDekont(dekont);
+                            setShowStatusModal(true);
                           }}
-                          className="flex items-center justify-center w-8 h-8 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full transition-colors"
-                          title={
-                            isPreviewableFile(dekont.dosya_url!)
-                              ? isImageFile(dekont.dosya_url!)
-                                ? "Resmi Görüntüle"
-                                : "PDF Önizle"
-                              : "Dosyayı İndir"
-                          }
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border cursor-pointer hover:opacity-80 transition-opacity ${
+                            STATUS_COLORS[dekont.onay_durumu]
+                          }`}
+                          title="Durum detaylarını görüntüle"
                         >
-                          {isPreviewableFile(dekont.dosya_url!) ? (
-                            <Eye className="h-5 w-5" />
-                          ) : (
-                            <Download className="h-5 w-5" />
-                          )}
+                          {STATUS_LABELS[dekont.onay_durumu]}
                         </button>
-                      ) : (
-                        <div className="flex items-center justify-center w-8 h-8 text-gray-300">
-                          <Eye className="h-5 w-5" />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {removeParentheses(dekont.yukleyen_kisi)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {formatDateTime(dekont.created_at)}
+                          </div>
                         </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-1">
-                        {/* Onay İşlemleri */}
-                        {dekont.onay_durumu === "bekliyor" && (
-                          <>
-                            <button
-                              onClick={() => handleApprove(dekont)}
-                              className="flex items-center justify-center w-8 h-8 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-full transition-colors"
-                              title="Onayla"
-                            >
-                              <Check className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleReject(dekont)}
-                              className="flex items-center justify-center w-8 h-8 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
-                              title="Reddet"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        {/* Önizleme Butonu */}
+                        {dekont.dosya_url && dekont.dosya_url.trim() !== "" ? (
+                          <button
+                            onClick={() => {
+                              // Gerçek dosya adını çıkar
+                              const urlParts = dekont.dosya_url!.split("/");
+                              const actualFilename =
+                                urlParts[urlParts.length - 1];
+                              handleFileAction(
+                                dekont.dosya_url!,
+                                actualFilename
+                              );
+                            }}
+                            className="flex items-center justify-center w-8 h-8 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full transition-colors"
+                            title={
+                              isPreviewableFile(dekont.dosya_url!)
+                                ? isImageFile(dekont.dosya_url!)
+                                  ? "Resmi Görüntüle"
+                                  : "PDF Önizle"
+                                : "Dosyayı İndir"
+                            }
+                          >
+                            {isPreviewableFile(dekont.dosya_url!) ? (
+                              <Eye className="h-5 w-5" />
+                            ) : (
+                              <Download className="h-5 w-5" />
+                            )}
+                          </button>
+                        ) : (
+                          <div className="flex items-center justify-center w-8 h-8 text-gray-300">
+                            <Eye className="h-5 w-5" />
+                          </div>
                         )}
-                        {/* Sil Butonu */}
-                        <button
-                          onClick={() => handleDelete(dekont)}
-                          className="flex items-center justify-center w-8 h-8 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                          title="Sil"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end gap-1">
+                          {/* Onay İşlemleri */}
+                          {dekont.onay_durumu === "bekliyor" && (
+                            <>
+                              <button
+                                onClick={() => handleApprove(dekont)}
+                                className="flex items-center justify-center w-8 h-8 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-full transition-colors"
+                                title="Onayla"
+                              >
+                                <Check className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleReject(dekont)}
+                                className="flex items-center justify-center w-8 h-8 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors"
+                                title="Reddet"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                          {/* Sil Butonu */}
+                          <button
+                            onClick={() => handleDelete(dekont)}
+                            className="flex items-center justify-center w-8 h-8 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                            title="Sil"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1689,338 +1802,415 @@ export default function ClientDekontlarPage() {
           )}
 
           {/* Mobile Cards */}
-          {currentDekontlar.map((dekont) => (
-            <div
-              key={dekont.id}
-              className={`bg-white rounded-lg shadow-sm border ${
-                selectedIds.includes(dekont.id)
-                  ? "border-blue-300 bg-blue-50"
-                  : "border-gray-200"
-              }`}
-            >
-              {/* Card Header with Checkbox */}
-              <div className="p-4 border-b border-gray-100">
-                <div className="flex items-start justify-between">
-                  <label className="flex items-start cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      checked={selectedIds.includes(dekont.id)}
-                      onChange={() => handleSelectOne(dekont.id)}
-                    />
-                    <div className="ml-3">
-                      <div className="text-sm font-medium text-gray-900">
-                        {(() => {
-                          const sequenceInfo = getDekontSequenceInfo(
-                            dekont,
-                            filteredDekontlar
-                          );
-                          return sequenceInfo.displayName;
-                        })()}{" "}
-                        {dekont.ogrenci_sinif &&
-                          dekont.ogrenci_no &&
-                          `(${dekont.ogrenci_sinif}-${dekont.ogrenci_no})`}
-                        {(() => {
-                          const sequenceFromFile = extractSequenceFromFileName(
-                            dekont.dosya_url
-                          );
-                          if (sequenceFromFile) {
-                            return (
-                              <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded-full font-medium">
-                                {sequenceFromFile}
-                              </span>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {dekont.isletme_ad}
-                      </div>
-                      <div className="text-xs text-blue-600">
-                        Koordinatör: {dekont.koordinator_ogretmen}
-                      </div>
-                    </div>
-                  </label>
-                  {/* Dropdown trigger */}
-                  <div className="relative">
-                    <button
-                      onClick={() => toggleDropdown(dekont.id)}
-                      className="flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
-                      title="İşlemler"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </button>
+          {currentDekontlar.map((dekont) => {
+            const sequenceInfo = getDekontSequenceInfo(
+              dekont,
+              filteredDekontlar
+            );
+            const isDuplicate = sequenceInfo.hasDuplicates;
 
-                    {/* Dropdown Menu */}
-                    {openDropdown === dekont.id && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-10"
-                          onClick={closeDropdown}
-                        />
-                        <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-20">
-                          <div className="py-1">
-                            {/* Onay İşlemleri */}
-                            {dekont.onay_durumu === "bekliyor" && (
-                              <>
-                                <button
-                                  onClick={() => {
-                                    handleApprove(dekont);
-                                    closeDropdown();
-                                  }}
-                                  className="flex items-center w-full px-4 py-2 text-sm text-green-700 hover:bg-green-50"
-                                >
-                                  <Check className="h-4 w-4 mr-3" />
-                                  Onayla
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    handleReject(dekont);
-                                    closeDropdown();
-                                  }}
-                                  className="flex items-center w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
-                                >
-                                  <X className="h-4 w-4 mr-3" />
-                                  Reddet
-                                </button>
-                                <div className="border-t border-gray-100 my-1"></div>
-                              </>
-                            )}
-
-                            {/* Sil */}
-                            <button
-                              onClick={() => {
-                                handleDelete(dekont);
-                                closeDropdown();
-                              }}
-                              className="flex items-center w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-4 w-4 mr-3" />
-                              Sil
-                            </button>
-                          </div>
+            return (
+              <div
+                key={dekont.id}
+                className={`rounded-lg shadow-sm border ${
+                  selectedIds.includes(dekont.id)
+                    ? "border-blue-300 bg-blue-50"
+                    : isDuplicate
+                    ? "border-orange-300 bg-orange-50 border-l-4 border-l-orange-500 shadow-md"
+                    : "border-gray-200 bg-white"
+                }`}
+              >
+                {/* Card Header with Checkbox */}
+                <div className="p-4 border-b border-gray-100">
+                  <div className="flex items-start justify-between">
+                    <label className="flex items-start cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        checked={selectedIds.includes(dekont.id)}
+                        onChange={() => handleSelectOne(dekont.id)}
+                      />
+                      <div className="ml-3">
+                        <div className="text-sm font-medium text-gray-900 flex items-center flex-wrap gap-1 mb-1">
+                          <span>
+                            {sequenceInfo.displayName}{" "}
+                            {dekont.ogrenci_sinif &&
+                              dekont.ogrenci_no &&
+                              `(${dekont.ogrenci_sinif}-${dekont.ogrenci_no})`}
+                          </span>
                         </div>
-                      </>
-                    )}
-                  </div>
-                </div>
 
-                {/* Card Body */}
-                <div className="p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900 flex items-center">
-                        {MONTHS[dekont.ay - 1]} {dekont.yil}
-                        {(() => {
-                          const sequenceFromFile = extractSequenceFromFileName(
-                            dekont.dosya_url
-                          );
-                          if (sequenceFromFile) {
-                            return (
-                              <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded-full font-medium">
-                                {sequenceFromFile}
-                              </span>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                      {/* Mobile inline editing for amount */}
-                      <div className="flex flex-col space-y-1">
-                        {editingAmountId === dekont.id ? (
-                          // Mobile inline editing mode
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="number"
-                              value={editingAmount}
-                              onChange={(e) => setEditingAmount(e.target.value)}
-                              onKeyDown={(e) =>
-                                handleAmountKeyDown(e, dekont.id)
-                              }
-                              className="w-20 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="Tutar"
-                              min="0"
-                              step="0.01"
-                              autoFocus
-                            />
-                            <button
-                              onClick={() => handleSaveAmountEdit(dekont.id)}
-                              disabled={updatingAmountId === dekont.id}
-                              className="flex items-center justify-center w-5 h-5 text-green-600 hover:text-green-800 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
-                              title="Kaydet"
+                        {/* Mobil çift dekont badge'i */}
+                        {sequenceInfo.hasDuplicates && (
+                          <div className="mb-2">
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full font-bold ${
+                                sequenceInfo.isFirstDuplicate
+                                  ? "bg-red-500 text-white animate-pulse"
+                                  : "bg-orange-500 text-white"
+                              }`}
                             >
-                              {updatingAmountId === dekont.id ? (
-                                <Loader className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Save className="h-3 w-3" />
-                              )}
-                            </button>
-                            <button
-                              onClick={handleCancelAmountEdit}
-                              disabled={updatingAmountId === dekont.id}
-                              className="flex items-center justify-center w-5 h-5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                              title="İptal"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ) : (
-                          // Mobile display mode with separate amounts
-                          <div className="space-y-1">
-                            {dekont.monthlyPayment && (
-                              <div className="text-xs space-y-1">
-                                <div className="text-emerald-600 font-medium">
-                                  Ödeme:{" "}
-                                  {formatCurrency(dekont.monthlyPayment.amount)}
-                                </div>
-                              </div>
-                            )}
-                            <div className="flex items-center space-x-2 group">
-                              <span className="text-sm text-gray-900 font-medium">
-                                Dekont: {formatCurrency(dekont.miktar)}
-                              </span>
-                              <button
-                                onClick={() => handleStartAmountEdit(dekont)}
-                                className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-all"
-                                title="Tutarı Düzenle"
-                              >
-                                <Edit3 className="h-3 w-3" />
-                              </button>
-                            </div>
-                            {dekont.monthlyPayment &&
-                              dekont.miktar &&
-                              dekont.monthlyPayment.amount && (
-                                <div className="flex items-center">
-                                  <span className="text-gray-600 mr-2">
-                                    Fark:
-                                  </span>
-                                  <span
-                                    className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                                      Math.abs(
-                                        dekont.miktar -
-                                          dekont.monthlyPayment.amount
-                                      ) < 0.01
-                                        ? "bg-green-100 text-green-800"
-                                        : dekont.miktar >
-                                          dekont.monthlyPayment.amount
-                                        ? "bg-blue-100 text-blue-800"
-                                        : "bg-orange-100 text-orange-800"
-                                    }`}
-                                  >
-                                    {Math.abs(
-                                      dekont.miktar -
-                                        dekont.monthlyPayment.amount
-                                    ) < 0.01
-                                      ? "✓ Eşleşti"
-                                      : `${
-                                          dekont.miktar >
-                                          dekont.monthlyPayment.amount
-                                            ? "+"
-                                            : ""
-                                        }${(
-                                          dekont.miktar -
-                                          dekont.monthlyPayment.amount
-                                        ).toLocaleString("tr-TR", {
-                                          minimumFractionDigits: 2,
-                                        })} ₺`}
-                                  </span>
-                                </div>
-                              )}
+                              🔄 {sequenceInfo.sequenceText} /{" "}
+                              {sequenceInfo.totalDuplicates} toplam
+                            </span>
                           </div>
                         )}
+                        <div className="text-sm text-gray-500">
+                          {dekont.isletme_ad}
+                        </div>
+                        <div className="text-xs text-blue-600">
+                          Koordinatör: {dekont.koordinator_ogretmen}
+                        </div>
+                      </div>
+                    </label>
+                    {/* Dropdown trigger */}
+                    <div className="relative">
+                      <button
+                        onClick={() => toggleDropdown(dekont.id)}
+                        className="flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                        title="İşlemler"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+
+                      {/* Dropdown Menu */}
+                      {openDropdown === dekont.id && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-10"
+                            onClick={closeDropdown}
+                          />
+                          <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-20">
+                            <div className="py-1">
+                              {/* Onay İşlemleri */}
+                              {dekont.onay_durumu === "bekliyor" && (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      handleApprove(dekont);
+                                      closeDropdown();
+                                    }}
+                                    className="flex items-center w-full px-4 py-2 text-sm text-green-700 hover:bg-green-50"
+                                  >
+                                    <Check className="h-4 w-4 mr-3" />
+                                    Onayla
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      handleReject(dekont);
+                                      closeDropdown();
+                                    }}
+                                    className="flex items-center w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                                  >
+                                    <X className="h-4 w-4 mr-3" />
+                                    Reddet
+                                  </button>
+                                  <div className="border-t border-gray-100 my-1"></div>
+                                </>
+                              )}
+
+                              {/* Sil */}
+                              <button
+                                onClick={() => {
+                                  handleDelete(dekont);
+                                  closeDropdown();
+                                }}
+                                className="flex items-center w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4 mr-3" />
+                                Sil
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900 flex items-center">
+                          {MONTHS[dekont.ay - 1]} {dekont.yil}
+                          {(() => {
+                            const sequenceFromFile =
+                              extractSequenceFromFileName(dekont.dosya_url);
+                            if (sequenceFromFile) {
+                              return (
+                                <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded-full font-medium">
+                                  {sequenceFromFile}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
+                        {/* Mobile inline editing for amount */}
+                        <div className="flex flex-col space-y-1">
+                          {editingAmountId === dekont.id ? (
+                            // Mobile inline editing mode
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="number"
+                                value={editingAmount}
+                                onChange={(e) =>
+                                  setEditingAmount(e.target.value)
+                                }
+                                onKeyDown={(e) =>
+                                  handleAmountKeyDown(e, dekont.id)
+                                }
+                                className="w-20 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Tutar"
+                                min="0"
+                                step="0.01"
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => handleSaveAmountEdit(dekont.id)}
+                                disabled={updatingAmountId === dekont.id}
+                                className="flex items-center justify-center w-5 h-5 text-green-600 hover:text-green-800 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+                                title="Kaydet"
+                              >
+                                {updatingAmountId === dekont.id ? (
+                                  <Loader className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Save className="h-3 w-3" />
+                                )}
+                              </button>
+                              <button
+                                onClick={handleCancelAmountEdit}
+                                disabled={updatingAmountId === dekont.id}
+                                className="flex items-center justify-center w-5 h-5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                                title="İptal"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            // Mobile display mode with separate amounts
+                            <div className="space-y-1">
+                              {dekont.monthlyPayment && (
+                                <div className="text-xs space-y-1">
+                                  <div className="text-emerald-600 font-medium">
+                                    Ödeme:{" "}
+                                    {formatCurrency(
+                                      dekont.monthlyPayment.amount
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              <div className="space-y-1">
+                                <div className="flex items-center space-x-2 group">
+                                  <span className="text-sm text-gray-900 font-medium">
+                                    Dekont: {formatCurrency(dekont.miktar)}
+                                  </span>
+                                  <button
+                                    onClick={() =>
+                                      handleStartAmountEdit(dekont)
+                                    }
+                                    className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-all"
+                                    title="Tutarı Düzenle"
+                                  >
+                                    <Edit3 className="h-3 w-3" />
+                                  </button>
+                                </div>
+
+                                {/* 2. ve sonraki dekontlarda 1. dekontun tutarını göster */}
+                                {sequenceInfo.firstDekontAmount &&
+                                  !sequenceInfo.isFirstDuplicate && (
+                                    <div className="text-xs text-blue-600">
+                                      + 1. dekont:{" "}
+                                      {formatCurrency(
+                                        sequenceInfo.firstDekontAmount
+                                      )}
+                                    </div>
+                                  )}
+                              </div>
+                              {dekont.monthlyPayment &&
+                                dekont.miktar &&
+                                dekont.monthlyPayment.amount && (
+                                  <div className="flex flex-col space-y-1">
+                                    {/* Ana fark (sadece bu dekont vs ödeme) */}
+                                    <div className="flex items-center">
+                                      <span className="text-gray-600 mr-2">
+                                        Bu dekont:
+                                      </span>
+                                      <span
+                                        className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                                          Math.abs(
+                                            dekont.miktar -
+                                              dekont.monthlyPayment.amount
+                                          ) < 0.01
+                                            ? "bg-green-100 text-green-800"
+                                            : dekont.miktar >
+                                              dekont.monthlyPayment.amount
+                                            ? "bg-blue-100 text-blue-800"
+                                            : "bg-orange-100 text-orange-800"
+                                        }`}
+                                      >
+                                        {Math.abs(
+                                          dekont.miktar -
+                                            dekont.monthlyPayment.amount
+                                        ) < 0.01
+                                          ? "✓ Eşleşti"
+                                          : `${
+                                              dekont.miktar >
+                                              dekont.monthlyPayment.amount
+                                                ? "+"
+                                                : ""
+                                            }${(
+                                              dekont.miktar -
+                                              dekont.monthlyPayment.amount
+                                            ).toLocaleString("tr-TR", {
+                                              minimumFractionDigits: 2,
+                                            })} ₺`}
+                                      </span>
+                                    </div>
+
+                                    {/* 2. dekont için toplam fark */}
+                                    {sequenceInfo.firstDekontAmount &&
+                                      !sequenceInfo.isFirstDuplicate && (
+                                        <div className="flex items-center">
+                                          <span className="text-gray-600 mr-2">
+                                            Toplam:
+                                          </span>
+                                          <span
+                                            className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${(() => {
+                                              const totalAmount =
+                                                dekont.miktar +
+                                                sequenceInfo.firstDekontAmount;
+                                              const paymentAmount =
+                                                dekont.monthlyPayment.amount;
+                                              return Math.abs(
+                                                totalAmount - paymentAmount
+                                              ) < 0.01
+                                                ? "bg-purple-100 text-purple-800"
+                                                : totalAmount > paymentAmount
+                                                ? "bg-indigo-100 text-indigo-800"
+                                                : "bg-pink-100 text-pink-800";
+                                            })()}`}
+                                          >
+                                            {(() => {
+                                              const totalAmount =
+                                                dekont.miktar +
+                                                sequenceInfo.firstDekontAmount;
+                                              const paymentAmount =
+                                                dekont.monthlyPayment.amount;
+                                              return Math.abs(
+                                                totalAmount - paymentAmount
+                                              ) < 0.01
+                                                ? "✓ Eşleşti"
+                                                : `${
+                                                    totalAmount > paymentAmount
+                                                      ? "+"
+                                                      : ""
+                                                  }${(
+                                                    totalAmount - paymentAmount
+                                                  ).toLocaleString("tr-TR", {
+                                                    minimumFractionDigits: 2,
+                                                  })} ₺`;
+                                            })()}
+                                          </span>
+                                        </div>
+                                      )}
+                                  </div>
+                                )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <button
+                          onClick={() => {
+                            setSelectedDekont(dekont);
+                            setShowStatusModal(true);
+                          }}
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border cursor-pointer hover:opacity-80 transition-opacity ${
+                            STATUS_COLORS[dekont.onay_durumu]
+                          }`}
+                          title="Durum detaylarını görüntüle"
+                        >
+                          {STATUS_LABELS[dekont.onay_durumu]}
+                        </button>
                       </div>
                     </div>
-                    <div>
-                      <button
-                        onClick={() => {
-                          setSelectedDekont(dekont);
-                          setShowStatusModal(true);
-                        }}
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border cursor-pointer hover:opacity-80 transition-opacity ${
-                          STATUS_COLORS[dekont.onay_durumu]
-                        }`}
-                        title="Durum detaylarını görüntüle"
-                      >
-                        {STATUS_LABELS[dekont.onay_durumu]}
-                      </button>
+
+                    <div className="text-xs text-blue-600">
+                      Koordinatör: {dekont.koordinator_ogretmen}
+                    </div>
+
+                    <div className="text-xs text-gray-500">
+                      Yükleyen: {removeParentheses(dekont.yukleyen_kisi)}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Tarih: {formatDateTime(dekont.created_at)}
                     </div>
                   </div>
 
-                  <div className="text-xs text-blue-600">
-                    Koordinatör: {dekont.koordinator_ogretmen}
-                  </div>
+                  {/* Card Footer */}
+                  <div className="p-4 border-t border-gray-100 flex items-center justify-end gap-2">
+                    {dekont.dosya_url && (
+                      <>
+                        {isPreviewableFile(dekont.dosya_url) ? (
+                          <button
+                            onClick={() => {
+                              // Gerçek dosya adını çıkar
+                              const urlParts = dekont.dosya_url!.split("/");
+                              const actualFilename =
+                                urlParts[urlParts.length - 1];
+                              openImageModal(dekont.dosya_url!, actualFilename);
+                            }}
+                            className="inline-flex items-center px-3 py-1.5 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md"
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            {isImageFile(dekont.dosya_url)
+                              ? "Resmi Görüntüle"
+                              : "PDF Önizle"}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              // Gerçek dosya adını çıkar
+                              const urlParts = dekont.dosya_url!.split("/");
+                              const actualFilename =
+                                urlParts[urlParts.length - 1];
+                              downloadFile(dekont.dosya_url!, actualFilename);
+                            }}
+                            className="inline-flex items-center px-3 py-1.5 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Dosyayı İndir
+                          </button>
+                        )}
+                      </>
+                    )}
 
-                  <div className="text-xs text-gray-500">
-                    Yükleyen: {removeParentheses(dekont.yukleyen_kisi)}
+                    <button
+                      onClick={() => handleApprove(dekont)}
+                      disabled={dekont.onay_durumu !== "bekliyor"}
+                      className="inline-flex items-center px-3 py-1.5 text-sm text-green-700 bg-green-50 hover:bg-green-100 rounded-md disabled:opacity-50"
+                    >
+                      <Check className="h-4 w-4 mr-2" /> Onayla
+                    </button>
+                    <button
+                      onClick={() => handleReject(dekont)}
+                      disabled={dekont.onay_durumu !== "bekliyor"}
+                      className="inline-flex items-center px-3 py-1.5 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-md disabled:opacity-50"
+                    >
+                      <X className="h-4 w-4 mr-2" /> Reddet
+                    </button>
+                    <button
+                      onClick={() => handleDelete(dekont)}
+                      className="inline-flex items-center px-3 py-1.5 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-md"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" /> Sil
+                    </button>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    Tarih: {formatDateTime(dekont.created_at)}
-                  </div>
-                </div>
-
-                {/* Card Footer */}
-                <div className="p-4 border-t border-gray-100 flex items-center justify-end gap-2">
-                  {dekont.dosya_url && (
-                    <>
-                      {isPreviewableFile(dekont.dosya_url) ? (
-                        <button
-                          onClick={() => {
-                            // Gerçek dosya adını çıkar
-                            const urlParts = dekont.dosya_url!.split("/");
-                            const actualFilename =
-                              urlParts[urlParts.length - 1];
-                            openImageModal(dekont.dosya_url!, actualFilename);
-                          }}
-                          className="inline-flex items-center px-3 py-1.5 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md"
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          {isImageFile(dekont.dosya_url)
-                            ? "Resmi Görüntüle"
-                            : "PDF Önizle"}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            // Gerçek dosya adını çıkar
-                            const urlParts = dekont.dosya_url!.split("/");
-                            const actualFilename =
-                              urlParts[urlParts.length - 1];
-                            downloadFile(dekont.dosya_url!, actualFilename);
-                          }}
-                          className="inline-flex items-center px-3 py-1.5 text-sm text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Dosyayı İndir
-                        </button>
-                      )}
-                    </>
-                  )}
-
-                  <button
-                    onClick={() => handleApprove(dekont)}
-                    disabled={dekont.onay_durumu !== "bekliyor"}
-                    className="inline-flex items-center px-3 py-1.5 text-sm text-green-700 bg-green-50 hover:bg-green-100 rounded-md disabled:opacity-50"
-                  >
-                    <Check className="h-4 w-4 mr-2" /> Onayla
-                  </button>
-                  <button
-                    onClick={() => handleReject(dekont)}
-                    disabled={dekont.onay_durumu !== "bekliyor"}
-                    className="inline-flex items-center px-3 py-1.5 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-md disabled:opacity-50"
-                  >
-                    <X className="h-4 w-4 mr-2" /> Reddet
-                  </button>
-                  <button
-                    onClick={() => handleDelete(dekont)}
-                    className="inline-flex items-center px-3 py-1.5 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-md"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" /> Sil
-                  </button>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Pagination */}
