@@ -10,6 +10,51 @@ interface ParsedPayment {
   amount?: number;
 }
 
+// Turkish character normalization function
+function normalizeTurkishText(text: string): string {
+  if (!text) return "";
+
+  return text
+    .toLowerCase()
+    .replace(/ı/g, "i")
+    .replace(/İ/g, "i")
+    .replace(/ğ/g, "g")
+    .replace(/Ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/Ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/Ş/g, "s")
+    .replace(/ö/g, "o")
+    .replace(/Ö/g, "o")
+    .replace(/ç/g, "c")
+    .replace(/Ç/g, "c")
+    .trim()
+    .replace(/\s+/g, " "); // Multiple spaces to single space
+}
+
+// Improved name matching function
+function namesMatch(name1: string, name2: string): boolean {
+  const normalized1 = normalizeTurkishText(name1);
+  const normalized2 = normalizeTurkishText(name2);
+
+  // Direct match
+  if (normalized1 === normalized2) return true;
+
+  // Split and check individual words
+  const words1 = normalized1.split(" ");
+  const words2 = normalized2.split(" ");
+
+  // Check if all words from shorter name exist in longer name
+  const shorter = words1.length <= words2.length ? words1 : words2;
+  const longer = words1.length > words2.length ? words1 : words2;
+
+  return shorter.every((word) =>
+    longer.some(
+      (longerWord) => longerWord.includes(word) || word.includes(longerWord)
+    )
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log("🚀 New Excel Import API called");
@@ -192,14 +237,47 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        // Bulunamazsa ad-soyad ile ara
+        // Bulunamazsa ad-soyad ile ara (improved Turkish-aware matching)
         if (!student) {
-          student = await prisma.student.findFirst({
-            where: {
-              name: { contains: studentName },
-              surname: { contains: studentSurname },
+          console.log(
+            `🔍 Searching for student: "${studentName}" "${studentSurname}"`
+          );
+
+          // Get all students and use Turkish-aware name matching
+          const allStudents = await prisma.student.findMany({
+            select: {
+              id: true,
+              name: true,
+              surname: true,
+              tcNo: true,
             },
           });
+
+          // Find best match using Turkish-aware name matching
+          for (const candidateStudent of allStudents) {
+            const candidateFullName = `${candidateStudent.name} ${candidateStudent.surname}`;
+
+            // Try exact name parts matching first
+            if (
+              namesMatch(studentName, candidateStudent.name) &&
+              namesMatch(studentSurname, candidateStudent.surname)
+            ) {
+              student = candidateStudent;
+              console.log(
+                `✅ Name parts match found: "${candidateFullName}" matches "${fullName}"`
+              );
+              break;
+            }
+
+            // Try full name matching
+            if (namesMatch(fullName, candidateFullName)) {
+              student = candidateStudent;
+              console.log(
+                `✅ Full name match found: "${candidateFullName}" matches "${fullName}"`
+              );
+              break;
+            }
+          }
         }
 
         if (!student) {
