@@ -1866,6 +1866,14 @@ export default function ClientDekontlarPage() {
                         ) : (
                           // Mobile display mode with separate amounts
                           <div className="space-y-1">
+                            {dekont.monthlyPayment && (
+                              <div className="text-xs space-y-1">
+                                <div className="text-emerald-600 font-medium">
+                                  Ödeme:{" "}
+                                  {formatCurrency(dekont.monthlyPayment.amount)}
+                                </div>
+                              </div>
+                            )}
                             <div className="flex items-center space-x-2 group">
                               <span className="text-sm text-gray-900 font-medium">
                                 Dekont: {formatCurrency(dekont.miktar)}
@@ -1878,49 +1886,42 @@ export default function ClientDekontlarPage() {
                                 <Edit3 className="h-3 w-3" />
                               </button>
                             </div>
-                            {dekont.monthlyPayment && (
-                              <div className="text-xs space-y-1">
-                                <div className="text-emerald-600 font-medium">
-                                  Ödeme:{" "}
-                                  {formatCurrency(dekont.monthlyPayment.amount)}
-                                </div>
-                                {dekont.miktar &&
-                                  dekont.monthlyPayment.amount && (
-                                    <div className="flex items-center">
-                                      <span className="text-gray-600 mr-2">
-                                        Fark:
-                                      </span>
-                                      <span
-                                        className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                                          Math.abs(
-                                            dekont.miktar -
-                                              dekont.monthlyPayment.amount
-                                          ) < 0.01
-                                            ? "bg-green-100 text-green-800"
-                                            : "bg-yellow-100 text-yellow-800"
-                                        }`}
-                                      >
-                                        {Math.abs(
+                            {dekont.monthlyPayment &&
+                              dekont.miktar &&
+                              dekont.monthlyPayment.amount && (
+                                <div className="flex items-center">
+                                  <span className="text-gray-600 mr-2">
+                                    Fark:
+                                  </span>
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                                      Math.abs(
+                                        dekont.miktar -
+                                          dekont.monthlyPayment.amount
+                                      ) < 0.01
+                                        ? "bg-green-100 text-green-800"
+                                        : "bg-yellow-100 text-yellow-800"
+                                    }`}
+                                  >
+                                    {Math.abs(
+                                      dekont.miktar -
+                                        dekont.monthlyPayment.amount
+                                    ) < 0.01
+                                      ? "✓ Eşleşti"
+                                      : `${
+                                          dekont.miktar >
+                                          dekont.monthlyPayment.amount
+                                            ? "+"
+                                            : ""
+                                        }${(
                                           dekont.miktar -
-                                            dekont.monthlyPayment.amount
-                                        ) < 0.01
-                                          ? "✓ Eşleşti"
-                                          : `${
-                                              dekont.miktar >
-                                              dekont.monthlyPayment.amount
-                                                ? "+"
-                                                : ""
-                                            }${(
-                                              dekont.miktar -
-                                              dekont.monthlyPayment.amount
-                                            ).toLocaleString("tr-TR", {
-                                              minimumFractionDigits: 2,
-                                            })} ₺`}
-                                      </span>
-                                    </div>
-                                  )}
-                              </div>
-                            )}
+                                          dekont.monthlyPayment.amount
+                                        ).toLocaleString("tr-TR", {
+                                          minimumFractionDigits: 2,
+                                        })} ₺`}
+                                  </span>
+                                </div>
+                              )}
                           </div>
                         )}
                       </div>
