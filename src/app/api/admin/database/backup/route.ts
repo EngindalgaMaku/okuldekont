@@ -9,44 +9,72 @@ const execAsync = promisify(exec);
 
 export async function POST(request: NextRequest) {
   try {
-    // Environment variables'dan database connection bilgilerini al - multiple fallbacks for different platforms
-    const dbHost =
-      process.env.DATABASE_HOST ||
-      process.env.DB_HOST ||
-      process.env.MYSQL_HOST ||
-      "localhost";
+    let dbHost, dbPort, dbName, dbUser, dbPassword;
 
-    const dbPort =
-      process.env.DATABASE_PORT ||
-      process.env.DB_PORT ||
-      process.env.MYSQL_PORT ||
-      "3306";
+    // First try to parse DATABASE_URL if available (common in Coolify/Docker)
+    const databaseUrl = process.env.DATABASE_URL;
 
-    const dbName =
-      process.env.DATABASE_NAME ||
-      process.env.DB_NAME ||
-      process.env.MYSQL_DATABASE ||
-      "okuldekont";
+    if (databaseUrl) {
+      try {
+        const url = new URL(databaseUrl);
+        dbHost = url.hostname;
+        dbPort = url.port || "3306";
+        dbName = url.pathname.slice(1); // Remove leading slash
+        dbUser = url.username;
+        dbPassword = url.password;
 
-    const dbUser =
-      process.env.DATABASE_USERNAME ||
-      process.env.DATABASE_USER ||
-      process.env.DB_USER ||
-      process.env.DB_USERNAME ||
-      process.env.MYSQL_USER;
+        console.log("✅ Parsed DATABASE_URL successfully");
+      } catch (parseError) {
+        console.log("❌ Failed to parse DATABASE_URL:", parseError);
+      }
+    }
 
-    const dbPassword =
-      process.env.DATABASE_PASSWORD ||
-      process.env.DB_PASSWORD ||
-      process.env.MYSQL_PASSWORD;
+    // Fallback to individual environment variables if DATABASE_URL parsing failed
+    if (!dbHost || !dbUser || !dbPassword) {
+      dbHost =
+        dbHost ||
+        process.env.DATABASE_HOST ||
+        process.env.DB_HOST ||
+        process.env.MYSQL_HOST ||
+        "localhost";
 
-    // Debug environment variables (remove in production)
-    console.log("🔍 Environment variables check:");
+      dbPort =
+        dbPort ||
+        process.env.DATABASE_PORT ||
+        process.env.DB_PORT ||
+        process.env.MYSQL_PORT ||
+        "3306";
+
+      dbName =
+        dbName ||
+        process.env.DATABASE_NAME ||
+        process.env.DB_NAME ||
+        process.env.MYSQL_DATABASE ||
+        "okuldekont";
+
+      dbUser =
+        dbUser ||
+        process.env.DATABASE_USERNAME ||
+        process.env.DATABASE_USER ||
+        process.env.DB_USER ||
+        process.env.DB_USERNAME ||
+        process.env.MYSQL_USER;
+
+      dbPassword =
+        dbPassword ||
+        process.env.DATABASE_PASSWORD ||
+        process.env.DB_PASSWORD ||
+        process.env.MYSQL_PASSWORD;
+    }
+
+    // Debug environment variables
+    console.log("🔍 Database connection details:");
     console.log("DB Host:", dbHost);
     console.log("DB Port:", dbPort);
     console.log("DB Name:", dbName);
     console.log("DB User:", dbUser ? "✅ Found" : "❌ Missing");
     console.log("DB Password:", dbPassword ? "✅ Found" : "❌ Missing");
+    console.log("DATABASE_URL available:", databaseUrl ? "✅ Yes" : "❌ No");
 
     if (!dbName || !dbUser || !dbPassword) {
       const availableEnvVars = Object.keys(process.env)
@@ -62,7 +90,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           message:
-            "Veritabanı bağlantı bilgileri eksik. Environment variables kontrol edin.",
+            "Veritabanı bağlantı bilgileri eksik. DATABASE_URL veya individual environment variables kontrol edin.",
           error: "MISSING_DB_CONFIG",
           debug: {
             missing: {
@@ -71,7 +99,9 @@ export async function POST(request: NextRequest) {
               dbPassword: !dbPassword,
             },
             availableDbEnvVars: availableEnvVars,
+            databaseUrlAvailable: !!databaseUrl,
             checkedVars: {
+              databaseUrl: "DATABASE_URL",
               host: ["DATABASE_HOST", "DB_HOST", "MYSQL_HOST"],
               port: ["DATABASE_PORT", "DB_PORT", "MYSQL_PORT"],
               name: ["DATABASE_NAME", "DB_NAME", "MYSQL_DATABASE"],
