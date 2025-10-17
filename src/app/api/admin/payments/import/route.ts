@@ -10,26 +10,40 @@ interface ParsedPayment {
   amount?: number;
 }
 
-// Turkish character normalization function
+// Enhanced Turkish character normalization function
 function normalizeTurkishText(text: string): string {
   if (!text) return "";
 
-  return text
-    .toLowerCase()
-    .replace(/ı/g, "i")
-    .replace(/İ/g, "i")
-    .replace(/ğ/g, "g")
-    .replace(/Ğ/g, "g")
-    .replace(/ü/g, "u")
-    .replace(/Ü/g, "u")
-    .replace(/ş/g, "s")
-    .replace(/Ş/g, "s")
-    .replace(/ö/g, "o")
-    .replace(/Ö/g, "o")
-    .replace(/ç/g, "c")
-    .replace(/Ç/g, "c")
-    .trim()
-    .replace(/\s+/g, " "); // Multiple spaces to single space
+  return (
+    text
+      // First normalize Turkish characters before toLowerCase
+      .replace(/İ/g, "I")
+      .replace(/ı/g, "i")
+      .replace(/Ğ/g, "G")
+      .replace(/ğ/g, "g")
+      .replace(/Ü/g, "U")
+      .replace(/ü/g, "u")
+      .replace(/Ş/g, "S")
+      .replace(/ş/g, "s")
+      .replace(/Ö/g, "O")
+      .replace(/ö/g, "o")
+      .replace(/Ç/g, "C")
+      .replace(/ç/g, "c")
+      // Then convert to lowercase
+      .toLowerCase()
+      // Final normalization to ASCII
+      .replace(/i̇/g, "i") // Handle dotted i
+      .replace(/i/g, "i")
+      .replace(/ı/g, "i")
+      .replace(/g/g, "g")
+      .replace(/u/g, "u")
+      .replace(/s/g, "s")
+      .replace(/o/g, "o")
+      .replace(/c/g, "c")
+      // Clean up spaces
+      .trim()
+      .replace(/\s+/g, " ")
+  ); // Multiple spaces to single space
 }
 
 // Improved name matching function
