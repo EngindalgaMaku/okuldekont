@@ -16,6 +16,7 @@ import {
   FileCheck,
   History,
   TestTube2,
+  Database,
 } from "lucide-react";
 
 interface Tool {
@@ -93,6 +94,15 @@ const tools: Tool[] = [
     href: "/admin/araclar/dekont-dosya-yedek",
     color: "text-purple-600",
     bgColor: "bg-purple-50 hover:bg-purple-100",
+  },
+  {
+    id: "veritabani-yonetimi",
+    title: "Veritabanı Yönetimi",
+    description: "MySQL veritabanı yedekleme araçları",
+    icon: Database,
+    href: "/admin/araclar/veritabani-yonetimi",
+    color: "text-red-600",
+    bgColor: "bg-red-50 hover:bg-red-100",
   },
 ];
 
