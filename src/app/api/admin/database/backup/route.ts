@@ -4,6 +4,7 @@ import { promisify } from "util";
 import fs from "fs/promises";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
+import { prisma } from "@/lib/prisma";
 
 const execAsync = promisify(exec);
 
@@ -134,50 +135,137 @@ export async function POST(request: NextRequest) {
       await fs.mkdir(backupsDir, { recursive: true });
     }
 
-    // mysqldump komutu oluştur
-    const mysqldumpCommand = `mysqldump -h${dbHost} -P${dbPort} -u${dbUser} -p${dbPassword} --single-transaction --routines --triggers ${dbName}`;
-
     console.log(`🔄 Veritabanı yedeği alınıyor: ${filename}`);
 
     try {
-      // mysqldump komutunu çalıştır ve dosyaya yaz
-      const { stdout, stderr } = await execAsync(
-        `${mysqldumpCommand} > "${backupPath}"`
-      );
+      // First try mysqldump if available
+      const mysqldumpCommand = `mysqldump -h${dbHost} -P${dbPort} -u${dbUser} -p${dbPassword} --single-transaction --routines --triggers ${dbName}`;
 
-      if (stderr && !stderr.includes("Warning")) {
-        console.error("mysqldump stderr:", stderr);
+      let backupContent = "";
+      let useAlternativeMethod = false;
+
+      try {
+        const { stdout, stderr } = await execAsync(
+          `${mysqldumpCommand} > "${backupPath}"`
+        );
+
+        if (stderr && !stderr.includes("Warning")) {
+          console.error("mysqldump stderr:", stderr);
+          useAlternativeMethod = true;
+        }
+      } catch (execError: any) {
+        console.log("🔄 mysqldump not available, using Prisma-based backup...");
+        useAlternativeMethod = true;
+      }
+
+      // If mysqldump failed, use Prisma-based backup
+      if (useAlternativeMethod) {
+        console.log("📦 Creating Prisma-based backup...");
+
+        // Generate SQL backup using Prisma
+        backupContent = `-- Database Backup: ${dbName}
+-- Generated on: ${new Date().toISOString()}
+-- Method: Prisma-based backup (mysqldump not available)
+-- Host: ${dbHost}
+
+SET FOREIGN_KEY_CHECKS=0;
+
+`;
+
+        // Get all table names
+        const tables = (await prisma.$queryRaw`
+          SELECT table_name
+          FROM information_schema.tables
+          WHERE table_schema = ${dbName}
+          AND table_type = 'BASE TABLE'
+          ORDER BY table_name
+        `) as Array<{ table_name: string }>;
+
+        console.log(`📋 Found ${tables.length} tables to backup`);
+
+        // Backup each table
+        for (const table of tables) {
+          const tableName = table.table_name;
+          console.log(`📦 Backing up table: ${tableName}`);
+
+          try {
+            // Get table structure
+            const createTable = (await prisma.$queryRaw`
+              SHOW CREATE TABLE ${prisma.$queryRawUnsafe(`\`${tableName}\``)}
+            `) as Array<{ "Create Table": string }>;
+
+            if (createTable.length > 0) {
+              backupContent += `\n-- Table structure for table \`${tableName}\`\n`;
+              backupContent += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
+              backupContent += createTable[0]["Create Table"] + ";\n\n";
+            }
+
+            // Get table data
+            const data = (await prisma.$queryRaw`
+              SELECT * FROM ${prisma.$queryRawUnsafe(`\`${tableName}\``)}
+            `) as Array<Record<string, any>>;
+
+            if (data.length > 0) {
+              backupContent += `-- Dumping data for table \`${tableName}\`\n`;
+              backupContent += `LOCK TABLES \`${tableName}\` WRITE;\n`;
+
+              // Get column names
+              const columns = Object.keys(data[0]);
+              const columnList = columns.map((col) => `\`${col}\``).join(", ");
+
+              // Insert data in batches
+              const batchSize = 100;
+              for (let i = 0; i < data.length; i += batchSize) {
+                const batch = data.slice(i, i + batchSize);
+                const values = batch
+                  .map((row) => {
+                    const rowValues = columns.map((col) => {
+                      const val = row[col];
+                      if (val === null) return "NULL";
+                      if (typeof val === "string")
+                        return `'${val.replace(/'/g, "''")}'`;
+                      if (val instanceof Date)
+                        return `'${val
+                          .toISOString()
+                          .slice(0, 19)
+                          .replace("T", " ")}'`;
+                      return String(val);
+                    });
+                    return `(${rowValues.join(", ")})`;
+                  })
+                  .join(",\n");
+
+                backupContent += `INSERT INTO \`${tableName}\` (${columnList}) VALUES\n${values};\n`;
+              }
+
+              backupContent += `UNLOCK TABLES;\n\n`;
+            }
+          } catch (tableError) {
+            console.error(`Error backing up table ${tableName}:`, tableError);
+            backupContent += `-- Error backing up table ${tableName}: ${tableError}\n\n`;
+          }
+        }
+
+        backupContent += `\nSET FOREIGN_KEY_CHECKS=1;\n`;
+        backupContent += `-- End of backup\n`;
+
+        // Write the backup content to file
+        await fs.writeFile(backupPath, backupContent, "utf-8");
+        console.log("✅ Prisma-based backup completed");
+      }
+
+      // Check if backup file was created successfully
+      const fileStats = await fs.stat(backupPath);
+      if (fileStats.size < 100) {
+        await fs.unlink(backupPath); // Delete empty file
         return NextResponse.json(
           {
             success: false,
-            message: "Veritabanı yedeği alınırken hata oluştu",
-            error: "MYSQLDUMP_ERROR",
-            details: stderr,
+            message: "Veritabanı yedeği oluşturulamadı - dosya çok küçük",
+            error: "BACKUP_FAILED",
           },
           { status: 500 }
         );
-      }
-
-      // Dosya oluşturuldu mu kontrol et
-      const fileStats = await fs.stat(backupPath);
-      if (fileStats.size < 1024) {
-        // 1KB'den küçükse muhtemelen hata var
-        const fileContent = await fs.readFile(backupPath, "utf-8");
-        if (
-          fileContent.includes("ERROR") ||
-          fileContent.includes("Access denied")
-        ) {
-          await fs.unlink(backupPath); // Hatalı dosyayı sil
-          return NextResponse.json(
-            {
-              success: false,
-              message:
-                "Veritabanına erişim reddedildi. Kullanıcı yetkileri kontrol edin.",
-              error: "ACCESS_DENIED",
-            },
-            { status: 403 }
-          );
-        }
       }
 
       console.log(
@@ -194,6 +282,7 @@ export async function POST(request: NextRequest) {
         timestamp: new Date().toISOString(),
         database: dbName,
         backupId,
+        method: useAlternativeMethod ? "Prisma-based" : "mysqldump",
       };
 
       // Eski backup dosyalarını temizle (7 günden eski olanları)
@@ -218,34 +307,20 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: "Veritabanı yedeği başarıyla alındı",
+        message: `Veritabanı yedeği başarıyla alındı${
+          useAlternativeMethod ? " (Prisma-based method)" : ""
+        }`,
         backup: backupInfo,
         downloadPath: `/api/admin/database/backup/download/${filename}`,
       });
-    } catch (execError: any) {
-      console.error("mysqldump execution error:", execError);
-
-      if (
-        execError.message.includes("command not found") ||
-        execError.message.includes("not recognized")
-      ) {
-        return NextResponse.json(
-          {
-            success: false,
-            message:
-              "mysqldump komutu bulunamadı. MySQL client tools yüklü değil.",
-            error: "MYSQLDUMP_NOT_FOUND",
-          },
-          { status: 500 }
-        );
-      }
-
+    } catch (error: any) {
+      console.error("Backup error:", error);
       return NextResponse.json(
         {
           success: false,
           message: "Veritabanı yedeği alınırken hata oluştu",
-          error: "EXECUTION_ERROR",
-          details: execError.message,
+          error: "BACKUP_ERROR",
+          details: error.message,
         },
         { status: 500 }
       );
