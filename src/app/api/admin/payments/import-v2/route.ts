@@ -96,6 +96,9 @@ export async function POST(request: NextRequest) {
 
     console.log("📋 Total rows in Excel:", rawData.length);
 
+    // Debug: Log first 10 rows to understand file structure
+    console.log("🔍 Excel file first 10 rows:", rawData.slice(0, 10));
+
     // Format detection
     let formatDetection;
     if (
@@ -146,7 +149,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Special case: Manual override for specific MESEM format structure
+    if (
+      formatDetection.type === ExcelFormatType.MESEM &&
+      (headerRow === -1 || Object.keys(columnIndexes).length < 4)
+    ) {
+      console.log("🎯 Using manual MESEM structure detection...");
+      // Based on the actual Excel file structure, headers are at row 4 (index 4)
+      headerRow = 4;
+      columnIndexes = {
+        class: 0, // Sınıf
+        studentNo: 1, // No
+        department: 2, // Bölüm
+        studentName: 3, // Adı Soyadı
+        coordinatorTeacher: 4, // Koordinatör Öğretmen
+        companyName: 5, // İşletmenin Adı
+        devamsizlikDvli: 6, // Dvlı
+        devamsizlikDvsiz: 7, // Dvsız
+        studentSalary: 8, // Öğrencinin Maaş Tutarı
+        companyContribution: 9, // İşletmenin Devlet Katkısı
+      };
+      console.log("🗺️ Manual MESEM column mapping applied:", columnIndexes);
+    }
+
     console.log("🗺️ Final column indexes:", columnIndexes);
+
+    // Debug: Log header row content
+    if (headerRow >= 0 && rawData[headerRow]) {
+      const headerRowData = rawData[headerRow] as any[];
+      console.log("📊 Header row content:", headerRowData);
+      console.log(
+        "📊 Header row as string:",
+        headerRowData.map((col: any) => String(col || "").trim())
+      );
+    }
 
     // Create appropriate adapter
     const adapter = ExcelAdapterFactory.createAdapter(formatDetection.type);
@@ -319,7 +355,9 @@ export async function POST(request: NextRequest) {
             year: yearOverride,
             amount: studentData.amount,
             paymentType: "GOVERNMENT_CONTRIBUTION",
-            status: "IMPORTED",
+            status: studentData.isIncompleteAmount
+              ? "INCOMPLETE_AMOUNT"
+              : "IMPORTED",
             importSource: file.name,
             importBatch,
             importedBy: "admin",
@@ -337,7 +375,11 @@ export async function POST(request: NextRequest) {
               formatDetection.type === ExcelFormatType.MESEM
                 ? `MESEM Format - Devamsızlık: ${
                     studentData.devamsizlikDvli || 0
-                  }/${studentData.devamsizlikDvsiz || 0}`
+                  }/${studentData.devamsizlikDvsiz || 0}${
+                    studentData.isIncompleteAmount ? " - Tutar Eksik" : ""
+                  }`
+                : studentData.isIncompleteAmount
+                ? "Tutar Eksik - Manuel Düzenleme Gerekli"
                 : undefined,
           },
         });

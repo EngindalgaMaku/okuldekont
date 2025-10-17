@@ -84,28 +84,56 @@ export class ExcelFormatDetector {
     for (let i = 0; i < Math.min(20, rawData.length); i++) {
       const row = rawData[i] as any[];
       if (row && Array.isArray(row)) {
-        const rowStr = row.join(" ").toLowerCase().replace(/\n/g, " ");
+        // Convert row to normalized strings for better matching
+        const normalizedRow = row.map((cell) =>
+          cell ? String(cell).toLowerCase().replace(/\n/g, " ").trim() : ""
+        );
+        const rowStr = normalizedRow.join(" ");
 
         // E-Okul pattern
         if (rowStr.includes("tc kimlik") && rowStr.includes("adı soyadı")) {
           return { headerRow: i };
         }
 
-        // MESEM pattern
-        if (
-          rowStr.includes("sınıf") &&
-          rowStr.includes("adı soyadı") &&
-          rowStr.includes("koordinatör öğretmen")
-        ) {
+        // MESEM pattern - more specific matching
+        const hasClass = normalizedRow.some((cell) => cell === "sınıf");
+        const hasName = normalizedRow.some((cell) =>
+          cell.includes("adı soyadı")
+        );
+        const hasTeacher = normalizedRow.some((cell) =>
+          cell.includes("koordinatör öğretmen")
+        );
+        const hasSalary = normalizedRow.some(
+          (cell) => cell.includes("öğrencinin") && cell.includes("maaş")
+        );
+
+        if (hasClass && hasName && hasTeacher) {
+          console.log(`🎯 Found MESEM header at row ${i}:`, normalizedRow);
           return { headerRow: i };
         }
 
         // Alternative MESEM pattern
         if (
-          rowStr.includes("öğrencinin maaş tutarı") &&
-          rowStr.includes("işletmenin adı")
+          hasSalary &&
+          normalizedRow.some((cell) => cell.includes("işletmenin adı"))
         ) {
+          console.log(
+            `🎯 Found MESEM header (alt) at row ${i}:`,
+            normalizedRow
+          );
           return { headerRow: i };
+        }
+
+        // Debug: Log potential header rows for analysis
+        if (
+          normalizedRow.some(
+            (cell) => cell.includes("sınıf") || cell.includes("öğrenci")
+          )
+        ) {
+          console.log(
+            `🔍 Potential header row ${i}:`,
+            normalizedRow.slice(0, 6)
+          );
         }
       }
     }

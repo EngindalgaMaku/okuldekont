@@ -16,6 +16,7 @@ export interface StudentPaymentData {
   devamsizlikDvsiz?: number;
   companyContribution?: number;
   rowNumber: number;
+  isIncompleteAmount?: boolean; // Tutar eksik olan kayıtlar için işaret
 }
 
 export interface AdapterResult {
@@ -51,10 +52,18 @@ export abstract class BaseExcelAdapter {
   protected parseAmount(value: any): number | null {
     if (!value || value === null || value === undefined) return null;
 
+    // Handle [object Object] cases
+    if (String(value).includes("[object Object]")) {
+      console.log(`⚠️ Skipping [object Object] value:`, value);
+      return null;
+    }
+
     // Handle various formats
     const cleanValue = String(value)
       .replace(/[^0-9.,]/g, "") // Keep only numbers, dots and commas
       .replace(/,/g, "."); // Convert commas to dots
+
+    if (!cleanValue) return null;
 
     const parsed = parseFloat(cleanValue);
     return isNaN(parsed) ? null : parsed;
@@ -95,14 +104,24 @@ export class EOkulAdapter extends BaseExcelAdapter {
         const fullName = row[columnIndexes.studentName]
           ? String(row[columnIndexes.studentName]).trim()
           : "";
-        const amount = this.parseAmount(row[columnIndexes.amount]);
+        let amount = this.parseAmount(row[columnIndexes.amount]);
         const companyName = row[columnIndexes.companyName]
           ? String(row[columnIndexes.companyName]).trim()
           : "";
 
-        if (!fullName || !amount) {
-          errors.push(`Satır ${rowNumber}: Eksik veri (İsim veya tutar)`);
+        if (!fullName) {
+          errors.push(`Satır ${rowNumber}: İsim bilgisi eksik`);
           continue;
+        }
+
+        // If still no amount, set to 0 and mark as incomplete
+        let isIncompleteAmount = false;
+        if (!amount) {
+          amount = 0;
+          isIncompleteAmount = true;
+          console.log(
+            `⚠️ No amount found for ${fullName}, setting to 0 and marking as incomplete`
+          );
         }
 
         // Ad-soyadı ayır
@@ -117,6 +136,7 @@ export class EOkulAdapter extends BaseExcelAdapter {
           companyName,
           amount,
           rowNumber,
+          isIncompleteAmount,
         });
       } catch (error) {
         errors.push(
@@ -147,8 +167,13 @@ export class MESEMAdapter extends BaseExcelAdapter {
     columnIndexes: Record<string, number>
   ): AdapterResult {
     console.log("📄 MESEM Adapter processing data...");
+    console.log("📄 MESEM Column indexes:", columnIndexes);
+    console.log("📄 MESEM Header row:", headerRow);
 
     const dataRows = rawData.slice(headerRow + 1);
+    console.log("📄 MESEM Data rows count:", dataRows.length);
+    console.log("📄 MESEM First few data rows:", dataRows.slice(0, 3));
+
     const results: StudentPaymentData[] = [];
     const errors: string[] = [];
 
@@ -159,6 +184,9 @@ export class MESEMAdapter extends BaseExcelAdapter {
       if (!row || !Array.isArray(row)) continue;
 
       try {
+        // Debug: Log current row being processed
+        console.log(`🔍 Processing row ${rowNumber}:`, row);
+
         // MESEM formatından veri çek
         const className = row[columnIndexes.class]
           ? String(row[columnIndexes.class]).trim()
@@ -175,6 +203,15 @@ export class MESEMAdapter extends BaseExcelAdapter {
         const companyName = row[columnIndexes.companyName]
           ? String(row[columnIndexes.companyName]).trim()
           : "";
+
+        // Debug: Log extracted values
+        console.log(`🔍 Row ${rowNumber} extracted values:`, {
+          className,
+          studentNo,
+          fullName,
+          coordinatorTeacher,
+          companyName,
+        });
 
         // Devamsızlık bilgileri (MESEM özel)
         const devamsizlikDvli = row[columnIndexes.devamsizlikDvli]
@@ -207,22 +244,50 @@ export class MESEMAdapter extends BaseExcelAdapter {
           amount = companyContribution;
         }
 
-        if (!fullName || !amount) {
-          errors.push(
-            `Satır ${rowNumber}: Eksik veri (İsim: "${fullName}", Tutar: ${amount})`
-          );
+        // Validation - skip empty rows
+        if (!fullName || fullName === "") {
+          console.log(`⏭️ Skipping empty row ${rowNumber}`);
           continue;
         }
 
+        // Handle missing amount - try both salary and contribution columns
+        if (!amount && companyContribution) {
+          amount = companyContribution;
+          console.log(
+            `💰 Using company contribution as amount: ${amount} for ${fullName}`
+          );
+        }
+
+        // If still no amount, set to 0 and mark as incomplete
+        let isIncompleteAmount = false;
+        if (!amount) {
+          amount = 0;
+          isIncompleteAmount = true;
+          console.log(
+            `⚠️ No amount found for ${fullName}, setting to 0 and marking as incomplete`
+          );
+        }
+
         // Ad-soyadı ayır
-        const nameParts = fullName.split(" ");
-        const studentName = nameParts[0];
-        const studentSurname = nameParts.slice(1).join(" ");
+        const nameParts = fullName.trim().split(/\s+/);
+        const studentName = nameParts[0] || "";
+        const studentSurname = nameParts.slice(1).join(" ") || "";
+
+        if (!studentName) {
+          errors.push(
+            `Satır ${rowNumber}: Geçersiz isim formatı: "${fullName}"`
+          );
+          continue;
+        }
 
         // Bölüm bilgisini al
         const fieldName = row[columnIndexes.department]
           ? String(row[columnIndexes.department]).trim()
           : "";
+
+        console.log(
+          `✅ Valid student data: ${studentName} ${studentSurname} - ${amount}₺`
+        );
 
         results.push({
           studentName,
@@ -237,6 +302,7 @@ export class MESEMAdapter extends BaseExcelAdapter {
           devamsizlikDvsiz,
           companyContribution,
           rowNumber,
+          isIncompleteAmount,
         });
       } catch (error) {
         errors.push(
@@ -282,33 +348,41 @@ export function enhanceMESEMColumnDetection(
 ): Record<string, number> {
   const columnIndexes: Record<string, number> = {};
 
+  console.log("🔍 Enhancing MESEM column detection with headers:", headerRow);
+
   headerRow.forEach((header, index) => {
     if (header) {
       const headerStr = String(header).toLowerCase().replace(/\n/g, " ").trim();
+      console.log(`Column ${index}: "${headerStr}"`);
 
       // Sınıf
-      if (headerStr.includes("sınıf")) {
+      if (headerStr === "sınıf" || headerStr.includes("sınıf")) {
         columnIndexes.class = index;
+        console.log(`✅ Found class column at index ${index}`);
       }
 
-      // Öğrenci No
-      if (headerStr === "no" || headerStr.includes("öğrenci no")) {
+      // Öğrenci No - exact match for "no"
+      if (headerStr === "no") {
         columnIndexes.studentNo = index;
+        console.log(`✅ Found student number column at index ${index}`);
       }
 
       // Bölüm
-      if (headerStr.includes("bölüm") || headerStr.includes("alan")) {
+      if (headerStr === "bölüm" || headerStr.includes("bölüm")) {
         columnIndexes.department = index;
+        console.log(`✅ Found department column at index ${index}`);
       }
 
       // Adı Soyadı
       if (headerStr.includes("adı soyadı") || headerStr.includes("ad soyad")) {
         columnIndexes.studentName = index;
+        console.log(`✅ Found student name column at index ${index}`);
       }
 
       // Koordinatör Öğretmen
       if (headerStr.includes("koordinatör") && headerStr.includes("öğretmen")) {
         columnIndexes.coordinatorTeacher = index;
+        console.log(`✅ Found coordinator teacher column at index ${index}`);
       }
 
       // İşletme Adı
@@ -317,39 +391,43 @@ export function enhanceMESEMColumnDetection(
         headerStr.includes("işletme adı")
       ) {
         columnIndexes.companyName = index;
+        console.log(`✅ Found company name column at index ${index}`);
       }
 
-      // Devamsızlık - Dvlı
-      if (
-        headerStr.includes("dvlı") ||
-        (headerStr.includes("devam") && headerStr.includes("var"))
-      ) {
+      // Devamsızlık - Dvlı (exact match)
+      if (headerStr === "dvlı" || headerStr.includes("dvlı")) {
         columnIndexes.devamsizlikDvli = index;
+        console.log(`✅ Found attendance (dvli) column at index ${index}`);
       }
 
-      // Devamsızlık - Dvsız
-      if (
-        headerStr.includes("dvsız") ||
-        (headerStr.includes("devam") && headerStr.includes("yok"))
-      ) {
+      // Devamsızlık - Dvsız (exact match)
+      if (headerStr === "dvsız" || headerStr.includes("dvsız")) {
         columnIndexes.devamsizlikDvsiz = index;
+        console.log(`✅ Found attendance (dvsiz) column at index ${index}`);
       }
 
-      // Öğrenci Maaş Tutarı
-      if (headerStr.includes("öğrencinin") && headerStr.includes("maaş")) {
-        columnIndexes.studentSalary = index;
-      }
-
-      // İşletme Devlet Katkısı
+      // Öğrenci Maaş Tutarı - handle multiline headers
       if (
-        headerStr.includes("işletmenin") &&
-        headerStr.includes("devlet") &&
-        headerStr.includes("katkısı")
+        (headerStr.includes("öğrencinin") && headerStr.includes("maaş")) ||
+        headerStr.includes("öğrencinin maaş tutarı")
+      ) {
+        columnIndexes.studentSalary = index;
+        console.log(`✅ Found student salary column at index ${index}`);
+      }
+
+      // İşletme Devlet Katkısı - handle multiline headers
+      if (
+        (headerStr.includes("işletmenin") &&
+          headerStr.includes("devlet") &&
+          headerStr.includes("katkısı")) ||
+        headerStr.includes("işletmenin devlet katkısı")
       ) {
         columnIndexes.companyContribution = index;
+        console.log(`✅ Found company contribution column at index ${index}`);
       }
     }
   });
 
+  console.log("🗺️ Final MESEM column mapping:", columnIndexes);
   return columnIndexes;
 }

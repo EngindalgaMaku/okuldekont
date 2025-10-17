@@ -1502,7 +1502,9 @@ export default function ClientDekontlarPage() {
                               dekont.miktar - dekont.monthlyPayment.amount
                             ) < 0.01
                               ? "bg-green-100 text-green-800"
-                              : "bg-yellow-100 text-yellow-800"
+                              : dekont.miktar > dekont.monthlyPayment.amount
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-orange-100 text-orange-800"
                           }`}
                         >
                           {Math.abs(
@@ -1900,7 +1902,10 @@ export default function ClientDekontlarPage() {
                                           dekont.monthlyPayment.amount
                                       ) < 0.01
                                         ? "bg-green-100 text-green-800"
-                                        : "bg-yellow-100 text-yellow-800"
+                                        : dekont.miktar >
+                                          dekont.monthlyPayment.amount
+                                        ? "bg-blue-100 text-blue-800"
+                                        : "bg-orange-100 text-orange-800"
                                     }`}
                                   >
                                     {Math.abs(
