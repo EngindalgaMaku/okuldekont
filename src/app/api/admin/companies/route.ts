@@ -119,22 +119,15 @@ export async function GET(request: Request) {
       include: {
         teacher: true,
         user: true,
-        _count: {
-          select: {
-            students: true, // Direkt atanan öğrenciler
-            stajlar: {
-              // Staj üzerinden gelen öğrenciler
-              where: {
-                status: "ACTIVE",
-              },
-            },
-          },
+        students: {
+          select: { id: true },
         },
         stajlar: {
           where: {
             status: "ACTIVE",
           },
           select: {
+            studentId: true,
             teacherId: true,
             teacher: {
               select: {
@@ -180,9 +173,20 @@ export async function GET(request: Request) {
         }
       }
 
-      // Toplam öğrenci sayısı: direkt atananlar + aktif stajdakiler
-      const totalStudentCount =
-        company._count.students + company._count.stajlar;
+      // Unique öğrenci ID'lerini topla (aynı öğrenci hem direkt hem stajda olabilir)
+      const uniqueStudentIds = new Set<string>();
+
+      // Direkt atanan öğrencileri ekle
+      company.students.forEach((student) => {
+        uniqueStudentIds.add(student.id);
+      });
+
+      // Aktif stajdaki öğrencileri ekle
+      company.stajlar.forEach((staj) => {
+        uniqueStudentIds.add(staj.studentId);
+      });
+
+      const totalStudentCount = uniqueStudentIds.size;
 
       return {
         id: company.id,

@@ -1,92 +1,111 @@
-'use client'
+"use client";
 
-import { useState, useRef, useEffect } from 'react'
-import { Plus, ChevronDown, Building2, FileDown, Loader2, Printer, Users } from 'lucide-react'
-import { useRouter } from 'next/navigation'
-import toast from 'react-hot-toast'
+import { useState, useRef, useEffect } from "react";
+import {
+  Plus,
+  ChevronDown,
+  Building2,
+  FileDown,
+  Loader2,
+  Printer,
+  Users,
+  Copy,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
 // Modal imports
-import CompanyExportOptionsModal from './CompanyExportOptionsModal'
-import IsletmelerPrintClient from './IsletmelerPrintClient'
-import TopluIsletmeModal from './TopluIsletmeModal'
+import CompanyExportOptionsModal from "./CompanyExportOptionsModal";
+import IsletmelerPrintClient from "./IsletmelerPrintClient";
+import TopluIsletmeModal from "./TopluIsletmeModal";
 
 // Define interfaces
 interface Company {
-  id: string
-  name: string
-  contact?: string
-  phone?: string
-  email?: string
-  address?: string
-  pin?: string
+  id: string;
+  name: string;
+  contact?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  pin?: string;
   _count?: {
-    students: number
-  }
+    students: number;
+  };
   teacher?: {
-    name: string
-    surname: string
-  }
-  isLocked?: boolean
+    name: string;
+    surname: string;
+  };
+  isLocked?: boolean;
 }
 
 interface SearchParams {
-  page?: string
-  search?: string
-  filter?: string
-  per_page?: string
+  page?: string;
+  search?: string;
+  filter?: string;
+  per_page?: string;
 }
 
 interface Props {
-  companies: Company[]
-  searchParams: SearchParams
+  companies: Company[];
+  searchParams: SearchParams;
 }
 
 export default function IsletmelerActions({ companies, searchParams }: Props) {
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [exportModalOpen, setExportModalOpen] = useState(false)
-  const [printModalOpen, setPrintModalOpen] = useState(false)
-  const [topluModalOpen, setTopluModalOpen] = useState(false)
-  
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const router = useRouter()
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [printModalOpen, setPrintModalOpen] = useState(false);
+  const [topluModalOpen, setTopluModalOpen] = useState(false);
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   const handleSuccess = () => {
-    router.refresh()
-  }
+    router.refresh();
+  };
 
   // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setDropdownOpen(false)
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setDropdownOpen(false);
       }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Trigger yeni işletme modal from IsletmelerClient
   const handleYeniIsletme = () => {
-    setDropdownOpen(false)
+    setDropdownOpen(false);
     // Dispatch custom event to open create modal in IsletmelerServerPrisma
-    window.dispatchEvent(new CustomEvent('openCreateModal'))
-  }
+    window.dispatchEvent(new CustomEvent("openCreateModal"));
+  };
 
   // Handle print modal
   const handlePrint = () => {
-    setPrintModalOpen(true)
-    setDropdownOpen(false)
-  }
+    setPrintModalOpen(true);
+    setDropdownOpen(false);
+  };
 
   // Handle toplu modal
   const handleTopluIsletme = () => {
-    setTopluModalOpen(true)
-    setDropdownOpen(false)
-  }
+    setTopluModalOpen(true);
+    setDropdownOpen(false);
+  };
+
+  // Handle duplicate detection
+  const handleDuplicateDetection = () => {
+    setDropdownOpen(false);
+    // Dispatch custom event to open duplicates modal in IsletmelerServerPrisma
+    window.dispatchEvent(new CustomEvent("openDuplicatesModal"));
+  };
 
   const handleModalSuccess = () => {
-    router.refresh()
-  }
+    router.refresh();
+  };
 
   return (
     <>
@@ -122,7 +141,25 @@ export default function IsletmelerActions({ companies, searchParams }: Props) {
                 <Users className="w-4 h-4 text-orange-500" />
                 <div>
                   <div className="font-medium">Toplu İşletme Ekle</div>
-                  <div className="text-xs text-gray-500">Excel/CSV ile çoklu ekleme</div>
+                  <div className="text-xs text-gray-500">
+                    Excel/CSV ile çoklu ekleme
+                  </div>
+                </div>
+              </button>
+
+              <div className="border-t my-1"></div>
+
+              {/* Duplicate İşletme Tespit */}
+              <button
+                onClick={handleDuplicateDetection}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
+              >
+                <Copy className="w-4 h-4 text-red-500" />
+                <div>
+                  <div className="font-medium">Duplicate İşletme Tespit</div>
+                  <div className="text-xs text-gray-500">
+                    Benzer işletmeleri bulup birleştir
+                  </div>
                 </div>
               </button>
 
@@ -136,19 +173,26 @@ export default function IsletmelerActions({ companies, searchParams }: Props) {
                 <Printer className="w-4 h-4 text-purple-500" />
                 <div>
                   <div className="font-medium">Yazdır</div>
-                  <div className="text-xs text-gray-500">İşletme listesini yazdır</div>
+                  <div className="text-xs text-gray-500">
+                    İşletme listesini yazdır
+                  </div>
                 </div>
               </button>
 
               {/* Dışa Aktar */}
               <button
-                onClick={() => { setExportModalOpen(true); setDropdownOpen(false); }}
+                onClick={() => {
+                  setExportModalOpen(true);
+                  setDropdownOpen(false);
+                }}
                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
               >
                 <FileDown className="w-4 h-4 text-green-500" />
                 <div>
                   <div className="font-medium">Excel'e Aktar</div>
-                  <div className="text-xs text-gray-500">İşletme listesini Excel olarak indir</div>
+                  <div className="text-xs text-gray-500">
+                    İşletme listesini Excel olarak indir
+                  </div>
                 </div>
               </button>
             </div>
@@ -180,5 +224,5 @@ export default function IsletmelerActions({ companies, searchParams }: Props) {
         onSuccess={handleModalSuccess}
       />
     </>
-  )
+  );
 }

@@ -26,6 +26,9 @@ import {
   Users,
   Calendar,
   History,
+  AlertTriangle,
+  GitMerge,
+  Copy,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -163,6 +166,15 @@ export default function IsletmelerServerPrisma({
   });
   const [bulkContributionUpdating, setBulkContributionUpdating] =
     useState(false);
+
+  // Duplicate Companies States
+  const [duplicatesModalOpen, setDuplicatesModalOpen] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState<any[]>([]);
+  const [duplicatesLoading, setDuplicatesLoading] = useState(false);
+  const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [selectedDuplicateGroup, setSelectedDuplicateGroup] =
+    useState<any>(null);
+  const [mergeInProgress, setMergeInProgress] = useState(false);
 
   // Yeni İşletme Modal States
   const [yeniIsletmeModalOpen, setYeniIsletmeModalOpen] = useState(false);
@@ -308,8 +320,22 @@ export default function IsletmelerServerPrisma({
     };
 
     window.addEventListener("openCreateModal", handleOpenCreateModalEvent);
+
+    const handleOpenDuplicatesModalEvent = () => {
+      fetchDuplicates();
+    };
+
+    window.addEventListener(
+      "openDuplicatesModal",
+      handleOpenDuplicatesModalEvent
+    );
+
     return () => {
       window.removeEventListener("openCreateModal", handleOpenCreateModalEvent);
+      window.removeEventListener(
+        "openDuplicatesModal",
+        handleOpenDuplicatesModalEvent
+      );
     };
   }, []);
 
@@ -573,6 +599,111 @@ export default function IsletmelerServerPrisma({
       );
     } finally {
       setBulkContributionUpdating(false);
+    }
+  };
+
+  // Fetch duplicate companies
+  const fetchDuplicates = async () => {
+    setDuplicatesLoading(true);
+    try {
+      const response = await fetch("/api/admin/companies/duplicates");
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error || "Duplicate işletmeler yüklenirken hata oluştu"
+        );
+      }
+
+      setDuplicateGroups(data.duplicateGroups || []);
+      setDuplicatesModalOpen(true);
+
+      if (data.duplicateGroups.length === 0) {
+        toast.success("Tebrikler! Duplicate işletme bulunamadı.");
+      } else {
+        toast(
+          "🔍 " +
+            `${data.totalDuplicates} duplicate işletme ${data.duplicateGroups.length} grupta tespit edildi.`,
+          {
+            duration: 4000,
+            style: { background: "#3B82F6", color: "white" },
+          }
+        );
+      }
+    } catch (error) {
+      console.error("Duplicate detection error:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Duplicate tespit edilirken hata oluştu"
+      );
+    } finally {
+      setDuplicatesLoading(false);
+    }
+  };
+
+  // Handle company merge
+  const handleMergeCompanies = async (
+    primaryCompanyId: string,
+    duplicateCompanyIds: string[]
+  ) => {
+    setMergeInProgress(true);
+    try {
+      const response = await fetch("/api/admin/companies/merge", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          primaryCompanyId,
+          duplicateCompanyIds,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Şirket birleştirme işlemi başarısız");
+      }
+
+      toast.success(
+        `${data.mergedCompanies.length + 1} şirket başarıyla birleştirildi!`
+      );
+
+      // Show transfer summary
+      const report = data.transferReport;
+      const transferSummary = [
+        report.students > 0 && `${report.students} öğrenci`,
+        report.stajlar > 0 && `${report.stajlar} staj`,
+        report.dekontlar > 0 && `${report.dekontlar} dekont`,
+        report.monthlyPayments > 0 && `${report.monthlyPayments} aylık ödeme`,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      if (transferSummary) {
+        toast("✅ " + `Transfer edildi: ${transferSummary}`, {
+          duration: 4000,
+          style: { background: "#10B981", color: "white" },
+        });
+      }
+
+      // Close modals and refresh data
+      setMergeModalOpen(false);
+      setDuplicatesModalOpen(false);
+      setSelectedDuplicateGroup(null);
+
+      // Refresh companies list
+      await fetchCompanies();
+    } catch (error) {
+      console.error("Merge error:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Birleştirme sırasında hata oluştu"
+      );
+    } finally {
+      setMergeInProgress(false);
     }
   };
 
@@ -2124,6 +2255,297 @@ export default function IsletmelerServerPrisma({
           company={selectedCompanyForHistory}
         />
       )}
+
+      {/* Duplicate Companies Detection Modal */}
+      <Modal
+        isOpen={duplicatesModalOpen}
+        onClose={() => setDuplicatesModalOpen(false)}
+        title="Duplicate İşletme Tespiti"
+      >
+        <div className="space-y-6">
+          {duplicatesLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <Loader className="animate-spin h-8 w-8 text-indigo-600 mx-auto mb-4" />
+                <p className="text-gray-600">
+                  Duplicate işletmeler tespit ediliyor...
+                </p>
+              </div>
+            </div>
+          ) : duplicateGroups.length > 0 ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                <div className="flex items-center gap-2 text-orange-700">
+                  <AlertTriangle className="h-5 w-5" />
+                  <span className="font-medium">
+                    {duplicateGroups.length} grup duplicate işletme tespit
+                    edildi
+                  </span>
+                </div>
+                <div className="mt-2 text-sm text-orange-600">
+                  Toplam{" "}
+                  {duplicateGroups.reduce(
+                    (sum, group) => sum + group.companies.length,
+                    0
+                  )}{" "}
+                  duplicate işletme bulundu.
+                </div>
+              </div>
+
+              <div className="max-h-96 overflow-y-auto space-y-4">
+                {duplicateGroups.map((group, groupIndex) => (
+                  <div key={groupIndex} className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h4 className="font-semibold text-gray-900">
+                          Grup {groupIndex + 1}: "{group.normalizedName}"
+                        </h4>
+                        <p className="text-sm text-gray-600">
+                          {group.companies.length} benzer işletme
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedDuplicateGroup(group);
+                          setMergeModalOpen(true);
+                        }}
+                        className="inline-flex items-center px-3 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700"
+                      >
+                        <GitMerge className="w-4 h-4 mr-2" />
+                        Birleştir
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {group.companies.map(
+                        (company: any, companyIndex: number) => (
+                          <div
+                            key={company.id}
+                            className="bg-white rounded p-3 border"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="font-medium text-gray-900">
+                                  {company.name}
+                                </div>
+                                <div className="text-sm text-gray-600 space-x-4">
+                                  <span>
+                                    👥 {company.studentCount || 0} öğrenci
+                                  </span>
+                                  <span>
+                                    📄 {company.dekontCount || 0} dekont
+                                  </span>
+                                  <span>🎯 {company.stajCount || 0} staj</span>
+                                </div>
+                                {companyIndex === 0 && (
+                                  <div className="text-xs text-blue-600 mt-1 font-medium">
+                                    Grup Total (Unique):{" "}
+                                    {group.totalUniqueStudents || 0} öğrenci,{" "}
+                                    {group.totalUniqueDekontlar || 0} dekont,{" "}
+                                    {group.totalUniqueStajlar || 0} staj
+                                  </div>
+                                )}
+                              </div>
+                              {companyIndex === 0 && (
+                                <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded">
+                                  Ana Kayıt
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Copy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Duplicate İşletme Bulunamadı
+              </h3>
+              <p className="text-gray-600">
+                Sistemde duplicate işletme kaydı tespit edilmedi. Tüm işletmeler
+                benzersiz.
+              </p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <button
+              onClick={() => setDuplicatesModalOpen(false)}
+              className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Kapat
+            </button>
+            {duplicateGroups.length === 0 && (
+              <button
+                onClick={fetchDuplicates}
+                disabled={duplicatesLoading}
+                className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50"
+              >
+                {duplicatesLoading
+                  ? "Kontrol Ediliyor..."
+                  : "Tekrar Kontrol Et"}
+              </button>
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Company Merge Modal */}
+      <Modal
+        isOpen={mergeModalOpen}
+        onClose={() => setMergeModalOpen(false)}
+        title="İşletmeleri Birleştir"
+      >
+        <div className="space-y-6">
+          {selectedDuplicateGroup && (
+            <>
+              <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                <div className="flex items-center gap-2 text-red-700">
+                  <AlertTriangle className="h-5 w-5" />
+                  <span className="font-medium">
+                    DİKKAT: Bu işlem geri alınamaz!
+                  </span>
+                </div>
+                <div className="mt-2 text-sm text-red-600">
+                  {selectedDuplicateGroup.companies.length - 1} işletme
+                  silinecek ve tüm verileri ana kayda aktarılacak.
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-medium text-gray-900">
+                  Ana Kayıt (Korunacak):
+                </h4>
+                <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                  <div className="font-medium text-green-900">
+                    {selectedDuplicateGroup.companies[0].name}
+                  </div>
+                  <div className="text-sm text-green-700 mt-1">
+                    Tüm duplicate veriler bu kayda aktarılacak
+                  </div>
+                  <div className="text-sm text-green-600 space-x-4 mt-2">
+                    <span>
+                      👥 {selectedDuplicateGroup.companies[0].studentCount || 0}{" "}
+                      öğrenci
+                    </span>
+                    <span>
+                      📄 {selectedDuplicateGroup.companies[0].dekontCount || 0}{" "}
+                      dekont
+                    </span>
+                    <span>
+                      🎯 {selectedDuplicateGroup.companies[0].stajCount || 0}{" "}
+                      staj
+                    </span>
+                  </div>
+                </div>
+
+                <h4 className="font-medium text-gray-900">
+                  Silinecek Kayıtlar:
+                </h4>
+                <div className="space-y-2">
+                  {selectedDuplicateGroup.companies
+                    .slice(1)
+                    .map((company: any) => (
+                      <div
+                        key={company.id}
+                        className="bg-red-50 rounded-lg p-4 border border-red-200"
+                      >
+                        <div className="font-medium text-red-900">
+                          {company.name}
+                        </div>
+                        <div className="text-sm text-red-600 space-x-4 mt-1">
+                          <span>👥 {company.studentCount || 0} öğrenci</span>
+                          <span>📄 {company.dekontCount || 0} dekont</span>
+                          <span>🎯 {company.stajCount || 0} staj</span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-medium text-blue-800 mb-2">
+                    Birleştirme İşlemi Özeti:
+                  </h4>
+                  <ul className="text-sm text-blue-700 space-y-1">
+                    <li>
+                      •{" "}
+                      {selectedDuplicateGroup.companies.reduce(
+                        (sum: number, c: any) => sum + (c.studentCount || 0),
+                        0
+                      )}{" "}
+                      öğrenci aktarılacak
+                    </li>
+                    <li>
+                      •{" "}
+                      {selectedDuplicateGroup.companies.reduce(
+                        (sum: number, c: any) => sum + (c.dekontCount || 0),
+                        0
+                      )}{" "}
+                      dekont aktarılacak
+                    </li>
+                    <li>
+                      •{" "}
+                      {selectedDuplicateGroup.companies.reduce(
+                        (sum: number, c: any) => sum + (c.stajCount || 0),
+                        0
+                      )}{" "}
+                      staj aktarılacak
+                    </li>
+                    <li>
+                      • {selectedDuplicateGroup.companies.length - 1} duplicate
+                      kayıt silinecek
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <button
+              onClick={() => {
+                setMergeModalOpen(false);
+                setSelectedDuplicateGroup(null);
+              }}
+              className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              disabled={mergeInProgress}
+            >
+              İptal
+            </button>
+            <button
+              onClick={() => {
+                if (selectedDuplicateGroup) {
+                  const primaryCompanyId =
+                    selectedDuplicateGroup.companies[0].id;
+                  const duplicateCompanyIds = selectedDuplicateGroup.companies
+                    .slice(1)
+                    .map((c: any) => c.id);
+                  handleMergeCompanies(primaryCompanyId, duplicateCompanyIds);
+                }
+              }}
+              disabled={mergeInProgress || !selectedDuplicateGroup}
+              className="px-6 py-2 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg hover:from-red-700 hover:to-orange-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            >
+              {mergeInProgress ? (
+                <>
+                  <Loader className="animate-spin h-4 w-4 mr-2" />
+                  Birleştiriliyor...
+                </>
+              ) : (
+                <>
+                  <GitMerge className="h-4 w-4 mr-2" />
+                  Birleştir ve Sil
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
