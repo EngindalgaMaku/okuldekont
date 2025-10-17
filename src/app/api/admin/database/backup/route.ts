@@ -172,27 +172,30 @@ SET FOREIGN_KEY_CHECKS=0;
 
 `;
 
-        // Get all table names
-        const tables = (await prisma.$queryRaw`
+        // Get all table names (safely escape database name)
+        const escapedDbName = dbName.replace(/[`'"\\]/g, "");
+        const tables = (await prisma.$queryRawUnsafe(`
           SELECT table_name
           FROM information_schema.tables
-          WHERE table_schema = ${dbName}
+          WHERE table_schema = '${escapedDbName}'
           AND table_type = 'BASE TABLE'
           ORDER BY table_name
-        `) as Array<{ table_name: string }>;
+        `)) as Array<{ table_name: string }>;
 
         console.log(`📋 Found ${tables.length} tables to backup`);
 
         // Backup each table
         for (const table of tables) {
           const tableName = table.table_name;
+          // Safely escape table name to prevent SQL injection
+          const escapedTableName = tableName.replace(/[`'"\\]/g, "");
           console.log(`📦 Backing up table: ${tableName}`);
 
           try {
             // Get table structure
-            const createTable = (await prisma.$queryRaw`
-              SHOW CREATE TABLE ${prisma.$queryRawUnsafe(`\`${tableName}\``)}
-            `) as Array<{ "Create Table": string }>;
+            const createTable = (await prisma.$queryRawUnsafe(`
+              SHOW CREATE TABLE \`${escapedTableName}\`
+            `)) as Array<{ "Create Table": string }>;
 
             if (createTable.length > 0) {
               backupContent += `\n-- Table structure for table \`${tableName}\`\n`;
@@ -201,9 +204,9 @@ SET FOREIGN_KEY_CHECKS=0;
             }
 
             // Get table data
-            const data = (await prisma.$queryRaw`
-              SELECT * FROM ${prisma.$queryRawUnsafe(`\`${tableName}\``)}
-            `) as Array<Record<string, any>>;
+            const data = (await prisma.$queryRawUnsafe(`
+              SELECT * FROM \`${escapedTableName}\`
+            `)) as Array<Record<string, any>>;
 
             if (data.length > 0) {
               backupContent += `-- Dumping data for table \`${tableName}\`\n`;
