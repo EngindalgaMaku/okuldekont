@@ -75,6 +75,30 @@ function DekontYukleInner() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isPdf, setIsPdf] = useState(false);
 
+  // Ödeme bilgisi state'leri
+  const [paymentInfo, setPaymentInfo] = useState<{
+    amount: number | null;
+    loading: boolean;
+    found: boolean;
+  }>({
+    amount: null,
+    loading: false,
+    found: false,
+  });
+
+  // Mevcut dekont bilgisi
+  const [existingDekont, setExistingDekont] = useState<{
+    exists: boolean;
+    status: string | null;
+    amount: number | null;
+    isApproved: boolean;
+  }>({
+    exists: false,
+    status: null,
+    amount: null,
+    isApproved: false,
+  });
+
   const { ay: defaultAy, yil: defaultYil } = useMemo(
     () => getPrevMonthYear(),
     []
@@ -255,6 +279,77 @@ function DekontYukleInner() {
       null,
     [selectedIsletme, selectedOgrenciId]
   );
+
+  // Ödeme bilgisini çek
+  const fetchPaymentInfo = useCallback(async () => {
+    if (!selectedStaj?.id || !ay || !yil) {
+      setPaymentInfo({ amount: null, loading: false, found: false });
+      setExistingDekont({
+        exists: false,
+        status: null,
+        amount: null,
+        isApproved: false,
+      });
+      return;
+    }
+
+    setPaymentInfo((prev) => ({ ...prev, loading: true }));
+
+    try {
+      const response = await fetch(
+        `/api/admin/payments/student-payment?stajId=${selectedStaj.id}&month=${ay}&year=${yil}`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+
+        // Ödeme bilgisini güncelle
+        setPaymentInfo({
+          amount: data.paymentInfo.amount,
+          loading: false,
+          found: data.paymentInfo.found,
+        });
+
+        // Mevcut dekont bilgisini güncelle
+        setExistingDekont({
+          exists: data.existingDekont.exists,
+          status: data.existingDekont.status,
+          amount: data.existingDekont.amount,
+          isApproved: data.existingDekont.isApproved,
+        });
+      } else {
+        setPaymentInfo({
+          amount: null,
+          loading: false,
+          found: false,
+        });
+        setExistingDekont({
+          exists: false,
+          status: null,
+          amount: null,
+          isApproved: false,
+        });
+      }
+    } catch (error) {
+      console.error("Ödeme bilgisi alınırken hata:", error);
+      setPaymentInfo({
+        amount: null,
+        loading: false,
+        found: false,
+      });
+      setExistingDekont({
+        exists: false,
+        status: null,
+        amount: null,
+        isApproved: false,
+      });
+    }
+  }, [selectedStaj?.id, ay, yil]);
+
+  // Ay/yıl/öğrenci değiştiğinde ödeme bilgisini güncelle
+  useEffect(() => {
+    fetchPaymentInfo();
+  }, [fetchPaymentInfo]);
 
   // Session kontrolü ve refresh fonksiyonu
   const checkAndRefreshSession = useCallback(async () => {
@@ -604,6 +699,145 @@ function DekontYukleInner() {
               </div>
             </div>
 
+            {/* Ödeme bilgisi gösterimi */}
+            {selectedOgrenci && ay && yil && (
+              <div className="space-y-2">
+                {paymentInfo.loading && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                      <span className="text-sm text-blue-700">
+                        Ödeme bilgisi kontrol ediliyor...
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {!paymentInfo.loading &&
+                  paymentInfo.found &&
+                  paymentInfo.amount && (
+                    <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                      <div className="flex items-center">
+                        <svg
+                          className="h-4 w-4 text-green-600 mr-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <span className="text-sm text-green-700">
+                          Bu öğrenci için {aylar[ay - 1]} {yil} ayında{" "}
+                          <span className="font-semibold">
+                            {paymentInfo.amount.toLocaleString("tr-TR")} ₺
+                          </span>{" "}
+                          ödeme kaydı bulundu.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                {!paymentInfo.loading && !paymentInfo.found && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                    <div className="flex items-center">
+                      <svg
+                        className="h-4 w-4 text-yellow-600 mr-2"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.08 16.5c-.77.833.192 2.5 1.732 2.5z"
+                        />
+                      </svg>
+                      <span className="text-sm text-yellow-700">
+                        Bu öğrenci için {aylar[ay - 1]} {yil} ayında ödeme
+                        bilgisi bulunamadı.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mevcut dekont uyarıları */}
+                {existingDekont.exists && existingDekont.isApproved && (
+                  <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                    <div className="flex items-center">
+                      <svg
+                        className="h-4 w-4 text-red-600 mr-2"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <div>
+                        <p className="text-sm text-red-700 font-semibold">
+                          Bu öğrenci için zaten onaylanmış dekont var!
+                        </p>
+                        <p className="text-xs text-red-600 mt-1">
+                          {selectedOgrenci?.ad} {selectedOgrenci?.soyad} -{" "}
+                          {selectedIsletme?.ad}
+                        </p>
+                        <p className="text-xs text-red-600 mt-1">
+                          {aylar[ay - 1]} {yil} ayı için onaylanmış dekont:{" "}
+                          {existingDekont.amount?.toLocaleString("tr-TR")} ₺
+                        </p>
+                        <p className="text-xs text-red-500 mt-1 font-medium">
+                          ❌ Bu durumda yeni dekont yükleyemezsiniz.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {existingDekont.exists && !existingDekont.isApproved && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                    <div className="flex items-center">
+                      <svg
+                        className="h-4 w-4 text-blue-600 mr-2"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <div>
+                        <p className="text-sm text-blue-700 font-medium">
+                          Bu ay için beklemede dekont var
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          {aylar[ay - 1]} {yil} ayı için {existingDekont.status}{" "}
+                          durumda dekont:{" "}
+                          {existingDekont.amount?.toLocaleString("tr-TR")} ₺
+                        </p>
+                        <p className="text-xs text-blue-500 mt-1">
+                          Yeni dekont yüklerseniz mevcut dekont güncellenecek.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="block text-xs sm:text-sm font-medium mb-1">
                 Miktar (TL)
@@ -625,6 +859,11 @@ function DekontYukleInner() {
                   }`}
                   min={0}
                   step={0.01}
+                  placeholder={
+                    paymentInfo.found && paymentInfo.amount
+                      ? paymentInfo.amount.toString()
+                      : "0.00"
+                  }
                   onBlur={() => {
                     if (miktar !== "") {
                       const num = Number(miktar);
@@ -743,7 +982,11 @@ function DekontYukleInner() {
                 className="inline-flex items-center justify-center gap-2 px-6 py-3 sm:px-8 sm:py-3 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white disabled:opacity-50 shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 text-sm font-semibold disabled:cursor-not-allowed"
                 onClick={handleSubmit}
                 disabled={
-                  isSubmitting || !selectedIsletme || !selectedOgrenci || !file
+                  isSubmitting ||
+                  !selectedIsletme ||
+                  !selectedOgrenci ||
+                  !file ||
+                  (existingDekont.exists && existingDekont.isApproved)
                 }
               >
                 {isSubmitting ? (
