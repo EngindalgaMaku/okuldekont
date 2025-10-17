@@ -25,12 +25,20 @@
     "prisma:reset": "prisma migrate reset",
     "prisma:studio": "prisma studio",
     "prisma:seed": "prisma db seed",
+    "migration:check": "node scripts/pre-migration-check.js",
+    "migration:fix": "node scripts/fix-migration-conflicts.js",
+    "migration:test": "node scripts/test-migration-resolution.js",
+    "migration:safety": "node scripts/migration-safety-system.js",
+    "migration:safe-deploy": "npm run migration:check && npx prisma migrate deploy && npx prisma generate && npm run migration:test",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:security": "jest __tests__/security-validation.test.ts",
     "test:system": "node scripts/system-test.js",
-    "test:full": "node scripts/system-test.js"
+    "test:full": "node scripts/system-test.js",
+    "test:multi-format-import": "node scripts/test-multi-format-import.js",
+    "migrate:multi-format": "node scripts/migrate-to-multi-format.js",
+    "migration:info": "node scripts/migration-tools-info.js"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",

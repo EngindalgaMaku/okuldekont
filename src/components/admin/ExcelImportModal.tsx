@@ -10,6 +10,8 @@ import {
   Loader,
   X,
   Download,
+  Zap,
+  Settings,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
@@ -18,6 +20,8 @@ interface ImportResult {
   message: string;
   details?: {
     importId: string;
+    formatType?: string;
+    confidence?: number;
     totalRecords: number;
     successCount: number;
     errorCount: number;
@@ -27,6 +31,15 @@ interface ImportResult {
       message: string;
     }>;
   };
+}
+
+type FormatType = "AUTO" | "EOKUL" | "MESEM";
+
+interface FormatOption {
+  value: FormatType;
+  label: string;
+  description: string;
+  icon: React.ComponentType<any>;
 }
 
 interface ExcelImportModalProps {
@@ -50,6 +63,29 @@ const MONTHS = [
   "Aralık",
 ];
 
+const FORMAT_OPTIONS: FormatOption[] = [
+  {
+    value: "AUTO",
+    label: "Otomatik Algıla",
+    description: "Sistem dosya formatını otomatik olarak algılar (Önerilen)",
+    icon: Zap,
+  },
+  {
+    value: "EOKUL",
+    label: "E-Okul Formatı",
+    description:
+      "Standart E-Okul ödeme listesi formatı (TC Kimlik, Ad Soyad, Tutar)",
+    icon: FileSpreadsheet,
+  },
+  {
+    value: "MESEM",
+    label: "MESEM Formatı",
+    description:
+      "MESEM öğrencileri için özel format (Sınıf, No, Koordinatör Öğretmen)",
+    icon: Settings,
+  },
+];
+
 export default function ExcelImportModal({
   isOpen,
   onClose,
@@ -70,6 +106,7 @@ export default function ExcelImportModal({
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(defaultMonth);
   const [selectedYear, setSelectedYear] = useState<string>(defaultYear);
+  const [selectedFormat, setSelectedFormat] = useState<FormatType>("AUTO");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Calculate available years
@@ -82,6 +119,7 @@ export default function ExcelImportModal({
     setIsDragOver(false);
     setSelectedMonth(defaultMonth);
     setSelectedYear(defaultYear);
+    setSelectedFormat("AUTO");
     onClose();
   }, [onClose, defaultMonth, defaultYear]);
 
@@ -159,7 +197,12 @@ export default function ExcelImportModal({
       formData.append("month", selectedMonth);
       formData.append("year", selectedYear);
 
-      const response = await fetch("/api/admin/payments/import", {
+      // Add format selection (if not AUTO)
+      if (selectedFormat !== "AUTO") {
+        formData.append("format", selectedFormat);
+      }
+
+      const response = await fetch("/api/admin/payments/import-v2", {
         method: "POST",
         body: formData,
       });
@@ -185,7 +228,13 @@ export default function ExcelImportModal({
     } finally {
       setIsUploading(false);
     }
-  }, [selectedFile, selectedMonth, selectedYear, onImportComplete]);
+  }, [
+    selectedFile,
+    selectedMonth,
+    selectedYear,
+    selectedFormat,
+    onImportComplete,
+  ]);
 
   const downloadTemplate = useCallback(async () => {
     try {
@@ -240,7 +289,10 @@ export default function ExcelImportModal({
               <li>
                 • Dönem bilgisi seçin (hangi ay ve yıla ait ödeme listesi)
               </li>
-              <li>• Resmi E-Okul ödeme listesi Excel dosyasını seçin</li>
+              <li>
+                • Excel dosya formatını seçin (otomatik algılama önerilen)
+              </li>
+              <li>• E-Okul veya MESEM ödeme listesi Excel dosyasını seçin</li>
               <li>• Desteklenen formatlar: .xlsx, .xls, .csv</li>
               <li>• Maksimum dosya boyutu: 10MB</li>
               <li>
@@ -295,6 +347,73 @@ export default function ExcelImportModal({
                 ⚠️ Dönem bilgisi seçilmelidir
               </p>
             )}
+          </div>
+
+          {/* Format Selection */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <h3 className="font-medium text-gray-900 mb-3">
+              Excel Dosya Formatı
+            </h3>
+            <div className="space-y-3">
+              {FORMAT_OPTIONS.map((option) => {
+                const IconComponent = option.icon;
+                return (
+                  <label
+                    key={option.value}
+                    className={`flex items-start p-3 border rounded-lg cursor-pointer transition-colors ${
+                      selectedFormat === option.value
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-300 hover:border-gray-400"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="format"
+                      value={option.value}
+                      checked={selectedFormat === option.value}
+                      onChange={(e) =>
+                        setSelectedFormat(e.target.value as FormatType)
+                      }
+                      className="mt-1 mr-3"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center mb-1">
+                        <IconComponent
+                          className={`h-4 w-4 mr-2 ${
+                            selectedFormat === option.value
+                              ? "text-blue-600"
+                              : "text-gray-500"
+                          }`}
+                        />
+                        <span
+                          className={`font-medium ${
+                            selectedFormat === option.value
+                              ? "text-blue-900"
+                              : "text-gray-900"
+                          }`}
+                        >
+                          {option.label}
+                        </span>
+                        {option.value === "AUTO" && (
+                          <span className="ml-2 px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
+                            Önerilen
+                          </span>
+                        )}
+                      </div>
+                      <p
+                        className={`text-sm ${
+                          selectedFormat === option.value
+                            ? "text-blue-700"
+                            : "text-gray-600"
+                        }`}
+                      >
+                        {option.description}
+                      </p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           {/* Template Download */}
@@ -404,6 +523,28 @@ export default function ExcelImportModal({
                     {/* Details */}
                     {importResult.details && (
                       <div className="mt-3 space-y-2">
+                        {/* Format Info */}
+                        {importResult.details.formatType && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="font-medium">
+                              Algılanan Format:
+                            </span>
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-medium ${
+                                importResult.details.formatType === "MESEM"
+                                  ? "bg-purple-100 text-purple-800"
+                                  : "bg-blue-100 text-blue-800"
+                              }`}
+                            >
+                              {importResult.details.formatType}
+                              {importResult.details.confidence &&
+                                ` (${Math.round(
+                                  importResult.details.confidence * 100
+                                )}%)`}
+                            </span>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-3 gap-4 text-sm">
                           <div>
                             <span className="font-medium">Toplam:</span>{" "}

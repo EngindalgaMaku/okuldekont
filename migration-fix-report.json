@@ -1,0 +1,11 @@
+{
+  "timestamp": "2025-10-17T12:44:51.670Z",
+  "fixes": [
+    "20251003_add_company_type",
+    "20251002_add_sequence_number_to_dekont",
+    "20251001_add_performance_indexes",
+    "20250730_add_student_history"
+  ],
+  "summary": "Fixed 4 migration conflicts",
+  "recommendation": "Run prisma generate and prisma migrate deploy to ensure consistency"
+}

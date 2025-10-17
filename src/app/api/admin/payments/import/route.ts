@@ -2,48 +2,35 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { v4 as uuidv4 } from "uuid";
-
-interface ParsedPayment {
-  studentName?: string;
-  studentTcNo?: string;
-  companyName?: string;
-  amount?: number;
-}
+import {
+  ExcelFormatDetector,
+  ExcelFormatType,
+} from "@/lib/excel-format-detector";
+import {
+  ExcelAdapterFactory,
+  enhanceMESEMColumnDetection,
+} from "@/lib/excel-format-adapters";
 
 // Enhanced Turkish character normalization function
 function normalizeTurkishText(text: string): string {
   if (!text) return "";
 
-  return (
-    text
-      // First normalize Turkish characters before toLowerCase
-      .replace(/İ/g, "I")
-      .replace(/ı/g, "i")
-      .replace(/Ğ/g, "G")
-      .replace(/ğ/g, "g")
-      .replace(/Ü/g, "U")
-      .replace(/ü/g, "u")
-      .replace(/Ş/g, "S")
-      .replace(/ş/g, "s")
-      .replace(/Ö/g, "O")
-      .replace(/ö/g, "o")
-      .replace(/Ç/g, "C")
-      .replace(/ç/g, "c")
-      // Then convert to lowercase
-      .toLowerCase()
-      // Final normalization to ASCII
-      .replace(/i̇/g, "i") // Handle dotted i
-      .replace(/i/g, "i")
-      .replace(/ı/g, "i")
-      .replace(/g/g, "g")
-      .replace(/u/g, "u")
-      .replace(/s/g, "s")
-      .replace(/o/g, "o")
-      .replace(/c/g, "c")
-      // Clean up spaces
-      .trim()
-      .replace(/\s+/g, " ")
-  ); // Multiple spaces to single space
+  return text
+    .replace(/İ/g, "I")
+    .replace(/ı/g, "i")
+    .replace(/Ğ/g, "G")
+    .replace(/ğ/g, "g")
+    .replace(/Ü/g, "U")
+    .replace(/ü/g, "u")
+    .replace(/Ş/g, "S")
+    .replace(/ş/g, "s")
+    .replace(/Ö/g, "O")
+    .replace(/ö/g, "o")
+    .replace(/Ç/g, "C")
+    .replace(/ç/g, "c")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
 }
 
 // Improved name matching function
@@ -71,7 +58,7 @@ function namesMatch(name1: string, name2: string): boolean {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("🚀 New Excel Import API called");
+    console.log("🚀 Multi-Format Excel Import API v2 called");
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -81,6 +68,7 @@ export async function POST(request: NextRequest) {
     const yearOverride = formData.get("year")
       ? parseInt(formData.get("year") as string)
       : null;
+    const forceFormat = formData.get("format") as string | null;
 
     if (!file) {
       return NextResponse.json(
@@ -101,107 +89,89 @@ export async function POST(request: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const workbook = XLSX.read(buffer, { type: "buffer" });
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawData = XLSX.utils.sheet_to_json(
+      workbook.Sheets[workbook.SheetNames[0]],
+      { header: 1 }
+    );
 
-    // Raw array ile parse et (header: 1 ile)
-    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
     console.log("📋 Total rows in Excel:", rawData.length);
 
-    // Header satırını bul
-    let headerRowIndex = -1;
-    for (let i = 0; i < Math.min(20, rawData.length); i++) {
-      const row = rawData[i] as any[];
-      if (row && Array.isArray(row)) {
-        const rowStr = row.join(" ").toLowerCase().replace(/\n/g, " ");
-        console.log(`🔍 Row ${i + 1} checking:`, rowStr);
-        if (rowStr.includes("tc kimlik") && rowStr.includes("adı soyadı")) {
-          headerRowIndex = i;
-          break;
-        }
-      }
-    }
-
-    if (headerRowIndex === -1) {
-      console.log("❌ Header satırı bulunamadı");
-      return NextResponse.json(
-        { error: "Excel formatı tanınamadı. Header satırı bulunamadı." },
-        { status: 400 }
-      );
-    }
-
-    const headerRow = rawData[headerRowIndex] as any[];
-    const dataStartIndex = headerRowIndex + 1;
-
-    console.log(
-      `📋 Header found at row ${headerRowIndex + 1}, data starts at row ${
-        dataStartIndex + 1
-      }`
-    );
-    console.log("📋 Headers:", headerRow);
-
-    // Sütun indekslerini bul
-    const columnIndexes = {
-      tcNo: -1,
-      studentName: -1,
-      amount: -1,
-      companyName: -1,
-    };
-
-    headerRow.forEach((header, index) => {
-      if (header) {
-        const headerStr = String(header).toLowerCase().replace(/\n/g, " ");
-        console.log(`  Column ${index}: "${headerStr}"`);
-
-        if (headerStr.includes("tc kimlik")) {
-          columnIndexes.tcNo = index;
-        } else if (headerStr.includes("adı soyadı")) {
-          columnIndexes.studentName = index;
-        } else if (headerStr.includes("maaş tutarı")) {
-          columnIndexes.amount = index;
-        } else if (headerStr.includes("adı") && headerStr.includes("unvanı")) {
-          columnIndexes.companyName = index;
-        }
-      }
-    });
-
-    console.log("🗺️ Column indexes:", columnIndexes);
-
+    // Format detection
+    let formatDetection;
     if (
-      columnIndexes.tcNo === -1 ||
-      columnIndexes.studentName === -1 ||
-      columnIndexes.amount === -1
+      forceFormat &&
+      Object.values(ExcelFormatType).includes(forceFormat as ExcelFormatType)
     ) {
+      console.log(`🎯 Using forced format: ${forceFormat}`);
+      formatDetection = {
+        type: forceFormat as ExcelFormatType,
+        confidence: 1,
+        reason: "Manuel format seçimi",
+        headerRow: -1,
+        detectedColumns: {},
+      };
+    } else {
+      formatDetection = ExcelFormatDetector.detectFormat(workbook);
+      console.log("🔍 Format Detection Result:", formatDetection);
+    }
+
+    if (formatDetection.type === ExcelFormatType.UNKNOWN) {
       return NextResponse.json(
         {
-          error:
-            "Gerekli sütunlar bulunamadı (TC Kimlik, Adı Soyadı, Maaş Tutarı)",
+          error: "Excel formatı algılanamadı",
+          details: formatDetection.reason,
+          supportedFormats: [
+            ExcelFormatDetector.getFormatDescription(ExcelFormatType.EOKUL),
+            ExcelFormatDetector.getFormatDescription(ExcelFormatType.MESEM),
+          ],
         },
         { status: 400 }
       );
     }
 
-    // Data satırlarını al ve parse et
-    const dataRows = rawData.slice(dataStartIndex);
-    const validRows = dataRows.filter(
-      (row) =>
-        row &&
-        Array.isArray(row) &&
-        row.length >
-          Math.max(
-            columnIndexes.tcNo,
-            columnIndexes.studentName,
-            columnIndexes.amount
-          ) &&
-        row[columnIndexes.tcNo] &&
-        row[columnIndexes.studentName] &&
-        row[columnIndexes.amount]
+    // Get format-specific column detection
+    let columnIndexes = formatDetection.detectedColumns;
+    let headerRow = formatDetection.headerRow;
+
+    // Enhanced MESEM column detection if needed
+    if (
+      formatDetection.type === ExcelFormatType.MESEM &&
+      Object.keys(columnIndexes).length < 4
+    ) {
+      console.log("🔍 Running enhanced MESEM column detection...");
+      if (headerRow >= 0 && rawData[headerRow]) {
+        columnIndexes = enhanceMESEMColumnDetection(
+          rawData[headerRow] as any[]
+        );
+      }
+    }
+
+    console.log("🗺️ Final column indexes:", columnIndexes);
+
+    // Create appropriate adapter
+    const adapter = ExcelAdapterFactory.createAdapter(formatDetection.type);
+    const adapterResult = adapter.processData(
+      rawData as any[][],
+      headerRow,
+      columnIndexes
     );
 
-    console.log("📋 Valid data rows found:", validRows.length);
+    console.log("📊 Adapter Result:", {
+      success: adapterResult.success,
+      totalRows: adapterResult.totalRows,
+      validRows: adapterResult.validRows,
+      errorCount: adapterResult.errors.length,
+    });
 
-    if (validRows.length === 0) {
+    if (adapterResult.validRows === 0) {
       return NextResponse.json(
-        { error: "Geçerli öğrenci verisi bulunamadı" },
+        {
+          error: "Geçerli öğrenci verisi bulunamadı",
+          details: adapterResult.errors.slice(0, 5),
+          formatInfo: ExcelFormatDetector.getFormatDescription(
+            formatDetection.type
+          ),
+        },
         { status: 400 }
       );
     }
@@ -218,85 +188,77 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const errors: string[] = [];
+    const errors: string[] = [...adapterResult.errors];
     let successCount = 0;
 
-    // Her veri satırını işle
-    for (let i = 0; i < validRows.length; i++) {
+    // Her adapter sonucunu işle
+    for (const studentData of adapterResult.data) {
       try {
-        const row = validRows[i] as any[];
-        const rowNumber = dataStartIndex + i + 2; // Excel row number
-
-        const tcNo = String(row[columnIndexes.tcNo]).trim().replace(/\*/g, "");
-        const fullName = String(row[columnIndexes.studentName]).trim();
-        const amount = parseFloat(String(row[columnIndexes.amount]));
-        const companyName = row[columnIndexes.companyName]
-          ? String(row[columnIndexes.companyName]).trim()
-          : "";
-
-        console.log(`📄 Row ${rowNumber}: ${fullName} (${tcNo}) - ${amount}₺`);
-
-        // Ad-soyadı ayır
-        const nameParts = fullName.split(" ");
-        const studentName = nameParts[0];
-        const studentSurname = nameParts.slice(1).join(" ");
+        console.log(
+          `📄 Processing: ${studentData.studentName} ${studentData.studentSurname} - ${studentData.amount}₺`
+        );
 
         // Öğrenciyi bul
         let student = null;
 
-        // TC No ile ara (eğer tam TC varsa)
-        if (tcNo.length >= 11) {
+        // TC No ile ara (eğer varsa)
+        if (studentData.studentTcNo && studentData.studentTcNo.length >= 3) {
           student = await prisma.student.findFirst({
-            where: { tcNo: { contains: tcNo.slice(0, 3) } }, // İlk 3 rakam ile ara
+            where: { tcNo: { contains: studentData.studentTcNo.slice(0, 3) } },
           });
         }
 
-        // Bulunamazsa ad-soyad ile ara (improved Turkish-aware matching)
+        // Öğrenci no ile ara (MESEM formatında)
+        if (!student && studentData.studentNo) {
+          student = await prisma.student.findFirst({
+            where: { number: studentData.studentNo },
+          });
+        }
+
+        // Ad-soyad ile ara
         if (!student) {
           console.log(
-            `🔍 Searching for student: "${studentName}" "${studentSurname}"`
+            `🔍 Searching by name: "${studentData.studentName}" "${studentData.studentSurname}"`
           );
 
-          // Get all students and use Turkish-aware name matching
           const allStudents = await prisma.student.findMany({
             select: {
               id: true,
               name: true,
               surname: true,
               tcNo: true,
+              number: true,
             },
           });
 
-          // Find best match using Turkish-aware name matching
+          // Turkish-aware name matching
           for (const candidateStudent of allStudents) {
             const candidateFullName = `${candidateStudent.name} ${candidateStudent.surname}`;
+            const studentFullName = `${studentData.studentName} ${studentData.studentSurname}`;
 
-            // Try exact name parts matching first
             if (
-              namesMatch(studentName, candidateStudent.name) &&
-              namesMatch(studentSurname, candidateStudent.surname)
+              namesMatch(studentData.studentName, candidateStudent.name) &&
+              namesMatch(studentData.studentSurname, candidateStudent.surname)
             ) {
               student = candidateStudent;
-              console.log(
-                `✅ Name parts match found: "${candidateFullName}" matches "${fullName}"`
-              );
+              console.log(`✅ Name match found: "${candidateFullName}"`);
               break;
             }
 
-            // Try full name matching
-            if (namesMatch(fullName, candidateFullName)) {
+            if (namesMatch(studentFullName, candidateFullName)) {
               student = candidateStudent;
-              console.log(
-                `✅ Full name match found: "${candidateFullName}" matches "${fullName}"`
-              );
+              console.log(`✅ Full name match found: "${candidateFullName}"`);
               break;
             }
           }
         }
 
         if (!student) {
-          console.log(`❌ Student not found: ${fullName} (${tcNo})`);
-          errors.push(`Satır ${rowNumber}: Öğrenci bulunamadı (${fullName})`);
+          const fullName = `${studentData.studentName} ${studentData.studentSurname}`;
+          console.log(`❌ Student not found: ${fullName}`);
+          errors.push(
+            `Satır ${studentData.rowNumber}: Öğrenci bulunamadı (${fullName})`
+          );
           continue;
         }
 
@@ -306,9 +268,11 @@ export async function POST(request: NextRequest) {
 
         // Company bul
         let companyId = null;
-        if (companyName) {
+        if (studentData.companyName) {
           const company = await prisma.companyProfile.findFirst({
-            where: { name: { contains: companyName.split(" ")[0] } },
+            where: {
+              name: { contains: studentData.companyName.split(" ")[0] },
+            },
           });
           companyId = company?.id;
         }
@@ -322,7 +286,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (!companyId) {
-          errors.push(`Satır ${rowNumber}: İşletme bulunamadı`);
+          errors.push(`Satır ${studentData.rowNumber}: İşletme bulunamadı`);
           continue;
         }
 
@@ -337,8 +301,9 @@ export async function POST(request: NextRequest) {
         });
 
         if (existingPayment) {
+          const fullName = `${studentData.studentName} ${studentData.studentSurname}`;
           errors.push(
-            `Satır ${rowNumber}: ${fullName} için ${monthOverride}/${yearOverride} dönemi zaten kayıtlı`
+            `Satır ${studentData.rowNumber}: ${fullName} için ${monthOverride}/${yearOverride} dönemi zaten kayıtlı`
           );
           continue;
         }
@@ -352,27 +317,37 @@ export async function POST(request: NextRequest) {
             educationYearId: activeEducationYear.id,
             month: monthOverride,
             year: yearOverride,
-            amount,
+            amount: studentData.amount,
             paymentType: "GOVERNMENT_CONTRIBUTION",
             status: "IMPORTED",
             importSource: file.name,
             importBatch,
             importedBy: "admin",
-            studentName: fullName.split(" ")[0],
-            studentSurname: fullName.split(" ").slice(1).join(" "),
-            studentTcNo: tcNo,
-            companyName,
+            studentName: studentData.studentName,
+            studentSurname: studentData.studentSurname,
+            studentNumber: studentData.studentNo,
+            studentTcNo: studentData.studentTcNo,
+            className: studentData.className,
+            fieldName: studentData.fieldName,
+            companyName: studentData.companyName,
+            teacherName: studentData.coordinatorTeacher,
             verificationStatus: "PENDING",
             archived: false,
+            notes:
+              formatDetection.type === ExcelFormatType.MESEM
+                ? `MESEM Format - Devamsızlık: ${
+                    studentData.devamsizlikDvli || 0
+                  }/${studentData.devamsizlikDvsiz || 0}`
+                : undefined,
           },
         });
 
         successCount++;
-        console.log(`💾 Row ${rowNumber} saved successfully`);
+        console.log(`💾 Row ${studentData.rowNumber} saved successfully`);
       } catch (error) {
         console.error(`❌ Row error:`, error);
         errors.push(
-          `Satır ${dataStartIndex + i + 2}: ${
+          `Satır ${studentData.rowNumber}: ${
             error instanceof Error ? error.message : "Bilinmeyen hata"
           }`
         );
@@ -398,10 +373,14 @@ export async function POST(request: NextRequest) {
       success: true,
       message: `${
         MONTHS[monthOverride - 1]
-      } ${yearOverride} dönemi için ${successCount} ödeme kaydı başarıyla içe aktarıldı`,
+      } ${yearOverride} dönemi için ${successCount} ödeme kaydı başarıyla içe aktarıldı (${
+        formatDetection.type
+      } formatı)`,
       details: {
         importId: importBatch,
-        totalRecords: validRows.length,
+        formatType: formatDetection.type,
+        confidence: formatDetection.confidence,
+        totalRecords: adapterResult.totalRows,
         successCount,
         errorCount: errors.length,
         errors: errors.slice(0, 10).map((error, index) => ({
