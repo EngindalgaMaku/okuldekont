@@ -23,13 +23,26 @@ export const getCurrentMonth = () => new Date().getMonth() + 1;
 export const getCurrentYear = () => new Date().getFullYear();
 export const getCurrentDay = () => new Date().getDate();
 
-// Gecikme durumunu kontrol et (ayın son gününden sonra)
-export const isGecikme = (sonGun: number = 10) => getCurrentDay() > sonGun;
+// Gecikme durumunu kontrol et (önceki ay dekontları için son günden sonra)
+export const isGecikme = (sonGun: number = 10) => {
+  const currentDate = new Date();
+  const currentDay = currentDate.getDate();
+  const currentMonth = currentDate.getMonth() + 1; // 1-12 arası
 
-// Kritik süre kontrolü (ayın 1-sonGun arası)
+  // Önceki ay dekont yükleme süresi: Bu ayın sonGun'üne kadar
+  // Eğer geçerli gün sonGun'den büyükse, önceki ay dekontları için gecikme var
+  return currentDay > sonGun;
+};
+
+// Kritik süre kontrolü (önceki ay dekontları için 1-sonGun arası)
 export const isKritikSure = (sonGun: number = 10) => {
-  const day = getCurrentDay();
-  return day >= 1 && day <= sonGun;
+  const currentDate = new Date();
+  const currentDay = currentDate.getDate();
+  const currentMonth = currentDate.getMonth() + 1; // 1-12 arası
+
+  // Önceki ay dekont yükleme süresi: Bu ayın 1-sonGun arası
+  // Bu süre zarfında kritik süre uyarısı göster
+  return currentDay >= 1 && currentDay <= sonGun;
 };
 
 // Ay isimleri

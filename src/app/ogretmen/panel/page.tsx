@@ -186,6 +186,20 @@ const TeacherPanel = () => {
         ? currentDate.getFullYear() - 1
         : currentDate.getFullYear();
 
+    // 🐛 DEBUG: Gecikme uyarı sistemi debug bilgileri
+    console.log("🔍 GECIKME DEBUG:", {
+      currentDate: currentDate.toISOString(),
+      currentDay: currentDate.getDate(),
+      currentMonth: currentDate.getMonth() + 1,
+      previousMonth,
+      previousYear,
+      dekontSonGun,
+      isGecikme: isGecikme(dekontSonGun),
+      isKritikSure: isKritikSure(dekontSonGun),
+      totalIsletmeler: isletmeler.length,
+      totalCompanyTypes: Object.keys(companyTypes).length,
+    });
+
     const tumOgrenciler: Array<{
       id: string;
       ad: string;
@@ -208,10 +222,28 @@ const TeacherPanel = () => {
       });
     });
 
-    return tumOgrenciler.filter((ogrenci) => {
+    const filtrelenmisOgrenciler = tumOgrenciler.filter((ogrenci, index) => {
+      // 🐛 DEBUG: Her öğrenci için detaylı filtreleme bilgisi
+      console.log(`👤 FILTRE DEBUG ${index + 1}:`, {
+        ogrenciAd: `${ogrenci.ad} ${ogrenci.soyad}`,
+        isletmeId: ogrenci.isletme_id,
+        isletmeAd: ogrenci.isletme_ad,
+        baslangicTarihi: ogrenci.baslangic_tarihi,
+      });
+
       // Kamu kurumu kontrolü - kamu kurumları için dekont gerekli değil
       const companyType = companyTypes[ogrenci.isletme_id || ""];
-      if (companyType && isGovernmentInstitution(companyType)) {
+      const isGovInstitution =
+        companyType && isGovernmentInstitution(companyType);
+
+      console.log(`   🏛️ Kamu kurumu kontrolü:`, {
+        companyType,
+        isGovInstitution,
+        filtrele: isGovInstitution,
+      });
+
+      if (isGovInstitution) {
+        console.log(`   ❌ FILTRELENDI: Kamu kurumu`);
         return false; // Kamu kurumlarını filtrele
       }
 
@@ -220,11 +252,26 @@ const TeacherPanel = () => {
       const startYear = startDate.getFullYear();
       const startMonth = startDate.getMonth() + 1;
 
-      // Eğer öğrenci önceki aydan sonra veya önceki ay içinde işe başlamışsa, dekont aranmaz
+      console.log(`   📅 Tarih kontrolü:`, {
+        startDate: ogrenci.baslangic_tarihi,
+        startYear,
+        startMonth,
+        previousYear,
+        previousMonth,
+        baslamamisMi:
+          previousYear < startYear ||
+          (previousYear === startYear && previousMonth <= startMonth),
+      });
+
+      // Eğer öğrenci önceki aydan sonra işe başlamışsa, dekont aranmaz
+      // ÖNEMLİ: Önceki ay içinde başlayan öğrenci için o ay dekontu gereklidir!
       if (
         previousYear < startYear ||
-        (previousYear === startYear && previousMonth <= startMonth)
+        (previousYear === startYear && previousMonth < startMonth)
       ) {
+        console.log(
+          `   ❌ FILTRELENDI: Henüz başlamamış (başlangıç: ${startMonth}/${startYear}, dekont ayı: ${previousMonth}/${previousYear})`
+        );
         return false;
       }
 
@@ -235,8 +282,49 @@ const TeacherPanel = () => {
           d.ay === previousMonth &&
           d.yil === previousYear
       );
-      return ogrenciDekontlari.length === 0;
+
+      console.log(`   📄 Dekont kontrolü:`, {
+        arananOgrenciAd: `${ogrenci.ad} ${ogrenci.soyad}`,
+        bulunanDekontSayisi: ogrenciDekontlari.length,
+        eksikMi: ogrenciDekontlari.length === 0,
+        bulunanDekontlar: ogrenciDekontlari.map((d) => ({
+          id: d.id,
+          ogrenci_ad: d.ogrenci_ad,
+          ay: d.ay,
+          yil: d.yil,
+        })),
+      });
+
+      const eksik = ogrenciDekontlari.length === 0;
+      if (eksik) {
+        console.log(`   ✅ EKSİK DEKONT: ${ogrenci.ad} ${ogrenci.soyad}`);
+      } else {
+        console.log(`   ✅ DEKONT VAR: ${ogrenci.ad} ${ogrenci.soyad}`);
+      }
+
+      return eksik;
     });
+
+    // 🐛 DEBUG: Filtreleme sonuçları
+    console.log("🎯 EKSIK DEKONT DEBUG:", {
+      tumOgrencilerSayisi: tumOgrenciler.length,
+      eksikDekontOgrencilerSayisi: filtrelenmisOgrenciler.length,
+      tumDekontlarSayisi: dekontlar.length,
+      oncekiAyDekontlari: dekontlar.filter(
+        (d) => d.ay === previousMonth && d.yil === previousYear
+      ).length,
+      sampleEksikOgrenci:
+        filtrelenmisOgrenciler.length > 0
+          ? {
+              ad: filtrelenmisOgrenciler[0].ad,
+              soyad: filtrelenmisOgrenciler[0].soyad,
+              isletme: filtrelenmisOgrenciler[0].isletme_ad,
+              baslangicTarihi: filtrelenmisOgrenciler[0].baslangic_tarihi,
+            }
+          : null,
+    });
+
+    return filtrelenmisOgrenciler;
   };
 
   // Esnek tarih parse helper'i (YYYY-MM-DD veya DD.MM.YYYY)
@@ -377,6 +465,18 @@ const TeacherPanel = () => {
   };
 
   const eksikDekontOgrenciler = getEksikDekontOgrenciler();
+
+  // 🐛 DEBUG: Eksik dekont öğrencileri ana durumu
+  console.log("🚨 MAIN EKSIK DEKONT:", {
+    eksikDekontSayisi: eksikDekontOgrenciler.length,
+    isGecikme: isGecikme(dekontSonGun),
+    isKritikSure: isKritikSure(dekontSonGun),
+    dekontSonGun,
+    currentDay: getCurrentDay(),
+    uyariGorunmeliMi: eksikDekontOgrenciler.length > 0,
+    isletmelerYuklendi: isletmeler.length > 0,
+    dekontlarYuklendi: dekontlar.length > 0,
+  });
 
   const initializeData = useCallback(
     async (teacherId: string) => {
