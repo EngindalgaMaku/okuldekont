@@ -177,10 +177,12 @@ const TeacherPanel = () => {
   // Önceki ay için dekont eksik olan öğrencileri tespit et (kamu kurumları hariç)
   const getEksikDekontOgrenciler = () => {
     const currentDate = new Date();
-    const previousMonth =
-      currentDate.getMonth() === 0 ? 12 : currentDate.getMonth();
+    const currentMonthIndex = currentDate.getMonth(); // 0-11 arası (Ekim = 9)
+    const previousMonthIndex =
+      currentMonthIndex === 0 ? 11 : currentMonthIndex - 1; // Önceki ay index'i
+    const previousMonth = previousMonthIndex + 1; // 1-12 arası (Eylül = 9)
     const previousYear =
-      currentDate.getMonth() === 0
+      currentMonthIndex === 0
         ? currentDate.getFullYear() - 1
         : currentDate.getFullYear();
 
@@ -317,12 +319,13 @@ const TeacherPanel = () => {
   // Son ayın dekont durumunu getir
   const getLastMonthDekontStatus = (ogrenciAd: string): string => {
     const currentDate = new Date();
-    const lastMonth = currentDate.getMonth(); // 0-based
+    const currentMonthIndex = currentDate.getMonth(); // 0-11 arası (Ekim = 9)
+    const lastMonthIndex = currentMonthIndex === 0 ? 11 : currentMonthIndex - 1; // Önceki ay index'i
+    const targetMonth = lastMonthIndex + 1; // 1-12 arası (Eylül = 9)
     const lastMonthYear =
-      lastMonth === 0
+      currentMonthIndex === 0
         ? currentDate.getFullYear() - 1
         : currentDate.getFullYear();
-    const targetMonth = lastMonth === 0 ? 12 : lastMonth;
 
     // Öğrencinin başlangıç tarihini bul
     const ogrenci = isletmeler
@@ -338,12 +341,12 @@ const TeacherPanel = () => {
         lastMonthYear < startYear ||
         (lastMonthYear === startYear && targetMonth < startMonth)
       ) {
-        return `${aylar[targetMonth - 1]}: ➖ Henüz başlamamış`;
+        return `${aylar[lastMonthIndex]}: ➖ Henüz başlamamış`;
       }
     }
 
     const status = getDekontStatus(ogrenciAd, targetMonth, lastMonthYear);
-    const monthName = aylar[targetMonth - 1];
+    const monthName = aylar[lastMonthIndex];
 
     switch (status) {
       case "approved":
@@ -1835,10 +1838,9 @@ const TeacherPanel = () => {
                     <p className="font-medium mb-2">
                       {(() => {
                         const currentDate = new Date();
+                        const currentMonthIndex = currentDate.getMonth(); // 0-11 arası (Ekim = 9)
                         const previousMonthIndex =
-                          currentDate.getMonth() === 0
-                            ? 11
-                            : currentDate.getMonth() - 1;
+                          currentMonthIndex === 0 ? 11 : currentMonthIndex - 1; // Önceki ay index'i (Eylül = 8)
                         return isGecikme(dekontSonGun)
                           ? `${aylar[previousMonthIndex]} ayı dekont yükleme süresi geçti! İşletmeler devlet katkı payı alamayabilir.`
                           : isKritikSure(dekontSonGun)
