@@ -124,20 +124,48 @@ function DekontYukleInner() {
     };
   }, [file]);
 
-  // Auth ve veri çekme (panel ile aynı mantık)
+  // Auth ve veri çekme (panel ile aynı mantık) - ENHANCED DEBUG
   useEffect(() => {
     if (status === "loading") return;
-    if (status === "unauthenticated" || !session?.user?.teacherId) {
+
+    // Enhanced logging for debugging session issues
+    console.log("🔍 TEACHER SESSION DEBUG:", {
+      status,
+      user: session?.user,
+      teacherId: session?.user?.teacherId,
+      userId: session?.user?.id,
+      role: session?.user?.role,
+    });
+
+    if (status === "unauthenticated" || !session?.user) {
+      console.error("❌ TEACHER SESSION ERROR: No session or user");
       router.push("/");
       return;
     }
-    const tid = session.user.teacherId as string;
-    setTeacherId(tid);
+
+    // Enhanced teacherId handling - use teacherId if available, otherwise use userId
+    // The API will handle the User -> TeacherProfile mapping
+    let effectiveTeacherId = session.user.teacherId as string;
+    if (!effectiveTeacherId && session.user.role === "TEACHER") {
+      effectiveTeacherId = session.user.id as string;
+      console.log(
+        "🔄 FALLBACK: Using userId as teacherId:",
+        effectiveTeacherId
+      );
+    }
+
+    if (!effectiveTeacherId) {
+      console.error("❌ TEACHER ID ERROR: No teacherId or userId available");
+      router.push("/");
+      return;
+    }
+
+    setTeacherId(effectiveTeacherId);
 
     (async () => {
       try {
         const res = await fetch(
-          `/api/admin/teachers/${tid}/internships?includeInactive=true`
+          `/api/admin/teachers/${effectiveTeacherId}/internships?includeInactive=true`
         );
         if (!res.ok) throw new Error("Staj verisi alınamadı");
         const data = await res.json();
@@ -538,6 +566,17 @@ function DekontYukleInner() {
       fd.append("aciklama", aciklama);
       fd.append("ogretmen_id", teacherId);
       fd.append("dosya", (maybeCompressed || file) as File);
+
+      // Enhanced logging for form data debug
+      console.log("🔍 FORM DATA DEBUG:", {
+        stajId,
+        miktar,
+        ay,
+        yil,
+        teacherId,
+        fileName: file?.name,
+        fileSize: file?.size,
+      });
 
       setUploadStatus("Dosya yükleniyor...");
       const res = await uploadWithRetry(fd, 2);

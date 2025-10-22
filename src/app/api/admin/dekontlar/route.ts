@@ -287,6 +287,17 @@ export async function POST(request: Request) {
     const yil = parseInt(formData.get("yil") as string);
     const aciklama = formData.get("aciklama") as string;
     const ogretmenId = formData.get("ogretmen_id") as string;
+
+    // Enhanced logging for teacher dekont upload debugging
+    console.log("🔍 DEKONT UPLOAD DEBUG:", {
+      userRole: authResult.user?.role,
+      userId: authResult.user?.id,
+      ogretmenId,
+      stajId,
+      ay,
+      yil,
+      timestamp: new Date().toISOString(),
+    });
     // Ek dekont onayı sonrası gelen bayrak
     const forceAdditionalRaw = formData.get("force_additional");
     const forceAdditional =
@@ -350,23 +361,78 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate teacher ID
-    if (!ogretmenId) {
+    // Enhanced Teacher ID validation with session compatibility
+    console.log("🔍 TEACHER ID VALIDATION:", {
+      ogretmenIdFromForm: ogretmenId,
+      userRole: authResult.user?.role,
+      sessionUserId: authResult.user?.id,
+      sessionData: authResult.user,
+    });
+
+    let finalTeacherId = ogretmenId;
+
+    // For TEACHER role users, find the correct TeacherProfile ID via User -> TeacherProfile mapping
+    if (authResult.user?.role === "TEACHER") {
+      if (!ogretmenId) {
+        // Find TeacherProfile by User ID (this handles the User -> TeacherProfile mapping)
+        console.log(
+          "🔍 FINDING TEACHER PROFILE for User ID:",
+          authResult.user?.id
+        );
+
+        const teacherProfile = await prisma.teacherProfile.findUnique({
+          where: { userId: authResult.user?.id },
+          select: { id: true, name: true, surname: true },
+        });
+
+        if (teacherProfile) {
+          finalTeacherId = teacherProfile.id;
+          console.log("✅ FOUND TEACHER PROFILE:", {
+            userId: authResult.user?.id,
+            teacherProfileId: teacherProfile.id,
+            teacherName: `${teacherProfile.name} ${teacherProfile.surname}`,
+          });
+        } else {
+          console.error(
+            "❌ TEACHER PROFILE NOT FOUND for User ID:",
+            authResult.user?.id
+          );
+          return NextResponse.json(
+            { error: "Öğretmen profili bulunamadı" },
+            { status: 404 }
+          );
+        }
+      }
+    }
+
+    if (!finalTeacherId) {
+      console.error("❌ TEACHER ID ERROR: No valid teacher ID found", {
+        ogretmenIdFromForm: ogretmenId,
+        userRole: authResult.user?.role,
+        sessionUserId: authResult.user?.id,
+      });
       return NextResponse.json(
         { error: "Öğretmen ID gerekli" },
         { status: 400 }
       );
     }
 
-    const teacherIdValidation = ValidationFunctions.id(ogretmenId);
+    const teacherIdValidation = ValidationFunctions.id(finalTeacherId);
     if (!teacherIdValidation.valid) {
+      console.error("❌ TEACHER ID VALIDATION ERROR:", {
+        finalTeacherId,
+        validationError: teacherIdValidation.error,
+      });
       return NextResponse.json(
         { error: teacherIdValidation.error },
         { status: 400 }
       );
     }
 
-    console.log("✅ VALIDATION: Dekont data validated successfully");
+    console.log(
+      "✅ VALIDATION: Dekont data validated successfully with teacherId:",
+      finalTeacherId
+    );
 
     // Get company and student IDs from staj first (needed for filename)
     const staj = await prisma.staj.findUnique({
@@ -721,18 +787,29 @@ export async function POST(request: Request) {
     const isEkDekont = false;
     const ekSayisi = mevcutDekontlar.length;
 
-    // Get teacher info for filename
+    // Get teacher info for filename using the validated teacherId
+    console.log("🔍 FETCHING TEACHER:", finalTeacherId);
     const teacher = await prisma.teacherProfile.findUnique({
-      where: { id: ogretmenId },
+      where: { id: finalTeacherId },
       select: { name: true, surname: true },
     });
 
     if (!teacher) {
+      console.error("❌ TEACHER NOT FOUND:", {
+        teacherId: finalTeacherId,
+        originalOgretmenId: ogretmenId,
+        userRole: authResult.user?.role,
+      });
       return NextResponse.json(
         { error: "Öğretmen bulunamadı" },
         { status: 404 }
       );
     }
+
+    console.log("✅ TEACHER FOUND:", {
+      teacherId: finalTeacherId,
+      teacherName: `${teacher.name} ${teacher.surname}`,
+    });
 
     // Handle SECURE file upload if provided
     let fileUrl = null;
@@ -906,7 +983,7 @@ export async function POST(request: Request) {
     const createDekontData = {
       stajId: uploadStaj.id,
       companyId: uploadStaj.companyId,
-      teacherId: ogretmenId,
+      teacherId: finalTeacherId, // Use the validated teacher ID
       studentId: uploadStaj.studentId,
       amount: encryptedAmount,
       paymentDate: new Date(),
@@ -965,9 +1042,23 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ data: formattedData });
   } catch (error) {
-    console.error("Dekont eklenirken hata:", error);
+    console.error("❌ DEKONT CREATION ERROR:", {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+      userRole: authResult.user?.role,
+      userId: authResult.user?.id,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Return more specific error message for debugging
+    const errorMessage =
+      error instanceof Error ? error.message : "Bilinmeyen hata";
     return NextResponse.json(
-      { error: "Dekont eklenirken bir hata oluştu" },
+      {
+        error: "Dekont eklenirken bir hata oluştu",
+        details:
+          process.env.NODE_ENV === "development" ? errorMessage : undefined,
+      },
       { status: 500 }
     );
   }
