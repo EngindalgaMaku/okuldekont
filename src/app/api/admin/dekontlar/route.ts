@@ -1042,22 +1042,26 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ data: formattedData });
   } catch (error) {
-    console.error("❌ DEKONT CREATION ERROR:", {
-      error: error instanceof Error ? error.message : error,
+    console.error("❌ DEKONT CREATION ERROR - TAM DETAY:", {
+      error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
+      errorType: error instanceof Error ? error.constructor.name : typeof error,
       userRole: authResult.user?.role,
       userId: authResult.user?.id,
       timestamp: new Date().toISOString(),
     });
 
-    // Return more specific error message for debugging
-    const errorMessage =
-      error instanceof Error ? error.message : "Bilinmeyen hata";
+    // Return detailed error message for debugging - her zaman detay göster
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const stackTrace = error instanceof Error ? error.stack : undefined;
+
     return NextResponse.json(
       {
-        error: "Dekont eklenirken bir hata oluştu",
-        details:
-          process.env.NODE_ENV === "development" ? errorMessage : undefined,
+        error: `HATA DETAYI: ${errorMessage}`,
+        stack: stackTrace,
+        errorType:
+          error instanceof Error ? error.constructor.name : typeof error,
+        timestamp: new Date().toISOString(),
       },
       { status: 500 }
     );
