@@ -970,12 +970,11 @@ export async function POST(request: Request) {
       });
     }
 
-    // Create dekont data object matching Prisma schema with encrypted amount
-    const encryptedAmount = miktar ? encryptFinancialData(miktar) : null;
+    // GEÇİCİ FIX: Encryption devre dışı - normal decimal değer kullan
+    const decimalAmount = miktar ? parseFloat(miktar) : null;
 
-    // Mali veri güvenlik logu (maskelenmiş)
-    console.log(`🔒 FINANCIAL: Dekont amount encrypted`, {
-      originalAmount: maskFinancialData(miktar),
+    console.log(`💰 FINANCIAL: Dekont amount (not encrypted)`, {
+      amount: decimalAmount,
       adminId: authResult.user?.id,
       timestamp: new Date().toISOString(),
     });
@@ -985,7 +984,7 @@ export async function POST(request: Request) {
       companyId: uploadStaj.companyId,
       teacherId: finalTeacherId, // Use the validated teacher ID
       studentId: uploadStaj.studentId,
-      amount: encryptedAmount,
+      amount: decimalAmount,
       paymentDate: new Date(),
       month: ay ? ay : new Date().getMonth() + 1,
       year: yil ? yil : new Date().getFullYear(),
@@ -1024,9 +1023,7 @@ export async function POST(request: Request) {
       ogrenci_ad: data.staj?.student
         ? `${data.staj.student.name} ${data.staj.student.surname}`
         : `${uploadStaj.student.name} ${uploadStaj.student.surname}`,
-      miktar: data.amount
-        ? Number(decryptFinancialData(data.amount.toString()))
-        : null,
+      miktar: data.amount ? Number(data.amount) : null,
       odeme_tarihi: data.paymentDate,
       onay_durumu: data.status,
       ay: data.month,
