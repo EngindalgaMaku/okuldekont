@@ -268,7 +268,7 @@ model Dekont {
   companyId         String
   teacherId         String?
   studentId         String
-  amount            Decimal?        @db.Decimal(10, 2)
+  amount            String?
   paymentDate       DateTime
   month             Int
   year              Int

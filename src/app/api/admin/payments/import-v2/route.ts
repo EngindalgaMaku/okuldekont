@@ -33,29 +33,6 @@ function normalizeTurkishText(text: string): string {
     .replace(/\s+/g, " ");
 }
 
-// Improved name matching function
-function namesMatch(name1: string, name2: string): boolean {
-  const normalized1 = normalizeTurkishText(name1);
-  const normalized2 = normalizeTurkishText(name2);
-
-  // Direct match
-  if (normalized1 === normalized2) return true;
-
-  // Split and check individual words
-  const words1 = normalized1.split(" ");
-  const words2 = normalized2.split(" ");
-
-  // Check if all words from shorter name exist in longer name
-  const shorter = words1.length <= words2.length ? words1 : words2;
-  const longer = words1.length > words2.length ? words1 : words2;
-
-  return shorter.every((word) =>
-    longer.some(
-      (longerWord) => longerWord.includes(word) || word.includes(longerWord)
-    )
-  );
-}
-
 export async function POST(request: NextRequest) {
   try {
     console.log("🚀 Multi-Format Excel Import API v2 called");
@@ -68,7 +45,7 @@ export async function POST(request: NextRequest) {
     const yearOverride = formData.get("year")
       ? parseInt(formData.get("year") as string)
       : null;
-    const forceFormat = formData.get("format") as string | null;
+    const forceFormat = formData.get("format") as ExcelFormatType | null;
 
     if (!file) {
       return NextResponse.json(
@@ -88,7 +65,11 @@ export async function POST(request: NextRequest) {
     console.log("📄 Processing file:", file.name, "Size:", file.size);
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const workbook = XLSX.read(buffer, { type: "buffer" });
+    const workbook = XLSX.read(buffer, {
+      type: "buffer",
+      cellNF: true,
+      raw: false,
+    });
     const rawData = XLSX.utils.sheet_to_json(
       workbook.Sheets[workbook.SheetNames[0]],
       { header: 1 }
@@ -96,29 +77,29 @@ export async function POST(request: NextRequest) {
 
     console.log("📋 Total rows in Excel:", rawData.length);
 
-    // Debug: Log first 10 rows to understand file structure
-    console.log("🔍 Excel file first 10 rows:", rawData.slice(0, 10));
+    // Debug: Log first 20 rows to understand file structure for debugging
+    console.log(
+      "🔍 Excel file first 20 rows (for debugging):",
+      JSON.stringify(rawData.slice(0, 20), null, 2)
+    );
 
     // Format detection
-    let formatDetection;
-    if (
-      forceFormat &&
-      Object.values(ExcelFormatType).includes(forceFormat as ExcelFormatType)
-    ) {
-      console.log(`🎯 Using forced format: ${forceFormat}`);
-      formatDetection = {
-        type: forceFormat as ExcelFormatType,
-        confidence: 1,
-        reason: "Manuel format seçimi",
-        headerRow: -1,
-        detectedColumns: {},
-      };
-    } else {
-      formatDetection = ExcelFormatDetector.detectFormat(workbook);
-      console.log("🔍 Format Detection Result:", formatDetection);
-    }
+    const formatDetection = ExcelFormatDetector.detectFormat(
+      workbook,
+      forceFormat ?? undefined
+    );
+
+    console.log("🔍 Format Detection Result:", formatDetection);
+    console.log(
+      "🕵️  [DEBUG] Format detection details: ",
+      `Type: ${formatDetection.type}, Confidence: ${formatDetection.confidence}, Reason: ${formatDetection.reason}`
+    );
 
     if (formatDetection.type === ExcelFormatType.UNKNOWN) {
+      console.error(
+        "❌ Format detection failed. Reason:",
+        formatDetection.reason
+      );
       return NextResponse.json(
         {
           error: "Excel formatı algılanamadı",
@@ -147,29 +128,6 @@ export async function POST(request: NextRequest) {
           rawData[headerRow] as any[]
         );
       }
-    }
-
-    // Special case: Manual override for specific MESEM format structure
-    if (
-      formatDetection.type === ExcelFormatType.MESEM &&
-      (headerRow === -1 || Object.keys(columnIndexes).length < 4)
-    ) {
-      console.log("🎯 Using manual MESEM structure detection...");
-      // Based on the actual Excel file structure, headers are at row 4 (index 4)
-      headerRow = 4;
-      columnIndexes = {
-        class: 0, // Sınıf
-        studentNo: 1, // No
-        department: 2, // Bölüm
-        studentName: 3, // Adı Soyadı
-        coordinatorTeacher: 4, // Koordinatör Öğretmen
-        companyName: 5, // İşletmenin Adı
-        devamsizlikDvli: 6, // Dvlı
-        devamsizlikDvsiz: 7, // Dvsız
-        studentSalary: 8, // Öğrencinin Maaş Tutarı
-        companyContribution: 9, // İşletmenin Devlet Katkısı
-      };
-      console.log("🗺️ Manual MESEM column mapping applied:", columnIndexes);
     }
 
     console.log("🗺️ Final column indexes:", columnIndexes);
@@ -227,71 +185,133 @@ export async function POST(request: NextRequest) {
     const errors: string[] = [...adapterResult.errors];
     let successCount = 0;
 
-    // Her adapter sonucunu işle
+    // PERFORMANCE OPTIMIZATION: Fetch all students ONCE and create lookup maps
+    console.log(
+      "📚 Fetching all students from database for optimized matching..."
+    );
+    const allStudents = await prisma.student.findMany({
+      select: { id: true, name: true, surname: true, tcNo: true, number: true },
+    });
+
+    console.log(`📊 Found ${allStudents.length} students in database`);
+
+    // Log sample of database students for debugging
+    console.log("🔍 Sample students from database:");
+    allStudents.slice(0, 3).forEach((s) => {
+      console.log(
+        `  - ${s.name} ${s.surname} | TC: "${s.tcNo || "N/A"}" | No: "${
+          s.number || "N/A"
+        }"`
+      );
+    });
+
+    // Create optimized lookup maps - prioritizing name and number matching
+    const studentMapByTcNo = new Map();
+    const studentMapByNumber = new Map();
+    const studentMapByNormalizedName = new Map();
+
+    for (const s of allStudents) {
+      // Map by exact TC No (fallback only)
+      if (s.tcNo && s.tcNo.trim()) {
+        const cleanTc = s.tcNo.replace(/\s+/g, "").trim();
+        studentMapByTcNo.set(cleanTc, s);
+      }
+
+      // Map by student number (primary for MESEM)
+      if (s.number && s.number.trim()) {
+        studentMapByNumber.set(s.number.trim(), s);
+      }
+
+      // Map by normalized name (primary for all formats)
+      const normalizedFullName = normalizeTurkishText(`${s.name} ${s.surname}`);
+      if (!studentMapByNormalizedName.has(normalizedFullName)) {
+        studentMapByNormalizedName.set(normalizedFullName, s);
+      }
+    }
+
+    console.log(
+      `🗺️ Created lookup maps: Numbers: ${studentMapByNumber.size}, Names: ${studentMapByNormalizedName.size}, TC (fallback): ${studentMapByTcNo.size}`
+    );
+
+    // Process each student from the Excel file
     for (const studentData of adapterResult.data) {
       try {
         console.log(
           `📄 Processing: ${studentData.studentName} ${studentData.studentSurname} - ${studentData.amount}₺`
         );
 
-        // Öğrenciyi bul
         let student = null;
 
-        // TC No ile ara (eğer varsa)
-        if (studentData.studentTcNo && studentData.studentTcNo.length >= 3) {
-          student = await prisma.student.findFirst({
-            where: { tcNo: { contains: studentData.studentTcNo.slice(0, 3) } },
-          });
+        // Debug: Log the data we're trying to match
+        console.log(
+          `🔍 Excel data: TC:"${studentData.studentTcNo || "N/A"}" | No:"${
+            studentData.studentNo || "N/A"
+          }" | Name:"${studentData.studentName} ${studentData.studentSurname}"`
+        );
+
+        // 1. PRIMARY: Student number match (especially for MESEM format)
+        if (studentData.studentNo && studentData.studentNo.trim()) {
+          const studentNo = studentData.studentNo.trim();
+          if (studentMapByNumber.has(studentNo)) {
+            student = studentMapByNumber.get(studentNo);
+            console.log(`✅ Student number match: ${studentNo}`);
+          }
         }
 
-        // Öğrenci no ile ara (MESEM formatında)
-        if (!student && studentData.studentNo) {
-          student = await prisma.student.findFirst({
-            where: { number: studentData.studentNo },
-          });
-        }
-
-        // Ad-soyad ile ara
+        // 2. SECONDARY: Name-based matching (exact first, then partial)
         if (!student) {
-          console.log(
-            `🔍 Searching by name: "${studentData.studentName}" "${studentData.studentSurname}"`
+          const normalizedName = normalizeTurkishText(
+            `${studentData.studentName} ${studentData.studentSurname}`
           );
 
-          const allStudents = await prisma.student.findMany({
-            select: {
-              id: true,
-              name: true,
-              surname: true,
-              tcNo: true,
-              number: true,
-            },
-          });
-
-          // Turkish-aware name matching
-          for (const candidateStudent of allStudents) {
-            const candidateFullName = `${candidateStudent.name} ${candidateStudent.surname}`;
-            const studentFullName = `${studentData.studentName} ${studentData.studentSurname}`;
-
-            if (
-              namesMatch(studentData.studentName, candidateStudent.name) &&
-              namesMatch(studentData.studentSurname, candidateStudent.surname)
-            ) {
-              student = candidateStudent;
-              console.log(`✅ Name match found: "${candidateFullName}"`);
-              break;
+          // Try exact normalized name match
+          if (studentMapByNormalizedName.has(normalizedName)) {
+            student = studentMapByNormalizedName.get(normalizedName);
+            console.log(`✅ Exact name match: "${normalizedName}"`);
+          }
+          // Try partial name matching
+          else {
+            const nameEntries = Array.from(
+              studentMapByNormalizedName.entries()
+            );
+            for (const [dbName, dbStudent] of nameEntries) {
+              if (
+                dbName.includes(normalizedName) ||
+                normalizedName.includes(dbName)
+              ) {
+                student = dbStudent;
+                console.log(
+                  `✅ Partial name match: DB:"${dbName}" vs Excel:"${normalizedName}"`
+                );
+                break;
+              }
             }
+          }
+        }
 
-            if (namesMatch(studentFullName, candidateFullName)) {
-              student = candidateStudent;
-              console.log(`✅ Full name match found: "${candidateFullName}"`);
-              break;
-            }
+        // 3. FALLBACK: TC Number matching (only if name/number matching fails)
+        if (
+          !student &&
+          studentData.studentTcNo &&
+          studentData.studentTcNo.trim()
+        ) {
+          const excelTc = studentData.studentTcNo.replace(/\s+/g, "").trim();
+
+          // Try exact TC match only
+          if (studentMapByTcNo.has(excelTc)) {
+            student = studentMapByTcNo.get(excelTc);
+            console.log(`✅ TC fallback match: ${excelTc}`);
           }
         }
 
         if (!student) {
           const fullName = `${studentData.studentName} ${studentData.studentSurname}`;
           console.log(`❌ Student not found: ${fullName}`);
+          console.log(
+            `   TC: "${studentData.studentTcNo || "N/A"}", No: "${
+              studentData.studentNo || "N/A"
+            }"`
+          );
           errors.push(
             `Satır ${studentData.rowNumber}: Öğrenci bulunamadı (${fullName})`
           );
@@ -299,10 +319,10 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(
-          `👤 Student found: ${student.name} ${student.surname} (${student.id})`
+          `👤 Student found: ${student.name} ${student.surname} (ID: ${student.id})`
         );
 
-        // Company bul
+        // Find company
         let companyId = null;
         if (studentData.companyName) {
           const company = await prisma.companyProfile.findFirst({
@@ -313,7 +333,7 @@ export async function POST(request: NextRequest) {
           companyId = company?.id;
         }
 
-        // Default company kullan
+        // Use default company if not found
         if (!companyId) {
           const defaultCompany = await prisma.companyProfile.findFirst({
             select: { id: true },
@@ -326,7 +346,7 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Duplicate kontrol
+        // Check for duplicates
         const existingPayment = await prisma.monthlyPayment.findFirst({
           where: {
             studentId: student.id,
@@ -344,7 +364,7 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Ödeme kaydı oluştur
+        // Create payment record
         await prisma.monthlyPayment.create({
           data: {
             id: uuidv4(),
@@ -355,9 +375,7 @@ export async function POST(request: NextRequest) {
             year: yearOverride,
             amount: studentData.amount,
             paymentType: "GOVERNMENT_CONTRIBUTION",
-            status: studentData.isIncompleteAmount
-              ? "INCOMPLETE_AMOUNT"
-              : "IMPORTED",
+            status: "IMPORTED",
             importSource: file.name,
             importBatch,
             importedBy: "admin",
@@ -376,10 +394,10 @@ export async function POST(request: NextRequest) {
                 ? `MESEM Format - Devamsızlık: ${
                     studentData.devamsizlikDvli || 0
                   }/${studentData.devamsizlikDvsiz || 0}${
-                    studentData.isIncompleteAmount ? " - Tutar Eksik" : ""
+                    studentData.isIncompleteAmount ? " - Tutar Eksik/Sıfır" : ""
                   }`
                 : studentData.isIncompleteAmount
-                ? "Tutar Eksik - Manuel Düzenleme Gerekli"
+                ? "Tutar Eksik/Sıfır - Manuel Düzenleme Gerekli"
                 : undefined,
           },
         });
@@ -410,6 +428,10 @@ export async function POST(request: NextRequest) {
       "Kasım",
       "Aralık",
     ];
+
+    console.log(
+      `🎯 Import completed: ${successCount}/${adapterResult.validRows} students processed successfully`
+    );
 
     return NextResponse.json({
       success: true,

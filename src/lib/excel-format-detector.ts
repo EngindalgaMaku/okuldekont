@@ -19,7 +19,10 @@ export class ExcelFormatDetector {
   /**
    * Excel dosyasının formatını otomatik olarak algılar
    */
-  static detectFormat(workbook: XLSX.WorkBook): FormatDetectionResult {
+  static detectFormat(
+    workbook: XLSX.WorkBook,
+    forceFormat?: ExcelFormatType
+  ): FormatDetectionResult {
     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
     const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
@@ -37,6 +40,23 @@ export class ExcelFormatDetector {
     }
 
     const headerRow = rawData[headerAnalysis.headerRow] as any[];
+
+    // If a format is forced, use it directly
+    if (forceFormat && forceFormat !== ExcelFormatType.UNKNOWN) {
+      console.log(`[Detector] Forcing format to: ${forceFormat}`);
+      const scoreFn =
+        forceFormat === ExcelFormatType.EOKUL
+          ? this.scoreEOkulFormat
+          : this.scoreMESEMFormat;
+      const scoreResult = scoreFn.call(this, headerRow);
+      return {
+        type: forceFormat,
+        confidence: 1,
+        reason: `Manuel format seçimi: ${forceFormat}`,
+        headerRow: headerAnalysis.headerRow,
+        detectedColumns: scoreResult.columnIndexes,
+      };
+    }
 
     // Format-specific pattern matching
     const eOkulScore = this.scoreEOkulFormat(headerRow);
@@ -96,7 +116,7 @@ export class ExcelFormatDetector {
         }
 
         // MESEM pattern - more specific matching
-        const hasClass = normalizedRow.some((cell) => cell === "sınıf");
+        const hasClass = normalizedRow.some((cell) => cell.includes("sınıf"));
         const hasName = normalizedRow.some((cell) =>
           cell.includes("adı soyadı")
         );
@@ -169,7 +189,7 @@ export class ExcelFormatDetector {
   } {
     const requiredFields = [
       { key: "class", patterns: ["sınıf"], weight: 0.15 },
-      { key: "studentNo", patterns: ["no"], weight: 0.15 },
+      { key: "studentNo", patterns: ["no", "öğrenci no"], weight: 0.15 },
       { key: "studentName", patterns: ["adı soyadı"], weight: 0.25 },
       {
         key: "coordinatorTeacher",

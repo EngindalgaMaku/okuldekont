@@ -1,6 +1,4 @@
-// Excel Format Adapters - Farklı formatlar için veri işleme adapterleri
 import { ExcelFormatType } from "./excel-format-detector";
-import { v4 as uuidv4 } from "uuid";
 
 export interface StudentPaymentData {
   studentName: string;
@@ -268,12 +266,12 @@ export class MESEMAdapter extends BaseExcelAdapter {
           );
         }
 
-        // Ad-soyadı ayır
+        // Ad-soyadı ayır (daha sağlam bir yöntem)
         const nameParts = fullName.trim().split(/\s+/);
-        const studentName = nameParts[0] || "";
-        const studentSurname = nameParts.slice(1).join(" ") || "";
+        const studentSurname = nameParts.pop() || "";
+        const studentName = nameParts.join(" ") || "";
 
-        if (!studentName) {
+        if (!studentName || !studentSurname) {
           errors.push(
             `Satır ${rowNumber}: Geçersiz isim formatı: "${fullName}"`
           );
@@ -361,14 +359,14 @@ export function enhanceMESEMColumnDetection(
         console.log(`✅ Found class column at index ${index}`);
       }
 
-      // Öğrenci No - exact match for "no"
-      if (headerStr === "no") {
+      // Öğrenci No
+      if (headerStr === "no" || headerStr.includes("öğrenci no")) {
         columnIndexes.studentNo = index;
         console.log(`✅ Found student number column at index ${index}`);
       }
 
-      // Bölüm
-      if (headerStr === "bölüm" || headerStr.includes("bölüm")) {
+      // Bölüm/Alan
+      if (headerStr.includes("bölüm") || headerStr.includes("alan")) {
         columnIndexes.department = index;
         console.log(`✅ Found department column at index ${index}`);
       }
