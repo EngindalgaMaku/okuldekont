@@ -69,17 +69,15 @@ export async function PUT(
       return NextResponse.json({ error: "Dekont bulunamadı" }, { status: 404 });
     }
 
-    // Encrypt the new amount
-    const encryptedAmount =
-      amount !== null && amount !== undefined
-        ? encryptFinancialData(amount.toString())
-        : null;
+    // Convert amount to decimal (no encryption needed anymore)
+    const decimalAmount =
+      amount !== null && amount !== undefined ? Number(amount) : null;
 
     // Update the dekont amount
     const updatedDekont = await prisma.dekont.update({
       where: { id },
       data: {
-        amount: encryptedAmount,
+        amount: decimalAmount,
       },
       include: {
         staj: {
@@ -108,14 +106,14 @@ export async function PUT(
       timestamp: new Date().toISOString(),
     });
 
-    // Return the updated amount (decrypted for frontend)
-    const decryptedAmount = updatedDekont.amount
-      ? Number(decryptFinancialData(updatedDekont.amount.toString()))
+    // Return the updated amount (already in decimal format)
+    const finalAmount = updatedDekont.amount
+      ? Number(updatedDekont.amount)
       : null;
 
     return NextResponse.json({
       success: true,
-      amount: decryptedAmount,
+      amount: finalAmount,
       message: "Tutar başarıyla güncellendi",
     });
   } catch (error) {

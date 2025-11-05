@@ -126,9 +126,7 @@ export async function GET(
         yil: dekont.year,
         sequence_number: sequenceNumber,
         dekont_label: dekontLabel,
-        miktar: dekont.amount
-          ? parseFloat(decryptFinancialData(dekont.amount.toString()))
-          : null,
+        miktar: dekont.amount ? parseFloat(dekont.amount.toString()) : null,
         aciklama: `${dekont.student.name} ${dekont.student.surname} - ${dekontLabel}`,
         dosya_url: dekont.fileUrl,
         onay_durumu:
@@ -545,13 +543,11 @@ export async function POST(
       );
     }
 
-    // Encrypt financial data before storing
-    const encryptedAmount = miktar
-      ? encryptFinancialData(miktar.toString())
-      : null;
+    // Convert amount to decimal (no encryption needed anymore)
+    const decimalAmount = miktar || null;
 
     // Mali veri güvenlik logu (maskelenmiş)
-    console.log(`🔒 FINANCIAL: Company dekont amount encrypted`, {
+    console.log(`💰 FINANCIAL: Company dekont amount processed`, {
       originalAmount: maskFinancialData(miktar),
       companyId,
       timestamp: new Date().toISOString(),
@@ -573,7 +569,7 @@ export async function POST(
         month: ay,
         year: yil,
         sequenceNumber: nextSequenceNumber,
-        amount: encryptedAmount,
+        amount: decimalAmount,
         fileUrl: fileUrl,
         status: "PENDING",
         paymentDate: new Date(),
@@ -587,9 +583,7 @@ export async function POST(
     const formattedDekont = {
       id: newDekont.id,
       ogrenci_adi: student ? `${student.name} ${student.surname}` : "",
-      miktar: newDekont.amount
-        ? parseFloat(decryptFinancialData(newDekont.amount.toString()))
-        : null,
+      miktar: newDekont.amount ? parseFloat(newDekont.amount.toString()) : null,
       odeme_tarihi: newDekont.paymentDate,
       onay_durumu:
         newDekont.status === "APPROVED"
