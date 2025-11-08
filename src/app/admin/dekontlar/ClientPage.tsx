@@ -779,6 +779,7 @@ export default function ClientDekontlarPage() {
 
         if (response.ok) {
           await fetchDekontlar(); // Refresh the list
+          await fetchExpectedStudents(); // Refresh expected cards
           setShowRejectModal(false);
           setShowApproveModal(false);
           setSelectedDekont(null);
@@ -794,7 +795,7 @@ export default function ClientDekontlarPage() {
         setShowWarningModal(true);
       }
     },
-    [fetchDekontlar]
+    [fetchDekontlar, fetchExpectedStudents]
   );
 
   const deleteDekont = useCallback(
@@ -810,6 +811,7 @@ export default function ClientDekontlarPage() {
         if (response.ok) {
           console.log("✅ Dekont silindi, liste yenileniyor...");
           await fetchDekontlar(); // Refresh the list
+          await fetchExpectedStudents(); // Refresh expected cards
           setShowDeleteModal(false);
           setSelectedDekont(null);
         } else if (response.status === 403) {
@@ -1593,6 +1595,25 @@ export default function ClientDekontlarPage() {
                                 Aç
                               </button>
                             ) : null}
+                            {/* Pending actions on card */}
+                            {matched?.onay_durumu === "bekliyor" && (
+                              <div className="flex items-center gap-1 ml-1">
+                                <button
+                                  onClick={() => updateDekontStatus(matched.id, "APPROVED")}
+                                  className="flex items-center justify-center w-7 h-7 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-full transition-colors"
+                                  title="Onayla"
+                                >
+                                  <Check className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => deleteDekont(matched.id)}
+                                  className="flex items-center justify-center w-7 h-7 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                                  title="Sil"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
