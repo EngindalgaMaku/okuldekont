@@ -39,6 +39,7 @@ export async function GET(
       stateContributionRequest: (company as any).stateContributionRequest,
       masterTeacherName: (company as any).masterTeacherName,
       masterTeacherPhone: (company as any).masterTeacherPhone,
+      lateSubmissionAllowed: (company as any).lateSubmissionAllowed ?? false,
       teacherId: company.teacherId,
       teacher: company.teacher ? {
         id: company.teacher.id,
@@ -92,7 +93,8 @@ export async function PUT(
       { field: 'employeeCount', changeType: 'EMPLOYEE_COUNT_UPDATE' },
       { field: 'stateContributionRequest', changeType: 'OTHER_UPDATE' },
       { field: 'masterTeacherName', changeType: 'MASTER_TEACHER_UPDATE' },
-      { field: 'masterTeacherPhone', changeType: 'MASTER_TEACHER_UPDATE' }
+      { field: 'masterTeacherPhone', changeType: 'MASTER_TEACHER_UPDATE' },
+      { field: 'lateSubmissionAllowed', changeType: 'OTHER_UPDATE' }
     ]
 
     // Check for changes
@@ -129,6 +131,7 @@ export async function PUT(
           stateContributionRequest: data.stateContributionRequest,
           masterTeacherName: data.masterTeacherName,
           masterTeacherPhone: data.masterTeacherPhone,
+          lateSubmissionAllowed: data.lateSubmissionAllowed ?? false,
         },
       })
 

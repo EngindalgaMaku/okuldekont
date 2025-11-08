@@ -348,10 +348,11 @@ export default function ClientDekontlarPage() {
     number: string;
     fieldName: string;
     hasDekont: boolean;
+    isLateCompany?: boolean;
   }
   const [showExpectedList, setShowExpectedList] = useState(true);
   const [expectedStudents, setExpectedStudents] = useState<ExpectedStudentItem[]>([]);
-  const [onlyMissingExpected, setOnlyMissingExpected] = useState(false);
+  const [onlyMissingExpected, setOnlyMissingExpected] = useState(true);
 
   // Fetch modal statistics - same calculation as in modal
   const fetchModalStatistics = useCallback(async () => {
@@ -418,6 +419,7 @@ export default function ClientDekontlarPage() {
               number: s.no || "",
               fieldName: s.alan || "",
               hasDekont: !!s.has_dekont,
+              isLateCompany: !!c.is_late,
             });
           });
         });
@@ -449,6 +451,21 @@ export default function ClientDekontlarPage() {
   // Computed filtered + sorted expected list
   const filteredExpectedStudents = useMemo(() => {
     let list = [...expectedStudents];
+    // Helper to find matched dekont status for this student/company in selected month/year
+    const getMatchedStatus = (studentId: string, companyName: string) => {
+      const monthOk =
+        selectedMonth === "all" ? (d: Dekont) => true : (d: Dekont) => d.ay === parseInt(selectedMonth);
+      const yearOk =
+        selectedYear === "all" ? (d: Dekont) => true : (d: Dekont) => d.yil === parseInt(selectedYear);
+      const match = dekontlar.find(
+        (d) =>
+          d.ogrenci_id === studentId &&
+          d.isletme_ad === companyName &&
+          monthOk(d) &&
+          yearOk(d)
+      );
+      return match?.onay_durumu || null;
+    };
     if (selectedAlan !== "all") {
       list = list.filter((i) => i.fieldName === selectedAlan);
     }
@@ -456,7 +473,11 @@ export default function ClientDekontlarPage() {
       list = list.filter((i) => i.className === selectedSinif);
     }
     if (onlyMissingExpected) {
-      list = list.filter((i) => !i.hasDekont);
+      list = list.filter(
+        (i) =>
+          !i.hasDekont ||
+          getMatchedStatus(i.id, i.companyName) === "bekliyor"
+      );
     }
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -467,7 +488,13 @@ export default function ClientDekontlarPage() {
           i.teacherName.toLowerCase().includes(term)
       );
     }
+    // Sort: pending first, then missing, then by alan -> sınıf -> öğretmen -> öğrenci
     list.sort((a, b) => {
+      const aStatus = getMatchedStatus(a.id, a.companyName);
+      const bStatus = getMatchedStatus(b.id, b.companyName);
+      const aRank = aStatus === "bekliyor" ? 0 : !a.hasDekont ? 1 : 2;
+      const bRank = bStatus === "bekliyor" ? 0 : !b.hasDekont ? 1 : 2;
+      if (aRank !== bRank) return aRank - bRank;
       const fa = (a.fieldName || "").localeCompare(b.fieldName || "", "tr");
       if (fa !== 0) return fa;
       const sa = (a.className || "").localeCompare(b.className || "", "tr");
@@ -477,7 +504,7 @@ export default function ClientDekontlarPage() {
       return (a.studentName || "").localeCompare(b.studentName || "", "tr");
     });
     return list;
-  }, [expectedStudents, selectedAlan, selectedSinif, onlyMissingExpected, searchTerm]);
+  }, [expectedStudents, dekontlar, selectedAlan, selectedSinif, selectedMonth, selectedYear, onlyMissingExpected, searchTerm]);
 
   // Helper: find a dekont for expected card (same student, same company, current selected month/year)
   const findMatchingDekont = useCallback(
@@ -1463,7 +1490,7 @@ export default function ClientDekontlarPage() {
                 onChange={(e) => setOnlyMissingExpected(e.target.checked)}
                 className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
               />
-              <span className="text-sm text-gray-700">Sadece eksik olanlar</span>
+              <span className="text-sm text-gray-700">Sadece eksik/beklemede</span>
             </label>
             <label className="inline-flex items-center space-x-2">
               <input
@@ -1507,6 +1534,13 @@ export default function ClientDekontlarPage() {
                         <div className="font-semibold text-gray-900 truncate">
                           {item.studentName}
                         </div>
+                        {item.isLateCompany && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-800 border border-orange-200">
+                              Geç gönderim (11+)
+                            </span>
+                          </div>
+                        )}
                         <div className="text-xs text-gray-700 mt-0.5">
                           {item.className && item.number
                             ? `${item.className}-${item.number}`

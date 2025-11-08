@@ -98,6 +98,7 @@ model CompanyProfile {
   stateContributionRequest String?
   teacherAssignedAt        DateTime?
   companyType              CompanyType                @default(PRIVATE)
+  lateSubmissionAllowed    Boolean                    @default(false)
   failedAttempts           Int                        @default(0)
   isLocked                 Boolean                    @default(false)
   lastFailedAttempt        DateTime?

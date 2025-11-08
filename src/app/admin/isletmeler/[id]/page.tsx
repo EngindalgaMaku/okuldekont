@@ -61,6 +61,7 @@ interface Company {
   stateContributionRequest?: string;
   masterTeacherName?: string;
   masterTeacherPhone?: string;
+  lateSubmissionAllowed?: boolean;
   teacher?: {
     id: string;
     name: string;
@@ -264,7 +265,8 @@ export default function IsletmeDetayPage() {
     employeeCount: '',
     stateContributionRequest: '',
     masterTeacherName: '',
-    masterTeacherPhone: ''
+    masterTeacherPhone: '',
+    lateSubmissionAllowed: false
   })
 
   const [studentFormData, setStudentFormData] = useState({
@@ -400,7 +402,8 @@ export default function IsletmeDetayPage() {
         employeeCount: cachedData.employeeCount || '',
         stateContributionRequest: cachedData.stateContributionRequest || '',
         masterTeacherName: cachedData.masterTeacherName || '',
-        masterTeacherPhone: cachedData.masterTeacherPhone || ''
+        masterTeacherPhone: cachedData.masterTeacherPhone || '',
+        lateSubmissionAllowed: cachedData.lateSubmissionAllowed || false
       })
       return
     }
@@ -429,7 +432,8 @@ export default function IsletmeDetayPage() {
         employeeCount: data.employeeCount || '',
         stateContributionRequest: data.stateContributionRequest || '',
         masterTeacherName: data.masterTeacherName || '',
-        masterTeacherPhone: data.masterTeacherPhone || ''
+        masterTeacherPhone: data.masterTeacherPhone || '',
+        lateSubmissionAllowed: data.lateSubmissionAllowed || false
       })
 
       // Fetch security status
@@ -594,7 +598,8 @@ export default function IsletmeDetayPage() {
           employeeCount: formData.employeeCount.trim() || null,
           stateContributionRequest: formData.stateContributionRequest.trim() || null,
           masterTeacherName: formData.masterTeacherName.trim() || null,
-          masterTeacherPhone: formData.masterTeacherPhone.trim() || null
+          masterTeacherPhone: formData.masterTeacherPhone.trim() || null,
+          lateSubmissionAllowed: !!formData.lateSubmissionAllowed
         }),
       })
 
@@ -959,7 +964,8 @@ export default function IsletmeDetayPage() {
                       employeeCount: company.employeeCount || '',
                       stateContributionRequest: company.stateContributionRequest || '',
                       masterTeacherName: company.masterTeacherName || '',
-                      masterTeacherPhone: company.masterTeacherPhone || ''
+                      masterTeacherPhone: company.masterTeacherPhone || '',
+                      lateSubmissionAllowed: company.lateSubmissionAllowed || false
                     })
                   }}
                   className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200"
@@ -1348,6 +1354,37 @@ export default function IsletmeDetayPage() {
                   ) : (
                     <div className="px-4 py-3 bg-gray-50 rounded-lg text-gray-900">
                       {company.stateContributionRequest || 'Belirtilmemiş'}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Calendar className="h-4 w-4 inline mr-1" />
+                    Geç Gönderim İzni
+                  </label>
+                  {editMode ? (
+                    <label className="inline-flex items-center space-x-2 px-4 py-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <input
+                        type="checkbox"
+                        checked={!!formData.lateSubmissionAllowed}
+                        onChange={(e) => handleInputChange('lateSubmissionAllowed' as any, e.target.checked as any)}
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      />
+                      <span className="text-sm text-gray-700">
+                        Bu işletme maaşları ayın 11'i ve sonrasında yatırır (geç gönderim).
+                      </span>
+                    </label>
+                  ) : (
+                    <div className="px-4 py-3 bg-gray-50 rounded-lg text-gray-900 flex items-center justify-between">
+                      <span>
+                        Geç gönderim: {company.lateSubmissionAllowed ? 'Evet' : 'Hayır'}
+                      </span>
+                      {company.lateSubmissionAllowed && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
+                          11'i ve sonrası
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
