@@ -58,13 +58,13 @@ export const authOptions: NextAuthOptions = {
           });
           // Veritabanı bağlantısını kontrol et
           const user = await prisma.user.findUnique({
-            where: {
-              email: credentials.email,
-            },
-            include: {
-              adminProfile: true,
-              teacherProfile: true,
-              companyProfile: true,
+            where: { email: credentials.email },
+            select: {
+              id: true,
+              email: true,
+              password: true,
+              role: true,
+              // IMPORTANT: Do NOT join related profiles here to avoid schema drift breaking auth
             },
           });
 
@@ -91,8 +91,7 @@ export const authOptions: NextAuthOptions = {
             id: user.id,
             email: user.email,
             role: user.role,
-            profile:
-              user.adminProfile || user.teacherProfile || user.companyProfile,
+            // profile intentionally omitted to prevent joins on drifted tables
           };
         } catch (error) {
           console.error(
