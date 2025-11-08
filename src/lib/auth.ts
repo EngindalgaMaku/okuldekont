@@ -38,10 +38,24 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          try {
+            console.warn("AUTH: Missing credentials", {
+              hasEmail: !!credentials?.email,
+              hasPassword: !!credentials?.password,
+            });
+          } catch {}
           return null;
         }
 
         try {
+          console.log("AUTH: Credentials sign-in attempt", {
+            email: credentials.email,
+            env: {
+              nodeEnv: process.env.NODE_ENV,
+              nextAuthUrl: process.env.NEXTAUTH_URL,
+              useSecureCookies: process.env.NODE_ENV === "production",
+            },
+          });
           // Veritabanı bağlantısını kontrol et
           const user = await prisma.user.findUnique({
             where: {
@@ -55,6 +69,7 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!user) {
+            console.warn("AUTH: User not found", { emailTried: credentials.email });
             return null;
           }
 
@@ -64,9 +79,14 @@ export const authOptions: NextAuthOptions = {
           );
 
           if (!isPasswordValid) {
+            console.warn("AUTH: Invalid password", { emailTried: credentials.email });
             return null;
           }
 
+          console.log("AUTH: Credentials validated, building session", {
+            role: user.role,
+            email: user.email,
+          });
           return {
             id: user.id,
             email: user.email,
