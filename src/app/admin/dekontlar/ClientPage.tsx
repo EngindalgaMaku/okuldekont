@@ -53,6 +53,7 @@ interface Dekont {
   isletme_ad: string;
   koordinator_ogretmen: string;
   ogrenci_ad: string;
+  ogrenci_id?: string;
   ogrenci_sinif: string;
   ogrenci_no: string;
   ogrenci_alan?: string;
@@ -337,6 +338,21 @@ export default function ClientDekontlarPage() {
   const [editingAmount, setEditingAmount] = useState<string>("");
   const [updatingAmountId, setUpdatingAmountId] = useState<string | null>(null);
 
+  // Expected students monthly view
+  interface ExpectedStudentItem {
+    id: string;
+    teacherName: string;
+    companyName: string;
+    studentName: string;
+    className: string;
+    number: string;
+    fieldName: string;
+    hasDekont: boolean;
+  }
+  const [showExpectedList, setShowExpectedList] = useState(true);
+  const [expectedStudents, setExpectedStudents] = useState<ExpectedStudentItem[]>([]);
+  const [onlyMissingExpected, setOnlyMissingExpected] = useState(false);
+
   // Fetch modal statistics - same calculation as in modal
   const fetchModalStatistics = useCallback(async () => {
     try {
@@ -375,6 +391,44 @@ export default function ClientDekontlarPage() {
     }
   }, [selectedMonth, selectedYear]);
 
+  // Fetch expected students for selected month/year
+  const fetchExpectedStudents = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `/api/admin/reports/dekont-status?month=${selectedMonth}&year=${selectedYear}`
+      );
+      if (!response.ok) {
+        setExpectedStudents([]);
+        return;
+      }
+      const data = await response.json();
+      const teachers = (data.teachers || []) as any[];
+      const flattened: ExpectedStudentItem[] = [];
+      teachers.forEach((t) => {
+        const teacherName = t.ogretmen_ad as string;
+        (t.isletmeler || []).forEach((c: any) => {
+          const companyName = c.isletme_ad as string;
+          (c.ogrenciler || []).forEach((s: any) => {
+            flattened.push({
+              id: s.id,
+              teacherName,
+              companyName,
+              studentName: s.ad_soyad,
+              className: s.sinif || "",
+              number: s.no || "",
+              fieldName: s.alan || "",
+              hasDekont: !!s.has_dekont,
+            });
+          });
+        });
+      });
+      setExpectedStudents(flattened);
+    } catch (e) {
+      console.error("Beklenen öğrenci listesi alınırken hata:", e);
+      setExpectedStudents([]);
+    }
+  }, [selectedMonth, selectedYear]);
+
   // Memoized fetch function - prevents re-creation on every render
   const fetchDekontlar = useCallback(async () => {
     try {
@@ -391,6 +445,58 @@ export default function ClientDekontlarPage() {
       setLoading(false);
     }
   }, []);
+
+  // Computed filtered + sorted expected list
+  const filteredExpectedStudents = useMemo(() => {
+    let list = [...expectedStudents];
+    if (selectedAlan !== "all") {
+      list = list.filter((i) => i.fieldName === selectedAlan);
+    }
+    if (selectedSinif !== "all") {
+      list = list.filter((i) => i.className === selectedSinif);
+    }
+    if (onlyMissingExpected) {
+      list = list.filter((i) => !i.hasDekont);
+    }
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      list = list.filter(
+        (i) =>
+          i.studentName.toLowerCase().includes(term) ||
+          i.companyName.toLowerCase().includes(term) ||
+          i.teacherName.toLowerCase().includes(term)
+      );
+    }
+    list.sort((a, b) => {
+      const fa = (a.fieldName || "").localeCompare(b.fieldName || "", "tr");
+      if (fa !== 0) return fa;
+      const sa = (a.className || "").localeCompare(b.className || "", "tr");
+      if (sa !== 0) return sa;
+      const ta = (a.teacherName || "").localeCompare(b.teacherName || "", "tr");
+      if (ta !== 0) return ta;
+      return (a.studentName || "").localeCompare(b.studentName || "", "tr");
+    });
+    return list;
+  }, [expectedStudents, selectedAlan, selectedSinif, onlyMissingExpected, searchTerm]);
+
+  // Helper: find a dekont for expected card (same student, same company, current selected month/year)
+  const findMatchingDekont = useCallback(
+    (studentId: string, companyName: string) => {
+      const monthOk =
+        selectedMonth === "all" ? () => true : (d: Dekont) => d.ay === parseInt(selectedMonth);
+      const yearOk =
+        selectedYear === "all" ? () => true : (d: Dekont) => d.yil === parseInt(selectedYear);
+      const match = dekontlar.find(
+        (d) =>
+          d.ogrenci_id === studentId &&
+          d.isletme_ad === companyName &&
+          monthOk(d) &&
+          yearOk(d)
+      );
+      return match || null;
+    },
+    [dekontlar, selectedMonth, selectedYear]
+  );
 
   // Memoized filtered data calculation - expensive operation
   const filteredDekontlar = useMemo(() => {
@@ -604,7 +710,8 @@ export default function ClientDekontlarPage() {
   useEffect(() => {
     fetchDekontlar();
     fetchModalStatistics();
-  }, [fetchDekontlar, fetchModalStatistics]);
+    fetchExpectedStudents();
+  }, [fetchDekontlar, fetchModalStatistics, fetchExpectedStudents]);
 
   // Reset page and selections when filters change (but not when data changes)
   useEffect(() => {
@@ -1338,6 +1445,136 @@ export default function ClientDekontlarPage() {
             </div>
           </div>
         </div>
+
+      {/* Beklenen Liste - Aylık Öğrenci Bazlı Görünüm */}
+      <div className="bg-white rounded-lg shadow-sm border">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Aylık Beklenen Liste</h2>
+            <p className="text-sm text-gray-500">
+              Seçili ay ve yıla göre tüm öğrenciler. Dekontu olmayanlar kırmızı zeminde gösterilir.
+            </p>
+          </div>
+          <div className="flex items-center gap-6">
+            <label className="inline-flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={onlyMissingExpected}
+                onChange={(e) => setOnlyMissingExpected(e.target.checked)}
+                className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+              />
+              <span className="text-sm text-gray-700">Sadece eksik olanlar</span>
+            </label>
+            <label className="inline-flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={showExpectedList}
+                onChange={(e) => setShowExpectedList(e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <span className="text-sm text-gray-700">Beklenen listeyi göster</span>
+            </label>
+          </div>
+        </div>
+
+        {showExpectedList && (
+          <div className="p-4">
+            {filteredExpectedStudents.length === 0 ? (
+              <div className="text-center py-8">
+                <Calendar className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">
+                  Liste bulunamadı
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Seçili dönem için beklenen öğrenci listesi boş.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredExpectedStudents.map((item) => {
+                  const matched = findMatchingDekont(item.id, item.companyName);
+                  return (
+                  <div
+                    key={`${item.id}-${item.companyName}-${item.teacherName}`}
+                    className={`rounded-lg border p-3 ${
+                      item.hasDekont
+                        ? "bg-green-50 border-green-200"
+                        : "bg-red-50 border-red-200"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-gray-900 truncate">
+                          {item.studentName}
+                        </div>
+                        <div className="text-xs text-gray-700 mt-0.5">
+                          {item.className && item.number
+                            ? `${item.className}-${item.number}`
+                            : item.className || item.number || "-"}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-0.5">
+                          {item.fieldName}
+                        </div>
+                        <div className="text-xs text-indigo-700 mt-1">
+                          👤 {item.teacherName}
+                        </div>
+                        <div className="text-xs text-gray-800 mt-0.5">
+                          🏢 {item.companyName}
+                        </div>
+                        {/* Amounts section */}
+                        <div className="mt-2 space-y-1">
+                          <div className="text-xs">
+                            <span className="text-gray-600">Ödeme (Excel): </span>
+                            <span className="font-medium text-emerald-700">
+                              {matched?.monthlyPayment?.amount
+                                ? formatCurrency(matched.monthlyPayment.amount)
+                                : "-"}
+                            </span>
+                          </div>
+                          <div className="text-xs">
+                            <span className="text-gray-600">Dekont Tutarı: </span>
+                            <span className="font-medium text-gray-900">
+                              {matched?.miktar ? formatCurrency(matched.miktar) : "-"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0 ml-3">
+                        {item.hasDekont ? (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                              Dekont var
+                            </span>
+                            {matched?.dosya_url ? (
+                              <button
+                                onClick={() => {
+                                  const urlParts = matched.dosya_url!.split("/");
+                                  const actualFilename = urlParts[urlParts.length - 1];
+                                  handleFileAction(matched.dosya_url!, actualFilename);
+                                }}
+                                className="inline-flex items-center px-2 py-1 rounded text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200"
+                                title="Dekontu aç"
+                              >
+                                <Eye className="h-3.5 w-3.5 mr-1" />
+                                Aç
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+                            Dekont yok
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
         {/* Desktop Table View (hidden on mobile) */}
         <div className="hidden md:block bg-white rounded-lg shadow-sm border">

@@ -188,6 +188,7 @@ export async function GET(request: Request) {
         ogrenci_ad: dekont.staj?.student
           ? `${dekont.staj.student.name} ${dekont.staj.student.surname}`
           : "Bilinmiyor",
+        ogrenci_id: dekont.staj?.student?.id || dekont.staj?.studentId,
         ogrenci_sinif: dekont.staj?.student?.className || "",
         ogrenci_no: dekont.staj?.student?.number || "",
         ogrenci_alan: dekont.staj?.student?.alan?.name || "",
