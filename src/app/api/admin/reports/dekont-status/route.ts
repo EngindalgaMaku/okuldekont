@@ -45,7 +45,6 @@ export async function GET(request: NextRequest) {
             id: true,
             name: true,
             contact: true,
-            lateSubmissionAllowed: true,
           },
         },
         teacher: {
@@ -147,7 +146,7 @@ export async function GET(request: NextRequest) {
         teacher.isletmeler.set(companyId, {
           isletme_id: companyId,
           isletme_ad: companyName,
-          is_late: (staj.company as any).lateSubmissionAllowed === true,
+          is_late: false,
           has_dekont: companyDekontlar.length > 0,
           dekont_sayisi: companyDekontlar.length,
           toplam_ogrenci: companyStudents,
