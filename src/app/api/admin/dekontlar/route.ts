@@ -234,6 +234,11 @@ export async function GET(request: Request) {
     });
 
     // Dekont beklenen öğrenci sayısını hesapla (sadece özel sektör işletmelerinde staj yapanlar)
+    // Feshedilmiş stajları hariç tut
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // 0-based to 1-based
+
     const allInternships = await prisma.staj.findMany({
       where: {
         archived: false,
@@ -241,6 +246,19 @@ export async function GET(request: Request) {
         company: {
           companyType: "PRIVATE", // Sadece özel sektör şirketleri
         },
+        AND: [
+          { status: { not: "TERMINATED" } },
+          {
+            OR: [
+              { terminationDate: null },
+              {
+                terminationDate: {
+                  gte: new Date(currentYear, currentMonth - 1, 1),
+                },
+              },
+            ],
+          },
+        ],
       },
       select: {
         studentId: true,

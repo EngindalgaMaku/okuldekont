@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     // Aktif eğitim yılı ID'sini al
     const activeEducationYearId = await getActiveEducationYearId();
 
-    // Tüm aktif stajları (sadece özel sektör işletmelerde) çek
+    // Tüm aktif stajları (sadece özel sektör işletmelerde) çek - feshedilmiş stajları hariç tut
     const stajlar = await prisma.staj.findMany({
       where: {
         archived: false,
@@ -29,6 +29,15 @@ export async function GET(request: NextRequest) {
         company: {
           companyType: "PRIVATE", // Sadece özel sektör şirketleri
         },
+        AND: [
+          { status: { not: "TERMINATED" } },
+          {
+            OR: [
+              { terminationDate: null },
+              { terminationDate: { gte: new Date(year, month - 1, 1) } },
+            ],
+          },
+        ],
       },
       include: {
         student: {
