@@ -203,8 +203,10 @@ export async function GET(request: NextRequest) {
             sinif: s.student.className,
             no: s.student.number,
             alan: s.student.alan?.name || "Bilinmiyor",
+            // FIX: Use internship-level logic instead of student-level
+            // Check dekont for THIS specific internship, not just any internship for this student
             has_dekont: companyDekontlar.some(
-              (d) => d.staj?.student?.id === s.student.id
+              (d) => d.stajId === s.id // Use internship ID instead of student ID
             ),
           }));
 
