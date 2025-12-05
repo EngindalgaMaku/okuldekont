@@ -279,9 +279,7 @@ export async function GET(request: Request) {
 
     // Dekont beklenen öğrenci sayısını hesapla (sadece özel sektör işletmelerinde staj yapanlar)
     // Feshedilmiş stajları hariç tut
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth() + 1; // 0-based to 1-based
+    // Reuse currentDate, currentYear, and currentMonth variables from line 50-52
 
     const allInternships = await prisma.staj.findMany({
       where: {
@@ -575,19 +573,23 @@ export async function POST(request: Request) {
     });
 
     // Tarih validasyonu 1: Ayın son günü veya sonrasında o ayın dekontunu yükleyebilir
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth() + 1;
-    const currentDay = currentDate.getDate();
+    const postCurrentDate = new Date();
+    const postCurrentYear = postCurrentDate.getFullYear();
+    const postCurrentMonth = postCurrentDate.getMonth() + 1;
+    const postCurrentDay = postCurrentDate.getDate();
 
     // Ayın son gününü hesapla
-    const lastDayOfMonth = new Date(currentYear, currentMonth, 0).getDate();
+    const lastDayOfMonth = new Date(
+      postCurrentYear,
+      postCurrentMonth,
+      0
+    ).getDate();
 
     // Mevcut ay için: Sadece ayın son günü veya daha sonrasında yüklenebilir
     if (
-      yilNum === currentYear &&
-      ayNum === currentMonth &&
-      currentDay < lastDayOfMonth
+      yilNum === postCurrentYear &&
+      ayNum === postCurrentMonth &&
+      postCurrentDay < lastDayOfMonth
     ) {
       return NextResponse.json(
         {
@@ -599,8 +601,8 @@ export async function POST(request: Request) {
 
     // Gelecek aylar için dekont yüklenemez
     if (
-      yilNum > currentYear ||
-      (yilNum === currentYear && ayNum > currentMonth)
+      yilNum > postCurrentYear ||
+      (yilNum === postCurrentYear && ayNum > postCurrentMonth)
     ) {
       return NextResponse.json(
         {
