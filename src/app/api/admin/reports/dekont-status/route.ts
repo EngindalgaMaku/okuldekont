@@ -87,12 +87,47 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Belirtilen ay/yıl için dekontları çek
+    // Belirtilen ay/yıl için dekontları çek - TERMINATED filtering eklendi (dekontlar/route.ts ile tutarlılık için)
     const dekontlar = await prisma.dekont.findMany({
       where: {
         month: month,
         year: year,
         archived: false,
+        // Add TERMINATED filtering logic - same as dekontlar/route.ts for consistency
+        staj: {
+          OR: [
+            // Non-terminated students
+            { status: { not: "TERMINATED" } },
+            // Terminated students who worked during the month
+            {
+              AND: [
+                { status: "TERMINATED" },
+                {
+                  OR: [
+                    // Has terminationDate and it's >= month start
+                    {
+                      AND: [
+                        { terminationDate: { not: null } },
+                        {
+                          terminationDate: {
+                            gte: new Date(year, month - 1, 1),
+                          },
+                        },
+                      ],
+                    },
+                    // No terminationDate but endDate >= month start (fallback for data integrity)
+                    {
+                      AND: [
+                        { terminationDate: null },
+                        { endDate: { gte: new Date(year, month - 1, 1) } },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
       },
       include: {
         staj: {
