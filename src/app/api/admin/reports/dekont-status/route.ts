@@ -29,12 +29,33 @@ export async function GET(request: NextRequest) {
         company: {
           companyType: "PRIVATE", // Sadece özel sektör şirketleri
         },
-        AND: [
+        OR: [
+          // Non-terminated students
           { status: { not: "TERMINATED" } },
+          // Terminated students who worked during the month
           {
-            OR: [
-              { terminationDate: null },
-              { terminationDate: { gte: new Date(year, month - 1, 1) } },
+            AND: [
+              { status: "TERMINATED" },
+              {
+                OR: [
+                  // Has terminationDate and it's >= month start
+                  {
+                    AND: [
+                      { terminationDate: { not: null } },
+                      {
+                        terminationDate: { gte: new Date(year, month - 1, 1) },
+                      },
+                    ],
+                  },
+                  // No terminationDate but endDate >= month start (fallback for data integrity)
+                  {
+                    AND: [
+                      { terminationDate: null },
+                      { endDate: { gte: new Date(year, month - 1, 1) } },
+                    ],
+                  },
+                ],
+              },
             ],
           },
         ],
