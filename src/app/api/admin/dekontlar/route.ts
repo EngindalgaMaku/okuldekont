@@ -53,45 +53,11 @@ export async function GET(request: Request) {
 
     const whereClause: any = {
       archived: false,
-      // Add TERMINATED filtering logic - same as dashboard-stats and dekont-status
+      // FIXED: Exclude ALL terminated students (simplified logic)
       staj: {
         ...(educationYearId ? { educationYearId } : {}),
-        OR: [
-          // Non-terminated students
-          { status: { not: "TERMINATED" } },
-          // Terminated students who worked during the month
-          {
-            AND: [
-              { status: "TERMINATED" },
-              {
-                OR: [
-                  // Has terminationDate and it's >= month start
-                  {
-                    AND: [
-                      { terminationDate: { not: null } },
-                      {
-                        terminationDate: {
-                          gte: new Date(currentYear, currentMonth - 1, 1),
-                        },
-                      },
-                    ],
-                  },
-                  // No terminationDate but endDate >= month start (fallback for data integrity)
-                  {
-                    AND: [
-                      { terminationDate: null },
-                      {
-                        endDate: {
-                          gte: new Date(currentYear, currentMonth - 1, 1),
-                        },
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
+        // Simple exclusion: No terminated students in dekont lists
+        status: { not: "TERMINATED" },
       },
     };
 
@@ -288,19 +254,8 @@ export async function GET(request: Request) {
         company: {
           companyType: "PRIVATE", // Sadece özel sektör şirketleri
         },
-        AND: [
-          { status: { not: "TERMINATED" } },
-          {
-            OR: [
-              { terminationDate: null },
-              {
-                terminationDate: {
-                  gte: new Date(currentYear, currentMonth - 1, 1),
-                },
-              },
-            ],
-          },
-        ],
+        // FIXED: Simple exclusion of ALL terminated students
+        status: { not: "TERMINATED" },
       },
       select: {
         studentId: true,

@@ -50,47 +50,13 @@ export async function GET() {
     const previousYear = currentMonth === 1 ? currentYear - 1 : currentYear;
 
     // Get dekont statistics for previous month (current month's dekont reports)
-    // Feshedilmiş stajları hariç tut
+    // FIXED: Exclude ALL terminated students (simplified logic)
     const dekontBaseFilter = {
       month: previousMonth,
       year: previousYear,
       staj: {
-        OR: [
-          // Non-terminated students
-          { status: { not: "TERMINATED" } },
-          // Terminated students who worked during the month
-          {
-            AND: [
-              { status: "TERMINATED" },
-              {
-                OR: [
-                  // Has terminationDate and it's >= month start
-                  {
-                    AND: [
-                      { terminationDate: { not: null } },
-                      {
-                        terminationDate: {
-                          gte: new Date(previousYear, previousMonth - 1, 1),
-                        },
-                      },
-                    ],
-                  },
-                  // No terminationDate but endDate >= month start (fallback for data integrity)
-                  {
-                    AND: [
-                      { terminationDate: null },
-                      {
-                        endDate: {
-                          gte: new Date(previousYear, previousMonth - 1, 1),
-                        },
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
-          },
-        ],
+        // Simple exclusion: No terminated students in expected lists
+        status: { not: "TERMINATED" },
       },
     };
 
