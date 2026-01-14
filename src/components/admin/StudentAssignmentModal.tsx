@@ -228,7 +228,7 @@ export default function StudentAssignmentModal({
       return;
     }
 
-    // Check if company has a master teacher
+    // Check if company exists
     const selectedCompany = companies.find((c) => c.id === formData.companyId);
     
     if (!selectedCompany) {
@@ -240,21 +240,7 @@ export default function StudentAssignmentModal({
       return;
     }
     
-    // Check for master teacher using only master teacher specific fields
-    const hasMasterTeacher = selectedCompany.masterTeacherName?.trim() || selectedCompany.masterTeacherPhone?.trim();
-    
-
-    if (!hasMasterTeacher) {
-      console.error('No master teacher found for company:', {
-        companyId: formData.companyId,
-        companyName: selectedCompany.name,
-        allCompanyData: selectedCompany,
-        availableFields: Object.keys(selectedCompany)
-      });
-      setErrorMessage("Bu işletmeye staj ataması yapabilmek için öncelikle bir usta öğreticisi tanımlanmalıdır. Lütfen işletme yönetimi ile iletişime geçip usta öğreticisi bilgilerini alın ve işletme profilinde güncelleyin.");
-      setShowErrorModal(true);
-      return;
-    }
+    // Usta öğretici kontrolü kaldırıldı - artık usta öğretici olmadan da atama yapılabilir
 
     // First, let's check for master teacher (this is a critical requirement)
     try {
@@ -279,7 +265,8 @@ export default function StudentAssignmentModal({
 
         // Check for errors and display them
         if (ruleResult.hasErrors) {
-          const errorMessages = (ruleResult.rules as AssignmentRule[])
+          const rulesArray = Array.isArray(ruleResult.rules) ? ruleResult.rules : [];
+          const errorMessages = (rulesArray as AssignmentRule[])
             .filter((rule: AssignmentRule) => rule.severity === "ERROR")
             .map((rule: AssignmentRule) => `${rule.message}${rule.suggestedAction ? '\n' + rule.suggestedAction : ''}`)
             .join("\n\n");
@@ -613,7 +600,8 @@ export default function StudentAssignmentModal({
 
                     if (rulesCheck?.hasWarnings) {
                       // Koordinatör kuralı uyarısını inline göster
-                      const warningRules = rulesCheck.rules.filter(
+                      const rulesArray = Array.isArray(rulesCheck.rules) ? rulesCheck.rules : [];
+                      const warningRules = rulesArray.filter(
                         (r) => r.severity === "WARNING"
                       );
                       if (warningRules.length > 0) {

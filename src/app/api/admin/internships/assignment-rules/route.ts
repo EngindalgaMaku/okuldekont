@@ -47,13 +47,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'İşletme bulunamadı' }, { status: 404 })
     }
 
-    // 0. KURAL: Usta öğreticisi kontrolü (En önemli kural - ilk sırada)
+    // Usta öğreticisi kontrolü kaldırıldı - artık usta öğretici olmadan da atama yapılabilir
+    // Sadece bilgilendirme amaçlı uyarı göster (ERROR yerine INFO)
     if (!company.masterTeacherName || company.masterTeacherName.trim() === '') {
       rules.push({
         type: 'MASTER_TEACHER_REQUIRED',
-        severity: 'ERROR',
-        message: `🚫 KRİTİK UYARI: ${company.name} işletmesinde usta öğreticisi tanımlanmamış!`,
-        suggestedAction: 'Bu işletmeye staj ataması yapabilmek için öncelikle bir usta öğreticisi tanımlanmalıdır. İşletme yönetimi ile iletişime geçip usta öğreticisi bilgilerini alın ve işletme profilinde güncelleyin.'
+        severity: 'INFO',
+        message: `ℹ️ Bilgi: ${company.name} işletmesinde usta öğreticisi henüz tanımlanmamış.`,
+        suggestedAction: 'Staj ataması yapılabilir, ancak usta öğreticisi bilgilerinin daha sonra eklenmesi önerilir.'
       })
     }
 

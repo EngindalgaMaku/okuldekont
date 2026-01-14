@@ -99,7 +99,8 @@ export function useInternshipAssignmentRules(): UseInternshipAssignmentRulesRetu
     }
 
     if (result.hasWarnings) {
-      const warningRules = result.rules.filter(r => r.severity === 'WARNING')
+      const rulesArray = Array.isArray(result.rules) ? result.rules : []
+      const warningRules = rulesArray.filter(r => r.severity === 'WARNING')
       
       // Warning durumunda kullanıcı karar verebilir
       const proceed = window.confirm(
