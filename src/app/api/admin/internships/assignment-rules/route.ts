@@ -122,13 +122,13 @@ export async function POST(request: NextRequest) {
             })
           }
 
-          // 2. KURAL: Alan uyumluluğu kontrolü
+          // 2. KURAL: Alan uyumluluğu kontrolü - WARNING olarak değiştirildi (atama engellenmiyor)
           if (existingTeacher.alanId !== student.alanId) {
             rules.push({
               type: 'FIELD_MATCH',
-              severity: 'ERROR',
-              message: `🚫 KRİTİK HATA: Öğrenci alanı (${student.alan?.name}) ile mevcut koordinatör alanı (${existingTeacher.alan?.name}) uyuşmuyor!`,
-              suggestedAction: `Bu öğrenciyi bu işletmeye atayamazsınız çünkü işletmedeki mevcut koordinatör farklı alanda. Önce işletmedeki diğer öğrencilerin durumunu gözden geçirin.`
+              severity: 'WARNING',
+              message: `⚠️ UYARI: Öğrenci alanı (${student.alan?.name}) ile mevcut koordinatör alanı (${existingTeacher.alan?.name}) farklı.`,
+              suggestedAction: `Alan dışı atama yapılabilir ancak dikkatli olunması önerilir.`
             })
           }
         }
@@ -160,11 +160,12 @@ export async function POST(request: NextRequest) {
               existingTeacherName: `${teacher.name} ${teacher.surname}`
             })
           } else {
+            // Alan uyumsuzluğu - WARNING olarak değiştirildi (atama engellenmiyor)
             rules.push({
               type: 'FIELD_MATCH',
-              severity: 'ERROR',
-              message: `🚫 ALAN UYUMSUZLUĞU: Öğrenci alanı (${student.alan?.name}) ile koordinatör alanı (${teacher.alan?.name}) uyuşmuyor!`,
-              suggestedAction: `${student.alan?.name} alanında görevli bir koordinatör seçin.`
+              severity: 'WARNING',
+              message: `⚠️ UYARI: Öğrenci alanı (${student.alan?.name}) ile koordinatör alanı (${teacher.alan?.name}) farklı.`,
+              suggestedAction: `Alan dışı koordinatör ataması yapılabilir ancak dikkatli olunması önerilir.`
             })
           }
         }

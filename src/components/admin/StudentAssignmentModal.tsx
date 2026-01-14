@@ -369,8 +369,10 @@ export default function StudentAssignmentModal({
         let normalizedTeachers: Teacher[] = [];
         
         if (includeAllTeachers) {
-          // /api/admin/teachers endpoint'i { data: [...] } formatında dönüyor
-          if (Array.isArray(teachersData.data)) {
+          // /api/admin/teachers endpoint'i { ogretmenler: [...], success: true } formatında dönüyor
+          if (Array.isArray(teachersData.ogretmenler)) {
+            normalizedTeachers = teachersData.ogretmenler;
+          } else if (Array.isArray(teachersData.data)) {
             normalizedTeachers = teachersData.data;
           } else if (Array.isArray(teachersData)) {
             normalizedTeachers = teachersData;
@@ -381,12 +383,16 @@ export default function StudentAssignmentModal({
             normalizedTeachers = teachersData;
           } else if (Array.isArray(teachersData.data)) {
             normalizedTeachers = teachersData.data;
+          } else if (Array.isArray(teachersData.ogretmenler)) {
+            normalizedTeachers = teachersData.ogretmenler;
           }
         }
         
+        console.log('Fetched teachers:', normalizedTeachers.length, 'includeAll:', includeAllTeachers);
         setTeachers(normalizedTeachers);
       } else {
         // API hatası durumunda boş dizi set et
+        console.error('Teachers API error:', teachersRes.status);
         setTeachers([]);
       }
     } catch (error) {
