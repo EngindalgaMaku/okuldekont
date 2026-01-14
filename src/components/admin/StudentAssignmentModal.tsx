@@ -365,14 +365,34 @@ export default function StudentAssignmentModal({
       const teachersRes = await fetch(url);
       if (teachersRes.ok) {
         const teachersData = await teachersRes.json();
-        // API response farklı olabilir, veriyi normalize et
-        const normalizedTeachers = includeAllTeachers
-          ? teachersData.data || teachersData || []
-          : teachersData || [];
+        // API response farklı olabilir, veriyi normalize et ve her zaman dizi olduğundan emin ol
+        let normalizedTeachers: Teacher[] = [];
+        
+        if (includeAllTeachers) {
+          // /api/admin/teachers endpoint'i { data: [...] } formatında dönüyor
+          if (Array.isArray(teachersData.data)) {
+            normalizedTeachers = teachersData.data;
+          } else if (Array.isArray(teachersData)) {
+            normalizedTeachers = teachersData;
+          }
+        } else {
+          // /api/admin/fields/[id]/teachers endpoint'i direkt dizi dönüyor
+          if (Array.isArray(teachersData)) {
+            normalizedTeachers = teachersData;
+          } else if (Array.isArray(teachersData.data)) {
+            normalizedTeachers = teachersData.data;
+          }
+        }
+        
         setTeachers(normalizedTeachers);
+      } else {
+        // API hatası durumunda boş dizi set et
+        setTeachers([]);
       }
     } catch (error) {
       console.error("Error fetching teachers:", error);
+      // Hata durumunda boş dizi set et
+      setTeachers([]);
     }
   };
 
@@ -618,7 +638,7 @@ export default function StudentAssignmentModal({
                 disabled={!formData.companyId}
               >
                 <option value="">Koordinatör Seçin (Opsiyonel)</option>
-                {teachers.map((teacher) => (
+                {Array.isArray(teachers) && teachers.map((teacher) => (
                   <option key={teacher.id} value={teacher.id}>
                     {teacher.name} {teacher.surname}
                     {teacher.alan?.name && ` (${teacher.alan.name})`}
