@@ -27,6 +27,7 @@ import {
   Archive,
   FileText,
   Edit3,
+  Edit2,
   Save,
   Users,
   FileSpreadsheet,
@@ -333,10 +334,15 @@ export default function ClientDekontlarPage() {
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
 
-  // Quick amount update states
+  // Quick amount update states (for dekont)
   const [editingAmountId, setEditingAmountId] = useState<string | null>(null);
   const [editingAmount, setEditingAmount] = useState<string>("");
   const [updatingAmountId, setUpdatingAmountId] = useState<string | null>(null);
+
+  // Quick payment amount update states
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [editingPaymentAmount, setEditingPaymentAmount] = useState<string>("");
+  const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
 
   // Expected students monthly view
   interface ExpectedStudentItem {
@@ -913,6 +919,79 @@ export default function ClientDekontlarPage() {
       }
     },
     [handleSaveAmountEdit, handleCancelAmountEdit]
+  );
+
+  // Payment amount update handlers
+  const handleStartPaymentEdit = useCallback((paymentId: string, currentAmount: number) => {
+    setEditingPaymentId(paymentId);
+    setEditingPaymentAmount(currentAmount.toString());
+  }, []);
+
+  const handleCancelPaymentEdit = useCallback(() => {
+    setEditingPaymentId(null);
+    setEditingPaymentAmount("");
+  }, []);
+
+  const handleSavePaymentEdit = useCallback(
+    async (paymentId: string) => {
+      if (updatingPaymentId) return; // Prevent double submissions
+
+      const numericAmount = parseFloat(editingPaymentAmount);
+      if (editingPaymentAmount === "" || isNaN(numericAmount) || numericAmount < 0) {
+        toast.error("Geçerli bir tutar giriniz");
+        return;
+      }
+
+      setUpdatingPaymentId(paymentId);
+      try {
+        const response = await fetch(
+          `/api/admin/payments/${paymentId}/update-amount`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              amount: numericAmount,
+            }),
+          }
+        );
+
+        if (response.ok) {
+          const result = await response.json();
+          toast.success("Ödeme tutarı başarıyla güncellendi");
+
+          // Refresh data to get updated payment amount
+          await fetchDekontlar();
+          await fetchExpectedStudents();
+
+          setEditingPaymentId(null);
+          setEditingPaymentAmount("");
+        } else {
+          const errorData = await response.json();
+          toast.error(errorData.error || "Ödeme tutarı güncellenirken hata oluştu");
+        }
+      } catch (error) {
+        console.error("Payment amount update error:", error);
+        toast.error("Ödeme tutarı güncellenirken hata oluştu");
+      } finally {
+        setUpdatingPaymentId(null);
+      }
+    },
+    [editingPaymentAmount, updatingPaymentId, fetchDekontlar, fetchExpectedStudents]
+  );
+
+  const handlePaymentKeyDown = useCallback(
+    (e: React.KeyboardEvent, paymentId: string) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleSavePaymentEdit(paymentId);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        handleCancelPaymentEdit();
+      }
+    },
+    [handleSavePaymentEdit, handleCancelPaymentEdit]
   );
 
   // Memoized modal handlers
@@ -1525,7 +1604,7 @@ export default function ClientDekontlarPage() {
                   return (
                   <div
                     key={`${item.id}-${item.companyName}-${item.teacherName}`}
-                    className={`rounded-lg border p-3 ${
+                    className={`group rounded-lg border p-3 ${
                       item.hasDekont
                         ? "bg-green-50 border-green-200"
                         : "bg-red-50 border-red-200"
@@ -1559,13 +1638,60 @@ export default function ClientDekontlarPage() {
                         </div>
                         {/* Amounts section */}
                         <div className="mt-2 space-y-1">
-                          <div className="text-xs">
+                          <div className="text-xs flex items-center gap-2">
                             <span className="text-gray-600">Ödeme (Excel): </span>
-                            <span className="font-medium text-emerald-700">
-                              {matched?.monthlyPayment?.amount
-                                ? formatCurrency(matched.monthlyPayment.amount)
-                                : "-"}
-                            </span>
+                            {matched?.monthlyPayment?.id && editingPaymentId === matched.monthlyPayment.id ? (
+                              // Inline editing mode for payment
+                              <>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editingPaymentAmount}
+                                  onChange={(e) => setEditingPaymentAmount(e.target.value)}
+                                  onKeyDown={(e) => handlePaymentKeyDown(e, matched.monthlyPayment!.id)}
+                                  className="w-24 px-2 py-0.5 text-xs border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  autoFocus
+                                  disabled={updatingPaymentId === matched.monthlyPayment.id}
+                                />
+                                <button
+                                  onClick={() => handleSavePaymentEdit(matched.monthlyPayment!.id)}
+                                  disabled={updatingPaymentId === matched.monthlyPayment.id}
+                                  className="text-green-600 hover:text-green-800 disabled:opacity-50"
+                                  title="Kaydet"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={handleCancelPaymentEdit}
+                                  disabled={updatingPaymentId === matched.monthlyPayment.id}
+                                  className="text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                                  title="İptal"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            ) : (
+                              // Display mode
+                              <>
+                                <span className="font-medium text-emerald-700">
+                                  {matched?.monthlyPayment?.amount
+                                    ? formatCurrency(matched.monthlyPayment.amount)
+                                    : "-"}
+                                </span>
+                                {matched?.monthlyPayment?.id && (
+                                  <button
+                                    onClick={() => handleStartPaymentEdit(
+                                      matched.monthlyPayment!.id,
+                                      Number(matched.monthlyPayment!.amount)
+                                    )}
+                                    className="text-blue-600 hover:text-blue-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title="Düzenle"
+                                  >
+                                    <Edit2 className="h-3 w-3" />
+                                  </button>
+                                )}
+                              </>
+                            )}
                           </div>
                           <div className="text-xs">
                             <span className="text-gray-600">Dekont Tutarı: </span>
