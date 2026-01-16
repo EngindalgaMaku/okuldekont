@@ -1896,11 +1896,68 @@ export default function ClientDekontlarPage() {
                       </td>
                       {/* Ödeme Tutarı Column */}
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-emerald-600 font-medium">
-                          {dekont.monthlyPayment
-                            ? formatCurrency(dekont.monthlyPayment.amount)
-                            : "-"}
-                        </span>
+                        <div className="flex items-center space-x-2 group">
+                          {editingPaymentId === dekont.monthlyPayment?.id ? (
+                            // Inline editing mode for payment
+                            <>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={editingPaymentAmount}
+                                onChange={(e) =>
+                                  setEditingPaymentAmount(e.target.value)
+                                }
+                                onKeyDown={(e) =>
+                                  handlePaymentKeyDown(e, dekont.monthlyPayment!.id)
+                                }
+                                className="w-28 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                autoFocus
+                                disabled={updatingPaymentId === dekont.monthlyPayment?.id}
+                              />
+                              <button
+                                onClick={() => handleSavePaymentEdit(dekont.monthlyPayment!.id)}
+                                disabled={updatingPaymentId === dekont.monthlyPayment?.id}
+                                className="text-green-600 hover:text-green-800 disabled:opacity-50"
+                                title="Kaydet"
+                              >
+                                {updatingPaymentId === dekont.monthlyPayment?.id ? (
+                                  <Loader className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Check className="h-4 w-4" />
+                                )}
+                              </button>
+                              <button
+                                onClick={handleCancelPaymentEdit}
+                                disabled={updatingPaymentId === dekont.monthlyPayment?.id}
+                                className="text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                                title="İptal"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </>
+                          ) : (
+                            // Display mode
+                            <>
+                              <span className="text-sm text-emerald-600 font-medium">
+                                {dekont.monthlyPayment
+                                  ? formatCurrency(dekont.monthlyPayment.amount)
+                                  : "-"}
+                              </span>
+                              {dekont.monthlyPayment?.id && (
+                                <button
+                                  onClick={() => handleStartPaymentEdit(
+                                    dekont.monthlyPayment!.id,
+                                    Number(dekont.monthlyPayment!.amount)
+                                  )}
+                                  className="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity"
+                                  title="Düzenle"
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </td>
 
                       {/* Dekont Tutarı Column */}
@@ -2410,12 +2467,66 @@ export default function ClientDekontlarPage() {
                             <div className="space-y-1">
                               {dekont.monthlyPayment && (
                                 <div className="text-xs space-y-1">
-                                  <div className="text-emerald-600 font-medium">
-                                    Ödeme:{" "}
-                                    {formatCurrency(
-                                      dekont.monthlyPayment.amount
-                                    )}
-                                  </div>
+                                  {editingPaymentId === dekont.monthlyPayment.id ? (
+                                    // Mobile inline editing for payment
+                                    <div className="flex items-center space-x-2">
+                                      <span className="text-gray-600">Ödeme:</span>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={editingPaymentAmount}
+                                        onChange={(e) =>
+                                          setEditingPaymentAmount(e.target.value)
+                                        }
+                                        onKeyDown={(e) =>
+                                          handlePaymentKeyDown(e, dekont.monthlyPayment!.id)
+                                        }
+                                        className="w-24 px-2 py-0.5 text-xs border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        autoFocus
+                                        disabled={updatingPaymentId === dekont.monthlyPayment.id}
+                                      />
+                                      <button
+                                        onClick={() => handleSavePaymentEdit(dekont.monthlyPayment!.id)}
+                                        disabled={updatingPaymentId === dekont.monthlyPayment.id}
+                                        className="flex items-center justify-center w-5 h-5 text-green-600 hover:text-green-800 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+                                        title="Kaydet"
+                                      >
+                                        {updatingPaymentId === dekont.monthlyPayment.id ? (
+                                          <Loader className="h-3 w-3 animate-spin" />
+                                        ) : (
+                                          <Save className="h-3 w-3" />
+                                        )}
+                                      </button>
+                                      <button
+                                        onClick={handleCancelPaymentEdit}
+                                        disabled={updatingPaymentId === dekont.monthlyPayment.id}
+                                        className="flex items-center justify-center w-5 h-5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                                        title="İptal"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    // Display mode for payment
+                                    <div className="flex items-center space-x-2 group">
+                                      <div className="text-emerald-600 font-medium">
+                                        Ödeme:{" "}
+                                        {formatCurrency(
+                                          dekont.monthlyPayment.amount
+                                        )}
+                                      </div>
+                                      <button
+                                        onClick={() => handleStartPaymentEdit(
+                                          dekont.monthlyPayment!.id,
+                                          Number(dekont.monthlyPayment!.amount)
+                                        )}
+                                        className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-all"
+                                        title="Ödeme Tutarını Düzenle"
+                                      >
+                                        <Edit3 className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                               <div className="space-y-1">
