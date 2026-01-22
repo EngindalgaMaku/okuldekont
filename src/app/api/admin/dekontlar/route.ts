@@ -53,11 +53,10 @@ export async function GET(request: Request) {
 
     const whereClause: any = {
       archived: false,
-      // FIXED: Exclude ALL terminated students (simplified logic)
+      // FIXED: Show all dekonts including terminated internships
       staj: {
         ...(educationYearId ? { educationYearId } : {}),
-        // Simple exclusion: No terminated students in dekont lists
-        status: { not: "TERMINATED" },
+        // Removed TERMINATED filter - all dekonts should be visible in admin panel
       },
     };
 
@@ -254,8 +253,7 @@ export async function GET(request: Request) {
         company: {
           companyType: "PRIVATE", // Sadece özel sektör şirketleri
         },
-        // FIXED: Simple exclusion of ALL terminated students
-        status: { not: "TERMINATED" },
+        // Removed TERMINATED filter - all internships should be counted
       },
       select: {
         studentId: true,
