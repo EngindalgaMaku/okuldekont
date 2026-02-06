@@ -176,6 +176,8 @@ export async function GET(request: NextRequest) {
         year: true,
       },
     });
+    
+    console.log(`[DEKONT-STATUS] Found ${monthlyPayments.length} monthly payments for month: ${month}, year: ${year}, educationYearId: ${activeEducationYearId}`);
 
     // Öğretmen bazlı veri yapısı oluştur
     const teacherMap = new Map();
@@ -222,6 +224,11 @@ export async function GET(request: NextRequest) {
             const payment = monthlyPayments.find(
               (p) => p.stajId === s.id || (p.studentId === s.student.id && p.companyId === companyId)
             );
+            
+            // Debug log
+            if (!payment) {
+              console.log(`[DEKONT-STATUS] Payment not found for student: ${s.student.name} ${s.student.surname}, stajId: ${s.id}, studentId: ${s.student.id}, companyId: ${companyId}`);
+            }
             
             return {
               id: s.student.id,
