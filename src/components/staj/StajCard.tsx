@@ -26,6 +26,8 @@ interface StajCardProps {
     startDate: string;
     endDate: string | null;
     terminationDate: string | null;
+    terminationReason?: string | null;
+    terminationNotes?: string | null;
     student?: {
       id: string;
       name: string;
@@ -57,6 +59,7 @@ interface StajCardProps {
     startDate: string,
     endDate: string
   ) => Promise<void>;
+  onTerminationDateEdit?: (staj: any) => void;
 }
 
 const StajCard = memo(function StajCard({
@@ -67,6 +70,7 @@ const StajCard = memo(function StajCard({
   onFesih,
   onKoordinatorDegistir,
   onDateUpdate,
+  onTerminationDateEdit,
 }: StajCardProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -191,7 +195,7 @@ const StajCard = memo(function StajCard({
             </div>
 
             {/* Actions Dropdown */}
-            {staj.status === "ACTIVE" && (
+            {(staj.status === "ACTIVE" || staj.status === "TERMINATED") && (
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -203,40 +207,57 @@ const StajCard = memo(function StajCard({
 
                 {dropdownOpen && (
                   <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50 animate-in slide-in-from-top-2 duration-200">
-                    <button
-                      onClick={() => {
-                        onTamamla(staj.id);
-                        setDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-3 text-left flex items-center space-x-3 hover:bg-gray-50 hover:text-gray-700 transition-colors text-sm font-medium"
-                    >
-                      <CheckCircle className="h-4 w-4 text-gray-600" />
-                      <span>Stajı Tamamla</span>
-                    </button>
+                    {staj.status === "ACTIVE" && (
+                      <>
+                        <button
+                          onClick={() => {
+                            onTamamla(staj.id);
+                            setDropdownOpen(false);
+                          }}
+                          className="w-full px-4 py-3 text-left flex items-center space-x-3 hover:bg-gray-50 hover:text-gray-700 transition-colors text-sm font-medium"
+                        >
+                          <CheckCircle className="h-4 w-4 text-gray-600" />
+                          <span>Stajı Tamamla</span>
+                        </button>
 
-                    <button
-                      onClick={() => {
-                        onKoordinatorDegistir(staj);
-                        setDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-3 text-left flex items-center space-x-3 hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm font-medium"
-                    >
-                      <UserCheck className="h-4 w-4 text-blue-600" />
-                      <span>Koordinatör Değiştir</span>
-                    </button>
+                        <button
+                          onClick={() => {
+                            onKoordinatorDegistir(staj);
+                            setDropdownOpen(false);
+                          }}
+                          className="w-full px-4 py-3 text-left flex items-center space-x-3 hover:bg-blue-50 hover:text-blue-700 transition-colors text-sm font-medium"
+                        >
+                          <UserCheck className="h-4 w-4 text-blue-600" />
+                          <span>Koordinatör Değiştir</span>
+                        </button>
 
-                    <div className="border-t border-gray-100 my-1"></div>
+                        <div className="border-t border-gray-100 my-1"></div>
 
-                    <button
-                      onClick={() => {
-                        onFesih(staj);
-                        setDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-3 text-left flex items-center space-x-3 hover:bg-red-50 hover:text-red-700 transition-colors text-sm font-medium"
-                    >
-                      <X className="h-4 w-4 text-red-600" />
-                      <span>Stajı Fesih Et</span>
-                    </button>
+                        <button
+                          onClick={() => {
+                            onFesih(staj);
+                            setDropdownOpen(false);
+                          }}
+                          className="w-full px-4 py-3 text-left flex items-center space-x-3 hover:bg-red-50 hover:text-red-700 transition-colors text-sm font-medium"
+                        >
+                          <X className="h-4 w-4 text-red-600" />
+                          <span>Stajı Fesih Et</span>
+                        </button>
+                      </>
+                    )}
+
+                    {staj.status === "TERMINATED" && onTerminationDateEdit && (
+                      <button
+                        onClick={() => {
+                          onTerminationDateEdit(staj);
+                          setDropdownOpen(false);
+                        }}
+                        className="w-full px-4 py-3 text-left flex items-center space-x-3 hover:bg-orange-50 hover:text-orange-700 transition-colors text-sm font-medium"
+                      >
+                        <Edit className="h-4 w-4 text-orange-600" />
+                        <span>Fesih Tarihini Düzenle</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -439,6 +460,36 @@ const StajCard = memo(function StajCard({
                   ? new Date(staj.endDate).toLocaleDateString("tr-TR")
                   : "Devam ediyor"}
               </p>
+            )}
+            
+            {/* Fesih Detayları */}
+            {staj.status === "TERMINATED" && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center space-x-2 mb-2">
+                  <X className="h-4 w-4 text-red-600" />
+                  <span className="text-sm font-semibold text-red-900">
+                    Fesih Bilgileri
+                  </span>
+                </div>
+                {staj.terminationDate && (
+                  <div className="text-xs text-red-800 mb-1">
+                    <span className="font-medium">Fesih Tarihi:</span>{" "}
+                    {new Date(staj.terminationDate).toLocaleDateString("tr-TR")}
+                  </div>
+                )}
+                {staj.terminationReason && (
+                  <div className="text-xs text-red-800 mb-1">
+                    <span className="font-medium">Neden:</span>{" "}
+                    {staj.terminationReason}
+                  </div>
+                )}
+                {staj.terminationNotes && (
+                  <div className="text-xs text-red-700">
+                    <span className="font-medium">Not:</span>{" "}
+                    {staj.terminationNotes}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

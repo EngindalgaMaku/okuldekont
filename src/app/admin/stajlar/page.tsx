@@ -36,6 +36,8 @@ interface Staj {
   endDate: string | null;
   status: "ACTIVE" | "COMPLETED" | "CANCELLED" | "TERMINATED";
   terminationDate: string | null;
+  terminationReason?: string | null;
+  terminationNotes?: string | null;
   createdAt: string;
   student?: {
     id: string;
@@ -171,6 +173,7 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
   const [tutarsizlikModalOpen, setTutarsizlikModalOpen] = useState(false);
   const [internshipCreationModalOpen, setInternshipCreationModalOpen] =
     useState(false);
+  const [terminationDateEditModalOpen, setTerminationDateEditModalOpen] = useState(false);
 
   const [selectedStaj, setSelectedStaj] = useState<Staj | null>(null);
   const [selectedOgrenci, setSelectedOgrenci] = useState<Ogrenci | null>(null);
@@ -191,6 +194,11 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
     reason: "",
     notes: "",
     terminationDate: new Date().toISOString().split("T")[0],
+  });
+
+  // Fesih tarihi düzenleme form data
+  const [terminationDateEditData, setTerminationDateEditData] = useState({
+    terminationDate: "",
   });
 
   // Koordinator degistir form data
@@ -942,6 +950,70 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
     }
   };
 
+  // Fesih tarihi düzenleme fonksiyonları
+  const handleTerminationDateEdit = useCallback((staj: Staj) => {
+    setSelectedStaj(staj);
+    setTerminationDateEditData({
+      terminationDate: staj.terminationDate
+        ? new Date(staj.terminationDate).toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0],
+    });
+    setTerminationDateEditModalOpen(true);
+  }, []);
+
+  const handleTerminationDateUpdate = async () => {
+    if (!selectedStaj || !terminationDateEditData.terminationDate) {
+      showToast({
+        type: "error",
+        title: "Eksik Bilgi",
+        message: "Fesih tarihi girilmedi",
+      });
+      return;
+    }
+
+    try {
+      setSubmitLoading(true);
+
+      const response = await fetch(
+        `/api/admin/internships/${selectedStaj.id}/termination-date`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            terminationDate: terminationDateEditData.terminationDate,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Fesih tarihi güncellenemedi");
+      }
+
+      const result = await response.json();
+
+      showToast({
+        type: "success",
+        title: "Başarılı",
+        message: result.message || "Fesih tarihi başarıyla güncellendi",
+      });
+      setTerminationDateEditModalOpen(false);
+      setSelectedStaj(null);
+      setTerminationDateEditData({ terminationDate: "" });
+      await fetchStajlar(currentPageStajlar);
+      await fetchTabCounts();
+    } catch (error: any) {
+      console.error("Fesih tarihi güncelleme hatası:", error);
+      showToast({
+        type: "error",
+        title: "Hata",
+        message: error.message || "Fesih tarihi güncellenirken hata oluştu",
+      });
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
   // Internship creation handler
   const handleInternshipCreation = async (formData: InternshipFormData) => {
     try {
@@ -1108,6 +1180,7 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
             onFesih={handleFesihEt}
             onKoordinatorDegistir={handleKoordinatorDegistir}
             onDateUpdate={handleDateUpdate}
+            onTerminationDateEdit={handleTerminationDateEdit}
           />
         </div>
       );
@@ -1118,6 +1191,7 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
       handleFesihEt,
       handleKoordinatorDegistir,
       handleDateUpdate,
+      handleTerminationDateEdit,
     ]
   );
 
@@ -1326,6 +1400,7 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
                         onFesih={handleFesihEt}
                         onKoordinatorDegistir={handleKoordinatorDegistir}
                         onDateUpdate={handleDateUpdate}
+                        onTerminationDateEdit={handleTerminationDateEdit}
                       />
                     </div>
                   );
@@ -1608,6 +1683,90 @@ const StajYonetimiPage = memo(function StajYonetimiPage() {
                 </div>
               ) : (
                 "Koordinatörü Güncelle"
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Fesih Tarihi Düzenleme Modal */}
+      <Modal
+        isOpen={terminationDateEditModalOpen}
+        onClose={() => {
+          setTerminationDateEditModalOpen(false);
+          setSelectedStaj(null);
+          setTerminationDateEditData({ terminationDate: "" });
+        }}
+        title="Fesih Tarihini Düzenle"
+      >
+        <div className="space-y-4">
+          {selectedStaj && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <h4 className="font-medium text-gray-900">Düzenlenecek Staj:</h4>
+              <p className="text-sm text-gray-600 mt-1">
+                <strong>
+                  {selectedStaj.student?.name} {selectedStaj.student?.surname}
+                </strong>{" "}
+                - {selectedStaj.company?.name}
+              </p>
+              {selectedStaj.terminationDate && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Mevcut Fesih Tarihi:{" "}
+                  <strong>
+                    {new Date(selectedStaj.terminationDate).toLocaleDateString(
+                      "tr-TR"
+                    )}
+                  </strong>
+                </p>
+              )}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Yeni Fesih Tarihi <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              value={terminationDateEditData.terminationDate}
+              onChange={(e) =>
+                setTerminationDateEditData({
+                  terminationDate: e.target.value,
+                })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Bu tarih, öğrencinin işletmeden ayrıldığı tarihi belirtir.
+            </p>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              onClick={() => {
+                setTerminationDateEditModalOpen(false);
+                setSelectedStaj(null);
+                setTerminationDateEditData({ terminationDate: "" });
+              }}
+              disabled={submitLoading}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              İptal
+            </button>
+            <button
+              onClick={handleTerminationDateUpdate}
+              disabled={
+                submitLoading || !terminationDateEditData.terminationDate
+              }
+              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitLoading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Güncelleniyor...</span>
+                </div>
+              ) : (
+                "Fesih Tarihini Güncelle"
               )}
             </button>
           </div>
