@@ -355,6 +355,8 @@ export default function ClientDekontlarPage() {
     fieldName: string;
     hasDekont: boolean;
     isLateCompany?: boolean;
+    paymentAmount?: number | null;
+    paymentId?: string | null;
   }
   const [showExpectedList, setShowExpectedList] = useState(true);
   const [expectedStudents, setExpectedStudents] = useState<ExpectedStudentItem[]>([]);
@@ -426,6 +428,8 @@ export default function ClientDekontlarPage() {
               fieldName: s.alan || "",
               hasDekont: !!s.has_dekont,
               isLateCompany: !!c.is_late,
+              paymentAmount: s.payment_amount || null,
+              paymentId: s.payment_id || null,
             });
           });
         });
@@ -1671,18 +1675,20 @@ export default function ClientDekontlarPage() {
                                 </button>
                               </>
                             ) : (
-                              // Display mode
+                              // Display mode - dekont varsa matched'den, yoksa item'dan al
                               <>
                                 <span className="font-medium text-emerald-700">
                                   {matched?.monthlyPayment?.amount
                                     ? formatCurrency(matched.monthlyPayment.amount)
+                                    : item.paymentAmount
+                                    ? formatCurrency(item.paymentAmount)
                                     : "-"}
                                 </span>
-                                {matched?.monthlyPayment?.id && (
+                                {(matched?.monthlyPayment?.id || item.paymentId) && (
                                   <button
                                     onClick={() => handleStartPaymentEdit(
-                                      matched.monthlyPayment!.id,
-                                      Number(matched.monthlyPayment!.amount)
+                                      (matched?.monthlyPayment?.id || item.paymentId)!,
+                                      Number(matched?.monthlyPayment?.amount || item.paymentAmount || 0)
                                     )}
                                     className="text-blue-600 hover:text-blue-800 opacity-0 group-hover:opacity-100 transition-opacity"
                                     title="Düzenle"

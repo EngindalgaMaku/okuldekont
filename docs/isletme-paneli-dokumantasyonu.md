@@ -79,9 +79,9 @@ Bildirim modal'ı özellikleri:
 **[RESİM PLACEHOLDER: isletme-kritik-sure-uyarisi.png]**
 *Sarı arka planlı uyarı - dekont yükleme kritik süresi*
 
-Ayın 1-10'u arasında gösterilen sarı uyarı:
+Ayın 1-7'si arasında gösterilen sarı uyarı:
 - ⏰ "KRİTİK SÜRE!" başlığı
-- "Ayın 10'una kadar yüklemelisiniz" mesajı
+- "Ayın 7'sine kadar yüklemelisiniz" mesajı
 - Eksik dekont olan öğrenci listesi
 - Her öğrenci için:
   - Ad-soyad bilgisi

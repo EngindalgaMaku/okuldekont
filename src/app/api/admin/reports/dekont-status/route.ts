@@ -157,6 +157,26 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Belirtilen ay/yıl için ödeme kayıtlarını çek
+    const monthlyPayments = await prisma.monthlyPayment.findMany({
+      where: {
+        month: month,
+        year: year,
+        archived: false,
+        educationYearId: activeEducationYearId,
+      },
+      select: {
+        id: true,
+        studentId: true,
+        companyId: true,
+        teacherId: true,
+        stajId: true,
+        amount: true,
+        month: true,
+        year: true,
+      },
+    });
+
     // Öğretmen bazlı veri yapısı oluştur
     const teacherMap = new Map();
 
@@ -197,18 +217,28 @@ export async function GET(request: NextRequest) {
         // Bu işletmede bu öğretmenin sorumlu olduğu öğrencileri çek
         const companyStudentList = stajlar
           .filter((s) => s.companyId === companyId && s.teacherId === teacherId)
-          .map((s) => ({
-            id: s.student.id,
-            ad_soyad: `${s.student.name} ${s.student.surname}`,
-            sinif: s.student.className,
-            no: s.student.number,
-            alan: s.student.alan?.name || "Bilinmiyor",
-            // FIX: Use internship-level logic instead of student-level
-            // Check dekont for THIS specific internship, not just any internship for this student
-            has_dekont: companyDekontlar.some(
-              (d) => d.stajId === s.id // Use internship ID instead of student ID
-            ),
-          }));
+          .map((s) => {
+            // Bu staj için monthly payment'ı bul
+            const payment = monthlyPayments.find(
+              (p) => p.stajId === s.id || (p.studentId === s.student.id && p.companyId === companyId)
+            );
+            
+            return {
+              id: s.student.id,
+              ad_soyad: `${s.student.name} ${s.student.surname}`,
+              sinif: s.student.className,
+              no: s.student.number,
+              alan: s.student.alan?.name || "Bilinmiyor",
+              // FIX: Use internship-level logic instead of student-level
+              // Check dekont for THIS specific internship, not just any internship for this student
+              has_dekont: companyDekontlar.some(
+                (d) => d.stajId === s.id // Use internship ID instead of student ID
+              ),
+              // Ödeme bilgisini ekle
+              payment_amount: payment?.amount ? Number(payment.amount) : null,
+              payment_id: payment?.id || null,
+            };
+          });
 
         teacher.isletmeler.set(companyId, {
           isletme_id: companyId,

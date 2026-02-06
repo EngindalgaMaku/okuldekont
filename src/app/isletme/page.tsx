@@ -1541,7 +1541,7 @@ function PanelPage() {
                         return isGecikme()
                           ? `${previousMonthName} ayı dekont yükleme süresi geçti! Devlet katkı payı alamayabilirsiniz.`
                           : isKritikSure()
-                          ? `${previousMonthName} ayı dekontlarını ayın 10'una kadar yüklemelisiniz!`
+                          ? `${previousMonthName} ayı dekontlarını ayın 7'sine kadar yüklemelisiniz!`
                           : `${previousMonthName} ayı için eksik dekontlar var.`;
                       })()}
                     </p>

@@ -168,7 +168,7 @@ const TeacherPanel = () => {
     yil: number;
     mevcutDekontSayisi: number;
   } | null>(null);
-  const [dekontSonGun, setDekontSonGun] = useState(10);
+  const [dekontSonGun, setDekontSonGun] = useState(7);
 
   // Ek dekont form data - 409 durumunda orijinal form verisini saklamak için
   const [pendingDekontData, setPendingDekontData] =

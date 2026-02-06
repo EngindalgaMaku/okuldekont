@@ -24,7 +24,7 @@ export const getCurrentYear = () => new Date().getFullYear();
 export const getCurrentDay = () => new Date().getDate();
 
 // Gecikme durumunu kontrol et (önceki ay dekontları için son günden sonra)
-export const isGecikme = (sonGun: number = 10) => {
+export const isGecikme = (sonGun: number = 7) => {
   const currentDate = new Date();
   const currentDay = currentDate.getDate();
   const currentMonth = currentDate.getMonth() + 1; // 1-12 arası
@@ -35,7 +35,7 @@ export const isGecikme = (sonGun: number = 10) => {
 };
 
 // Kritik süre kontrolü (önceki ay dekontları için 1-sonGun arası)
-export const isKritikSure = (sonGun: number = 10) => {
+export const isKritikSure = (sonGun: number = 7) => {
   const currentDate = new Date();
   const currentDay = currentDate.getDate();
   const currentMonth = currentDate.getMonth() + 1; // 1-12 arası
