@@ -18,6 +18,7 @@ import {
   Calendar,
   AlertCircle,
   ExternalLink,
+  Trash2,
 } from "lucide-react";
 
 interface TeacherIssue {
@@ -117,6 +118,22 @@ export default function OgretmenTalepleriPage() {
       }
     } catch (e) {
       console.error("Durum güncellenemedi:", e);
+    }
+  };
+
+  const deleteReport = async (id: string) => {
+    if (!confirm("Bu bildirimi tamamen silmek istediğinize emin misiniz?")) return;
+    try {
+      const res = await fetch(`/api/admin/teacher-issues/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        fetchReports();
+      } else {
+        alert("Bildirim silinemedi.");
+      }
+    } catch (e) {
+      console.error("Silme hatası:", e);
     }
   };
 
@@ -486,6 +503,15 @@ export default function OgretmenTalepleriPage() {
                         Yeniden Aç
                       </button>
                     )}
+
+                    <button
+                      onClick={() => deleteReport(report.id)}
+                      className="px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors flex items-center gap-1"
+                      title="Bildirimi Sil"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Sil
+                    </button>
                   </div>
                 </div>
               </div>

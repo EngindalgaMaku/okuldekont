@@ -34,3 +34,21 @@ export async function ensureTeacherIssueReportsTable() {
     tableEnsured = true;
   }
 }
+
+export async function deleteAudioFile(audioUrl: string | null) {
+  if (!audioUrl || !audioUrl.startsWith("/uploads/voice-notes/")) return;
+  try {
+    const { unlink } = await import("fs/promises");
+    const { join } = await import("path");
+    const { existsSync } = await import("fs");
+
+    const filename = audioUrl.replace("/uploads/voice-notes/", "");
+    const safeFilename = filename.replace(/[^a-zA-Z0-9_.-]/g, "");
+    const filepath = join(process.cwd(), "public", "uploads", "voice-notes", safeFilename);
+    if (existsSync(filepath)) {
+      await unlink(filepath);
+    }
+  } catch (err) {
+    console.error("Audio deletion error:", err);
+  }
+}

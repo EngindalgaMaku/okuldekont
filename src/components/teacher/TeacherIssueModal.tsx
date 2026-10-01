@@ -42,6 +42,7 @@ export default function TeacherIssueModal({
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioBase64, setAudioBase64] = useState<string | null>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
 
@@ -53,6 +54,25 @@ export default function TeacherIssueModal({
   // History states
   const [historyItems, setHistoryItems] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const handleDeleteReport = async (id: string) => {
+    if (!confirm("Bu bildirimi silmek istediğinize emin misiniz?")) return;
+    try {
+      const res = await fetch(
+        `/api/teachers/issues?id=${id}&teacherId=${teacherId}`,
+        {
+          method: "DELETE",
+        }
+      );
+      if (res.ok) {
+        setHistoryItems((prev) => prev.filter((item) => item.id !== id));
+      } else {
+        alert("Bildirim silinemedi.");
+      }
+    } catch (e) {
+      console.error("Silme hatası:", e);
+    }
+  };
 
   useEffect(() => {
     const handleOpen = () => setIsOpen(true);
@@ -144,6 +164,15 @@ export default function TeacherIssueModal({
         });
         setAudioBlob(finalBlob);
         setAudioUrl(URL.createObjectURL(finalBlob));
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (reader.result) {
+            setAudioBase64(reader.result as string);
+          }
+        };
+        reader.readAsDataURL(finalBlob);
+
         // Stop stream tracks
         stream.getTracks().forEach((track) => track.stop());
       };
@@ -178,6 +207,7 @@ export default function TeacherIssueModal({
       audioPlayerRef.current.pause();
     }
     setAudioBlob(null);
+    setAudioBase64(null);
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
       setAudioUrl(null);
@@ -208,7 +238,16 @@ export default function TeacherIssueModal({
   // Form submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() && !audioBlob) {
+
+    // If still recording, stop and wait for blob
+    if (isRecording && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+      await new Promise((r) => setTimeout(r, 400));
+    }
+
+    if (!message.trim() && !audioBlob && !audioBase64) {
       setErrorMessage("Lütfen yazılı bir açıklama girin veya ses kaydı yapın.");
       return;
     }
@@ -225,10 +264,11 @@ export default function TeacherIssueModal({
       if (selectedStudent) formData.append("studentInfo", selectedStudent);
 
       if (audioBlob) {
-        const audioFile = new File([audioBlob], "recording.webm", {
-          type: audioBlob.type || "audio/webm",
-        });
-        formData.append("audio", audioFile);
+        formData.append("audio", audioBlob, "recording.webm");
+        formData.append("audioDuration", recordingDuration.toString());
+      }
+      if (audioBase64) {
+        formData.append("audioBase64", audioBase64);
         formData.append("audioDuration", recordingDuration.toString());
       }
 
@@ -634,6 +674,15 @@ export default function TeacherIssueModal({
                                 }
                               )}
                             </span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteReport(item.id)}
+                              className="text-red-500 hover:text-red-700 flex items-center gap-1 text-xs px-2 py-0.5 rounded hover:bg-red-50 transition-colors font-medium"
+                              title="Bildirimi Sil"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Sil
+                            </button>
                           </div>
                         </div>
                       );
