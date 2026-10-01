@@ -19,6 +19,7 @@ export async function GET(
             include: {
               stajlar: {
                 where: {
+                  archived: false,
                   status: {
                     in: ["ACTIVE", "COMPLETED", "TERMINATED"],
                   },
@@ -26,6 +27,9 @@ export async function GET(
                 include: {
                   student: true,
                   dekontlar: {
+                    where: {
+                      archived: false,
+                    },
                     include: {
                       teacher: true,
                     },
