@@ -50,13 +50,15 @@ export async function GET() {
     const previousYear = currentMonth === 1 ? currentYear - 1 : currentYear;
 
     // Get dekont statistics for previous month (current month's dekont reports)
-    // FIXED: Exclude ALL terminated students (simplified logic)
+    // Filter by active education year and exclude archived/terminated
     const dekontBaseFilter = {
       month: previousMonth,
       year: previousYear,
+      archived: false,
       staj: {
-        // Simple exclusion: No terminated students in expected lists
-        status: { not: "TERMINATED" },
+        archived: false,
+        ...(currentEducationYear ? { educationYearId: currentEducationYear.id } : {}),
+        status: { not: "TERMINATED" as const },
       },
     };
 
