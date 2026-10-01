@@ -54,6 +54,13 @@ export default function TeacherIssueModal({
   const [historyItems, setHistoryItems] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  useEffect(() => {
+    const handleOpen = () => setIsOpen(true);
+    window.addEventListener("open-teacher-issue-modal", handleOpen);
+    return () =>
+      window.removeEventListener("open-teacher-issue-modal", handleOpen);
+  }, []);
+
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -282,18 +289,18 @@ export default function TeacherIssueModal({
   return (
     <>
       {/* 🚀 Mobile-friendly Floating Action Button (FAB) */}
-      <div className="fixed bottom-6 right-6 z-40">
+      <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-[120]">
         <button
           onClick={() => setIsOpen(true)}
-          className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-amber-600 via-rose-600 to-red-600 text-white font-semibold rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 border-2 border-white"
+          className="flex items-center gap-2 px-3.5 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-amber-600 via-rose-600 to-red-600 text-white font-semibold rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 border-2 border-white text-xs sm:text-sm"
           title="İdareye Hata / Değişiklik Bildir"
         >
-          <span className="relative flex h-3 w-3">
+          <span className="relative flex h-2.5 w-2.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
           </span>
-          <AlertTriangle className="h-5 w-5" />
-          <span className="text-sm font-bold tracking-wide">
+          <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5" />
+          <span className="font-bold tracking-wide">
             Hata / Değişiklik Bildir
           </span>
         </button>
@@ -301,7 +308,7 @@ export default function TeacherIssueModal({
 
       {/* 📱 Modal Dialog */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
+        <div className="fixed inset-0 z-[130] overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
           <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[92vh]">
             {/* Header */}
             <div className="bg-gradient-to-r from-red-600 to-amber-600 text-white p-4 sm:p-5 flex items-center justify-between">

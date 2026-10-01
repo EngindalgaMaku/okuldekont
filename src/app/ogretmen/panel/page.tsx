@@ -1700,6 +1700,20 @@ const TeacherPanel = () => {
                 <span className="sr-only">Bildirimler</span>
               </button>
 
+              {/* Hata / Talep Bildir Butonu */}
+              <button
+                onClick={() =>
+                  window.dispatchEvent(
+                    new CustomEvent("open-teacher-issue-modal")
+                  )
+                }
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md transition-all duration-200 border border-red-400"
+                title="Hata / Değişiklik Bildir"
+              >
+                <AlertTriangle className="h-4 w-4" />
+                <span className="inline">Hata Bildir</span>
+              </button>
+
               {/* PIN Değiştirme Butonu */}
               <button
                 onClick={() => {
