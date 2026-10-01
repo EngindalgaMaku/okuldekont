@@ -70,6 +70,7 @@ import {
   Teacher,
   SuccessModal,
 } from "@/types/teacher-panel";
+import TeacherIssueModal from "@/components/teacher/TeacherIssueModal";
 
 const TeacherPanel = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -3807,6 +3808,14 @@ const TeacherPanel = () => {
           </button>
         </div>
       </Modal>
+
+      {/* 🚨 Öğretmen Hata ve Değişiklik Bildirim FAB & Modalı */}
+      {(teacher?.id || (session?.user as any)?.teacherId) && (
+        <TeacherIssueModal
+          teacherId={teacher?.id || (session?.user as any)?.teacherId}
+          isletmeler={isletmeler}
+        />
+      )}
     </div>
   );
 };

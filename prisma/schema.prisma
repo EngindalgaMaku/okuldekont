@@ -72,6 +72,7 @@ model TeacherProfile {
   previousTeacherAssignments TeacherAssignmentHistory[] @relation("PreviousTeacherAssignment")
   teacherAssignments         TeacherAssignmentHistory[]
   teacherHistory             TeacherHistory[]
+  issueReports               TeacherIssueReport[]
   alan                       Alan?                      @relation(fields: [alanId], references: [id])
   user                       User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -988,4 +989,27 @@ enum ImportStatus {
   COMPLETED
   FAILED
   PARTIAL_SUCCESS
+}
+
+model TeacherIssueReport {
+  id            String         @id @default(cuid())
+  teacherId     String
+  category      String
+  title         String?
+  message       String?        @db.Text
+  audioUrl      String?        @db.VarChar(500)
+  audioDuration Int?
+  studentInfo   String?
+  companyInfo   String?
+  status        String         @default("PENDING")
+  adminNote     String?        @db.Text
+  resolvedAt    DateTime?
+  resolvedBy    String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  teacher       TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId])
+  @@index([status])
+  @@map("teacher_issue_reports")
 }

@@ -494,7 +494,7 @@ export default function KoordinatorImportPage() {
                           <strong>
                             {r.ogrenciAdi} ({r.ogrenciNo})
                           </strong>
-                          : {r.errors.join(", ")}
+                          : {r.errors?.join(", ")}
                         </li>
                       ))}
                   </ul>
@@ -518,7 +518,7 @@ export default function KoordinatorImportPage() {
                             {r.ogrenciAdi} ({r.ogrenciNo})
                           </strong>{" "}
                           - {r.isletmeAdi || "İşletme yok"}:{" "}
-                          {r.suggestions.join(", ")}
+                          {r.suggestions?.join(", ")}
                         </li>
                       ))}
                   </ul>

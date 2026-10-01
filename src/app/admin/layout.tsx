@@ -60,6 +60,12 @@ const menuItems = [
     description: "Öğrenci staj süreçleri ve koordinatörlük yönetimi",
   },
   {
+    title: "Öğretmen Talepleri",
+    icon: AlertTriangle,
+    href: "/admin/ogretmen-talepleri",
+    description: "Öğretmenlerin ilettiği değişiklik ve hata bildirimleri",
+  },
+  {
     title: "Araçlar",
     icon: Wrench,
     href: "/admin/araclar",
@@ -102,6 +108,19 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [educationYears, setEducationYears] = useState<any[]>([]);
   const [educationYearsLoading, setEducationYearsLoading] = useState(false);
   const [changingYear, setChangingYear] = useState(false);
+  const [pendingIssuesCount, setPendingIssuesCount] = useState(0);
+
+  const fetchPendingIssuesCount = async () => {
+    try {
+      const response = await fetch("/api/admin/teacher-issues?status=PENDING");
+      if (response.ok) {
+        const data = await response.json();
+        setPendingIssuesCount(data.counts?.pending || 0);
+      }
+    } catch (e) {
+      // silent
+    }
+  };
 
   // Sadece mobil cihazlar için media query (tabletler hariç)
   const isMobileOnly = useMediaQuery("(max-width: 1023px)");
@@ -251,8 +270,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       fetchAdminUserName();
       fetchActiveEducationYear();
       fetchEducationYears();
+      fetchPendingIssuesCount();
     }
-  }, [user?.id, isAdmin]);
+  }, [user?.id, isAdmin, pathname]);
 
   // Auth check and redirect logic
   useEffect(() => {
@@ -441,9 +461,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                                       : "text-gray-400 group-hover:text-indigo-600"
                                   }`}
                                 />
-                                <span className="font-medium">
+                                <span className="font-medium flex-1">
                                   {item.title}
                                 </span>
+                                {item.href === "/admin/ogretmen-talepleri" &&
+                                  pendingIssuesCount > 0 && (
+                                    <span className="px-2 py-0.5 text-xs font-bold bg-red-600 text-white rounded-full">
+                                      {pendingIssuesCount}
+                                    </span>
+                                  )}
                               </Link>
                             </div>
                           ))}
@@ -688,8 +714,21 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                           )}
                         />
                         {desktopSidebarOpen && (
-                          <span className="font-medium">{item.title}</span>
+                          <div className="flex items-center justify-between flex-1">
+                            <span className="font-medium">{item.title}</span>
+                            {item.href === "/admin/ogretmen-talepleri" &&
+                              pendingIssuesCount > 0 && (
+                                <span className="px-2 py-0.5 text-xs font-bold bg-red-600 text-white rounded-full">
+                                  {pendingIssuesCount}
+                                </span>
+                              )}
+                          </div>
                         )}
+                        {!desktopSidebarOpen &&
+                          item.href === "/admin/ogretmen-talepleri" &&
+                          pendingIssuesCount > 0 && (
+                            <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-600 rounded-full ring-2 ring-white"></span>
+                          )}
                       </Link>
                     </div>
                   ))}
