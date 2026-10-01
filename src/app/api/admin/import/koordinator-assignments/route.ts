@@ -96,38 +96,41 @@ export async function POST(request: NextRequest) {
           }
 
           // 3. Öğretmen bilgisini al/oluştur
-          const teacherName = row.koordinatorOgretmen.trim().split(" ");
-          const teacherFirstName = teacherName.slice(0, -1).join(" ");
-          const teacherLastName = teacherName[teacherName.length - 1];
+          let teacher: any = null;
+          if (row.koordinatorOgretmen && row.koordinatorOgretmen.trim()) {
+            const teacherName = row.koordinatorOgretmen.trim().split(" ");
+            const teacherFirstName = teacherName.slice(0, -1).join(" ");
+            const teacherLastName = teacherName[teacherName.length - 1];
 
-          let teacher = await tx.teacherProfile.findFirst({
-            where: {
-              name: teacherFirstName,
-              surname: teacherLastName,
-            },
-          });
-
-          if (!teacher) {
-            // Create user first
-            const teacherUser = await tx.user.create({
-              data: {
-                email: `${teacherFirstName.toLowerCase()}.${teacherLastName.toLowerCase()}@school.edu.tr`,
-                password: "$2b$10$placeholder", // Will need to be changed
-                role: "TEACHER",
-              },
-            });
-
-            teacher = await tx.teacherProfile.create({
-              data: {
+            teacher = await tx.teacherProfile.findFirst({
+              where: {
                 name: teacherFirstName,
                 surname: teacherLastName,
-                pin: "2025", // Default PIN
-                userId: teacherUser.id,
-                alanId: null, // Öğretmenin kendi alanı sonradan belirlenecek
-                mustChangePin: true,
-                active: true,
               },
             });
+
+            if (!teacher) {
+              // Create user first
+              const teacherUser = await tx.user.create({
+                data: {
+                  email: `${teacherFirstName.toLowerCase()}.${teacherLastName.toLowerCase()}@school.edu.tr`,
+                  password: "$2b$10$placeholder",
+                  role: "TEACHER",
+                },
+              });
+
+              teacher = await tx.teacherProfile.create({
+                data: {
+                  name: teacherFirstName,
+                  surname: teacherLastName,
+                  pin: "2025",
+                  userId: teacherUser.id,
+                  alanId: null,
+                  mustChangePin: true,
+                  active: true,
+                },
+              });
+            }
           }
 
           // 4. İşletme bilgisini al/oluştur
@@ -149,7 +152,7 @@ export async function POST(request: NextRequest) {
                     .toLowerCase()
                     .replace(/\s/g, "")
                     .slice(0, 20)}@company.com`,
-                  password: "$2b$10$placeholder", // Will need to be changed
+                  password: "$2b$10$placeholder",
                   role: "COMPANY",
                 },
               });
@@ -157,38 +160,80 @@ export async function POST(request: NextRequest) {
               company = await tx.companyProfile.create({
                 data: {
                   name: row.isletmeAdi.trim(),
-                  contact: "Yetkili Kişi", // Default contact
+                  contact: "Yetkili Kişi",
                   address: row.isletmeAdres?.trim() || null,
                   phone: row.isletmeTelefon?.trim() || null,
-                  pin: "1234", // Default PIN
+                  pin: "1234",
                   userId: companyUser.id,
-                  teacherId: teacher.id,
-                  teacherAssignedAt: new Date(),
+                  teacherId: teacher?.id || null,
+                  teacherAssignedAt: teacher ? new Date() : null,
                   mustChangePin: true,
                 },
               });
 
-              // Create teacher assignment history
-              await tx.teacherAssignmentHistory.create({
-                data: {
-                  companyId: company.id,
-                  teacherId: teacher.id,
-                  assignedBy: companyUser.id, // Using company user as assigner for now
-                  reason: "Excel import ile otomatik atama",
-                },
-              });
+              if (teacher) {
+                await tx.teacherAssignmentHistory.create({
+                  data: {
+                    companyId: company.id,
+                    teacherId: teacher.id,
+                    assignedBy: companyUser.id,
+                    reason: "Excel import ile otomatik atama",
+                  },
+                });
+              }
+            } else {
+              // Mevcut işletmeyi güncelle
+              const updateData: any = {};
+              if (row.isletmeTelefon && row.isletmeTelefon.trim()) {
+                updateData.phone = row.isletmeTelefon.trim();
+              }
+              if (row.isletmeAdres && row.isletmeAdres.trim()) {
+                updateData.address = row.isletmeAdres.trim();
+              }
+              if (teacher && company.teacherId !== teacher.id) {
+                updateData.teacherId = teacher.id;
+                updateData.teacherAssignedAt = new Date();
+              }
+              if (Object.keys(updateData).length > 0) {
+                company = await tx.companyProfile.update({
+                  where: { id: company.id },
+                  data: updateData,
+                });
+              }
             }
           }
 
-          // 5. Öğrenci bilgisini al/oluştur
+          // Sınıf seviyesi hesaplama (9, 10, 11, 12)
+          const gradeNum = row.sinif.startsWith("12")
+            ? 12
+            : row.sinif.startsWith("11")
+            ? 11
+            : row.sinif.startsWith("10")
+            ? 10
+            : row.sinif.startsWith("09") || row.sinif.startsWith("9")
+            ? 9
+            : 12;
+
+          // 5. Öğrenci bilgisini al/oluştur / GÜNCELLE
           let student = await tx.student.findFirst({
             where: {
               number: row.ogrenciNo,
-              name: {
-                contains: row.ogrenciAdi.split(" ")[0],
-              },
             },
           });
+
+          if (!student) {
+            // Eğer numarayla bulunamadıysa ada göre ara
+            student = await tx.student.findFirst({
+              where: {
+                name: {
+                  contains: row.ogrenciAdi.split(" ")[0],
+                },
+                surname: {
+                  contains: row.ogrenciAdi.split(" ").slice(-1)[0],
+                },
+              },
+            });
+          }
 
           if (!student) {
             const studentName = row.ogrenciAdi.trim().split(" ");
@@ -214,21 +259,59 @@ export async function POST(request: NextRequest) {
                 educationYearId: currentEducationYear.id,
                 classId: classInfo.id,
                 className: row.sinif,
-                grade: row.sinif.startsWith("12")
-                  ? 12
-                  : row.sinif.startsWith("11")
-                  ? 11
-                  : 10,
+                grade: gradeNum,
               },
             });
+          } else {
+            // Öğrenci zaten varsa sınıfını, alanını ve işletmesini yeni yıla göre güncelle!
+            student = await tx.student.update({
+              where: { id: student.id },
+              data: {
+                className: row.sinif,
+                classId: classInfo.id,
+                alanId: alan.id,
+                companyId: company?.id || student.companyId,
+                number: row.ogrenciNo || student.number,
+              },
+            });
+
+            // Bu eğitim yılı için enrollment kaydı var mı kontrol et, yoksa oluştur, varsa güncelle
+            const existingEnrollment = await tx.studentEnrollment.findFirst({
+              where: {
+                studentId: student.id,
+                educationYearId: currentEducationYear.id,
+              },
+            });
+
+            if (existingEnrollment) {
+              await tx.studentEnrollment.update({
+                where: { id: existingEnrollment.id },
+                data: {
+                  classId: classInfo.id,
+                  className: row.sinif,
+                  grade: gradeNum,
+                  status: "ACTIVE",
+                },
+              });
+            } else {
+              await tx.studentEnrollment.create({
+                data: {
+                  studentId: student.id,
+                  educationYearId: currentEducationYear.id,
+                  classId: classInfo.id,
+                  className: row.sinif,
+                  grade: gradeNum,
+                  status: "ACTIVE",
+                },
+              });
+            }
           }
 
-          // 6. Staj kaydını oluştur (eğer yoksa)
+          // 6. Staj kaydını oluştur veya güncelle
           if (company && student) {
             const existingInternship = await tx.staj.findFirst({
               where: {
                 studentId: student.id,
-                companyId: company.id,
                 educationYearId: currentEducationYear.id,
                 status: "ACTIVE",
               },
@@ -248,11 +331,20 @@ export async function POST(request: NextRequest) {
                 data: {
                   studentId: student.id,
                   companyId: company.id,
-                  teacherId: teacher.id,
+                  teacherId: teacher?.id || null,
                   educationYearId: currentEducationYear.id,
                   startDate,
                   endDate,
                   status: "ACTIVE",
+                },
+              });
+            } else {
+              // Mevcut staj kaydını bu yılki koordinatör ve işletmeye göre güncelle
+              await tx.staj.update({
+                where: { id: existingInternship.id },
+                data: {
+                  companyId: company.id,
+                  teacherId: teacher?.id || existingInternship.teacherId,
                 },
               });
             }

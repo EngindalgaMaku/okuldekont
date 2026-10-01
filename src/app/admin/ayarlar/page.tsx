@@ -1437,44 +1437,47 @@ ${
                       )}
 
                       {/* All Education Years List */}
-                      {educationYears.length > 0 && (
+                      {educationYears.filter((y) => !y.archived).length > 0 && (
                         <div>
                           <h4 className="text-xs font-medium text-gray-700 mb-2">
-                            Tüm Dönemler ({educationYears.length})
+                            Aktif / Açık Dönemler ({educationYears.filter((y) => !y.archived).length})
                           </h4>
                           <div className="space-y-2">
-                            {educationYears.slice(0, 3).map((year) => (
-                              <div
-                                key={year.id}
-                                className={`flex items-center justify-between p-2 rounded-lg text-xs ${
-                                  year.active
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-gray-100 text-gray-700"
-                                }`}
-                              >
-                                <span className="font-medium">{year.year}</span>
-                                <div className="flex items-center space-x-1">
-                                  {year.active && (
-                                    <span className="px-1 bg-green-200 text-green-800 rounded text-xs">
-                                      Aktif
-                                    </span>
-                                  )}
-                                  {!year.active && (
-                                    <button
-                                      onClick={() =>
-                                        handleSetActiveEducationYear(year.id)
-                                      }
-                                      className="px-1 bg-indigo-200 text-indigo-800 rounded hover:bg-indigo-300"
-                                    >
-                                      Aktif Yap
-                                    </button>
-                                  )}
+                            {educationYears
+                              .filter((y) => !y.archived)
+                              .slice(0, 3)
+                              .map((year) => (
+                                <div
+                                  key={year.id}
+                                  className={`flex items-center justify-between p-2 rounded-lg text-xs ${
+                                    year.active
+                                      ? "bg-green-100 text-green-800"
+                                      : "bg-gray-100 text-gray-700"
+                                  }`}
+                                >
+                                  <span className="font-medium">{year.year}</span>
+                                  <div className="flex items-center space-x-1">
+                                    {year.active && (
+                                      <span className="px-1 bg-green-200 text-green-800 rounded text-xs">
+                                        Aktif
+                                      </span>
+                                    )}
+                                    {!year.active && (
+                                      <button
+                                        onClick={() =>
+                                          handleSetActiveEducationYear(year.id)
+                                        }
+                                        className="px-1 bg-indigo-200 text-indigo-800 rounded hover:bg-indigo-300"
+                                      >
+                                        Aktif Yap
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
-                            {educationYears.length > 3 && (
+                              ))}
+                            {educationYears.filter((y) => !y.archived).length > 3 && (
                               <p className="text-xs text-gray-500 text-center">
-                                +{educationYears.length - 3} dönem daha
+                                +{educationYears.filter((y) => !y.archived).length - 3} dönem daha
                               </p>
                             )}
                           </div>

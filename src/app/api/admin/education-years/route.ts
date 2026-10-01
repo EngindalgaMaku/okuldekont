@@ -2,12 +2,22 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 // GET - Tüm eğitim yıllarını getir
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const includeArchived = searchParams.get('includeArchived')
+    const archivedOnly = searchParams.get('archivedOnly')
+
+    let whereClause: any = {}
+
+    if (archivedOnly === 'true') {
+      whereClause.archived = true
+    } else if (includeArchived === 'false') {
+      whereClause.archived = false
+    }
+
     const educationYears = await prisma.egitimYili.findMany({
-      where: {
-        archived: false // Arşivlenen eğitim yıllarını gizle
-      },
+      where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
       orderBy: {
         year: 'desc'
       }

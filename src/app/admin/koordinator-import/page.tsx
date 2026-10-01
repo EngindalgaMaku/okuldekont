@@ -117,8 +117,8 @@ export default function KoordinatorImportPage() {
               const row = jsonData[i] as any[];
               if (!row || row.length < 6) continue;
 
-              // Boş satırları atla
-              if (!row[0] || !row[4] || !row[5]) continue;
+              // Boş satırları atla (Sınıf veya Öğrenci Adı yoksa)
+              if (!row[0] || !row[4]) continue;
 
               // Son satırları kontrol et (müdür imzası vb.)
               if (
@@ -148,14 +148,6 @@ export default function KoordinatorImportPage() {
                   .toLowerCase()
                   .includes("devamsız") ||
                 importRow.isletmeAdi.toLowerCase().includes("devamsız")
-              ) {
-                continue;
-              }
-
-              // Boş koordinatör öğretmen satırlarını atla
-              if (
-                !importRow.koordinatorOgretmen ||
-                importRow.koordinatorOgretmen.trim() === ""
               ) {
                 continue;
               }
@@ -198,7 +190,7 @@ export default function KoordinatorImportPage() {
         if (!row.ogrenciAdi) rowErrors.push("Öğrenci adı boş");
         if (!row.ogrenciNo) rowErrors.push("Öğrenci numarası boş");
         if (!row.koordinatorOgretmen)
-          rowErrors.push("Koordinatör öğretmen boş");
+          rowWarnings.push("Koordinatör öğretmen henüz atanmamış");
         if (!row.sinif) rowErrors.push("Sınıf bilgisi boş");
         if (!row.bolum) rowErrors.push("Bölüm bilgisi boş");
 
