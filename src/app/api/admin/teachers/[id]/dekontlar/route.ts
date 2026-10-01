@@ -7,16 +7,31 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const url = new URL(request.url);
+    const queryEducationYearId = url.searchParams.get("educationYearId");
 
     if (!id) {
       return NextResponse.json({ error: "ID gerekli" }, { status: 400 });
     }
 
+    let targetEducationYearId: string | null = null;
+    if (queryEducationYearId && queryEducationYearId !== "all") {
+      targetEducationYearId = queryEducationYearId;
+    } else if (queryEducationYearId !== "all") {
+      const activeYear = await prisma.egitimYili.findFirst({
+        where: { active: true },
+      });
+      targetEducationYearId = activeYear?.id || null;
+    }
+
     // Öğretmenin sorumlu olduğu stajların tüm dekontlarını getir (işletme yüklü dahil)
     const dekontlar = await prisma.dekont.findMany({
       where: {
+        archived: false,
         staj: {
           teacherId: id,
+          archived: false,
+          ...(targetEducationYearId ? { educationYearId: targetEducationYearId } : {}),
         },
       },
       include: {

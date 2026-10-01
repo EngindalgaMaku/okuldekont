@@ -9,14 +9,27 @@ export async function GET(
     const { id } = await params;
     const url = new URL(request.url);
     const includeInactive = url.searchParams.get("includeInactive") === "true";
+    const queryEducationYearId = url.searchParams.get("educationYearId");
 
     if (!id) {
       return NextResponse.json({ error: "ID gerekli" }, { status: 400 });
     }
 
+    let targetEducationYearId: string | null = null;
+    if (queryEducationYearId && queryEducationYearId !== "all") {
+      targetEducationYearId = queryEducationYearId;
+    } else if (queryEducationYearId !== "all") {
+      const activeYear = await prisma.egitimYili.findFirst({
+        where: { active: true },
+      });
+      targetEducationYearId = activeYear?.id || null;
+    }
+
     // Build where clause based on includeInactive parameter
     const whereClause: any = {
       teacherId: id,
+      archived: false,
+      ...(targetEducationYearId ? { educationYearId: targetEducationYearId } : {}),
     };
 
     // By default, only show companies with active internships
@@ -80,6 +93,8 @@ export async function GET(
       allInternships = await prisma.staj.findMany({
         where: {
           teacherId: id,
+          archived: false,
+          ...(targetEducationYearId ? { educationYearId: targetEducationYearId } : {}),
         },
         include: {
           company: {
