@@ -137,12 +137,19 @@ export default function TeacherIssueModal({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
 
-      let mimeType = "audio/webm";
-      if (!MediaRecorder.isTypeSupported("audio/webm")) {
-        if (MediaRecorder.isTypeSupported("audio/mp4")) {
-          mimeType = "audio/mp4";
-        } else {
-          mimeType = "";
+      let mimeType = "";
+      const preferredTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+        "audio/aac",
+        "audio/ogg;codecs=opus",
+        "audio/wav",
+      ];
+      for (const t of preferredTypes) {
+        if (MediaRecorder.isTypeSupported(t)) {
+          mimeType = t;
+          break;
         }
       }
 
@@ -159,8 +166,9 @@ export default function TeacherIssueModal({
       };
 
       mediaRecorder.onstop = () => {
+        const recordedMime = mediaRecorder.mimeType || mimeType || "audio/webm";
         const finalBlob = new Blob(audioChunksRef.current, {
-          type: mimeType || "audio/webm",
+          type: recordedMime,
         });
         setAudioBlob(finalBlob);
         setAudioUrl(URL.createObjectURL(finalBlob));
@@ -239,15 +247,52 @@ export default function TeacherIssueModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // If still recording, stop and wait for blob
+    let finalBlob = audioBlob;
+    let finalBase64 = audioBase64;
+    let finalDuration = recordingDuration;
+
+    // If still recording, stop and wait for final blob and base64
     if (isRecording && mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (timerRef.current) clearInterval(timerRef.current);
-      await new Promise((r) => setTimeout(r, 400));
+      const stoppedData = await new Promise<{ blob: Blob; base64: string } | null>(
+        (resolve) => {
+          const recorder = mediaRecorderRef.current;
+          if (!recorder) {
+            resolve(null);
+            return;
+          }
+          recorder.onstop = () => {
+            const stream = recorder.stream;
+            if (stream) {
+              stream.getTracks().forEach((track) => track.stop());
+            }
+            const recordedMime = recorder.mimeType || "audio/webm";
+            const blob = new Blob(audioChunksRef.current, {
+              type: recordedMime,
+            });
+            setAudioBlob(blob);
+            setAudioUrl(URL.createObjectURL(blob));
+
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const b64 = (reader.result as string) || "";
+              setAudioBase64(b64);
+              resolve({ blob, base64: b64 });
+            };
+            reader.readAsDataURL(blob);
+          };
+          recorder.stop();
+          setIsRecording(false);
+          if (timerRef.current) clearInterval(timerRef.current);
+        }
+      );
+
+      if (stoppedData) {
+        finalBlob = stoppedData.blob;
+        finalBase64 = stoppedData.base64;
+      }
     }
 
-    if (!message.trim() && !audioBlob && !audioBase64) {
+    if (!message.trim() && !finalBlob && !finalBase64) {
       setErrorMessage("Lütfen yazılı bir açıklama girin veya ses kaydı yapın.");
       return;
     }
@@ -263,13 +308,20 @@ export default function TeacherIssueModal({
       if (selectedCompany) formData.append("companyInfo", selectedCompany);
       if (selectedStudent) formData.append("studentInfo", selectedStudent);
 
-      if (audioBlob) {
-        formData.append("audio", audioBlob, "recording.webm");
-        formData.append("audioDuration", recordingDuration.toString());
+      if (finalBlob) {
+        const mime = finalBlob.type || "";
+        const ext =
+          mime.includes("mp4") || mime.includes("aac")
+            ? "m4a"
+            : mime.includes("wav")
+            ? "wav"
+            : "webm";
+        formData.append("audio", finalBlob, `recording.${ext}`);
+        formData.append("audioDuration", finalDuration.toString());
       }
-      if (audioBase64) {
-        formData.append("audioBase64", audioBase64);
-        formData.append("audioDuration", recordingDuration.toString());
+      if (finalBase64) {
+        formData.append("audioBase64", finalBase64);
+        formData.append("audioDuration", finalDuration.toString());
       }
 
       const res = await fetch("/api/teachers/issues", {
@@ -326,27 +378,21 @@ export default function TeacherIssueModal({
     }
   };
 
+  const resolveAudioSrc = (url?: string | null, base64?: string | null) => {
+    if (url) {
+      if (url.startsWith("/uploads/voice-notes/")) {
+        const filename = url.split("/").pop();
+        return `/api/voice-notes/${filename}`;
+      }
+      return url;
+    }
+    if (base64) return base64;
+    return "";
+  };
+
   return (
     <>
-      {/* 🚀 Mobile-friendly Floating Action Button (FAB) */}
-      <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-[120]">
-        <button
-          onClick={() => setIsOpen(true)}
-          className="flex items-center gap-2 px-3.5 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-amber-600 via-rose-600 to-red-600 text-white font-semibold rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 border-2 border-white text-xs sm:text-sm"
-          title="İdareye Hata / Değişiklik Bildir"
-        >
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
-          </span>
-          <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5" />
-          <span className="font-bold tracking-wide">
-            Hata / Değişiklik Bildir
-          </span>
-        </button>
-      </div>
-
-      {/* 📱 Modal Dialog */}
+      {/* 📱 Modal Dialog (Header button "Hata Bildir" triggers open) */}
       {isOpen && (
         <div className="fixed inset-0 z-[130] overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
           <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[92vh]">
@@ -645,12 +691,19 @@ export default function TeacherIssueModal({
                             </p>
                           )}
 
-                          {item.audioUrl && (
+                          {(item.audioUrl || item.audioBase64) && (
                             <div className="pt-1">
                               <audio
                                 controls
-                                src={item.audioUrl}
+                                preload="metadata"
+                                src={resolveAudioSrc(item.audioUrl, item.audioBase64)}
                                 className="w-full h-8"
+                                onError={(e) => {
+                                  if (item.audioBase64 && e.currentTarget.src !== item.audioBase64) {
+                                    e.currentTarget.src = item.audioBase64;
+                                    e.currentTarget.load();
+                                  }
+                                }}
                               />
                             </div>
                           )}

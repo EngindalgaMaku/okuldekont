@@ -999,6 +999,7 @@ model TeacherIssueReport {
   message       String?        @db.Text
   audioUrl      String?        @db.VarChar(500)
   audioDuration Int?
+  audioBase64   String?        @db.LongText
   studentInfo   String?
   companyInfo   String?
   status        String         @default("PENDING")

@@ -198,6 +198,20 @@ export default function OgretmenTalepleriPage() {
     }
   };
 
+  const resolveAudioSrc = (audioUrl?: string | null, audioBase64?: string | null) => {
+    if (audioUrl) {
+      if (audioUrl.startsWith("/uploads/voice-notes/")) {
+        const filename = audioUrl.split("/").pop();
+        return `/api/voice-notes/${filename}`;
+      }
+      return audioUrl;
+    }
+    if (audioBase64) {
+      return audioBase64;
+    }
+    return "";
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 py-6">
       {/* Page Header */}
@@ -419,7 +433,7 @@ export default function OgretmenTalepleriPage() {
                 )}
 
                 {/* 🎙️ Voice Note Player */}
-                {report.audioUrl && (
+                {(report.audioUrl || report.audioBase64) && (
                   <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <div className="p-2 bg-amber-600 text-white rounded-lg shadow-sm">
@@ -438,8 +452,15 @@ export default function OgretmenTalepleriPage() {
                     </div>
                     <audio
                       controls
-                      src={report.audioUrl}
+                      preload="metadata"
+                      src={resolveAudioSrc(report.audioUrl, report.audioBase64)}
                       className="w-full sm:w-80 h-9"
+                      onError={(e) => {
+                        if (report.audioBase64 && e.currentTarget.src !== report.audioBase64) {
+                          e.currentTarget.src = report.audioBase64;
+                          e.currentTarget.load();
+                        }
+                      }}
                     />
                   </div>
                 )}

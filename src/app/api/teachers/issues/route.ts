@@ -56,11 +56,15 @@ export async function POST(request: NextRequest) {
     const audioFile = formData.get("audio");
     const audioBase64 = formData.get("audioBase64") as string | null;
     let audioUrl: string | null = null;
+    let savedBase64: string | null = null;
 
     const uploadDir = join(process.cwd(), "public", "uploads", "voice-notes");
     if (!existsSync(uploadDir)) {
       await mkdir(uploadDir, { recursive: true });
     }
+
+    let buffer: Buffer | null = null;
+    let ext = "webm";
 
     // 1. Check if audio file was uploaded as File / Blob
     if (audioFile && typeof audioFile === "object" && "arrayBuffer" in audioFile) {
@@ -68,61 +72,73 @@ export async function POST(request: NextRequest) {
         const fileObj = audioFile as unknown as File;
         const bytes = await fileObj.arrayBuffer();
         if (bytes.byteLength > 0) {
-          const buffer = Buffer.from(bytes);
-          let ext = "webm";
-          if (fileObj.type?.includes("mp4") || fileObj.name?.endsWith(".m4a")) {
+          buffer = Buffer.from(bytes);
+          if (fileObj.type?.includes("mp4") || fileObj.name?.endsWith(".mp4") || fileObj.name?.endsWith(".m4a")) {
             ext = "m4a";
           } else if (fileObj.type?.includes("wav") || fileObj.name?.endsWith(".wav")) {
             ext = "wav";
           } else if (fileObj.type?.includes("mp3") || fileObj.name?.endsWith(".mp3")) {
             ext = "mp3";
+          } else if (fileObj.type?.includes("ogg") || fileObj.name?.endsWith(".ogg")) {
+            ext = "ogg";
           }
-
-          const fileName = `voice_${teacherId}_${Date.now()}_${Math.random()
-            .toString(36)
-            .substring(2, 7)}.${ext}`;
-          const filePath = join(uploadDir, fileName);
-
-          await writeFile(filePath, buffer);
-          audioUrl = `/uploads/voice-notes/${fileName}`;
-          console.log("✅ Audio file saved via Blob:", audioUrl, "Size:", bytes.byteLength);
         }
       } catch (err) {
-        console.error("Audio Blob write error:", err);
+        console.error("Audio Blob read error:", err);
       }
     }
 
-    // 2. Fallback to audioBase64 if Blob didn't produce an audioUrl
-    if (!audioUrl && audioBase64 && audioBase64.length > 50) {
+    // 2. Fallback to audioBase64 if Blob buffer is empty
+    if ((!buffer || buffer.length === 0) && audioBase64 && audioBase64.length > 50) {
       try {
-        const matches = audioBase64.match(/^data:audio\/([a-zA-Z0-9]+);base64,(.+)$/);
-        let ext = "webm";
         let rawBase64 = audioBase64;
-
+        const matches = audioBase64.match(/^data:audio\/([a-zA-Z0-9_-]+);base64,(.+)$/);
         if (matches && matches.length === 3) {
-          ext = matches[1] === "mpeg" ? "mp3" : matches[1];
+          const detectedExt = matches[1].toLowerCase();
+          ext = detectedExt === "mpeg" ? "mp3" : detectedExt;
           rawBase64 = matches[2];
         } else if (audioBase64.includes("base64,")) {
           rawBase64 = audioBase64.split("base64,")[1];
         }
-
-        const buffer = Buffer.from(rawBase64, "base64");
-        if (buffer.length > 0) {
-          const fileName = `voice_${teacherId}_${Date.now()}_${Math.random()
-            .toString(36)
-            .substring(2, 7)}.${ext}`;
-          const filePath = join(uploadDir, fileName);
-
-          await writeFile(filePath, buffer);
-          audioUrl = `/uploads/voice-notes/${fileName}`;
-          console.log("✅ Audio file saved via Base64:", audioUrl, "Size:", buffer.length);
-        }
+        buffer = Buffer.from(rawBase64, "base64");
       } catch (err) {
-        console.error("Audio Base64 write error:", err);
+        console.error("Audio Base64 read error:", err);
       }
     }
 
-    if (!message.trim() && !audioUrl) {
+    // 3. If we have a buffer, write to disk and prepare savedBase64
+    if (buffer && buffer.length > 0) {
+      const fileName = `voice_${teacherId}_${Date.now()}_${Math.random()
+        .toString(36)
+        .substring(2, 7)}.${ext}`;
+      const filePath = join(uploadDir, fileName);
+
+      try {
+        await writeFile(filePath, buffer);
+      } catch (err) {
+        console.error("Audio disk write error:", err);
+      }
+
+      audioUrl = `/api/voice-notes/${fileName}`;
+
+      if (audioBase64 && audioBase64.startsWith("data:audio")) {
+        savedBase64 = audioBase64;
+      } else {
+        const mimeType =
+          ext === "m4a" || ext === "mp4"
+            ? "audio/mp4"
+            : ext === "wav"
+            ? "audio/wav"
+            : ext === "mp3"
+            ? "audio/mpeg"
+            : ext === "ogg"
+            ? "audio/ogg"
+            : "audio/webm";
+        savedBase64 = `data:${mimeType};base64,${buffer.toString("base64")}`;
+      }
+    }
+
+    if (!message.trim() && !audioUrl && !savedBase64) {
       return NextResponse.json(
         { error: "Lütfen yazılı bir açıklama girin veya ses kaydı yapın" },
         { status: 400 }
@@ -137,6 +153,7 @@ export async function POST(request: NextRequest) {
         message: message.trim() || (audioUrl ? "Sesli mesaj iletildi" : ""),
         audioUrl,
         audioDuration,
+        audioBase64: savedBase64,
         studentInfo,
         companyInfo,
         status: "PENDING",
