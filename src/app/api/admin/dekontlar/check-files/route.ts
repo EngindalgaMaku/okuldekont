@@ -16,7 +16,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const uploadsDir = join(process.cwd(), "public", "uploads", "dekontlar");
+    const candidateDirs = [
+      join(process.cwd(), "public", "uploads", "dekontlar"),
+      join(process.cwd(), "..", "public", "uploads", "dekontlar"),
+      join(process.cwd(), "..", "..", "public", "uploads", "dekontlar"),
+      "/app/public/uploads/dekontlar",
+    ];
+
+    let uploadsDir = candidateDirs[0];
+    for (const d of candidateDirs) {
+      if (existsSync(d) && readdirSync(d).length > 0) {
+        uploadsDir = d;
+        break;
+      }
+    }
+
     let diskFiles: string[] = [];
     if (existsSync(uploadsDir)) {
       diskFiles = readdirSync(uploadsDir);
@@ -107,6 +121,16 @@ export async function GET(request: NextRequest) {
         missingFilesCount: missingList.length,
         unlinkedDiskFilesCount: unlinkedDiskFiles.length,
         status: missingList.length === 0 ? "TAMAM (TÜM DOSYALAR MEVCUT)" : "EKSIK DOSYALAR VAR",
+      },
+      debug: {
+        cwd: process.cwd(),
+        resolvedUploadsDir: uploadsDir,
+        exists: existsSync(uploadsDir),
+        candidateChecks: candidateDirs.map((c) => ({
+          path: c,
+          exists: existsSync(c),
+          fileCount: existsSync(c) ? readdirSync(c).length : 0,
+        })),
       },
       missingFiles: missingList,
       unlinkedFilesOnDiskSample: unlinkedDiskFiles.slice(0, 30),
