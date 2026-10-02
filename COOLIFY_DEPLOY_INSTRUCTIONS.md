@@ -85,7 +85,19 @@ NEXTAUTH_SECRET=...
 ### C. Port Ayarları
 Port: `3000` (default Next.js port)
 
-### D. Dockerfile Kontrol
+### D. KRİTİK: Dekont ve Dosyaların Silinmemesi İçin Kalıcı Depolama (Persistent Storage / Volume)
+Docker container'ları varsayılan olarak her deploy/rebuild işleminde sıfırlanır. Yüklenen dekontların (PDF, JPG vb.), belgelerin ve ses dosyalarının silinmemesi için Coolify'da **Persistent Storage (Kalıcı Volume)** tanımlanmalıdır:
+
+1. **Coolify Dashboard'da projenize ve uygulamanıza (Application) gidin.**
+2. Sol menüden **"Storages"** (veya **"Persistent Storage"**) sekmesine tıklayın.
+3. **"Add Storage"** butonuna tıklayın:
+   - **Name:** `okuldekont-uploads` (veya istediğiniz bir isim)
+   - **Destination Path (Container Yolu):** `/app/public/uploads`
+4. Kaydedin ve uygulamayı yeniden başlatın (Redeploy).
+
+> 💡 **Bu ayar yapıldığında:** Yapılan güncellemeler, yeni build'ler veya yeniden başlatmalar olsa dahi sunucu diski korunur; yüklenen dekontlar ve dosyalar **ASLA silinmez**.
+
+### E. Dockerfile Kontrol
 Eğer Dockerfile kullanıyorsanız, multi-stage build olduğundan emin olun.
 
 ## 6. Son Çare: Manuel Deploy
