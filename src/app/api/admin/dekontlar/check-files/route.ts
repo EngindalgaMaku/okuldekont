@@ -39,7 +39,6 @@ export async function GET(request: NextRequest) {
     const diskFilesSet = new Set(diskFiles.map((f) => f.toLowerCase()));
 
     const allDekontlar = await prisma.dekont.findMany({
-      where: { archived: false },
       include: {
         student: {
           select: {

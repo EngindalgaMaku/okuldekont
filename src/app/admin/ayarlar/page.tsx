@@ -767,6 +767,32 @@ ${
       const year = educationYears.find((y) => y.id === yearId);
       if (!year) return;
 
+      if (year.archived) {
+        const confirmUnarchive = confirm(
+          `"${year.year}" dönemi arşivdedir.\n\nBu dönemi aktif yapabilmek için staj ve dekont kayıtlarıyla birlikte arşivden çıkarılacaktır. Onaylıyor musunuz?`
+        );
+        if (!confirmUnarchive) {
+          setEducationYearLoading(false);
+          return;
+        }
+
+        const unarchiveRes = await fetch(
+          `/api/admin/education-years/${yearId}/archive`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "unarchive",
+              adminId: adminId || "admin",
+            }),
+          }
+        );
+        if (!unarchiveRes.ok) {
+          const err = await unarchiveRes.json();
+          throw new Error(err.error || "Arşivden çıkarma başarısız");
+        }
+      }
+
       const response = await fetch("/api/admin/education-years", {
         method: "PUT",
         headers: {
@@ -775,16 +801,17 @@ ${
         body: JSON.stringify({
           ...year,
           active: true,
+          archived: false,
         }),
       });
 
       if (!response.ok) throw new Error("Failed to set active education year");
 
       await fetchEducationYears();
-      alert("Aktif dönem başarıyla güncellendi");
-    } catch (error) {
+      alert(`"${year.year}" dönemi başarıyla aktif yapıldı ve tüm kayıtlar erişilebilir hale getirildi.`);
+    } catch (error: any) {
       console.error("Aktif dönem ayarlanırken hata:", error);
-      alert("Aktif dönem ayarlanamadı");
+      alert(`Aktif dönem ayarlanamadı: ${error.message || error}`);
     }
     setEducationYearLoading(false);
   };
@@ -2465,15 +2492,24 @@ ${
                         </div>
 
                         <div className="flex items-center space-x-2">
-                          {!year.archived && !year.active && (
+                          {!year.active && (
                             <button
                               onClick={() =>
                                 handleSetActiveEducationYear(year.id)
                               }
                               disabled={educationYearLoading}
-                              className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                              className={`px-3 py-1 text-xs text-white rounded disabled:opacity-50 ${
+                                year.archived
+                                  ? "bg-amber-600 hover:bg-amber-700"
+                                  : "bg-indigo-600 hover:bg-indigo-700"
+                              }`}
+                              title={
+                                year.archived
+                                  ? "Arşivden çıkar ve bu dönemi aktif yap"
+                                  : "Bu dönemi aktif yap"
+                              }
                             >
-                              Aktif Yap
+                              {year.archived ? "Arşivden Aç & Aktif Yap" : "Aktif Yap"}
                             </button>
                           )}
 

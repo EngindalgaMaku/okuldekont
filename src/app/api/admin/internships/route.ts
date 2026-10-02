@@ -33,9 +33,14 @@ export async function GET(request: Request) {
     const validLimit = Math.min(Math.max(1, limit), 100); // Max 100 items per page
     const skip = (validPage - 1) * validLimit;
 
-    let whereClause: any = {
-      archived: false, // Arşivlenen stajları gizle
-    };
+    const includeArchived =
+      searchParams.get("includeArchived") === "true" ||
+      Boolean(educationYearIdParam);
+
+    let whereClause: any = {};
+    if (!includeArchived) {
+      whereClause.archived = false;
+    }
 
     // Filter by student IDs if provided
     if (studentIds) {

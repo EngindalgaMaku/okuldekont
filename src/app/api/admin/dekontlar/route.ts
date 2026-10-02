@@ -89,9 +89,15 @@ export async function GET(request: Request) {
       }
     }
 
-    const whereClause: any = {
-      archived: false,
-    };
+    const includeArchived =
+      searchParams.get("includeArchived") === "true" ||
+      Boolean(queryEducationYearId);
+
+    const whereClause: any = {};
+
+    if (!includeArchived) {
+      whereClause.archived = false;
+    }
 
     // Sadece eğitim yılı sorgu parametresi olarak açıkça verilmişse ve 'all' değilse filtrele
     if (queryEducationYearId && queryEducationYearId !== "all") {
