@@ -43,6 +43,9 @@ export interface Dekont {
   id: number;
   isletme_ad: string;
   ogrenci_ad: string;
+  ogrenci_id?: string;
+  staj_id?: string | number;
+  isletme_id?: string;
   miktar: number | null;
   odeme_tarihi: string;
   onay_durumu: "bekliyor" | "onaylandi" | "reddedildi";

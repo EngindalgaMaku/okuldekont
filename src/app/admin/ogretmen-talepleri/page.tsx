@@ -29,6 +29,7 @@ interface TeacherIssue {
   message: string | null;
   audioUrl: string | null;
   audioDuration: number | null;
+  audioBase64?: string | null;
   studentInfo: string | null;
   companyInfo: string | null;
   status: "PENDING" | "IN_PROGRESS" | "RESOLVED" | "ARCHIVED";

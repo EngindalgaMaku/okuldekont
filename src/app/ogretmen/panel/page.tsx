@@ -175,6 +175,15 @@ const TeacherPanel = () => {
   const [pendingDekontData, setPendingDekontData] =
     useState<DekontFormData | null>(null);
 
+  // Türkçe karakter ve boşluk duyarsız metin karşılaştırma yardımcısı
+  const normalizeTrText = (text?: string): string => {
+    if (!text) return "";
+    return text
+      .toLocaleLowerCase("tr-TR")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
   // Önceki ay için dekont eksik olan öğrencileri tespit et (kamu kurumları hariç)
   const getEksikDekontOgrenciler = () => {
     const currentDate = new Date();
@@ -277,12 +286,18 @@ const TeacherPanel = () => {
       }
 
       // Önceki ay için dekont kontrolü
-      const ogrenciDekontlari = dekontlar.filter(
-        (d) =>
-          d.ogrenci_ad === `${ogrenci.ad} ${ogrenci.soyad}` &&
-          d.ay === previousMonth &&
-          d.yil === previousYear
-      );
+      const ogrenciDekontlari = dekontlar.filter((d) => {
+        const isStudentMatch =
+          (d.ogrenci_id && ogrenci.id && String(d.ogrenci_id) === String(ogrenci.id)) ||
+          (d.staj_id && ogrenci.staj_id && String(d.staj_id) === String(ogrenci.staj_id)) ||
+          (normalizeTrText(d.ogrenci_ad) === normalizeTrText(`${ogrenci.ad} ${ogrenci.soyad}`));
+
+        return (
+          isStudentMatch &&
+          Number(d.ay) === Number(previousMonth) &&
+          Number(d.yil) === Number(previousYear)
+        );
+      });
 
       console.log(`   📄 Dekont kontrolü:`, {
         arananOgrenciAd: `${ogrenci.ad} ${ogrenci.soyad}`,
@@ -379,11 +394,20 @@ const TeacherPanel = () => {
   const getDekontStatus = (
     ogrenciAd: string,
     month: number,
-    year: number
+    year: number,
+    ogrenciId?: string
   ): "approved" | "pending" | "rejected" | "none" => {
-    const dekont = dekontlar.find(
-      (d) => d.ogrenci_ad === ogrenciAd && d.ay === month && d.yil === year
-    );
+    const targetNorm = normalizeTrText(ogrenciAd);
+    const dekont = dekontlar.find((d) => {
+      const isStudentMatch =
+        (ogrenciId && d.ogrenci_id && String(d.ogrenci_id) === String(ogrenciId)) ||
+        (d.ogrenci_ad && normalizeTrText(d.ogrenci_ad) === targetNorm);
+      return (
+        isStudentMatch &&
+        Number(d.ay) === Number(month) &&
+        Number(d.yil) === Number(year)
+      );
+    });
 
     if (!dekont) return "none";
     if (dekont.onay_durumu === "onaylandi") return "approved";
@@ -392,21 +416,29 @@ const TeacherPanel = () => {
   };
 
   // Öğrenci için bekleyen dekont sayısını getir
-  const getPendingDekontCount = (ogrenciAd: string): number => {
-    return dekontlar.filter(
-      (d) => d.ogrenci_ad === ogrenciAd && d.onay_durumu === "bekliyor"
-    ).length;
+  const getPendingDekontCount = (ogrenciAd: string, ogrenciId?: string): number => {
+    const targetNorm = normalizeTrText(ogrenciAd);
+    return dekontlar.filter((d) => {
+      const isStudentMatch =
+        (ogrenciId && d.ogrenci_id && String(d.ogrenci_id) === String(ogrenciId)) ||
+        (d.ogrenci_ad && normalizeTrText(d.ogrenci_ad) === targetNorm);
+      return isStudentMatch && d.onay_durumu === "bekliyor";
+    }).length;
   };
 
   // Öğrenci için reddedilen dekont sayısını getir
-  const getRejectedDekontCount = (ogrenciAd: string): number => {
-    return dekontlar.filter(
-      (d) => d.ogrenci_ad === ogrenciAd && d.onay_durumu === "reddedildi"
-    ).length;
+  const getRejectedDekontCount = (ogrenciAd: string, ogrenciId?: string): number => {
+    const targetNorm = normalizeTrText(ogrenciAd);
+    return dekontlar.filter((d) => {
+      const isStudentMatch =
+        (ogrenciId && d.ogrenci_id && String(d.ogrenci_id) === String(ogrenciId)) ||
+        (d.ogrenci_ad && normalizeTrText(d.ogrenci_ad) === targetNorm);
+      return isStudentMatch && d.onay_durumu === "reddedildi";
+    }).length;
   };
 
   // Son ayın dekont durumunu getir
-  const getLastMonthDekontStatus = (ogrenciAd: string): string => {
+  const getLastMonthDekontStatus = (ogrenciAd: string, ogrenciId?: string): string => {
     const currentDate = new Date();
     const currentMonthIndex = currentDate.getMonth(); // 0-11 arası (Ekim = 9)
     const lastMonthIndex = currentMonthIndex === 0 ? 11 : currentMonthIndex - 1; // Önceki ay index'i
@@ -416,10 +448,11 @@ const TeacherPanel = () => {
         ? currentDate.getFullYear() - 1
         : currentDate.getFullYear();
 
+    const targetNorm = normalizeTrText(ogrenciAd);
     // Öğrencinin başlangıç tarihini bul
     const ogrenci = isletmeler
       .flatMap((i) => i.ogrenciler)
-      .find((o) => `${o.ad} ${o.soyad}` === ogrenciAd);
+      .find((o) => (ogrenciId && String(o.id) === String(ogrenciId)) || normalizeTrText(`${o.ad} ${o.soyad}`) === targetNorm);
     if (ogrenci) {
       const startDate = parseDateFlexible(ogrenci.baslangic_tarihi);
       const startYear = startDate.getFullYear();
@@ -434,7 +467,7 @@ const TeacherPanel = () => {
       }
     }
 
-    const status = getDekontStatus(ogrenciAd, targetMonth, lastMonthYear);
+    const status = getDekontStatus(ogrenciAd, targetMonth, lastMonthYear, ogrenciId);
     const monthName = aylar[lastMonthIndex];
 
     switch (status) {
@@ -1081,9 +1114,15 @@ const TeacherPanel = () => {
 
       if (!groups[companyKey].students[studentKey]) {
         // İşletme listesinden öğrenci detaylarını bul
-        const isletme = isletmeler.find((i) => i.ad === dekont.isletme_ad);
+        const isletme = isletmeler.find(
+          (i) =>
+            (dekont.isletme_id && String(i.id) === String(dekont.isletme_id)) ||
+            normalizeTrText(i.ad) === normalizeTrText(dekont.isletme_ad)
+        );
         const ogrenci = isletme?.ogrenciler.find(
-          (o) => `${o.ad} ${o.soyad}` === dekont.ogrenci_ad
+          (o) =>
+            (dekont.ogrenci_id && String(o.id) === String(dekont.ogrenci_id)) ||
+            normalizeTrText(`${o.ad} ${o.soyad}`) === normalizeTrText(dekont.ogrenci_ad)
         );
 
         groups[companyKey].students[studentKey] = {
@@ -2305,11 +2344,11 @@ const TeacherPanel = () => {
                               {isletme.ogrenciler.map((ogrenci) => {
                                 const ogrenciFullName = `${ogrenci.ad} ${ogrenci.soyad}`;
                                 const pendingCount =
-                                  getPendingDekontCount(ogrenciFullName);
+                                  getPendingDekontCount(ogrenciFullName, ogrenci.id);
                                 const rejectedCount =
-                                  getRejectedDekontCount(ogrenciFullName);
+                                  getRejectedDekontCount(ogrenciFullName, ogrenci.id);
                                 const lastMonthStatus =
-                                  getLastMonthDekontStatus(ogrenciFullName);
+                                  getLastMonthDekontStatus(ogrenciFullName, ogrenci.id);
 
                                 // Company type check
                                 const companyType = companyTypes[isletme.id];
@@ -2482,7 +2521,8 @@ const TeacherPanel = () => {
                                               getDekontStatus(
                                                 `${ogrenci.ad} ${ogrenci.soyad}`,
                                                 monthData.month,
-                                                monthData.year
+                                                monthData.year,
+                                                ogrenci.id
                                               );
                                             return (
                                               <div

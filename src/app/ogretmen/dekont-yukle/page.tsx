@@ -493,15 +493,18 @@ function DekontYukleInner() {
     setUploadProgress(0);
     setRetryCount(0);
     try {
-      // Staj ID'yi bul (doğrudan ID'lerden kullan, TS null uyarısını önle)
-      const stajRes = await fetch(
-        `/api/admin/internships/find?ogrenci_id=${encodeURIComponent(
-          selectedOgrenciId
-        )}&isletme_id=${encodeURIComponent(selectedIsletmeId)}`
-      );
-      if (!stajRes.ok) throw new Error("Staj ID bulunamadı");
-      const stajData = await stajRes.json();
-      const stajId = String(stajData.id || "");
+      // Staj ID'yi belirle: Öncelikle seçili stajın ID'sini kullan
+      let stajId = selectedStaj?.id ? String(selectedStaj.id) : "";
+      if (!stajId) {
+        const stajRes = await fetch(
+          `/api/admin/internships/find?ogrenci_id=${encodeURIComponent(
+            selectedOgrenciId
+          )}&isletme_id=${encodeURIComponent(selectedIsletmeId)}`
+        );
+        if (!stajRes.ok) throw new Error("Staj ID bulunamadı");
+        const stajData = await stajRes.json();
+        stajId = String(stajData.id || "");
+      }
 
       // Görsel ise istemci tarafında boyut/kalite küçültme uygula (PDF'lere dokunma)
       const maybeCompressed = await (async () => {

@@ -239,7 +239,7 @@ export async function GET(request: NextRequest) {
               // FIX: Use internship-level logic instead of student-level
               // Check dekont for THIS specific internship, not just any internship for this student
               has_dekont: companyDekontlar.some(
-                (d) => d.stajId === s.id // Use internship ID instead of student ID
+                (d) => d.stajId === s.id || (d.studentId === s.student.id && d.companyId === companyId)
               ),
               // Ödeme bilgisini ekle
               payment_amount: payment?.amount ? Number(payment.amount) : null,

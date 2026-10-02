@@ -24,31 +24,56 @@ export async function GET(
       targetEducationYearId = activeYear?.id || null;
     }
 
-    // Öğretmenin sorumlu olduğu stajların tüm dekontlarını getir (işletme yüklü dahil)
+    // Öğretmenin sorumlu olduğu stajların veya doğrudan öğretmenin yüklediği dekontları getir
     const dekontlar = await prisma.dekont.findMany({
       where: {
         archived: false,
-        staj: {
-          teacherId: id,
-          archived: false,
-          ...(targetEducationYearId ? { educationYearId: targetEducationYearId } : {}),
-        },
+        OR: [
+          {
+            staj: {
+              teacherId: id,
+              archived: false,
+              ...(targetEducationYearId
+                ? { educationYearId: targetEducationYearId }
+                : {}),
+            },
+          },
+          {
+            teacherId: id,
+            archived: false,
+          },
+        ],
       },
       include: {
         staj: {
           include: {
             student: {
               select: {
+                id: true,
                 name: true,
                 surname: true,
               },
             },
             company: {
               select: {
+                id: true,
                 name: true,
                 contact: true,
               },
             },
+          },
+        },
+        student: {
+          select: {
+            id: true,
+            name: true,
+            surname: true,
+          },
+        },
+        company: {
+          select: {
+            id: true,
+            name: true,
           },
         },
         teacher: {
@@ -70,36 +95,28 @@ export async function GET(
       REJECTED: "reddedildi",
     };
 
-    // 🐛 DEBUG: Log raw dekont data
-    console.log("🔍 DEBUG: Teacher dekont API raw data sample:", {
-      teacherId: id,
-      totalDekontlar: dekontlar.length,
-      sampleDekont: dekontlar[0]
-        ? {
-            id: dekontlar[0].id,
-            month: dekontlar[0].month,
-            year: dekontlar[0].year,
-            sequenceNumber: (dekontlar[0] as any).sequenceNumber,
-            hasSequenceNumber: !!(dekontlar[0] as any).sequenceNumber,
-          }
-        : null,
-    });
-
-    // Formatla - FIXED: Include sequenceNumber
+    // Formatla - include ogrenci_id, isletme_id, staj_id
     const formattedDekontlar = dekontlar.map((d: any) => ({
       id: d.id,
-      isletme_ad: d.staj.company.name,
-      ogrenci_ad: `${d.staj.student.name} ${d.staj.student.surname}`,
-      miktar: d.amount,
+      staj_id: d.stajId,
+      ogrenci_id: d.studentId || d.staj?.student?.id,
+      isletme_id: d.companyId || d.staj?.company?.id,
+      isletme_ad:
+        d.staj?.company?.name || d.company?.name || "Bilinmiyor",
+      ogrenci_ad: d.staj?.student
+        ? `${d.staj.student.name} ${d.staj.student.surname}`
+        : d.student
+        ? `${d.student.name} ${d.student.surname}`
+        : "Bilinmiyor",
+      miktar: d.amount ? Number(d.amount) : null,
       odeme_tarihi: d.paymentDate,
       onay_durumu: statusMapping[d.status as string] || d.status,
-      ay: d.month,
-      yil: d.year,
-      sequence_number: d.sequenceNumber || 1, // 🚨 FIX: Include sequenceNumber
+      ay: Number(d.month),
+      yil: Number(d.year),
+      sequence_number: d.sequenceNumber || 1,
       dosya_url: d.fileUrl,
       aciklama: d.rejectReason,
       red_nedeni: d.rejectReason,
-      // Gerçek yükleyiciyi belirle
       yukleyen_kisi: d.teacherId
         ? d.teacher
           ? `${d.teacher.name} ${d.teacher.surname} (Öğretmen)`
@@ -109,18 +126,6 @@ export async function GET(
         : "İşletme Yetkilisi (İşletme)",
       created_at: d.createdAt,
     }));
-
-    // 🐛 DEBUG: Log formatted data to verify sequenceNumber inclusion
-    console.log("🔍 DEBUG: Teacher dekont API formatted data sample:", {
-      sampleFormatted: formattedDekontlar[0]
-        ? {
-            id: formattedDekontlar[0].id,
-            ay: formattedDekontlar[0].ay,
-            yil: formattedDekontlar[0].yil,
-            sequence_number: formattedDekontlar[0].sequence_number,
-          }
-        : null,
-    });
 
     return NextResponse.json(formattedDekontlar);
   } catch (error) {

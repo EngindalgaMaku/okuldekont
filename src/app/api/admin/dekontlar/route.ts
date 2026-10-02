@@ -37,28 +37,68 @@ export async function GET(request: Request) {
   }
 
   try {
-    // educationYearId query param'ını destekle; yoksa aktif yılı kullan. 'all' ise filtreyi kaldır.
+    // educationYearId query param'ını destekle; sadece açıkça belirtilmişse filtrele ('all' ise filtreleme)
     const { searchParams } = new URL(request.url);
     const queryEducationYearId = searchParams.get("educationYearId");
     const activeEducationYearId = await getActiveEducationYearId();
     const useAllYears = queryEducationYearId === "all";
     const educationYearId = useAllYears
       ? undefined
-      : queryEducationYearId || activeEducationYearId;
+      : queryEducationYearId || undefined;
 
-    // Current date for TERMINATED filtering logic
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth() + 1;
+    // Self-healing: Eski eğitim yılı stajına bağlı kalmış dekontları aktif staja bağla
+    if (activeEducationYearId) {
+      try {
+        const misplacedDekonts = await prisma.dekont.findMany({
+          where: {
+            archived: false,
+            staj: {
+              educationYearId: { not: activeEducationYearId },
+            },
+          },
+          select: {
+            id: true,
+            studentId: true,
+            companyId: true,
+          },
+          take: 50,
+        });
+
+        for (const md of misplacedDekonts) {
+          if (md.studentId && md.companyId) {
+            const activeStaj = await prisma.staj.findFirst({
+              where: {
+                studentId: md.studentId,
+                companyId: md.companyId,
+                educationYearId: activeEducationYearId,
+                status: "ACTIVE",
+              },
+              select: { id: true },
+            });
+            if (activeStaj) {
+              await prisma.dekont.update({
+                where: { id: md.id },
+                data: { stajId: activeStaj.id },
+              });
+              console.log(`[SELF-HEALING] Dekont ${md.id} aktif staj ${activeStaj.id}'e bağlandı.`);
+            }
+          }
+        }
+      } catch (healError) {
+        console.warn("[SELF-HEALING] Dekont onarımı sırasında uyarı:", healError);
+      }
+    }
 
     const whereClause: any = {
       archived: false,
-      // FIXED: Show all dekonts including terminated internships
-      staj: {
-        ...(educationYearId ? { educationYearId } : {}),
-        // Removed TERMINATED filter - all dekonts should be visible in admin panel
-      },
     };
+
+    // Sadece eğitim yılı sorgu parametresi olarak açıkça verilmişse ve 'all' değilse filtrele
+    if (queryEducationYearId && queryEducationYearId !== "all") {
+      whereClause.staj = {
+        educationYearId: queryEducationYearId,
+      };
+    }
 
     const rawData = await prisma.dekont.findMany({
       where: whereClause,
@@ -246,10 +286,12 @@ export async function GET(request: Request) {
     // Feshedilmiş stajları hariç tut
     // Reuse currentDate, currentYear, and currentMonth variables from line 50-52
 
+    const targetInternshipYearId = educationYearId || activeEducationYearId;
+
     const allInternships = await prisma.staj.findMany({
       where: {
         archived: false,
-        ...(educationYearId ? { educationYearId } : {}),
+        ...(targetInternshipYearId ? { educationYearId: targetInternshipYearId } : {}),
         company: {
           companyType: "PRIVATE", // Sadece özel sektör şirketleri
         },
@@ -267,7 +309,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       data: formattedData,
       totalStudents: totalStudentsRequiringDekont,
-      filter: useAllYears ? "all" : educationYearId,
+      filter: useAllYears ? "all" : (educationYearId || activeEducationYearId),
     });
   } catch (error) {
     console.error("Dekont listesi alınırken hata:", error);
@@ -509,6 +551,30 @@ export async function POST(request: Request) {
           );
         }
         uploadStaj = historical as typeof staj;
+      }
+    }
+
+    // Aktif eğitim yılı stajı mevcutsa dekontu doğrudan aktif yıla bağla
+    const postActiveYearId = await getActiveEducationYearId();
+    if (postActiveYearId && uploadStaj.educationYearId !== postActiveYearId) {
+      const activeStaj = await prisma.staj.findFirst({
+        where: {
+          studentId: uploadStaj.studentId,
+          companyId: uploadStaj.companyId,
+          educationYearId: postActiveYearId,
+          status: "ACTIVE",
+        },
+        include: {
+          student: { include: { alan: { select: { name: true } } } },
+          company: { select: { name: true, contact: true } },
+          teacher: { select: { name: true, surname: true } },
+        },
+      });
+      if (activeStaj) {
+        console.log(
+          `🔄 Upload staj otomatik olarak eski staj (${uploadStaj.id}) yerine aktif yıl stajına (${activeStaj.id}) yönlendirildi.`
+        );
+        uploadStaj = activeStaj as typeof uploadStaj;
       }
     }
 
