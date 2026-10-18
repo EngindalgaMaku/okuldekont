@@ -1,0 +1,267 @@
+import toast from "react-hot-toast";
+import { isAppMode, openFilePreview } from "@/components/ui/FilePreviewOverlay";
+import { isDemoActive } from "@/lib/demo-mode";
+import { CheckCircle, Clock, XCircle } from "lucide-react";
+import {
+  Dekont,
+  StatusInfo,
+  CompanyStyles,
+  Isletme,
+} from "@/types/teacher-panel";
+
+// Dosya adı kısaltma fonksiyonu
+export const truncateFileName = (fileName: string, maxLength: number = 40) => {
+  if (fileName.length <= maxLength) return fileName;
+  const extension = fileName.split(".").pop();
+  const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf("."));
+  const truncatedName = nameWithoutExt.substring(
+    0,
+    maxLength - extension!.length - 4
+  );
+  return `${truncatedName}...${extension}`;
+};
+
+// Tarih fonksiyonları
+export const getCurrentMonth = () => new Date().getMonth() + 1;
+export const getCurrentYear = () => new Date().getFullYear();
+export const getCurrentDay = () => new Date().getDate();
+
+// Gecikme durumunu kontrol et (önceki ay dekontları için son günden sonra)
+export const isGecikme = (sonGun: number = 7) => {
+  const currentDate = new Date();
+  const currentDay = currentDate.getDate();
+  const currentMonth = currentDate.getMonth() + 1; // 1-12 arası
+
+  // Önceki ay dekont yükleme süresi: Bu ayın sonGun'üne kadar
+  // Eğer geçerli gün sonGun'den büyükse, önceki ay dekontları için gecikme var
+  return currentDay > sonGun;
+};
+
+// Kritik süre kontrolü (önceki ay dekontları için 1-sonGun arası)
+export const isKritikSure = (sonGun: number = 7) => {
+  const currentDate = new Date();
+  const currentDay = currentDate.getDate();
+  const currentMonth = currentDate.getMonth() + 1; // 1-12 arası
+
+  // Önceki ay dekont yükleme süresi: Bu ayın 1-sonGun arası
+  // Bu süre zarfında kritik süre uyarısı göster
+  return currentDay >= 1 && currentDay <= sonGun;
+};
+
+// Ay isimleri
+export const aylar = [
+  "Ocak",
+  "Şubat",
+  "Mart",
+  "Nisan",
+  "Mayıs",
+  "Haziran",
+  "Temmuz",
+  "Ağustos",
+  "Eylül",
+  "Ekim",
+  "Kasım",
+  "Aralık",
+];
+
+// Belge türü formatlama fonksiyonu
+export const formatBelgeTur = (tur: string) => {
+  switch (tur) {
+    case "Sözleşme":
+    case "sozlesme":
+      return "Sözleşme";
+    case "Fesih Belgesi":
+    case "fesih_belgesi":
+      return "Fesih Belgesi";
+    case "Usta Öğreticilik Belgesi":
+    case "usta_ogretici_belgesi":
+      return "Usta Öğretici Belgesi";
+    default:
+      return tur;
+  }
+};
+
+// Belge onay durumu için yardımcı fonksiyon
+export const getBelgeDurum = (
+  durum: "PENDING" | "APPROVED" | "REJECTED"
+): StatusInfo => {
+  switch (durum) {
+    case "APPROVED":
+      return {
+        text: "Onaylandı",
+        icon: CheckCircle,
+        color: "text-green-700",
+        bg: "bg-green-100",
+      };
+    case "REJECTED":
+      return {
+        text: "Reddedildi",
+        icon: XCircle,
+        color: "text-red-700",
+        bg: "bg-red-100",
+      };
+    case "PENDING":
+    default:
+      return {
+        text: "Bekliyor",
+        icon: Clock,
+        color: "text-yellow-700",
+        bg: "bg-yellow-100",
+      };
+  }
+};
+
+// Onay durumu için yardımcı fonksiyon
+export const getDurum = (durum: Dekont["onay_durumu"]): StatusInfo => {
+  switch (durum) {
+    case "onaylandi":
+      return {
+        text: "Onaylandı",
+        icon: CheckCircle,
+        color: "text-green-700",
+        bg: "bg-green-100",
+      };
+    case "reddedildi":
+      return {
+        text: "Reddedildi",
+        icon: XCircle,
+        color: "text-red-700",
+        bg: "bg-red-100",
+      };
+    case "bekliyor":
+    default:
+      return {
+        text: "Bekliyor",
+        icon: Clock,
+        color: "text-yellow-700",
+        bg: "bg-yellow-100",
+      };
+  }
+};
+
+// İşletme stil fonksiyonu
+export const getCompanyStyles = (isletme: Isletme): CompanyStyles => {
+  if (isletme.color_scheme) {
+    return {
+      border: `2px solid ${isletme.color_scheme.accent}`,
+      background: `linear-gradient(135deg, ${isletme.color_scheme.secondary} 0%, white 100%)`,
+      iconBg: isletme.color_scheme.secondary,
+      iconColor: isletme.color_scheme.primary,
+    };
+  }
+
+  // Fallback styling based on company type
+  switch (isletme.company_type) {
+    case "tech":
+      return {
+        border: "2px solid #C7D2FE",
+        background: "linear-gradient(135deg, #EEF2FF 0%, white 100%)",
+        iconBg: "#EEF2FF",
+        iconColor: "#4F46E5",
+      };
+    case "accounting":
+      return {
+        border: "2px solid #A7F3D0",
+        background: "linear-gradient(135deg, #ECFDF5 0%, white 100%)",
+        iconBg: "#ECFDF5",
+        iconColor: "#059669",
+      };
+    default:
+      return {
+        border: "2px solid #E5E7EB",
+        background: "linear-gradient(135deg, #F9FAFB 0%, white 100%)",
+        iconBg: "#F9FAFB",
+        iconColor: "#6B7280",
+      };
+  }
+};
+
+// Dosya indirme handler'ı
+export const handleFileDownload = async (
+  dosyaUrl: string,
+  fileName: string
+) => {
+  try {
+    // URL'den dosya adını çıkar
+    const urlParts = dosyaUrl.split("/");
+    const originalFileName = urlParts[urlParts.length - 1];
+
+    if (isDemoActive()) {
+      toast("Demo modunda dosya indirme kapalı. Önizle ile görüntüleyebilirsiniz.", { icon: "ℹ️" });
+      return;
+    }
+
+    // API endpoint'i kullanarak dosyayı indir
+    const downloadUrl = `/api/admin/dekontlar/download/${originalFileName}`;
+
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = fileName;
+    link.target = "_blank";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (error) {
+    console.error("Dosya indirme hatası:", error);
+    toast.error("Dosya indirilemedi. Lütfen tekrar deneyin.");
+  }
+};
+
+// Dosya görüntüleme handler'ı - Belgeler için özel endpoint
+export const handleFileView = async (dosyaUrl: string) => {
+  try {
+    // Tam URL değilse belgeler klasörü ekle
+    const url =
+      dosyaUrl.startsWith("http") || dosyaUrl.startsWith("/")
+        ? dosyaUrl
+        : `/uploads/belgeler/${dosyaUrl}`;
+
+    // Android uygulamasında PDF yeni sekmede açılamaz; uygulama içi önizleme kullan
+    if (isAppMode() && url.startsWith("/")) {
+      openFilePreview({
+        src: url,
+        downloadUrl: url,
+        title: decodeURIComponent(url.split("/").pop() || "Belge"),
+      });
+      return;
+    }
+
+    window.open(url, "_blank");
+  } catch (error) {
+    console.error("Dosya görüntüleme hatası:", error);
+    toast.error("Dosya görüntülenemedi. Lütfen tekrar deneyin.");
+  }
+};
+
+// Dekont önizleme handler'ı
+export const handleDekontPreview = async (dosyaUrl: string) => {
+  try {
+    // URL'den dosya adını çıkar
+    const urlParts = dosyaUrl.split("/");
+    const originalFileName = urlParts[urlParts.length - 1];
+
+    // Preview için API endpoint'i kullan
+    const previewUrl = `/api/admin/dekontlar/preview/${originalFileName}`;
+
+    // Android uygulamasında PDF yeni sekmede açılamaz; uygulama içi önizleme kullan.
+    // Demo modunda dosyalar yalnızca tarayıcıda olduğu için her yerde bu yol kullanılır.
+    if (isAppMode() || isDemoActive()) {
+      openFilePreview({
+        src: previewUrl,
+        downloadUrl: isDemoActive() ? undefined : `/api/admin/dekontlar/download/${originalFileName}`,
+        title: "Dekont önizleme",
+      });
+      return;
+    }
+
+    // Yeni sekme/pencerede aç
+    window.open(
+      previewUrl,
+      "_blank",
+      "width=800,height=600,scrollbars=yes,resizable=yes"
+    );
+  } catch (error) {
+    console.error("Dekont önizleme hatası:", error);
+    toast.error("Dekont önizlenemedi. Lütfen tekrar deneyin.");
+  }
+};

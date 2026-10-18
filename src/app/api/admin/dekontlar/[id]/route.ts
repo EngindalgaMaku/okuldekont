@@ -1,0 +1,161 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { validateAuthAndRole } from "@/middleware/auth";
+import { ValidationFunctions } from "@/lib/validation";
+import { unlink } from "fs/promises";
+import path from "path";
+
+// Dekont sil - ADMIN VE TEACHER
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authResult = await validateAuthAndRole(request, ["ADMIN", "TEACHER"]);
+  if (!authResult.success) {
+    return NextResponse.json(
+      { error: authResult.error },
+      { status: authResult.status }
+    );
+  }
+
+  try {
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Dekont ID'si gerekli" },
+        { status: 400 }
+      );
+    }
+
+    // ID formatını validate et
+    const idValidation = ValidationFunctions.id(id);
+    if (!idValidation.valid) {
+      return NextResponse.json(
+        { error: `Geçersiz ID formatı: ${idValidation.error}` },
+        { status: 400 }
+      );
+    }
+
+    // Transaction ile atomic delete işlemi
+    const result = await prisma.$transaction(async (tx) => {
+      // Önce dekontun var olup olmadığını ve durumunu kontrol et
+      const existingDekont = await tx.dekont.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          status: true,
+          fileUrl: true,
+          teacherId: true,
+          staj: {
+            select: {
+              teacherId: true,
+              student: {
+                select: {
+                  name: true,
+                  surname: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!existingDekont) {
+        throw new Error("DEKONT_NOT_FOUND");
+      }
+
+      // Öğretmen yalnızca kendi yüklediği veya koordinatörü olduğu stajın dekontunu silebilir
+      if (
+        authResult.user?.role === "TEACHER" &&
+        existingDekont.teacherId !== authResult.user.id &&
+        existingDekont.staj?.teacherId !== authResult.user.id
+      ) {
+        throw new Error("DEKONT_NOT_OWNED");
+      }
+
+      // Onaylanmış dekontları silmeyi engelle - SADECE TEACHER için
+      // ADMIN onaylı dekontları da silebilir
+      if (
+        existingDekont.status === "APPROVED" &&
+        authResult.user?.role === "TEACHER"
+      ) {
+        throw new Error("APPROVED_DEKONT_DELETE_DENIED");
+      }
+
+      // Dekontı sil
+      await tx.dekont.delete({
+        where: { id },
+      });
+
+      return existingDekont;
+    });
+
+    // Fiziksel dosyayı sil
+    if (result.fileUrl) {
+      try {
+        const filePath = path.join(
+          process.cwd(),
+          result.fileUrl.replace(/^\//, "")
+        );
+        await unlink(filePath);
+      } catch (fileError) {
+        console.error("⚠️ FILE DELETE WARNING: Could not delete file", {
+          filePath: result.fileUrl,
+          error: fileError,
+        });
+        // Dosya silme hatası dekont silme işlemini engellemez
+      }
+    }
+
+
+    return NextResponse.json({
+      success: true,
+      message: "Dekont başarıyla silindi",
+    });
+  } catch (error) {
+    console.error("Dekont silinirken hata:", error);
+
+    // Özel hata durumlarını yakala
+    if (error instanceof Error) {
+      if (error.message === "DEKONT_NOT_FOUND") {
+        return NextResponse.json(
+          { error: "Dekont bulunamadı" },
+          { status: 404 }
+        );
+      }
+
+      if (error.message === "DEKONT_NOT_OWNED") {
+        return NextResponse.json(
+          { error: "Bu dekontu silme yetkiniz yok" },
+          { status: 403 }
+        );
+      }
+      if (error.message === "APPROVED_DEKONT_DELETE_DENIED") {
+        return NextResponse.json(
+          { error: "Onaylanmış dekontlar silinemez" },
+          { status: 403 }
+        );
+      }
+    }
+
+    // MySQL race condition hatası için özel mesaj
+    if (error && typeof error === "object" && "message" in error) {
+      const errorMessage = String(error.message);
+      if (errorMessage.includes("Record has changed since last read")) {
+        return NextResponse.json(
+          {
+            error:
+              "Dekont başka bir işlem tarafından değiştirildi. Lütfen sayfayı yenileyin ve tekrar deneyin.",
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    return NextResponse.json(
+      { error: "Dekont silinirken bir hata oluştu" },
+      { status: 500 }
+    );
+  }
+}
