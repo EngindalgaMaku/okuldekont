@@ -40,7 +40,18 @@ export async function POST(request: NextRequest) {
 
     // İşletme bilgilerini al
     const company = await prisma.companyProfile.findUnique({
-      where: { id: companyId }
+      where: { id: companyId },
+      include: {
+        teacher: {
+          select: {
+            id: true,
+            name: true,
+            surname: true,
+            alanId: true,
+            alan: { select: { name: true } }
+          }
+        }
+      }
     })
 
     if (!company) {
@@ -63,6 +74,7 @@ export async function POST(request: NextRequest) {
       where: {
         companyId: companyId,
         status: 'ACTIVE',
+        terminationDate: null,
         teacherId: { not: null }
       },
       include: {
@@ -86,13 +98,15 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    if (existingInternships.length > 0) {
-      const existingCoordinators = Array.from(
-        new Set(existingInternships.map(i => i.teacherId).filter(Boolean))
-      )
+    // İşletmeye atanmış koordinatör esas alınır; yoksa aktif stajlardaki öğretmenlere bakılır
+    const existingCoordinators = company.teacher
+      ? [company.teacher.id]
+      : Array.from(new Set(existingInternships.map(i => i.teacherId).filter(Boolean)))
+    const currentCoordinator = company.teacher ?? existingInternships[0]?.teacher ?? null
 
+    if (existingCoordinators.length > 0) {
       if (existingCoordinators.length === 1) {
-        const existingTeacher = existingInternships[0].teacher
+        const existingTeacher = currentCoordinator
         
         if (existingTeacher) {
           // Mevcut koordinatör var, aynı koordinatör önerilsin
@@ -185,7 +199,7 @@ export async function POST(request: NextRequest) {
       company: {
         name: company.name
       },
-      existingCoordinator: existingInternships.length > 0 ? existingInternships[0].teacher : null
+      existingCoordinator: currentCoordinator
     })
 
   } catch (error) {

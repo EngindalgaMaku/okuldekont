@@ -48,6 +48,12 @@ export async function POST(
         }
       })
 
+      // Aktif stajların koordinatörünü de işletmenin yeni koordinatörüyle eşitle
+      await prisma.staj.updateMany({
+        where: { companyId, status: 'ACTIVE' },
+        data: { teacherId: teacherId || null }
+      })
+
       // Get teacher info for detailed history
       const teacherInfo = teacherId ? await prisma.teacherProfile.findUnique({
         where: { id: teacherId }
