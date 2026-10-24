@@ -1,0 +1,1016 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String                     @id @default(cuid())
+  email                 String                     @unique
+  password              String
+  role                  Role                       @default(USER)
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  adminProfile          AdminProfile?
+  companyProfile        CompanyProfile?
+  companyChanges        CompanyHistory[]
+  conversations         ConversationParticipant[]
+  internshipHistory     InternshipHistory[]
+  modifiedInternships   Staj[]                     @relation("LastModifiedBy")
+  terminatedInternships Staj[]                     @relation("TerminatedBy")
+  messageNotifications  MessageNotification[]
+  messageReads          MessageRead[]
+  sentMessages          Message[]
+  studentChanges        StudentHistory[]
+  teacherAssignments    TeacherAssignmentHistory[] @relation("TeacherAssignmentPerformer")
+  teacherChanges        TeacherHistory[]
+  teacherProfile        TeacherProfile?
+  presence              UserPresence?
+
+  @@map("users")
+}
+
+model AdminProfile {
+  id     String  @id @default(cuid())
+  name   String
+  userId String  @unique
+  email  String? @unique
+  role   Role    @default(ADMIN)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admin_profiles")
+}
+
+model TeacherProfile {
+  id                         String                     @id @default(cuid())
+  name                       String
+  surname                    String
+  phone                      String?
+  email                      String?
+  pin                        String
+  userId                     String                     @unique
+  alanId                     String?
+  active                     Boolean                    @default(true)
+  failedAttempts             Int                        @default(0)
+  isLocked                   Boolean                    @default(false)
+  lastFailedAttempt          DateTime?
+  lockStartTime              DateTime?
+  mustChangePin              Boolean                    @default(false)
+  tcNo                       String?                    @unique
+  position                   String?
+  belgeler                   Belge[]
+  companies                  CompanyProfile[]
+  dekontlar                  Dekont[]
+  gorevBelgeleri             GorevBelgesi[]
+  stajlar                    Staj[]
+  koordinatorlukProgrami     KoordinatorlukProgrami[]
+  monthlyPayments            MonthlyPayment[]
+  pinAttempts                PinAttempt[]               @relation("TeacherPinAttempts")
+  previousTeacherAssignments TeacherAssignmentHistory[] @relation("PreviousTeacherAssignment")
+  teacherAssignments         TeacherAssignmentHistory[]
+  teacherHistory             TeacherHistory[]
+  issueReports               TeacherIssueReport[]
+  alan                       Alan?                      @relation(fields: [alanId], references: [id])
+  user                       User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([alanId], map: "teachers_alanId_fkey")
+  @@map("teachers")
+}
+
+model CompanyProfile {
+  id                       String                     @id @default(cuid())
+  name                     String
+  contact                  String
+  phone                    String?
+  email                    String?
+  address                  String?
+  taxNumber                String?
+  pin                      String
+  userId                   String?                    @unique
+  teacherId                String?
+  activityField            String?
+  bankAccountNo            String?
+  employeeCount            String?
+  masterTeacherName        String?
+  masterTeacherPhone       String?
+  stateContributionRequest String?
+  teacherAssignedAt        DateTime?
+  companyType              CompanyType                @default(PRIVATE)
+  lateSubmissionAllowed    Boolean                    @default(false)
+  failedAttempts           Int                        @default(0)
+  isLocked                 Boolean                    @default(false)
+  lastFailedAttempt        DateTime?
+  lockStartTime            DateTime?
+  mustChangePin            Boolean                    @default(false)
+  belgeler                 Belge[]
+  teacher                  TeacherProfile?            @relation(fields: [teacherId], references: [id])
+  user                     User?                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyHistory           CompanyHistory[]
+  dekontlar                Dekont[]
+  stajlar                  Staj[]
+  koordinatorlukProgrami   KoordinatorlukProgrami[]
+  monthlyPayments          MonthlyPayment[]
+  pinAttempts              PinAttempt[]               @relation("CompanyPinAttempts")
+  students                 Student[]
+  teacherAssignmentHistory TeacherAssignmentHistory[]
+
+  @@index([teacherId], map: "companies_teacherId_fkey")
+  @@index([companyType])
+  @@map("companies")
+}
+
+model EgitimYili {
+  id                 String              @id @default(cuid())
+  year               String              @unique
+  active             Boolean             @default(false)
+  endDate            DateTime?
+  startDate          DateTime?
+  archived           Boolean             @default(false)
+  archivedAt         DateTime?
+  archivedBy         String?
+  stajlar            Staj[]
+  studentEnrollments StudentEnrollment[]
+  monthlyPayments    MonthlyPayment[]
+
+  @@map("education_years")
+}
+
+model Alan {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  description String?
+  active      Boolean          @default(true)
+  classes     Class[]
+  students    Student[]
+  teachers    TeacherProfile[]
+  wageRates   WageRate[]
+
+  @@map("fields")
+}
+
+model Class {
+  id                 String              @id @default(cuid())
+  name               String
+  alanId             String
+  dal                String?
+  haftalik_program   String?             @db.LongText
+  alan               Alan                @relation(fields: [alanId], references: [id], onDelete: Cascade)
+  studentEnrollments StudentEnrollment[]
+  students           Student[]
+
+  @@index([alanId], map: "classes_alanId_fkey")
+  @@map("classes")
+}
+
+model Student {
+  id             String              @id @default(cuid())
+  name           String
+  surname        String
+  className      String
+  number         String?
+  tcNo           String?
+  phone          String?
+  email          String?
+  parentName     String?
+  parentPhone    String?
+  alanId         String
+  companyId      String?
+  classId        String?
+  birthDate      DateTime?
+  gender         String?
+  parentSurname  String?
+  attendance      Attendance[]
+  dekontlar       Dekont[]
+  stajlar         Staj[]
+  enrollments     StudentEnrollment[]
+  studentHistory  StudentHistory[]
+  monthlyPayments MonthlyPayment[]
+  alan           Alan                @relation(fields: [alanId], references: [id])
+  class          Class?              @relation(fields: [classId], references: [id])
+  company        CompanyProfile?     @relation(fields: [companyId], references: [id])
+
+  @@index([alanId], map: "students_alanId_fkey")
+  @@index([classId], map: "students_classId_fkey")
+  @@index([companyId], map: "students_companyId_fkey")
+  @@index([name, surname, number], map: "idx_students_search_composite")
+  @@map("students")
+}
+
+model Staj {
+  id                    String              @id @default(cuid())
+  studentId             String
+  companyId             String
+  teacherId             String?
+  educationYearId       String
+  startDate             DateTime
+  endDate               DateTime
+  status                StajStatus          @default(ACTIVE)
+  terminationDate       DateTime?
+  createdAt             DateTime            @default(now())
+  lastModifiedAt        DateTime?
+  lastModifiedBy        String?
+  terminatedBy          String?
+  terminationDocumentId String?
+  terminationNotes      String?
+  terminationReason     String?
+  archived              Boolean             @default(false)
+  archivedAt            DateTime?
+  archivedBy            String?
+  relatedDocuments      Belge[]             @relation("RelatedInternship")
+  dekontlar             Dekont[]
+  history               InternshipHistory[]
+  monthlyPayments       MonthlyPayment[]
+  company               CompanyProfile      @relation(fields: [companyId], references: [id])
+  educationYear         EgitimYili          @relation(fields: [educationYearId], references: [id])
+  lastModifiedByUser    User?               @relation("LastModifiedBy", fields: [lastModifiedBy], references: [id])
+  student               Student             @relation(fields: [studentId], references: [id])
+  teacher               TeacherProfile?     @relation(fields: [teacherId], references: [id])
+  terminatedByUser      User?               @relation("TerminatedBy", fields: [terminatedBy], references: [id])
+  terminationDocument   Belge?              @relation("TerminationDocument", fields: [terminationDocumentId], references: [id])
+
+  @@index([studentId, status])
+  @@index([companyId, status])
+  @@index([teacherId, status])
+  @@index([status, educationYearId, teacherId], map: "idx_internships_filter_composite")
+  @@index([educationYearId], map: "internships_educationYearId_fkey")
+  @@index([lastModifiedBy], map: "internships_lastModifiedBy_fkey")
+  @@index([terminatedBy], map: "internships_terminatedBy_fkey")
+  @@index([terminationDocumentId], map: "internships_terminationDocumentId_fkey")
+  @@map("internships")
+}
+
+model InternshipHistory {
+  id           String           @id @default(cuid())
+  internshipId String
+  action       InternshipAction
+  previousData String?          @db.LongText
+  newData      String?          @db.LongText
+  performedBy  String
+  performedAt  DateTime         @default(now())
+  reason       String?
+  notes        String?
+  archived     Boolean          @default(false)
+  archivedAt   DateTime?
+  archivedBy   String?
+  internship   Staj             @relation(fields: [internshipId], references: [id], onDelete: Cascade)
+  performer    User             @relation(fields: [performedBy], references: [id])
+
+  @@index([internshipId])
+  @@index([performedAt])
+  @@index([performedBy], map: "internship_history_performedBy_fkey")
+  @@map("internship_history")
+}
+
+model Dekont {
+  id                String          @id @default(cuid())
+  stajId            String
+  companyId         String
+  teacherId         String?
+  studentId         String
+  amount            Decimal?        @db.Decimal(10, 2)
+  paymentDate       DateTime
+  month             Int
+  year              Int
+  sequenceNumber    Int             @default(1)
+  status            DekontStatus    @default(PENDING)
+  approvedBy        String?
+  approvedAt        DateTime?
+  rejectedBy        String?
+  rejectedAt        DateTime?
+  rejectReason      String?
+  fileUrl           String?
+  createdAt         DateTime        @default(now())
+  archived          Boolean         @default(false)
+  archivedAt        DateTime?
+  archivedBy        String?
+  ocrAnalysisResult String?         @db.LongText
+  reliabilityScore  Float?
+  aiAnalysisResult  String?         @db.LongText
+  analyzedAt        DateTime?
+  analyzedBy        String?
+  extractedData     String?         @db.LongText
+  isAnalyzed        Boolean         @default(false)
+  securityFlags     String?         @db.LongText
+  company           CompanyProfile  @relation(fields: [companyId], references: [id])
+  staj              Staj            @relation(fields: [stajId], references: [id])
+  student           Student         @relation(fields: [studentId], references: [id])
+  teacher           TeacherProfile? @relation(fields: [teacherId], references: [id])
+
+  @@unique([stajId, month, year, sequenceNumber])
+  @@index([companyId], map: "dekonts_companyId_fkey")
+  @@index([stajId], map: "dekonts_stajId_fkey")
+  @@index([studentId], map: "dekonts_studentId_fkey")
+  @@index([teacherId], map: "dekonts_teacherId_fkey")
+  @@map("dekonts")
+}
+
+model MonthlyPayment {
+  id                  String           @id @default(cuid())
+  studentId           String
+  companyId           String
+  teacherId           String?
+  stajId              String?
+  educationYearId     String
+  month               Int
+  year                Int
+  amount              Decimal          @db.Decimal(10, 2)
+  paymentDate         DateTime?
+  paymentType         PaymentType      @default(GOVERNMENT_CONTRIBUTION)
+  status              PaymentStatus    @default(IMPORTED)
+  importSource        String?          // Excel dosya adı
+  importBatch         String?          // Aynı anda import edilen kayıtlar için
+  importedBy          String?
+  importedAt          DateTime         @default(now())
+  studentName         String?          // Excel'den gelen isim (verification için)
+  studentSurname      String?
+  studentNumber       String?
+  studentTcNo         String?
+  className           String?
+  fieldName           String?
+  companyName         String?          // Excel'den gelen işletme adı
+  teacherName         String?
+  notes               String?
+  verificationStatus  VerificationStatus @default(PENDING)
+  verifiedBy          String?
+  verifiedAt          DateTime?
+  discrepancies       String?          @db.LongText
+  archived            Boolean          @default(false)
+  archivedAt          DateTime?
+  archivedBy          String?
+  
+  // Relations
+  student             Student          @relation(fields: [studentId], references: [id])
+  company             CompanyProfile   @relation(fields: [companyId], references: [id])
+  teacher             TeacherProfile?  @relation(fields: [teacherId], references: [id])
+  staj                Staj?            @relation(fields: [stajId], references: [id])
+  educationYear       EgitimYili       @relation(fields: [educationYearId], references: [id])
+
+  @@unique([studentId, month, year, paymentType])
+  @@index([month, year])
+  @@index([importBatch])
+  @@index([verificationStatus])
+  @@index([companyId])
+  @@index([teacherId])
+  @@index([stajId])
+  @@index([educationYearId])
+  @@map("monthly_payments")
+}
+
+model PaymentImportLog {
+  id              String        @id @default(cuid())
+  fileName        String
+  filePath        String?
+  importBatch     String        @unique
+  totalRows       Int
+  successfulRows  Int
+  failedRows      Int
+  importedBy      String
+  importedAt      DateTime      @default(now())
+  status          ImportStatus  @default(PROCESSING)
+  errors          String?       @db.LongText
+  summary         String?       @db.LongText
+  
+  @@index([importedAt])
+  @@index([status])
+  @@map("payment_import_logs")
+}
+
+model GorevBelgesi {
+  id           String         @id @default(cuid())
+  ogretmenId   String
+  hafta        String
+  isletmeIdler String
+  durum        String         @default("Verildi")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  barcode      String?        @unique
+  teacher      TeacherProfile @relation(fields: [ogretmenId], references: [id])
+
+  @@index([ogretmenId], map: "gorev_belgeleri_ogretmenId_fkey")
+  @@map("gorev_belgeleri")
+}
+
+model Belge {
+  id                    String          @id @default(cuid())
+  ad                    String
+  belgeTuru             String
+  documentType          DocumentType?
+  dosyaUrl              String
+  dosyaAdi              String
+  yuklenenTaraf         String
+  ogretmenId            String?
+  isletmeId             String?
+  relatedInternshipId   String?
+  status                BelgeStatus     @default(PENDING)
+  onaylayanId           String?
+  onaylanmaTarihi       DateTime?
+  redNedeni             String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  company               CompanyProfile? @relation(fields: [isletmeId], references: [id])
+  teacher               TeacherProfile? @relation(fields: [ogretmenId], references: [id])
+  relatedInternship     Staj?           @relation("RelatedInternship", fields: [relatedInternshipId], references: [id])
+  terminatedInternships Staj[]          @relation("TerminationDocument")
+
+  @@index([isletmeId], map: "belgeler_isletmeId_fkey")
+  @@index([ogretmenId], map: "belgeler_ogretmenId_fkey")
+  @@index([relatedInternshipId], map: "belgeler_relatedInternshipId_fkey")
+  @@map("belgeler")
+}
+
+model Notification {
+  id             String               @id @default(cuid())
+  title          String
+  content        String               @db.Text
+  priority       NotificationPriority @default(NORMAL)
+  recipient_id   String
+  recipient_type String
+  sent_by        String
+  is_read        Boolean              @default(false)
+  read_at        DateTime?
+  created_at     DateTime             @default(now())
+  updated_at     DateTime             @updatedAt
+
+  @@map("notifications")
+}
+
+model TeacherAssignmentHistory {
+  id                String          @id @default(cuid())
+  companyId         String
+  teacherId         String?
+  previousTeacherId String?
+  assignedAt        DateTime        @default(now())
+  assignedBy        String
+  reason            String?
+  notes             String?
+  assignedByUser    User            @relation("TeacherAssignmentPerformer", fields: [assignedBy], references: [id])
+  company           CompanyProfile  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  previousTeacher   TeacherProfile? @relation("PreviousTeacherAssignment", fields: [previousTeacherId], references: [id])
+  teacher           TeacherProfile? @relation(fields: [teacherId], references: [id])
+
+  @@index([companyId])
+  @@index([teacherId])
+  @@index([assignedAt])
+  @@index([assignedBy], map: "teacher_assignment_history_assignedBy_fkey")
+  @@index([previousTeacherId], map: "teacher_assignment_history_previousTeacherId_fkey")
+  @@map("teacher_assignment_history")
+}
+
+model PinAttempt {
+  id          String          @id @default(cuid())
+  entityType  String
+  entityId    String
+  teacherId   String?
+  companyId   String?
+  ipAddress   String?
+  userAgent   String?
+  successful  Boolean         @default(false)
+  attemptedAt DateTime        @default(now())
+  company     CompanyProfile? @relation("CompanyPinAttempts", fields: [companyId], references: [id])
+  teacher     TeacherProfile? @relation("TeacherPinAttempts", fields: [teacherId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([attemptedAt])
+  @@index([companyId], map: "pin_attempts_companyId_fkey")
+  @@index([teacherId], map: "pin_attempts_teacherId_fkey")
+  @@map("pin_attempts")
+}
+
+model Attendance {
+  id         String   @id @default(cuid())
+  studentId  String
+  month      Int
+  year       Int
+  absentDays Int      @default(0)
+  totalDays  Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  student    Student  @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, month, year])
+  @@map("attendance")
+}
+
+model PublicHoliday {
+  id        String   @id @default(cuid())
+  name      String
+  date      DateTime @unique
+  month     Int
+  year      Int
+  createdAt DateTime @default(now())
+
+  @@map("public_holidays")
+}
+
+model WageRate {
+  id        String    @id @default(cuid())
+  alanId    String?
+  dailyRate Decimal   @db.Decimal(10, 2)
+  validFrom DateTime
+  validTo   DateTime?
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  alan      Alan?     @relation(fields: [alanId], references: [id])
+
+  @@index([alanId], map: "wage_rates_alanId_fkey")
+  @@map("wage_rates")
+}
+
+model KoordinatorlukProgrami {
+  id          String         @id @default(cuid())
+  ogretmenId  String
+  gun         String
+  saatAraligi String
+  isletmeId   String
+  createdAt   DateTime       @default(now())
+  company     CompanyProfile @relation(fields: [isletmeId], references: [id], onDelete: Cascade)
+  teacher     TeacherProfile @relation(fields: [ogretmenId], references: [id], onDelete: Cascade)
+
+  @@unique([ogretmenId, gun, saatAraligi])
+  @@index([isletmeId], map: "koordinatorluk_programi_isletmeId_fkey")
+  @@map("koordinatorluk_programi")
+}
+
+model SystemSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+
+  @@map("system_settings")
+}
+
+model SMSSettings {
+  id         String   @id @default(cuid())
+  provider   String
+  apiKey     String
+  apiSecret  String
+  senderName String?
+  enabled    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("sms_settings")
+}
+
+model SMSTemplate {
+  id           String       @id @default(cuid())
+  name         String       @unique
+  content      String       @db.Text
+  variables    String?      @db.LongText
+  triggerEvent String
+  enabled      Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  smsHistory   SMSHistory[]
+
+  @@map("sms_templates")
+}
+
+model SMSHistory {
+  id             String       @id @default(cuid())
+  templateId     String?
+  recipientPhone String
+  recipientName  String?
+  message        String       @db.Text
+  status         SMSStatus    @default(PENDING)
+  providerId     String?
+  errorMessage   String?
+  createdAt      DateTime     @default(now())
+  sentAt         DateTime?
+  template       SMSTemplate? @relation(fields: [templateId], references: [id])
+
+  @@index([recipientPhone])
+  @@index([status])
+  @@index([createdAt])
+  @@index([templateId], map: "sms_history_templateId_fkey")
+  @@map("sms_history")
+}
+
+model Conversation {
+  id            String                    @id @default(cuid())
+  title         String?
+  type          ConversationType          @default(DIRECT)
+  isGroup       Boolean                   @default(false)
+  description   String?
+  avatar        String?
+  isArchived    Boolean                   @default(false)
+  lastMessageAt DateTime?
+  createdBy     String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  participants  ConversationParticipant[]
+  notifications MessageNotification[]
+  messages      Message[]
+
+  @@index([type])
+  @@index([lastMessageAt])
+  @@index([createdAt])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id                   String          @id @default(cuid())
+  conversationId       String
+  userId               String
+  role                 ParticipantRole @default(MEMBER)
+  joinedAt             DateTime        @default(now())
+  leftAt               DateTime?
+  isActive             Boolean         @default(true)
+  lastReadAt           DateTime?
+  notificationSettings String?         @db.LongText
+  conversation         Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user                 User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@index([conversationId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String                @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String?               @db.Text
+  messageType    MessageType           @default(TEXT)
+  attachments    String?               @db.LongText
+  metadata       String?               @db.LongText
+  parentId       String?
+  isEdited       Boolean               @default(false)
+  editedAt       DateTime?
+  isDeleted      Boolean               @default(false)
+  deletedAt      DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  notifications  MessageNotification[]
+  readReceipts   MessageRead[]
+  conversation   Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  parent         Message?              @relation("MessageReplies", fields: [parentId], references: [id])
+  replies        Message[]             @relation("MessageReplies")
+  sender         User                  @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@index([messageType])
+  @@index([parentId])
+  @@map("messages")
+}
+
+model MessageRead {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@index([readAt])
+  @@map("message_reads")
+}
+
+model UserPresence {
+  id           String         @id @default(cuid())
+  userId       String         @unique
+  status       PresenceStatus @default(OFFLINE)
+  lastSeenAt   DateTime       @default(now())
+  customStatus String?
+  isTyping     Boolean        @default(false)
+  typingIn     String?
+  updatedAt    DateTime       @updatedAt
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([lastSeenAt])
+  @@map("user_presence")
+}
+
+model MessageNotification {
+  id             String           @id @default(cuid())
+  userId         String
+  conversationId String
+  messageId      String
+  type           NotificationType @default(MESSAGE)
+  isRead         Boolean          @default(false)
+  isMuted        Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  readAt         DateTime?
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message        Message          @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
+  @@index([userId, isRead])
+  @@index([conversationId])
+  @@index([messageId], map: "message_notifications_messageId_fkey")
+  @@map("message_notifications")
+}
+
+model StudentEnrollment {
+  id              String           @id @default(cuid())
+  studentId       String
+  educationYearId String
+  classId         String?
+  className       String
+  grade           Int
+  gradeType       GradeType        @default(NORMAL)
+  enrollmentDate  DateTime         @default(now())
+  promotionDate   DateTime?
+  graduationDate  DateTime?
+  status          EnrollmentStatus @default(ACTIVE)
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  archived        Boolean          @default(false)
+  archivedAt      DateTime?
+  archivedBy      String?
+  class           Class?           @relation(fields: [classId], references: [id])
+  educationYear   EgitimYili       @relation(fields: [educationYearId], references: [id])
+  student         Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, educationYearId])
+  @@index([educationYearId, grade])
+  @@index([className])
+  @@index([status])
+  @@index([classId], map: "student_enrollments_classId_fkey")
+  @@map("student_enrollments")
+}
+
+model CompanyHistory {
+  id            String            @id @default(cuid())
+  companyId     String
+  changeType    CompanyChangeType
+  fieldName     String
+  previousValue String? @db.LongText
+  newValue      String? @db.LongText
+  validFrom     DateTime          @default(now())
+  validTo       DateTime?
+  changedBy     String
+  reason        String?
+  notes         String?
+  archived      Boolean           @default(false)
+  archivedAt    DateTime?
+  archivedBy    String?
+  changedByUser User              @relation(fields: [changedBy], references: [id])
+  company       CompanyProfile    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, validFrom])
+  @@index([fieldName])
+  @@index([changeType])
+  @@index([changedBy], map: "company_history_changedBy_fkey")
+  @@map("company_history")
+}
+
+model TeacherHistory {
+  id            String            @id @default(cuid())
+  teacherId     String
+  changeType    TeacherChangeType
+  fieldName     String
+  previousValue String? @db.LongText
+  newValue      String? @db.LongText
+  validFrom     DateTime          @default(now())
+  validTo       DateTime?
+  changedBy     String
+  reason        String?
+  notes         String?
+  archived      Boolean           @default(false)
+  archivedAt    DateTime?
+  archivedBy    String?
+  changedByUser User              @relation(fields: [changedBy], references: [id])
+  teacher       TeacherProfile    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId, validFrom])
+  @@index([fieldName])
+  @@index([changeType])
+  @@index([changedBy], map: "teacher_history_changedBy_fkey")
+  @@map("teacher_history")
+}
+
+model StudentHistory {
+  id            String            @id @default(cuid())
+  studentId     String
+  changeType    StudentChangeType
+  fieldName     String
+  previousValue String? @db.LongText
+  newValue      String? @db.LongText
+  validFrom     DateTime          @default(now())
+  validTo       DateTime?
+  changedBy     String
+  reason        String?
+  notes         String?
+  archived      Boolean           @default(false)
+  archivedAt    DateTime?
+  archivedBy    String?
+  changedByUser User              @relation(fields: [changedBy], references: [id])
+  student       Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, validFrom])
+  @@index([fieldName])
+  @@index([changeType])
+  @@index([changedBy], map: "student_history_changedBy_fkey")
+  @@map("student_history")
+}
+
+enum Role {
+  USER
+  ADMIN
+  TEACHER
+  COMPANY
+}
+
+enum StajStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  TERMINATED
+  SUSPENDED
+  PENDING_TERMINATION
+}
+
+enum DekontStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BelgeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum InternshipAction {
+  CREATED
+  ASSIGNED
+  COMPANY_CHANGED
+  TEACHER_CHANGED
+  TERMINATED
+  REACTIVATED
+  COMPLETED
+  UPDATED
+}
+
+enum DocumentType {
+  ASSIGNMENT_DOCUMENT
+  TERMINATION_DOCUMENT
+  COMPLETION_CERTIFICATE
+  EVALUATION_FORM
+  OTHER
+}
+
+enum SMSStatus {
+  PENDING
+  SENT
+  FAILED
+  DELIVERED
+  UNDELIVERED
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+  BROADCAST
+  SYSTEM
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  AUDIO
+  VIDEO
+  SYSTEM
+  ANNOUNCEMENT
+  LOCATION
+}
+
+enum ParticipantRole {
+  OWNER
+  ADMIN
+  MODERATOR
+  MEMBER
+}
+
+enum PresenceStatus {
+  ONLINE
+  AWAY
+  BUSY
+  OFFLINE
+  INVISIBLE
+}
+
+enum NotificationType {
+  MESSAGE
+  MENTION
+  REACTION
+  SYSTEM
+}
+
+enum GradeType {
+  NORMAL
+  MESEM
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  PROMOTED
+  GRADUATED
+  TRANSFERRED
+  DROPPED_OUT
+  SUSPENDED
+}
+
+enum CompanyChangeType {
+  MASTER_TEACHER_UPDATE
+  BANK_ACCOUNT_UPDATE
+  EMPLOYEE_COUNT_UPDATE
+  CONTACT_INFO_UPDATE
+  ADDRESS_UPDATE
+  ACTIVITY_FIELD_UPDATE
+  OTHER_UPDATE
+}
+
+enum TeacherChangeType {
+  PERSONAL_INFO_UPDATE
+  CONTACT_INFO_UPDATE
+  FIELD_ASSIGNMENT_UPDATE
+  POSITION_UPDATE
+  STATUS_UPDATE
+  OTHER_UPDATE
+}
+
+enum StudentChangeType {
+  PERSONAL_INFO_UPDATE
+  CONTACT_INFO_UPDATE
+  PARENT_INFO_UPDATE
+  SCHOOL_INFO_UPDATE
+  OTHER_UPDATE
+}
+
+enum CompanyType {
+  PRIVATE
+  GOVERNMENT
+}
+
+enum PaymentType {
+  GOVERNMENT_CONTRIBUTION
+  SALARY_PAYMENT
+  BONUS_PAYMENT
+  OTHER
+}
+
+enum PaymentStatus {
+  IMPORTED
+  PROCESSED
+  VERIFIED
+  DISPUTED
+  CANCELLED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  DISCREPANCY_FOUND
+  MANUAL_REVIEW_NEEDED
+}
+
+enum ImportStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+  PARTIAL_SUCCESS
+}
+
+model TeacherIssueReport {
+  id            String         @id @default(cuid())
+  teacherId     String
+  category      String
+  title         String?
+  message       String?        @db.Text
+  audioUrl      String?        @db.VarChar(500)
+  audioDuration Int?
+  audioBase64   String?        @db.LongText
+  studentInfo   String?
+  companyInfo   String?
+  status        String         @default("PENDING")
+  adminNote     String?        @db.Text
+  resolvedAt    DateTime?
+  resolvedBy    String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  teacher       TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId])
+  @@index([status])
+  @@map("teacher_issue_reports")
+}

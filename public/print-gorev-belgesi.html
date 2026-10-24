@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Görev Belgesi Yazdırma</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <style>
+        @page {
+            size: A4;
+            margin: 10mm;
+        }
+        
+        @media print {
+            body { margin: 0; padding: 0; }
+            .print-controls { display: none !important; }
+            .page-container {
+                page-break-after: always !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+        }
+        
+        .form-table, .form-table th, .form-table td {
+            border: 1px solid black;
+            border-collapse: collapse;
+            padding: 4px;
+            font-size: 11pt;
+            color: black !important;
+        }
+        
+        body { 
+            font-family: 'Times New Roman', serif; 
+            color: black;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .print-controls {
+            background: #f3f4f6;
+            padding: 16px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 0 8px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-secondary { background: #6b7280; color: white; }
+        
+        .page-container {
+            width: 170mm;
+            margin: 20px auto;
+            padding: 10mm;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        h1 { 
+            text-align: center; 
+            font-size: 14px; 
+            font-weight: bold; 
+            margin-bottom: 10px;
+        }
+        
+        table { width: 100%; margin-bottom: 8px; }
+        .text-center { text-align: center; }
+        .font-bold { font-weight: bold; }
+        .text-xs { font-size: 12px; }
+        .border-2 { border: 2px solid black; }
+        .bg-gray-200 { background-color: #e5e7eb; }
+        .p-1 { padding: 4px; }
+        .mt-1 { margin-top: 4px; }
+        .mb-1 { margin-bottom: 4px; }
+        .mt-2 { margin-top: 8px; }
+        .pt-2 { padding-top: 8px; }
+        .pt-3 { padding-top: 12px; }
+        .pb-2 { padding-bottom: 8px; }
+        .h-8 { height: 32px; }
+        .align-top { vertical-align: top; }
+        .align-middle { vertical-align: middle; }
+        .flex { display: flex; }
+        .justify-end { justify-content: flex-end; }
+        .text-gray-600 { color: #6b7280; }
+        .border-gray-300 { border: 1px solid #d1d5db; }
+    </style>
+</head>
+<body>
+    <div class="print-controls">
+        <button onclick="window.history.back()" class="btn btn-secondary">← Geri Dön</button>
+        <button onclick="window.print()" class="btn btn-primary">🖨️ Yazdır</button>
+    </div>
+
+    <div id="content">
+        <div class="text-center">
+            <p>Veri yükleniyor...</p>
+        </div>
+    </div>
+
+    <script>
+        async function loadPrintData() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const belgeId = urlParams.get('belgeId');
+                
+                if (!belgeId) {
+                    document.getElementById('content').innerHTML = '<div class="text-center"><p style="color: red;">Belge ID bulunamadı!</p></div>';
+                    return;
+                }
+
+                const response = await fetch(`/api/public/gorev-belgeleri/${belgeId}/print`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                renderPrintPage(data, belgeId);
+                
+            } catch (error) {
+                console.error('Veri yükleme hatası:', error);
+                document.getElementById('content').innerHTML = `
+                    <div class="text-center">
+                        <p style="color: red;">Hata: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function renderPrintPage(data, belgeId) {
+            const { belgeData, ogretmenDetay, deputyHeadName } = data;
+            
+            // İşletme bazında grupla
+            const programByIsletme = {};
+            ogretmenDetay.koordinatorluk_programi
+                .filter(p => belgeData.isletme_idler.includes(p.isletme_id))
+                .forEach(p => {
+                    if (!programByIsletme[p.isletme_id]) {
+                        programByIsletme[p.isletme_id] = [];
+                    }
+                    programByIsletme[p.isletme_id].push(p);
+                });
+
+            let html = '';
+            
+            Object.keys(programByIsletme).forEach(isletmeId => {
+                const programlar = programByIsletme[isletmeId];
+                const isletme = ogretmenDetay.stajlar.find(s => s.isletmeler?.id === isletmeId)?.isletmeler;
+                const isletmedekiOgrenciler = ogretmenDetay.stajlar.filter(s => s.isletme_id === isletmeId).map(s => s.ogrenciler).filter(Boolean);
+                
+                if (!isletme) return;
+
+                const uniqueTarihler = Array.from(new Set(programlar.map(p => getTarihForGun(p.gun, belgeData.hafta))));
+                const gorevTarihleri = uniqueTarihler.join(', ');
+
+                html += `
+                    <div class="page-container">
+                        <h1>İŞLETMELERDE MESLEK EĞİTİMİ GÜNLÜK REHBERLİK GÖREV FORMU</h1>
+                        
+                        <!-- Top Info Block -->
+                        <table class="form-table">
+                            <tbody>
+                                <tr>
+                                    <td class="font-bold text-xs p-1" style="width: 25%;">İşletmenin Adı / Öğrenci Sayısı</td>
+                                    <td class="text-xs p-1">${isletme.ad} / ${isletmedekiOgrenciler.length}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold text-xs p-1">İşletmede Sorumlu Olduğu Öğrenci Sayısı</td>
+                                    <td class="text-xs p-1">${isletmedekiOgrenciler.length}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold text-xs p-1">Meslek Alan/Dalı</td>
+                                    <td class="text-xs p-1">${ogretmenDetay.alan?.ad || ''}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold text-xs p-1">Görev Tarihi</td>
+                                    <td class="text-xs p-1">${gorevTarihleri}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <!-- Rehberlik Block -->
+                        <table class="form-table mb-1">
+                            <thead>
+                                <tr><th class="text-left p-1 font-bold text-xs">Aylık Rehberlik Formuna Göre :</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td class="p-1 h-8 align-top text-xs">İşletmede öğrenim gören öğrencilerin eğitimini olumsuz yönde etkiliyen hususlar: (varsa yazınız)</td></tr>
+                                <tr><td class="p-1 h-8 align-top text-xs">Belirlenen aksaklıklarla ilgili yapılan rehberlik ve alınan önlemler:</td></tr>
+                                <tr><td class="p-1 h-8 align-top text-xs">Aylık Rehberlik formunda belirtilmesinde yarar görülen hususlar:</td></tr>
+                            </tbody>
+                        </table>
+
+                        <!-- Signatures Block -->
+                        <table class="form-table mb-1 mt-2 text-center">
+                            <tbody>
+                                <tr>
+                                    <td class="text-xs p-1 pt-2" style="width: 33.33%;">İşletme Eğitim Yetkilisi</td>
+                                    <td class="text-xs p-1 pt-2" style="width: 33.33%;">Koordinatör Öğretmen</td>
+                                    <td class="text-xs p-1 pt-2" style="width: 33.33%;">Koordinatör Müdür Yardımcısı</td>
+                                </tr>
+                                <tr>
+                                    <td class="pt-3 pb-2 text-xs">KUBİLAY CEM KABACAN</td>
+                                    <td class="pt-3 pb-2 text-xs">${ogretmenDetay.ad} ${ogretmenDetay.soyad}</td>
+                                    <td class="pt-3 pb-2 text-xs">${deputyHeadName}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-xs pb-2">İmza/Kaşe</td>
+                                    <td class="text-xs pb-2">İmza/Kaşe</td>
+                                    <td class="text-xs pb-2">İmza/Kaşe</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <!-- Student List -->
+                        <table class="form-table" style="flex-grow: 1;">
+                            <thead>
+                                <tr>
+                                    <th class="text-xs p-1" style="width: 12%;">Sınıfı</th>
+                                    <th class="text-xs p-1" style="width: 12%;">Öğrenci No</th>
+                                    <th class="text-xs p-1">Adı ve Soyadı</th>
+                                    <th class="text-xs p-1" style="width: 25%;">Çalıştığı İşletme Ünitesi</th>
+                                    <th class="text-xs p-1" style="width: 20%;">Devam Durumu (İmza)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                // Öğrenci satırları
+                isletmedekiOgrenciler.forEach(o => {
+                    html += `
+                        <tr>
+                            <td class="text-xs p-1 h-8 align-middle">${o.sinif}</td>
+                            <td class="text-xs p-1 h-8 align-middle">${o.no}</td>
+                            <td class="text-xs p-1 h-8 align-middle">${o.ad} ${o.soyad}</td>
+                            <td class="text-xs p-1 h-8 align-middle"></td>
+                            <td class="text-xs p-1 h-8 align-middle"></td>
+                        </tr>
+                    `;
+                });
+
+                // Boş satırlar
+                for (let i = 0; i < Math.max(0, 12 - isletmedekiOgrenciler.length); i++) {
+                    html += `
+                        <tr>
+                            <td class="text-xs p-1 h-8 align-middle">&nbsp;</td>
+                            <td class="text-xs p-1 h-8 align-middle"></td>
+                            <td class="text-xs p-1 h-8 align-middle"></td>
+                            <td class="text-xs p-1 h-8 align-middle"></td>
+                            <td class="text-xs p-1 h-8 align-middle"></td>
+                        </tr>
+                    `;
+                }
+
+                html += `
+                            </tbody>
+                        </table>
+
+                        <!-- Footer with Barcode -->
+                        <div class="border-2 p-1" style="margin-top: auto;">
+                            <p class="text-xs"><strong class="font-bold">AÇIKLAMALAR:</strong> Bu form koordinatör öğretmen tarafından her görev haftası başında koordinatör Md. Yrd.'ndan alınır. Görev sonrasında okula geldiği gün içinde imzaları tamamlanmış olarak Koordinatör Md. Yrd.'na teslim edilir.</p>
+                            <div class="bg-gray-200 p-1 text-center mt-1">
+                                <p class="text-xs">Bu form "Aylık Rehberlik Formu"'nun doldurulmasında esas alınır ve rapora eklenir.</p>
+                            </div>
+                            <!-- Barcode Area -->
+                            <div class="flex justify-end mt-1">
+                                <div class="text-center">
+                                    <div class="text-xs text-gray-600 mb-1">Belge No: ${belgeData.barcode || belgeId}</div>
+                                    <canvas id="barcode-canvas-${isletmeId}" class="border-gray-300"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            document.getElementById('content').innerHTML = html;
+
+            // Barkodları oluştur
+            setTimeout(() => {
+                Object.keys(programByIsletme).forEach(isletmeId => {
+                    try {
+                        const canvas = document.getElementById(`barcode-canvas-${isletmeId}`);
+                        if (canvas) {
+                            const barcodeText = belgeData.barcode || belgeId || 'NO-BARCODE';
+                            JsBarcode(canvas, barcodeText, {
+                                format: "CODE128",
+                                width: 1.5,
+                                height: 30,
+                                displayValue: true,
+                                fontSize: 10,
+                                margin: 0
+                            });
+                        }
+                    } catch (error) {
+                        console.error(`Barkod oluşturulamadı (${isletmeId}):`, error);
+                    }
+                });
+            }, 100);
+        }
+
+        function getTarihForGun(gun, hafta) {
+            if (!hafta) return '';
+            const gunlerMap = { 'Pazartesi': 1, 'Salı': 2, 'Çarşamba': 3, 'Perşembe': 4, 'Cuma': 5 };
+            const [year, weekNumber] = hafta.split('-W');
+            
+            // Basit tarih hesaplama
+            const startDate = new Date(parseInt(year), 0, 1);
+            const weekStart = new Date(startDate.getTime() + ((parseInt(weekNumber) - 1) * 7 * 24 * 60 * 60 * 1000));
+            const targetDate = new Date(weekStart.getTime() + ((gunlerMap[gun] - 1) * 24 * 60 * 60 * 1000));
+            
+            return targetDate.toLocaleDateString('tr-TR');
+        }
+
+        // Sayfa yüklendiğinde çalıştır
+        window.addEventListener('load', loadPrintData);
+    </script>
+</body>
+</html>

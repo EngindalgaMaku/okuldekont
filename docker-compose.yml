@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # Local MariaDB for development
+  mariadb:
+    image: mariadb:11.2
+    container_name: okul-dekont-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password_123
+      MYSQL_DATABASE: okul_dekont_dev
+      MYSQL_USER: dev_user
+      MYSQL_PASSWORD: dev_password_123
+    ports:
+      - "3307:3306"  # Using port 3307 to avoid conflicts with system MySQL
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  # Optional: phpMyAdmin for database management
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:5.2
+    container_name: okul-dekont-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mariadb
+      PMA_PORT: 3306
+      PMA_USER: dev_user
+      PMA_PASSWORD: dev_password_123
+      MYSQL_ROOT_PASSWORD: root_password_123
+    ports:
+      - "8080:80"
+    depends_on:
+      - mariadb
+
+volumes:
+  mariadb_data:
+    driver: local

@@ -1,0 +1,315 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { validateAuthAndRole } from "@/middleware/auth";
+import { getActiveEducationYearId } from "@/lib/education-year";
+
+export async function GET(request: NextRequest) {
+  // Admin yetkisi kontrolü
+  const authResult = await validateAuthAndRole(request, ["ADMIN"]);
+  if (!authResult.success) {
+    return NextResponse.json(
+      { error: authResult.error },
+      { status: authResult.status }
+    );
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const month = parseInt(searchParams.get("month") || "1");
+    const year = parseInt(searchParams.get("year") || "2024");
+    const queryEducationYearId = searchParams.get("educationYearId");
+
+    // Aktif veya seçili eğitim yılı ID'sini al
+    let targetEducationYearId =
+      queryEducationYearId && queryEducationYearId !== "all"
+        ? queryEducationYearId
+        : undefined;
+
+    if (!targetEducationYearId) {
+      try {
+        targetEducationYearId = await getActiveEducationYearId();
+      } catch (e) {
+        console.warn("[dekont-status] Aktif eğitim yılı bulunamadı:", e);
+      }
+    }
+
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+
+    // Tüm aktif stajları (sadece özel sektör işletmelerde) çek - feshedilmiş stajları hariç tut
+    const stajlar = await prisma.staj.findMany({
+      where: {
+        archived: false,
+        ...(targetEducationYearId
+          ? { educationYearId: targetEducationYearId }
+          : {}),
+        company: {
+          companyType: "PRIVATE", // Sadece özel sektör şirketleri
+        },
+        startDate: {
+          lte: monthEnd,
+        },
+        endDate: {
+          gte: monthStart,
+        },
+        OR: [
+          // Non-terminated students
+          { status: { not: "TERMINATED" } },
+          // Terminated students who worked during the month
+          {
+            AND: [
+              { status: "TERMINATED" },
+              {
+                OR: [
+                  // Has terminationDate and it's >= month start
+                  {
+                    AND: [
+                      { terminationDate: { not: null } },
+                      {
+                        terminationDate: { gte: monthStart },
+                      },
+                    ],
+                  },
+                  // No terminationDate but endDate >= month start (fallback for data integrity)
+                  {
+                    AND: [
+                      { terminationDate: null },
+                      { endDate: { gte: monthStart } },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      include: {
+        student: {
+          include: {
+            alan: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        company: {
+          select: {
+            id: true,
+            name: true,
+            contact: true,
+          },
+        },
+        teacher: {
+          select: {
+            id: true,
+            name: true,
+            surname: true,
+          },
+        },
+      },
+    });
+
+    // Belirtilen ay/yıl için dekontları çek - TERMINATED filtering eklendi (dekontlar/route.ts ile tutarlılık için)
+    const dekontlar = await prisma.dekont.findMany({
+      where: {
+        month: month,
+        year: year,
+        archived: false,
+        staj: {
+          archived: false,
+          ...(targetEducationYearId
+            ? { educationYearId: targetEducationYearId }
+            : {}),
+          OR: [
+            // Non-terminated students
+            { status: { not: "TERMINATED" } },
+            // Terminated students who worked during the month
+            {
+              AND: [
+                { status: "TERMINATED" },
+                {
+                  OR: [
+                    // Has terminationDate and it's >= month start
+                    {
+                      AND: [
+                        { terminationDate: { not: null } },
+                        {
+                          terminationDate: {
+                            gte: monthStart,
+                          },
+                        },
+                      ],
+                    },
+                    // No terminationDate but endDate >= month start (fallback for data integrity)
+                    {
+                      AND: [
+                        { terminationDate: null },
+                        { endDate: { gte: monthStart } },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+      include: {
+        staj: {
+          include: {
+            student: {
+              select: {
+                id: true,
+                name: true,
+                surname: true,
+              },
+            },
+            company: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            teacher: {
+              select: {
+                id: true,
+                name: true,
+                surname: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Belirtilen ay/yıl için ödeme kayıtlarını çek
+    const monthlyPayments = await prisma.monthlyPayment.findMany({
+      where: {
+        month: month,
+        year: year,
+        archived: false,
+        ...(targetEducationYearId
+          ? { educationYearId: targetEducationYearId }
+          : {}),
+      },
+      select: {
+        id: true,
+        studentId: true,
+        companyId: true,
+        teacherId: true,
+        stajId: true,
+        amount: true,
+        month: true,
+        year: true,
+      },
+    });
+    
+
+    // Öğretmen bazlı veri yapısı oluştur
+    const teacherMap = new Map();
+
+    // Tüm stajları işleyerek öğretmen-işletme ilişkilerini belirle
+    stajlar.forEach((staj) => {
+      if (!staj.teacher || !staj.company) return;
+
+      const teacherId = staj.teacher.id;
+      const teacherName = `${staj.teacher.name} ${staj.teacher.surname}`;
+      const companyId = staj.company.id;
+      const companyName = staj.company.name;
+
+      // Öğretmen map'inde yoksa ekle
+      if (!teacherMap.has(teacherId)) {
+        teacherMap.set(teacherId, {
+          ogretmen_id: teacherId,
+          ogretmen_ad: teacherName,
+          isletmeler: new Map(),
+        });
+      }
+
+      const teacher = teacherMap.get(teacherId);
+
+      // İşletme bu öğretmenin listesinde yoksa ekle
+      if (!teacher.isletmeler.has(companyId)) {
+        // Bu işletmede bu ay dekont gönderen öğrenci sayısını hesapla
+        const companyDekontlar = dekontlar.filter(
+          (dekont) =>
+            dekont.staj?.company?.id === companyId &&
+            dekont.staj?.teacher?.id === teacherId
+        );
+
+        // Bu işletmede staj yapan toplam öğrenci sayısını hesapla
+        const companyStudents = stajlar.filter(
+          (s) => s.companyId === companyId && s.teacherId === teacherId
+        ).length;
+
+        // Bu işletmede bu öğretmenin sorumlu olduğu öğrencileri çek
+        const companyStudentList = stajlar
+          .filter((s) => s.companyId === companyId && s.teacherId === teacherId)
+          .map((s) => {
+            // Bu staj için monthly payment'ı bul
+            const payment = monthlyPayments.find(
+              (p) => p.stajId === s.id || (p.studentId === s.student.id && p.companyId === companyId)
+            );
+            
+            // Debug log
+            if (!payment) {
+            }
+            
+            return {
+              id: s.student.id,
+              ad_soyad: `${s.student.name} ${s.student.surname}`,
+              sinif: s.student.className,
+              no: s.student.number,
+              alan: s.student.alan?.name || "Bilinmiyor",
+              // FIX: Use internship-level logic instead of student-level
+              // Check dekont for THIS specific internship, not just any internship for this student
+              has_dekont: companyDekontlar.some(
+                (d) => d.stajId === s.id || (d.studentId === s.student.id && d.companyId === companyId)
+              ),
+              // Ödeme bilgisini ekle
+              payment_amount: payment?.amount ? Number(payment.amount) : null,
+              payment_id: payment?.id || null,
+            };
+          });
+
+        teacher.isletmeler.set(companyId, {
+          isletme_id: companyId,
+          isletme_ad: companyName,
+          is_late: false,
+          has_dekont: companyDekontlar.length > 0,
+          dekont_sayisi: companyDekontlar.length,
+          toplam_ogrenci: companyStudents,
+          ogrenciler: companyStudentList,
+        });
+      }
+    });
+
+    // Map'i array'e çevir
+    const teachers = Array.from(teacherMap.values()).map((teacher) => ({
+      ...teacher,
+      isletmeler: Array.from(teacher.isletmeler.values()),
+    }));
+
+    // Boş işletme listesi olan öğretmenleri filtrele
+    const filteredTeachers = teachers.filter(
+      (teacher) => teacher.isletmeler.length > 0
+    );
+
+    return NextResponse.json({
+      success: true,
+      teachers: filteredTeachers,
+      period: {
+        month,
+        year,
+      },
+      educationYearId: targetEducationYearId || null,
+    });
+  } catch (error) {
+    console.error("Dekont status report error:", error);
+    return NextResponse.json(
+      { error: "Rapor verileri alınırken hata oluştu" },
+      { status: 500 }
+    );
+  }
+}
