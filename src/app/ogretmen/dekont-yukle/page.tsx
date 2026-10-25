@@ -107,6 +107,11 @@ function DekontYukleInner() {
   const [yil, setYil] = useState<number>(defaultYil);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // Çift gönderimi önlemek için: ilk dokunuşta kilitlenir, başarılı yüklemeden sonra açılmaz
+  const gonderimKilidi = useRef(false);
+  const sonDeneme = useRef(0);
+  const [tamamlandi, setTamamlandi] = useState(false);
+  const [ayniTutarUyari, setAyniTutarUyari] = useState<string | null>(null);
 
   // Dosya önizleme yönetimi
   useEffect(() => {
@@ -383,6 +388,7 @@ function DekontYukleInner() {
     maxRetries = 2
   ): Promise<Response> => {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      sonDeneme.current = attempt;
       try {
         // Session kontrolü
         const sessionValid = await checkAndRefreshSession();
@@ -431,7 +437,19 @@ function DekontYukleInner() {
     throw new Error("Max retry attempts reached");
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (confirmSameAmount = false) => {
+    if (gonderimKilidi.current || tamamlandi) return;
+    gonderimKilidi.current = true;
+    setAyniTutarUyari(null);
+    let basarili = false;
+    try {
+      basarili = (await dekontGonder(confirmSameAmount)) === true;
+    } finally {
+      if (!basarili) gonderimKilidi.current = false;
+    }
+  };
+
+  const dekontGonder = async (confirmSameAmount: boolean) => {
     // Mobil için ekstra session kontrolü
     try {
       const userAgent = navigator.userAgent.toLowerCase();
@@ -558,6 +576,7 @@ function DekontYukleInner() {
       fd.append("aciklama", aciklama);
       fd.append("ogretmen_id", teacherId);
       fd.append("dosya", (maybeCompressed || file) as File);
+      if (confirmSameAmount) fd.append("confirm_same_amount", "true");
 
       // Enhanced logging for form data debug
 
@@ -565,12 +584,28 @@ function DekontYukleInner() {
       const res = await uploadWithRetry(fd, 2);
 
       if (res.status === 409) {
-        const warn = await res.json();
-        setUploadStatus(
-          `Uyarı: Bu ay için zaten ${
-            warn.mevcutDekontSayisi || 1
-          } dekont var. Yine de eklendi (ek dekont).`
-        );
+        const warn = await res.json().catch(() => ({}));
+        if (warn.duplicate) {
+          // Bağlantı hatası sonrası tekrar denemede "zaten var" geldiyse ilk deneme kaydedilmiştir
+          if (sonDeneme.current > 0) {
+            setUploadStatus("Başarılı! Dekont yüklendi.");
+          } else {
+            setUploadStatus(`Hata: ${warn.error}`);
+            setUploadProgress(0);
+            return false;
+          }
+        } else if (warn.sameAmount) {
+          setUploadStatus("");
+          setUploadProgress(0);
+          setAyniTutarUyari(warn.warning);
+          return false;
+        } else {
+          setUploadStatus(
+            `Uyarı: Bu ay için zaten ${
+              warn.mevcutDekontSayisi || 1
+            } dekont var. Yine de eklendi (ek dekont).`
+          );
+        }
       } else if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Yükleme başarısız (${res.status})`);
@@ -578,8 +613,10 @@ function DekontYukleInner() {
         setUploadStatus("Başarılı! Dekont yüklendi.");
       }
 
+      setTamamlandi(true);
       // 2 sn sonra dekont listesine yönlendir
       setTimeout(() => router.push("/ogretmen/panel?tab=dekontlar"), 1500);
+      return true;
     } catch (e: any) {
       let errorMessage = e?.message || e?.toString() || "Bilinmeyen hata";
 
@@ -851,7 +888,7 @@ function DekontYukleInner() {
                           {existingDekont.amount?.toLocaleString("tr-TR")} ₺
                         </p>
                         <p className="text-xs text-blue-500 mt-1">
-                          Yeni dekont yüklerseniz mevcut dekont güncellenecek.
+                          Yükleyeceğiniz dosya ek dekont olarak eklenir. Aynı dekontu tekrar göndermeyin.
                         </p>
                       </div>
                     </div>
@@ -998,20 +1035,46 @@ function DekontYukleInner() {
               )}
             </div>
 
+            {ayniTutarUyari && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3" role="alert">
+                <p className="text-sm font-semibold text-amber-900">Bu dekont daha önce gönderilmiş olabilir</p>
+                <p className="mt-1 text-sm text-amber-800">{ayniTutarUyari}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAyniTutarUyari(null)}
+                    className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSubmit(true)}
+                    className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700"
+                  >
+                    Evet, ek dekont olarak gönder
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-3 sm:pt-4">
               <button
                 type="button"
                 className="inline-flex items-center justify-center gap-2 px-6 py-3 sm:px-8 sm:py-3 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white disabled:opacity-50 shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 text-sm font-semibold disabled:cursor-not-allowed"
-                onClick={handleSubmit}
+                onClick={() => handleSubmit()}
                 disabled={
                   isSubmitting ||
+                  tamamlandi ||
                   !selectedIsletme ||
                   !selectedOgrenci ||
                   !file ||
                   (existingDekont.exists && existingDekont.isApproved)
                 }
               >
-                {isSubmitting ? (
+                {tamamlandi ? (
+                  <>✓ Yüklendi</>
+                ) : isSubmitting ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
                     Yükleniyor...
@@ -1042,6 +1105,7 @@ function DekontYukleInner() {
                   setFile(null);
                   if (inputRef.current) inputRef.current.value = "";
                   setUploadStatus("");
+                  setAyniTutarUyari(null);
                 }}
               >
                 <svg

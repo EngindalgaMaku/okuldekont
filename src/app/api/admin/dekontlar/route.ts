@@ -3,8 +3,9 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
+import { writeFile, mkdir, readFile } from "fs/promises";
+import { join, resolve, sep } from "path";
+import { createHash } from "crypto";
 import { existsSync } from "fs";
 import { validateAuthAndRole } from "@/middleware/auth";
 import {
@@ -346,6 +347,8 @@ export async function POST(request: Request) {
         ? forceAdditionalRaw === "true" || forceAdditionalRaw === "1"
         : false;
     const dosya = formData.get("dosya") as File;
+    // Aynı tutarlı ek dekont uyarısından sonra kullanıcı onayıyla gelen bayrak
+    const confirmSameAmount = formData.get("confirm_same_amount") === "true";
 
     // INPUT VALIDATION & SANITIZATION
 
@@ -751,6 +754,58 @@ export async function POST(request: Request) {
         },
         { status: 400 }
       );
+    }
+
+    // Çift gönderim kontrolü: aynı ay için onay bekleyen dekontlarla karşılaştır
+    const bekleyenDekontlar = mevcutDekontlar.filter((d) => d.status === "PENDING");
+    if (bekleyenDekontlar.length > 0) {
+      const ayAdlari = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+      const donem = `${ayAdlari[ayNum - 1]} ${yilNum}`;
+
+      // 1) Birebir aynı dosya tekrar gönderildiyse engelle
+      if (dosya && dosya.size > 0) {
+        const uploadRoot = resolve(process.cwd(), "public", "uploads", "dekontlar");
+        const yeniHash = createHash("sha256")
+          .update(Buffer.from(await dosya.arrayBuffer()))
+          .digest("hex");
+        for (const d of bekleyenDekontlar) {
+          if (!d.fileUrl) continue;
+          const eskiYol = resolve(process.cwd(), "public", d.fileUrl.replace(/^\/+/, ""));
+          if (!eskiYol.startsWith(uploadRoot + sep)) continue;
+          try {
+            const eskiHash = createHash("sha256").update(await readFile(eskiYol)).digest("hex");
+            if (eskiHash === yeniHash) {
+              return NextResponse.json(
+                {
+                  error: `Bu dosya ${donem} için zaten yüklenmiş ve onay bekliyor. Aynı dekontu ikinci kez göndermenize gerek yok.`,
+                  duplicate: true,
+                },
+                { status: 409 }
+              );
+            }
+          } catch {
+            // Eski dosya okunamazsa karşılaştırma atlanır
+          }
+        }
+      }
+
+      // 2) Aynı tutarlı bekleyen dekont varsa önce kullanıcıdan onay iste
+      const ayniTutarli =
+        processedAmount !== undefined &&
+        processedAmount > 0 &&
+        bekleyenDekontlar.find(
+          (d) => d.amount !== null && Math.abs(Number(d.amount) - processedAmount!) < 0.005
+        );
+      if (ayniTutarli && !confirmSameAmount && !forceAdditional) {
+        const tutar = Number(ayniTutarli.amount).toLocaleString("tr-TR");
+        return NextResponse.json(
+          {
+            warning: `${donem} için aynı tutarda (${tutar} ₺) onay bekleyen bir dekont zaten var. Bu farklı bir dekontsa yine de gönderebilirsiniz.`,
+            sameAmount: true,
+          },
+          { status: 409 }
+        );
+      }
     }
 
     // Calculate next sequence number
