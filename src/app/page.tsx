@@ -19,6 +19,7 @@ import { useToast } from "@/components/ui/Toast";
 import { DatabaseStatusHeader } from "@/components/ui/DatabaseStatus";
 import { useEgitimYili } from "@/lib/context/EgitimYiliContext";
 import { DEMO_PIN, DEMO_TEACHER_ID, startDemoMode } from "@/lib/demo-mode";
+import { isAppMode } from "@/components/ui/FilePreviewOverlay";
 
 interface Isletme {
   id: string;
@@ -664,7 +665,7 @@ export default function LoginPage() {
               </div>
               <button
                 type="button"
-                onClick={() => router.push(activeSessionPath)}
+                onClick={() => router.push(sessionRole === "ADMIN" && isAppMode() ? "/yonetim" : activeSessionPath)}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 font-semibold text-white shadow-sm hover:bg-indigo-700 active:bg-indigo-800"
               >
                 Panele devam et
@@ -696,6 +697,10 @@ export default function LoginPage() {
           <p className="mt-4 text-center text-xs text-slate-400">
             <a href="/gizlilik" className="hover:text-slate-600 hover:underline">
               Gizlilik Politikası
+            </a>
+            <span className="mx-2" aria-hidden="true">·</span>
+            <a href="/yonetim" className="hover:text-slate-600 hover:underline">
+              Yönetici
             </a>
           </p>
         </main>

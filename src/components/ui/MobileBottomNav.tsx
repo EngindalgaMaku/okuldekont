@@ -117,7 +117,7 @@ export default function MobileBottomNav() {
 
   // Hide on admin and print routes
   const isPrintLike = pathname?.startsWith("/gorev-belgesi") || pathname?.includes("/yazdir");
-  const hideOnRoute = pathname?.startsWith("/admin") || pathname?.startsWith("/print") || isPrintLike;
+  const hideOnRoute = pathname?.startsWith("/admin") || pathname?.startsWith("/yonetim") || pathname?.startsWith("/print") || isPrintLike;
   // Hide on login and keypad/pin screens
   const isAuthScreens =
     pathname === "/" || pathname?.includes("/login") || pathname?.includes("/keypad") || pathname?.includes("/pin");
