@@ -22,10 +22,14 @@ import {
   Loader2,
   Building2,
   ChevronRight,
+  ChevronLeft,
+  ArrowLeft,
+  Maximize2,
+  PlayCircle,
   Copy,
   Shuffle,
 } from "lucide-react";
-import { openFilePreview } from "@/components/ui/FilePreviewOverlay";
+import { FileViewer, openFilePreview, prefetchFile } from "@/components/ui/FilePreviewOverlay";
 
 type Tab = "dekontlar" | "ogretmenler" | "stajlar";
 
@@ -111,8 +115,13 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
 
   useEffect(() => {
     // Android geri tuşu pencereyi kapatsın
-    window.history.pushState({ yonetimSheet: true }, "");
-    const onPop = () => onCloseRef.current();
+    // Effect iki kez çalışırsa (React geliştirme modu) ikinci kayıt eklenmesin
+    if (!window.history.state?.yonetimSheet) {
+      window.history.pushState({ ...(window.history.state || {}), yonetimSheet: true }, "");
+    }
+    const onPop = () => {
+      if (!window.history.state?.yonetimSheet) onCloseRef.current();
+    };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
@@ -253,6 +262,217 @@ function YoneticiGiris() {
   );
 }
 
+const onizlemeAdresi = (d: BekleyenDekont) =>
+  d.dosyaUrl ? `/api/admin/dekontlar/preview/${d.dosyaUrl.split("/").pop() || ""}` : undefined;
+const indirmeAdresi = (d: BekleyenDekont) =>
+  d.dosyaUrl ? `/api/admin/dekontlar/download/${d.dosyaUrl.split("/").pop() || ""}` : undefined;
+
+// Tam ekran inceleme: üstte dekont, altta bilgiler ve karar düğmeleri
+function IncelemeEkrani({
+  liste,
+  index,
+  onIndex,
+  onKapat,
+  onOnayla,
+  onReddet,
+  isleniyor,
+}: {
+  liste: BekleyenDekont[];
+  index: number;
+  onIndex: (i: number) => void;
+  onKapat: () => void;
+  onOnayla: (d: BekleyenDekont) => void;
+  onReddet: (d: BekleyenDekont) => void;
+  isleniyor: string | null;
+}) {
+  const onKapatRef = useRef(onKapat);
+  onKapatRef.current = onKapat;
+  const dokunma = useRef<{ x: number; y: number } | null>(null);
+  const d = liste[index];
+
+  useEffect(() => {
+    // Android geri tuşu inceleme ekranını kapatsın
+    if (!window.history.state?.yonetimInceleme) {
+      window.history.pushState({ ...(window.history.state || {}), yonetimInceleme: true }, "");
+    }
+    const onPop = () => {
+      if (!window.history.state?.yonetimInceleme) onKapatRef.current();
+    };
+    window.addEventListener("popstate", onPop);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      document.body.style.overflow = "";
+    };
+  }, []);
+
+  const kapat = () => {
+    if (window.history.state?.yonetimInceleme) window.history.back();
+    else onKapat();
+  };
+
+  const onceki = () => index > 0 && onIndex(index - 1);
+  const sonraki = () => index < liste.length - 1 && onIndex(index + 1);
+
+  // Sıradaki dekontu önceden indir
+  useEffect(() => {
+    const s = liste[index + 1];
+    if (s) prefetchFile(onizlemeAdresi(s));
+  }, [liste, index]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (document.querySelector("[aria-modal='true'][aria-label='Dekontu reddet']")) return;
+      if (e.key === "ArrowRight") onIndex(Math.min(index + 1, liste.length - 1));
+      else if (e.key === "ArrowLeft") onIndex(Math.max(index - 1, 0));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [index, liste.length, onIndex]);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    dokunma.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const bas = dokunma.current;
+    dokunma.current = null;
+    if (!bas) return;
+    const dx = e.changedTouches[0].clientX - bas.x;
+    const dy = e.changedTouches[0].clientY - bas.y;
+    if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 2) {
+      if (dx < 0) sonraki();
+      else onceki();
+    }
+  };
+
+  const src = d ? onizlemeAdresi(d) : undefined;
+  const mesgul = !!d && isleniyor === d.id;
+
+  return (
+    <div className="fixed inset-0 z-[140] flex flex-col bg-slate-900" role="dialog" aria-modal="true" aria-label="Dekont inceleme">
+      <div
+        className="flex items-center gap-1 bg-indigo-700 px-2 py-2 text-white shadow"
+        style={{ paddingTop: "max(var(--safe-area-inset-top, env(safe-area-inset-top, 0px)), 0.5rem)" }}
+      >
+        <button type="button" onClick={kapat} className="rounded-full p-2 hover:bg-white/10 active:bg-white/20" aria-label="Kapat">
+          <ArrowLeft className="h-6 w-6" />
+        </button>
+        <p className="min-w-0 flex-1 truncate font-medium">
+          {d ? (
+            <>
+              Dekont <span className="font-semibold">{index + 1}</span>
+              <span className="text-indigo-200"> / {liste.length}</span>
+            </>
+          ) : (
+            "Dekont inceleme"
+          )}
+        </p>
+        {d && src && (
+          <button
+            type="button"
+            onClick={() => openFilePreview({ src, downloadUrl: indirmeAdresi(d), title: `${d.ogrenci} · ${AYLAR[d.ay - 1]} ${d.yil}` })}
+            className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-2 text-sm font-medium hover:bg-white/25 active:bg-white/30"
+          >
+            <Maximize2 className="h-4 w-4" /> Büyüt
+          </button>
+        )}
+      </div>
+
+      {!d ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400">
+            <Check className="h-8 w-8" />
+          </div>
+          <p className="text-lg font-semibold text-white">Tüm dekontlar incelendi</p>
+          <button type="button" onClick={kapat} className="rounded-xl bg-white px-6 py-3 font-semibold text-slate-900">
+            Listeye dön
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="relative flex-1 overflow-y-auto overscroll-contain p-3" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+            {src ? (
+              <FileViewer key={d.id} src={src} alt={`${d.ogrenci} dekontu`} />
+            ) : (
+              <BosDurum icon={<Receipt className="h-7 w-7" />} text="Bu dekontta dosya yok." />
+            )}
+          </div>
+
+          <div
+            className="rounded-t-2xl bg-white px-4 pt-4 shadow-[0_-4px_16px_rgba(0,0,0,0.25)]"
+            style={{ paddingBottom: "calc(0.75rem + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))" }}
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="truncate text-lg font-bold leading-tight text-slate-900">{d.ogrenci}</h2>
+                <p className="text-sm text-slate-500">{[d.sinif, d.no && `No ${d.no}`].filter(Boolean).join(" · ")}</p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-lg font-bold leading-tight text-slate-900">
+                  {d.miktar !== null && d.miktar > 0 ? formatTL(d.miktar) : "Tutar yok"}
+                </p>
+                <p className="text-sm font-medium text-amber-700">
+                  {AYLAR[d.ay - 1]} {d.yil}
+                  {d.sira > 1 ? ` · ${d.sira}. dosya` : ""}
+                </p>
+              </div>
+            </div>
+            <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-700">
+              <Building2 className="h-4 w-4 shrink-0 text-slate-400" />
+              <span className="truncate">{d.isletme}</span>
+            </p>
+            <p className="mt-1 truncate text-xs text-slate-500">
+              {d.ogretmen ? `Yükleyen: ${d.ogretmen}` : "Yükleyen: işletme"} · {gunOnce(d.yuklenme)}
+            </p>
+
+            <div className="mt-4 flex items-stretch gap-2">
+              <button
+                type="button"
+                onClick={onceki}
+                disabled={index === 0}
+                className="flex w-11 shrink-0 items-center justify-center rounded-xl text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-30"
+                aria-label="Önceki dekont"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onReddet(d)}
+                disabled={mesgul}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-3.5 font-semibold text-red-600 ring-1 ring-red-200 hover:bg-red-50 active:bg-red-100 disabled:opacity-50"
+              >
+                <X className="h-5 w-5" /> Reddet
+              </button>
+              <button
+                type="button"
+                onClick={() => onOnayla(d)}
+                disabled={mesgul}
+                className="flex flex-[1.4] items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-3.5 font-semibold text-white hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50"
+              >
+                <Check className="h-5 w-5" /> Onayla
+              </button>
+              <button
+                type="button"
+                onClick={sonraki}
+                disabled={index >= liste.length - 1}
+                className="flex w-11 shrink-0 items-center justify-center rounded-xl text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-30"
+                aria-label="Sonraki dekont"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Onay, "Geri al" süresi dolunca sunucuya gönderilir
+const GERI_AL_SURESI = 4000;
+
 function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
   const [liste, setListe] = useState<BekleyenDekont[]>([]);
   const [toplam, setToplam] = useState(0);
@@ -262,7 +482,9 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
   const [isleniyor, setIsleniyor] = useState<string | null>(null);
   const [redDekont, setRedDekont] = useState<BekleyenDekont | null>(null);
   const [redNedeni, setRedNedeni] = useState("");
+  const [incele, setIncele] = useState<number | null>(null);
   const onayZamanlayici = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const bekleyenOnay = useRef<{ d: BekleyenDekont; index: number; timer: ReturnType<typeof setTimeout> } | null>(null);
 
   const yukle = useCallback(async () => {
     setYukleniyor(true);
@@ -292,17 +514,104 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
     setToplam((t) => Math.max(0, t - 1));
   };
 
-  const karar = async (d: BekleyenDekont, decision: "APPROVED" | "REJECTED", rejectReason?: string) => {
+  const listeyeGeriKoy = (d: BekleyenDekont, index: number) => {
+    setListe((l) => {
+      if (l.some((x) => x.id === d.id)) return l;
+      const yeni = [...l];
+      yeni.splice(Math.min(index, yeni.length), 0, d);
+      return yeni;
+    });
+    setToplam((t) => t + 1);
+  };
+
+  const kararGonder = async (d: BekleyenDekont, decision: "APPROVED" | "REJECTED", rejectReason?: string) => {
+    const res = await fetch(`/api/admin/dekontlar/${d.id}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision, ...(rejectReason ? { rejectReason } : {}) }),
+      // Sayfa kapanırken gönderilen onay da yarıda kalmasın
+      keepalive: true,
+    });
+    if (!res.ok) throw new Error(await hataMesaji(res, "İşlem yapılamadı"));
+  };
+
+  const onayiGonder = async (d: BekleyenDekont, index: number) => {
+    try {
+      await kararGonder(d, "APPROVED");
+    } catch (e) {
+      toast.error(`${d.ogrenci}: ${(e as Error).message}`);
+      listeyeGeriKoy(d, index);
+    }
+  };
+
+  // Bekleyen onayı hemen gönder (yeni onay, sekmeden çıkış veya uygulamanın arka plana alınması)
+  const bekleyenOnayiGonder = () => {
+    const b = bekleyenOnay.current;
+    if (!b) return;
+    clearTimeout(b.timer);
+    bekleyenOnay.current = null;
+    onayiGonder(b.d, b.index);
+  };
+  const bekleyenOnayiGonderRef = useRef(bekleyenOnayiGonder);
+  bekleyenOnayiGonderRef.current = bekleyenOnayiGonder;
+
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === "hidden") bekleyenOnayiGonderRef.current();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", onHide);
+      bekleyenOnayiGonderRef.current();
+    };
+  }, []);
+
+  const geriAl = () => {
+    const b = bekleyenOnay.current;
+    if (!b) return;
+    clearTimeout(b.timer);
+    bekleyenOnay.current = null;
+    listeyeGeriKoy(b.d, b.index);
+    setIncele((i) => (i === null ? null : b.index));
+  };
+
+  const onayla = (d: BekleyenDekont) => {
+    bekleyenOnayiGonder();
+    const index = liste.findIndex((x) => x.id === d.id);
+    listedenCikar(d.id);
+    const timer = setTimeout(() => {
+      bekleyenOnay.current = null;
+      onayiGonder(d, index);
+    }, GERI_AL_SURESI);
+    bekleyenOnay.current = { d, index, timer };
+    toast.success(
+      (t) => (
+        <span className="flex items-center gap-3">
+          <span>{d.ogrenci} · onaylandı</span>
+          <button
+            type="button"
+            onClick={() => {
+              geriAl();
+              toast.dismiss(t.id);
+            }}
+            className="rounded-md px-2 py-1 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
+          >
+            Geri al
+          </button>
+        </span>
+      ),
+      { id: "dekont-onay", duration: GERI_AL_SURESI }
+    );
+  };
+
+  const reddet = async (d: BekleyenDekont, neden: string) => {
     setIsleniyor(d.id);
     try {
-      const res = await fetch(`/api/admin/dekontlar/${d.id}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision, ...(rejectReason ? { rejectReason } : {}) }),
-      });
-      if (!res.ok) throw new Error(await hataMesaji(res, "İşlem yapılamadı"));
+      await kararGonder(d, "REJECTED", neden);
       listedenCikar(d.id);
-      toast.success(decision === "APPROVED" ? `${d.ogrenci} · onaylandı` : `${d.ogrenci} · reddedildi`);
+      toast.success(`${d.ogrenci} · reddedildi`);
       return true;
     } catch (e) {
       toast.error((e as Error).message);
@@ -312,12 +621,12 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
     }
   };
 
-  // Yanlışlıkla onayı önlemek için iki dokunuş: ilk dokunuş "Emin misiniz?" gösterir
+  // Listede yanlışlıkla onayı önlemek için iki dokunuş: ilk dokunuş "Emin misiniz?" gösterir
   const onaylaDokun = (d: BekleyenDekont) => {
     if (onayBekleyen === d.id) {
       clearTimeout(onayZamanlayici.current);
       setOnayBekleyen(null);
-      karar(d, "APPROVED");
+      onayla(d);
       return;
     }
     setOnayBekleyen(d.id);
@@ -325,14 +634,9 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
     onayZamanlayici.current = setTimeout(() => setOnayBekleyen(null), 3000);
   };
 
-  const onizle = (d: BekleyenDekont) => {
-    if (!d.dosyaUrl) return;
-    const dosya = d.dosyaUrl.split("/").pop() || "";
-    openFilePreview({
-      src: `/api/admin/dekontlar/preview/${dosya}`,
-      downloadUrl: `/api/admin/dekontlar/download/${dosya}`,
-      title: `${d.ogrenci} · ${AYLAR[d.ay - 1]} ${d.yil}`,
-    });
+  const redAc = (d: BekleyenDekont) => {
+    setRedNedeni("");
+    setRedDekont(d);
   };
 
   const filtreli = useMemo(() => {
@@ -342,6 +646,9 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
       [d.ogrenci, d.isletme, d.ogretmen || "", d.no, d.sinif].some((v) => v.toLocaleLowerCase("tr-TR").includes(q))
     );
   }, [liste, arama]);
+
+  // Karar verilen dekont listeden çıkınca aynı sıradaki (yani bir sonraki) dekont gösterilir
+  const incelemeIndex = incele === null ? null : Math.min(incele, Math.max(filtreli.length - 1, 0));
 
   return (
     <div className="space-y-3">
@@ -355,6 +662,16 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
         </button>
       </div>
 
+      {filtreli.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setIncele(0)}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-3.5 font-semibold text-white shadow-sm hover:bg-indigo-700 active:bg-indigo-800"
+        >
+          <PlayCircle className="h-5 w-5" /> Sırayla incele ({filtreli.length})
+        </button>
+      )}
+
       {liste.length > 5 && <AramaKutusu value={arama} onChange={setArama} placeholder="Öğrenci, işletme veya öğretmen ara" />}
 
       {yukleniyor && liste.length === 0 ? (
@@ -365,11 +682,11 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
           text={arama ? "Aramanızla eşleşen dekont yok." : "Onay bekleyen dekont yok. Hepsi tamam!"}
         />
       ) : (
-        filtreli.map((d) => {
+        filtreli.map((d, i) => {
           const mesgul = isleniyor === d.id;
           return (
             <article key={d.id} className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-              <div className="p-4">
+              <button type="button" onClick={() => setIncele(i)} className="block w-full p-4 text-left hover:bg-slate-50 active:bg-slate-100">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h3 className="truncate font-semibold text-slate-900">{d.ogrenci}</h3>
@@ -392,22 +709,18 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
                     <span className="shrink-0 text-sm font-semibold text-slate-900">{formatTL(d.miktar)}</span>
                   )}
                 </div>
-              </div>
+              </button>
               <div className="grid grid-cols-3 border-t border-slate-100 text-sm font-medium">
                 <button
                   type="button"
-                  onClick={() => onizle(d)}
-                  disabled={!d.dosyaUrl}
-                  className="flex items-center justify-center gap-1.5 py-3 text-slate-700 hover:bg-slate-50 active:bg-slate-100 disabled:text-slate-300"
+                  onClick={() => setIncele(i)}
+                  className="flex items-center justify-center gap-1.5 py-3 text-slate-700 hover:bg-slate-50 active:bg-slate-100"
                 >
-                  <Eye className="h-4 w-4" /> Önizle
+                  <Eye className="h-4 w-4" /> İncele
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setRedNedeni("");
-                    setRedDekont(d);
-                  }}
+                  onClick={() => redAc(d)}
                   disabled={mesgul}
                   className="flex items-center justify-center gap-1.5 border-x border-slate-100 py-3 text-red-600 hover:bg-red-50 active:bg-red-100 disabled:opacity-50"
                 >
@@ -428,6 +741,18 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
             </article>
           );
         })
+      )}
+
+      {incelemeIndex !== null && (
+        <IncelemeEkrani
+          liste={filtreli}
+          index={incelemeIndex}
+          onIndex={setIncele}
+          onKapat={() => setIncele(null)}
+          onOnayla={onayla}
+          onReddet={redAc}
+          isleniyor={isleniyor}
+        />
       )}
 
       {redDekont && (
@@ -462,7 +787,7 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
             type="button"
             disabled={!redNedeni.trim() || isleniyor === redDekont.id}
             onClick={async () => {
-              const ok = await karar(redDekont, "REJECTED", redNedeni.trim());
+              const ok = await reddet(redDekont, redNedeni.trim());
               if (ok) window.history.back();
             }}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
@@ -887,6 +1212,12 @@ export default function YonetimPage() {
   const [bekleyenSayisi, setBekleyenSayisi] = useState<number | null>(null);
 
   useEffect(() => {
+    // Sayfa açık pencereyle yenilendiyse geçmiş kaydında kalan işaretleri temizle
+    const st = window.history.state;
+    if (st?.yonetimInceleme || st?.yonetimSheet) {
+      const { yonetimInceleme, yonetimSheet, ...rest } = st;
+      window.history.replaceState(rest, "");
+    }
     try {
       const kayitli = localStorage.getItem("yonetim:tab");
       if (kayitli === "dekontlar" || kayitli === "ogretmenler" || kayitli === "stajlar") setTab(kayitli);

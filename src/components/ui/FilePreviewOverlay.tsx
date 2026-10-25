@@ -25,59 +25,58 @@ export function openFilePreview(request: PreviewRequest) {
   window.dispatchEvent(new CustomEvent<PreviewRequest>(OPEN_EVENT, { detail: request }));
 }
 
-export default function FilePreviewOverlay() {
-  const [request, setRequest] = useState<PreviewRequest | null>(null);
+// Aynı dosya tekrar açıldığında (ör. inceleme ekranından büyütme) yeniden indirilmesin
+const fileCache = new Map<string, Promise<{ type: string; blob: Blob }>>();
+const FILE_CACHE_LIMIT = 6;
+
+function loadFile(src: string) {
+  let entry = fileCache.get(src);
+  if (!entry) {
+    entry = fetch(src, { credentials: "same-origin" }).then(async (res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return { type: res.headers.get("content-type") || "", blob: await res.blob() };
+    });
+    entry.catch(() => fileCache.delete(src));
+    fileCache.set(src, entry);
+    if (fileCache.size > FILE_CACHE_LIMIT) {
+      const oldest = fileCache.keys().next().value;
+      if (oldest !== undefined) fileCache.delete(oldest);
+    }
+  }
+  return entry;
+}
+
+// Sıradaki dosyayı arka planda indirip hazır tutar
+export function prefetchFile(src?: string) {
+  if (src && isSafeUrl(src)) loadFile(src).catch(() => {});
+}
+
+// Resmi doğrudan, PDF'i pdf.js ile kapsayıcı genişliğinde çizer
+export function FileViewer({ src, alt }: { src: string; alt?: string }) {
   const [state, setState] = useState<"loading" | "pdf" | "image" | "error">("loading");
   const [imageUrl, setImageUrl] = useState("");
   const pagesRef = useRef<HTMLDivElement>(null);
 
-  const close = useCallback(() => {
-    // Geçmişe eklediğimiz kaydı geri alarak kapat; popstate dinleyicisi temizliği yapar
-    if (window.history.state?.filePreview) {
-      window.history.back();
-    } else {
-      setRequest(null);
+  useEffect(() => {
+    if (!isSafeUrl(src)) {
+      setState("error");
+      return;
     }
-  }, []);
-
-  useEffect(() => {
-    const onOpen = (e: Event) => {
-      const detail = (e as CustomEvent<PreviewRequest>).detail;
-      if (!isSafeUrl(detail?.src)) return;
-      // Android geri tuşu önizlemeyi kapatsın, sayfadan çıkmasın
-      window.history.pushState({ ...(window.history.state || {}), filePreview: true }, "");
-      setRequest(detail);
-    };
-    const onPopState = () => setRequest(null);
-    window.addEventListener(OPEN_EVENT, onOpen);
-    window.addEventListener("popstate", onPopState);
-    return () => {
-      window.removeEventListener(OPEN_EVENT, onOpen);
-      window.removeEventListener("popstate", onPopState);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!request) return;
     let cancelled = false;
     let objectUrl = "";
     setState("loading");
     setImageUrl("");
-    document.body.style.overflow = "hidden";
+    if (pagesRef.current) pagesRef.current.innerHTML = "";
 
     (async () => {
       try {
-        const res = await fetch(request.src, { credentials: "same-origin" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const type = res.headers.get("content-type") || "";
-        const blob = await res.blob();
+        const { type, blob } = await loadFile(src);
+        if (cancelled) return;
 
         if (type.startsWith("image/")) {
           objectUrl = URL.createObjectURL(blob);
-          if (!cancelled) {
-            setImageUrl(objectUrl);
-            setState("image");
-          }
+          setImageUrl(objectUrl);
+          setState("image");
           return;
         }
 
@@ -125,8 +124,71 @@ export default function FilePreviewOverlay() {
 
     return () => {
       cancelled = true;
-      document.body.style.overflow = "";
       if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [src]);
+
+  return (
+    <div className="relative min-h-full">
+      {state === "loading" && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <p className="mt-3 text-sm">Dekont yükleniyor...</p>
+        </div>
+      )}
+      {state === "error" && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center text-slate-300">
+          <FileWarning className="h-10 w-10" />
+          <p className="mt-3 font-medium text-white">Dosya önizlenemedi</p>
+          <p className="mt-1 text-sm">İndir düğmesiyle dosyayı telefonunuza kaydedebilirsiniz.</p>
+        </div>
+      )}
+      {state === "image" && imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageUrl} alt={alt || "Dekont"} className="mx-auto max-w-full rounded-lg bg-white shadow-md" />
+      )}
+      {/* PDF sayfaları buraya çizilir; genişliği ölçülebilsin diye her zaman yerinde */}
+      <div ref={pagesRef} className={`mx-auto max-w-3xl space-y-3 ${state === "pdf" ? "" : "invisible h-0 overflow-hidden"}`} />
+    </div>
+  );
+}
+
+export default function FilePreviewOverlay() {
+  const [request, setRequest] = useState<PreviewRequest | null>(null);
+
+  const close = useCallback(() => {
+    // Geçmişe eklediğimiz kaydı geri alarak kapat; popstate dinleyicisi temizliği yapar
+    if (window.history.state?.filePreview) {
+      window.history.back();
+    } else {
+      setRequest(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const detail = (e as CustomEvent<PreviewRequest>).detail;
+      if (!isSafeUrl(detail?.src)) return;
+      // Android geri tuşu önizlemeyi kapatsın, sayfadan çıkmasın
+      window.history.pushState({ ...(window.history.state || {}), filePreview: true }, "");
+      setRequest(detail);
+    };
+    const onPopState = () => {
+      if (!window.history.state?.filePreview) setRequest(null);
+    };
+    window.addEventListener(OPEN_EVENT, onOpen);
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener(OPEN_EVENT, onOpen);
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!request) return;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
     };
   }, [request]);
 
@@ -159,25 +221,7 @@ export default function FilePreviewOverlay() {
       </div>
 
       <div className="relative flex-1 overflow-y-auto overscroll-contain p-3">
-        {state === "loading" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300">
-            <Loader2 className="h-8 w-8 animate-spin" />
-            <p className="mt-3 text-sm">Dekont yükleniyor...</p>
-          </div>
-        )}
-        {state === "error" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center text-slate-300">
-            <FileWarning className="h-10 w-10" />
-            <p className="mt-3 font-medium text-white">Dosya önizlenemedi</p>
-            <p className="mt-1 text-sm">İndir düğmesiyle dosyayı telefonunuza kaydedebilirsiniz.</p>
-          </div>
-        )}
-        {state === "image" && imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt={request.title || "Dekont"} className="mx-auto max-w-full rounded-lg bg-white shadow-md" />
-        )}
-        {/* PDF sayfaları buraya çizilir; genişliği ölçülebilsin diye her zaman yerinde */}
-        <div ref={pagesRef} className={`mx-auto max-w-3xl space-y-3 ${state === "pdf" ? "" : "invisible h-0 overflow-hidden"}`} />
+        <FileViewer key={request.src} src={request.src} alt={request.title} />
       </div>
     </div>
   );
