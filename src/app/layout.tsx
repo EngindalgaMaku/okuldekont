@@ -8,6 +8,7 @@ import MobileBottomNav from '@/components/ui/MobileBottomNav'
 import { Suspense } from 'react'
 import { Toaster } from 'react-hot-toast'
 import FilePreviewOverlay from '@/components/ui/FilePreviewOverlay'
+import YoneticiOturumu from '@/components/YoneticiOturumu'
 
 export const metadata: Metadata = {
   title: 'Koordinatörlük Yönetim Sistemi',
@@ -59,6 +60,7 @@ export default function RootLayout({
               </Suspense>
               <FilePreviewOverlay />
               <DemoMode />
+              <YoneticiOturumu />
               <Toaster
                 position="top-center"
                 toastOptions={{

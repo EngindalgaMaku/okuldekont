@@ -26,12 +26,41 @@ import {
   ArrowLeft,
   Maximize2,
   PlayCircle,
+  LogIn,
+  Home,
   Copy,
   Shuffle,
 } from "lucide-react";
 import { FileViewer, openFilePreview, prefetchFile } from "@/components/ui/FilePreviewOverlay";
+import { DONUS_ANAHTARI } from "@/components/YoneticiOturumu";
 
-type Tab = "dekontlar" | "ogretmenler" | "stajlar";
+type Tab = "anasayfa" | "dekontlar" | "ogretmenler" | "stajlar";
+type DekontDurum = "PENDING" | "APPROVED" | "REJECTED";
+type DurumFiltre = DekontDurum | "ALL";
+
+const DURUM_STIL: Record<DekontDurum, { ad: string; rozet: string; kutu: string }> = {
+  PENDING: { ad: "Onay bekliyor", rozet: "bg-amber-50 text-amber-700 ring-amber-200", kutu: "bg-amber-50 text-amber-800" },
+  APPROVED: { ad: "Onaylandı", rozet: "bg-emerald-50 text-emerald-700 ring-emerald-200", kutu: "bg-emerald-50 text-emerald-800" },
+  REJECTED: { ad: "Reddedildi", rozet: "bg-red-50 text-red-700 ring-red-200", kutu: "bg-red-50 text-red-800" },
+};
+
+const DURUM_FILTRELERI: { id: DurumFiltre; ad: string }[] = [
+  { id: "PENDING", ad: "Bekleyen" },
+  { id: "APPROVED", ad: "Onaylı" },
+  { id: "REJECTED", ad: "Reddedilen" },
+  { id: "ALL", ad: "Tümü" },
+];
+
+// Son 12 ay: [{ ay, yil }], en yeniden eskiye
+const sonAylar = () => {
+  const liste: { ay: number; yil: number }[] = [];
+  const d = new Date();
+  for (let i = 0; i < 12; i++) {
+    const t = new Date(d.getFullYear(), d.getMonth() - i, 1);
+    liste.push({ ay: t.getMonth() + 1, yil: t.getFullYear() });
+  }
+  return liste;
+};
 
 interface BekleyenDekont {
   id: string;
@@ -39,6 +68,8 @@ interface BekleyenDekont {
   ay: number;
   yil: number;
   sira: number;
+  durum: DekontDurum;
+  redNedeni: string | null;
   dosyaUrl: string | null;
   yuklenme: string;
   ogrenci: string;
@@ -107,6 +138,19 @@ const hataMesaji = async (res: Response, varsayilan: string) => {
   const err = data?.error;
   return (typeof err === "string" ? err : err?.message) || data?.message || varsayilan;
 };
+
+// Yöneticiyi öğretmen hesabına geçirir; dönüş belirteci "Yöneticiye dön" şeridi için saklanır
+async function ogretmenHesabinaGir(teacherId: string) {
+  const res = await fetch(`/api/admin/mobil/ogretmenler/${teacherId}/oturum`, { method: "POST" });
+  if (!res.ok) throw new Error(await hataMesaji(res, "Öğretmen hesabına girilemedi"));
+  const { girisToken, donusToken } = await res.json();
+  try {
+    sessionStorage.setItem(DONUS_ANAHTARI, donusToken);
+  } catch {}
+  const sonuc = await signIn("yonetici-ogretmen", { token: girisToken, redirect: false });
+  if (sonuc?.error) throw new Error("Öğretmen hesabına girilemedi");
+  window.location.href = "/ogretmen/panel";
+}
 
 // Aynı içerik akışını kullanan alt pencere (bottom sheet)
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
@@ -276,6 +320,7 @@ function IncelemeEkrani({
   onOnayla,
   onReddet,
   isleniyor,
+  kararModu,
 }: {
   liste: BekleyenDekont[];
   index: number;
@@ -284,6 +329,7 @@ function IncelemeEkrani({
   onOnayla: (d: BekleyenDekont) => void;
   onReddet: (d: BekleyenDekont) => void;
   isleniyor: string | null;
+  kararModu: boolean;
 }) {
   const onKapatRef = useRef(onKapat);
   onKapatRef.current = onKapat;
@@ -347,6 +393,7 @@ function IncelemeEkrani({
 
   const src = d ? onizlemeAdresi(d) : undefined;
   const mesgul = !!d && isleniyor === d.id;
+  const kararVerilebilir = kararModu && d?.durum === "PENDING";
 
   return (
     <div className="fixed inset-0 z-[140] flex flex-col bg-slate-900" role="dialog" aria-modal="true" aria-label="Dekont inceleme">
@@ -437,22 +484,32 @@ function IncelemeEkrani({
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
-              <button
-                type="button"
-                onClick={() => onReddet(d)}
-                disabled={mesgul}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-3.5 font-semibold text-red-600 ring-1 ring-red-200 hover:bg-red-50 active:bg-red-100 disabled:opacity-50"
-              >
-                <X className="h-5 w-5" /> Reddet
-              </button>
-              <button
-                type="button"
-                onClick={() => onOnayla(d)}
-                disabled={mesgul}
-                className="flex flex-[1.4] items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-3.5 font-semibold text-white hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50"
-              >
-                <Check className="h-5 w-5" /> Onayla
-              </button>
+              {kararVerilebilir ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onReddet(d)}
+                    disabled={mesgul}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-3.5 font-semibold text-red-600 ring-1 ring-red-200 hover:bg-red-50 active:bg-red-100 disabled:opacity-50"
+                  >
+                    <X className="h-5 w-5" /> Reddet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOnayla(d)}
+                    disabled={mesgul}
+                    className="flex flex-[1.4] items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-3.5 font-semibold text-white hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50"
+                  >
+                    <Check className="h-5 w-5" /> Onayla
+                  </button>
+                </>
+              ) : (
+                <div className={`flex min-w-0 flex-1 flex-col justify-center rounded-xl px-3 py-2 text-sm ${DURUM_STIL[d.durum].kutu}`}>
+                  <span className="font-semibold">{DURUM_STIL[d.durum].ad}</span>
+                  {d.durum === "REJECTED" && d.redNedeni && <span className="truncate text-xs">{d.redNedeni}</span>}
+                  {d.durum === "PENDING" && <span className="text-xs">Karar için &quot;Bekleyen&quot; filtresine geçin</span>}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={sonraki}
@@ -473,7 +530,9 @@ function IncelemeEkrani({
 // Onay, "Geri al" süresi dolunca sunucuya gönderilir
 const GERI_AL_SURESI = 4000;
 
-function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
+function DekontlarSekmesi({ onSayi, incelemeIstegi }: { onSayi: (n: number) => void; incelemeIstegi: number }) {
+  const [durumFiltre, setDurumFiltre] = useState<DurumFiltre>("PENDING");
+  const [donem, setDonem] = useState(""); // "yil-ay" veya tüm aylar için ""
   const [liste, setListe] = useState<BekleyenDekont[]>([]);
   const [toplam, setToplam] = useState(0);
   const [yukleniyor, setYukleniyor] = useState(true);
@@ -489,7 +548,13 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
   const yukle = useCallback(async () => {
     setYukleniyor(true);
     try {
-      const res = await fetch("/api/admin/mobil/dekontlar", { cache: "no-store" });
+      const params = new URLSearchParams({ durum: durumFiltre });
+      if (donem) {
+        const [yil, ay] = donem.split("-");
+        params.set("yil", yil);
+        params.set("ay", ay);
+      }
+      const res = await fetch(`/api/admin/mobil/dekontlar?${params}`, { cache: "no-store" });
       if (!res.ok) throw new Error(await hataMesaji(res, "Dekontlar alınamadı"));
       const data = await res.json();
       setListe(data.dekontlar || []);
@@ -499,15 +564,36 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
     } finally {
       setYukleniyor(false);
     }
-  }, []);
+  }, [durumFiltre, donem]);
 
   useEffect(() => {
+    setIncele(null);
+    setListe([]);
     yukle();
   }, [yukle]);
 
+  // Karar yalnızca "Bekleyen" filtresinde verilir; sekme rozeti de tüm bekleyenleri gösterir
+  const kararModu = durumFiltre === "PENDING";
+
   useEffect(() => {
-    if (!yukleniyor) onSayi(toplam);
-  }, [toplam, yukleniyor, onSayi]);
+    if (!yukleniyor && kararModu && !donem) onSayi(toplam);
+  }, [toplam, yukleniyor, kararModu, donem, onSayi]);
+
+  // Ana sayfadaki "İncele": filtreyi bekleyenlere al, liste gelince ilk dekonttan başlat
+  const incelemeBekliyor = useRef(false);
+  useEffect(() => {
+    if (!incelemeIstegi) return;
+    incelemeBekliyor.current = true;
+    setDurumFiltre("PENDING");
+    setDonem("");
+    setArama("");
+  }, [incelemeIstegi]);
+  useEffect(() => {
+    if (incelemeBekliyor.current && !yukleniyor && kararModu && !donem && liste.length > 0) {
+      incelemeBekliyor.current = false;
+      setIncele(0);
+    }
+  }, [incelemeIstegi, yukleniyor, kararModu, donem, liste]);
 
   const listedenCikar = (id: string) => {
     setListe((l) => l.filter((d) => d.id !== id));
@@ -652,10 +738,39 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between px-1">
-        <p className="text-sm text-slate-600">
-          <span className="font-semibold text-slate-900">{toplam}</span> dekont onay bekliyor
-          {toplam > liste.length && liste.length > 0 ? ` · ilk ${liste.length} gösteriliyor` : ""}
+      <div className="flex gap-1 overflow-x-auto rounded-xl bg-slate-200/60 p-1">
+        {DURUM_FILTRELERI.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => setDurumFiltre(f.id)}
+            className={`flex-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-sm font-medium ${
+              durumFiltre === f.id ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"
+            }`}
+          >
+            {f.ad}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2 px-1">
+        <select
+          value={donem}
+          onChange={(e) => setDonem(e.target.value)}
+          aria-label="Dönem"
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-indigo-500 focus:outline-none"
+        >
+          <option value="">Tüm aylar</option>
+          {sonAylar().map(({ ay, yil }) => (
+            <option key={`${yil}-${ay}`} value={`${yil}-${ay}`}>
+              {AYLAR[ay - 1]} {yil}
+            </option>
+          ))}
+        </select>
+        <p className="min-w-0 flex-1 truncate text-sm text-slate-600">
+          <span className="font-semibold text-slate-900">{toplam}</span>{" "}
+          {kararModu ? "onay bekliyor" : "dekont"}
+          {toplam > liste.length && liste.length > 0 ? ` · ilk ${liste.length}` : ""}
         </p>
         <button type="button" onClick={yukle} className="rounded-full p-2 text-slate-500 hover:bg-slate-100" aria-label="Yenile">
           <RefreshCw className={`h-4 w-4 ${yukleniyor ? "animate-spin" : ""}`} />
@@ -679,7 +794,13 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
       ) : filtreli.length === 0 ? (
         <BosDurum
           icon={<Check className="h-7 w-7" />}
-          text={arama ? "Aramanızla eşleşen dekont yok." : "Onay bekleyen dekont yok. Hepsi tamam!"}
+          text={
+            arama
+              ? "Aramanızla eşleşen dekont yok."
+              : kararModu
+              ? "Onay bekleyen dekont yok. Hepsi tamam!"
+              : "Bu filtreyle eşleşen dekont yok."
+          }
         />
       ) : (
         filtreli.map((d, i) => {
@@ -694,10 +815,17 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
                       {[d.sinif, d.no && `No ${d.no}`].filter(Boolean).join(" · ")}
                     </p>
                   </div>
-                  <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
-                    {AYLAR[d.ay - 1]} {d.yil}
-                    {d.sira > 1 ? ` · ${d.sira}. dosya` : ""}
-                  </span>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="rounded-full bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200">
+                      {AYLAR[d.ay - 1]} {d.yil}
+                      {d.sira > 1 ? ` · ${d.sira}. dosya` : ""}
+                    </span>
+                    {!kararModu && (
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${DURUM_STIL[d.durum].rozet}`}>
+                        {DURUM_STIL[d.durum].ad}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <p className="mt-2 flex items-center gap-1.5 truncate text-sm text-slate-700">
                   <Building2 className="h-4 w-4 shrink-0 text-slate-400" />
@@ -709,7 +837,11 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
                     <span className="shrink-0 text-sm font-semibold text-slate-900">{formatTL(d.miktar)}</span>
                   )}
                 </div>
+                {d.durum === "REJECTED" && d.redNedeni && (
+                  <p className="mt-2 truncate rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-700">Red nedeni: {d.redNedeni}</p>
+                )}
               </button>
+              {kararModu && (
               <div className="grid grid-cols-3 border-t border-slate-100 text-sm font-medium">
                 <button
                   type="button"
@@ -738,6 +870,7 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
                   {onayBekleyen === d.id ? "Emin misiniz?" : "Onayla"}
                 </button>
               </div>
+              )}
             </article>
           );
         })
@@ -752,6 +885,7 @@ function DekontlarSekmesi({ onSayi }: { onSayi: (n: number) => void }) {
           onOnayla={onayla}
           onReddet={redAc}
           isleniyor={isleniyor}
+          kararModu={kararModu}
         />
       )}
 
@@ -810,6 +944,7 @@ function OgretmenlerSekmesi() {
   const [kaydedilenPin, setKaydedilenPin] = useState<string | null>(null);
   const [isleniyor, setIsleniyor] = useState(false);
   const [pasifleriGoster, setPasifleriGoster] = useState(false);
+  const [girisYapiliyor, setGirisYapiliyor] = useState(false);
 
   const yukle = useCallback(async () => {
     setYukleniyor(true);
@@ -880,6 +1015,16 @@ function OgretmenlerSekmesi() {
       toast.error((e as Error).message);
     } finally {
       setIsleniyor(false);
+    }
+  };
+
+  const hesabinaGir = async (o: Ogretmen) => {
+    setGirisYapiliyor(true);
+    try {
+      await ogretmenHesabinaGir(o.id);
+    } catch (e) {
+      toast.error((e as Error).message);
+      setGirisYapiliyor(false);
     }
   };
 
@@ -975,6 +1120,19 @@ function OgretmenlerSekmesi() {
               </button>
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={() => hesabinaGir(secili)}
+            disabled={girisYapiliyor}
+            className="mb-1 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+          >
+            {girisYapiliyor ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+            Öğretmen hesabına gir
+          </button>
+          <p className="mb-3 text-center text-xs text-slate-500">
+            Paneli öğretmenin gördüğü gibi açar. Yaptığınız işlemler öğretmen adına kaydedilir.
+          </p>
 
           <div className="rounded-xl p-4 ring-1 ring-slate-200">
             <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-900">
@@ -1205,11 +1363,295 @@ function StajlarSekmesi({ userId }: { userId: string }) {
   );
 }
 
+interface EksikOgretmen {
+  id: string;
+  ad: string;
+  eksikler: { ogrenci: string; sinif: string; isletme: string }[];
+  toplam: number;
+}
+
+// Ana sayfa: bekleyen işler ve seçilen ayın dekont durumu (varsayılan geçen ay)
+function AnaSayfa({
+  onSekme,
+  onIncele,
+  onSayi,
+}: {
+  onSekme: (t: Tab) => void;
+  onIncele: () => void;
+  onSayi: (n: number) => void;
+}) {
+  const [ozet, setOzet] = useState<{ bekleyenDekont: number; aktifStaj: number; kilitliOgretmen: number; okulAdi: string | null } | null>(null);
+  const gecenAy = useMemo(() => {
+    const d = new Date();
+    const t = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+    return { ay: t.getMonth() + 1, yil: t.getFullYear() };
+  }, []);
+  const [donem, setDonem] = useState(gecenAy);
+  const [durum, setDurum] = useState<{ toplam: number; gelen: number; ogretmenler: EksikOgretmen[] } | null>(null);
+  const [durumYukleniyor, setDurumYukleniyor] = useState(true);
+  const [telefonlar, setTelefonlar] = useState<Record<string, string | null>>({});
+  const [acikOgretmen, setAcikOgretmen] = useState<string | null>(null);
+  const [girisYapilan, setGirisYapilan] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/mobil/ozet", { cache: "no-store" });
+        if (!res.ok) throw new Error(await hataMesaji(res, "Özet alınamadı"));
+        const data = await res.json();
+        setOzet(data);
+        onSayi(data.bekleyenDekont);
+      } catch (e) {
+        toast.error((e as Error).message);
+      }
+    })();
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/mobil/ogretmenler", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const harita: Record<string, string | null> = {};
+        for (const o of data.ogretmenler || []) harita[o.id] = o.telefon;
+        setTelefonlar(harita);
+      } catch {}
+    })();
+  }, [onSayi]);
+
+  useEffect(() => {
+    let iptal = false;
+    setDurumYukleniyor(true);
+    setAcikOgretmen(null);
+    (async () => {
+      try {
+        // Masaüstü dekontlar sayfasıyla aynı hesap
+        const res = await fetch(`/api/admin/reports/dekont-status?month=${donem.ay}&year=${donem.yil}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(await hataMesaji(res, "Aylık durum alınamadı"));
+        const data = await res.json();
+        let toplam = 0;
+        let gelen = 0;
+        const ogretmenler: EksikOgretmen[] = [];
+        for (const t of data.teachers || []) {
+          const eksikler: EksikOgretmen["eksikler"] = [];
+          let ogretmenToplam = 0;
+          for (const c of t.isletmeler || []) {
+            for (const s of c.ogrenciler || []) {
+              toplam++;
+              ogretmenToplam++;
+              if (s.has_dekont) gelen++;
+              else eksikler.push({ ogrenci: s.ad_soyad, sinif: s.sinif || "", isletme: c.isletme_ad });
+            }
+          }
+          if (eksikler.length > 0) ogretmenler.push({ id: t.ogretmen_id, ad: t.ogretmen_ad, eksikler, toplam: ogretmenToplam });
+        }
+        ogretmenler.sort((a, b) => b.eksikler.length - a.eksikler.length);
+        if (!iptal) setDurum({ toplam, gelen, ogretmenler });
+      } catch (e) {
+        if (!iptal) {
+          setDurum(null);
+          toast.error((e as Error).message);
+        }
+      } finally {
+        if (!iptal) setDurumYukleniyor(false);
+      }
+    })();
+    return () => {
+      iptal = true;
+    };
+  }, [donem]);
+
+  const ayDegistir = (fark: number) => {
+    const t = new Date(donem.yil, donem.ay - 1 + fark, 1);
+    setDonem({ ay: t.getMonth() + 1, yil: t.getFullYear() });
+  };
+  // En fazla içinde bulunulan aya kadar ileri gidilebilir
+  const simdi = new Date();
+  const sonrakiAyVar = donem.yil * 12 + donem.ay < simdi.getFullYear() * 12 + simdi.getMonth() + 1;
+
+  const hesabinaGir = async (id: string) => {
+    setGirisYapilan(id);
+    try {
+      await ogretmenHesabinaGir(id);
+    } catch (e) {
+      toast.error((e as Error).message);
+      setGirisYapilan(null);
+    }
+  };
+
+  const eksikSayisi = durum ? durum.toplam - durum.gelen : 0;
+  const yuzde = durum && durum.toplam > 0 ? Math.round((durum.gelen / durum.toplam) * 100) : 0;
+  const bugun = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" });
+
+  return (
+    <div className="space-y-4">
+      <div className="px-1">
+        <p className="text-sm text-slate-500">{bugun}</p>
+        {ozet?.okulAdi && <p className="truncate font-semibold text-slate-900">{ozet.okulAdi}</p>}
+      </div>
+
+      {/* Bekleyen dekontlar */}
+      <button
+        type="button"
+        onClick={onIncele}
+        disabled={!ozet}
+        className="flex w-full items-center gap-4 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 active:bg-slate-100"
+      >
+        <div
+          className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${
+            ozet?.bekleyenDekont ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+          }`}
+        >
+          {ozet?.bekleyenDekont ? <Receipt className="h-7 w-7" /> : <Check className="h-7 w-7" />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-3xl font-bold leading-none text-slate-900">{ozet ? ozet.bekleyenDekont : "–"}</p>
+          <p className="mt-1 text-sm text-slate-600">dekont onay bekliyor</p>
+        </div>
+        {!!ozet?.bekleyenDekont && (
+          <span className="flex shrink-0 items-center gap-1 rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white">
+            <PlayCircle className="h-4 w-4" /> İncele
+          </span>
+        )}
+      </button>
+
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => onSekme("stajlar")}
+          className="rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
+        >
+          <p className="text-2xl font-bold text-slate-900">{ozet ? ozet.aktifStaj : "–"}</p>
+          <p className="text-sm text-slate-600">aktif staj</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => onSekme("ogretmenler")}
+          className="rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
+        >
+          <p className={`text-2xl font-bold ${ozet?.kilitliOgretmen ? "text-red-600" : "text-slate-900"}`}>
+            {ozet ? ozet.kilitliOgretmen : "–"}
+          </p>
+          <p className="text-sm text-slate-600">kilitli öğretmen</p>
+        </button>
+      </div>
+
+      {/* Aylık dekont durumu */}
+      <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+        <div className="flex items-center gap-2 border-b border-slate-100 px-2 py-2">
+          <button type="button" onClick={() => ayDegistir(-1)} className="rounded-full p-2 text-slate-500 hover:bg-slate-100" aria-label="Önceki ay">
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <p className="flex-1 text-center font-semibold text-slate-900">
+            {AYLAR[donem.ay - 1]} {donem.yil} dekontları
+          </p>
+          <button
+            type="button"
+            onClick={() => ayDegistir(1)}
+            disabled={!sonrakiAyVar}
+            className="rounded-full p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+            aria-label="Sonraki ay"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+
+        {durumYukleniyor ? (
+          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-indigo-500" /></div>
+        ) : !durum || durum.toplam === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-slate-500">Bu ay için dekont beklenen öğrenci yok.</p>
+        ) : (
+          <>
+            <div className="p-4">
+              <div className="flex items-end justify-between">
+                <p className="text-sm text-slate-600">
+                  <span className="text-2xl font-bold text-slate-900">{durum.gelen}</span> / {durum.toplam} öğrencinin dekontu geldi
+                </p>
+                <span className="text-sm font-semibold text-slate-700">%{yuzde}</span>
+              </div>
+              <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${yuzde}%` }} />
+              </div>
+              <p className={`mt-2 text-sm font-medium ${eksikSayisi > 0 ? "text-red-600" : "text-emerald-700"}`}>
+                {eksikSayisi > 0 ? `${eksikSayisi} öğrencinin dekontu eksik` : "Eksik dekont yok"}
+              </p>
+            </div>
+
+            {durum.ogretmenler.length > 0 && (
+              <>
+                <p className="border-t border-slate-100 px-4 pb-1 pt-3 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Eksiği olan öğretmenler
+                </p>
+                <ul className="divide-y divide-slate-100">
+                  {durum.ogretmenler.map((o) => {
+                    const acik = acikOgretmen === o.id;
+                    const tel = telefonlar[o.id];
+                    return (
+                      <li key={o.id}>
+                        <button
+                          type="button"
+                          onClick={() => setAcikOgretmen(acik ? null : o.id)}
+                          aria-expanded={acik}
+                          className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50"
+                        >
+                          <span className="flex h-8 min-w-[2rem] items-center justify-center rounded-full bg-red-50 px-2 text-sm font-bold text-red-700">
+                            {o.eksikler.length}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium text-slate-900">{o.ad}</span>
+                            <span className="text-xs text-slate-500">{o.toplam} öğrenciden {o.eksikler.length} eksik</span>
+                          </span>
+                          <ChevronRight className={`h-4 w-4 shrink-0 text-slate-300 transition-transform ${acik ? "rotate-90" : ""}`} />
+                        </button>
+                        {acik && (
+                          <div className="bg-slate-50 px-4 pb-3 pt-1">
+                            <ul className="space-y-1.5">
+                              {o.eksikler.map((e, i) => (
+                                <li key={i} className="rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-slate-200">
+                                  <span className="font-medium text-slate-900">{e.ogrenci}</span>
+                                  {e.sinif && <span className="text-slate-500"> · {e.sinif}</span>}
+                                  <span className="block truncate text-xs text-slate-500">{e.isletme}</span>
+                                </li>
+                              ))}
+                            </ul>
+                            <div className="mt-3 flex gap-2">
+                              {tel && (
+                                <a
+                                  href={`tel:${tel}`}
+                                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-white py-2.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100"
+                                >
+                                  <Phone className="h-4 w-4" /> Ara
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => hesabinaGir(o.id)}
+                                disabled={girisYapilan === o.id}
+                                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                              >
+                                {girisYapilan === o.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+                                Hesabına gir
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export default function YonetimPage() {
   const { data: session, status } = useSession();
-  const [tab, setTab] = useState<Tab>("dekontlar");
+  const [tab, setTab] = useState<Tab>("anasayfa");
   const [menuAcik, setMenuAcik] = useState(false);
   const [bekleyenSayisi, setBekleyenSayisi] = useState<number | null>(null);
+  const [incelemeIstegi, setIncelemeIstegi] = useState(0);
 
   useEffect(() => {
     // Sayfa açık pencereyle yenilendiyse geçmiş kaydında kalan işaretleri temizle
@@ -1218,19 +1660,17 @@ export default function YonetimPage() {
       const { yonetimInceleme, yonetimSheet, ...rest } = st;
       window.history.replaceState(rest, "");
     }
-    try {
-      const kayitli = localStorage.getItem("yonetim:tab");
-      if (kayitli === "dekontlar" || kayitli === "ogretmenler" || kayitli === "stajlar") setTab(kayitli);
-    } catch {}
   }, []);
 
-  const sekmeSec = (t: Tab) => {
+  const sekmeSec = useCallback((t: Tab) => {
     setTab(t);
     window.scrollTo({ top: 0 });
-    try {
-      localStorage.setItem("yonetim:tab", t);
-    } catch {}
-  };
+  }, []);
+
+  const incelemeyeBasla = useCallback(() => {
+    sekmeSec("dekontlar");
+    setIncelemeIstegi((n) => n + 1);
+  }, [sekmeSec]);
 
   if (status === "loading") {
     return (
@@ -1243,6 +1683,7 @@ export default function YonetimPage() {
   if (session?.user?.role !== "ADMIN") return <YoneticiGiris />;
 
   const sekmeler: { id: Tab; ad: string; icon: React.ReactNode; rozet?: number | null }[] = [
+    { id: "anasayfa", ad: "Ana sayfa", icon: <Home className="h-5 w-5" /> },
     { id: "dekontlar", ad: "Dekontlar", icon: <Receipt className="h-5 w-5" />, rozet: bekleyenSayisi },
     { id: "ogretmenler", ad: "Öğretmenler", icon: <Users className="h-5 w-5" /> },
     { id: "stajlar", ad: "Stajlar", icon: <GraduationCap className="h-5 w-5" /> },
@@ -1295,8 +1736,9 @@ export default function YonetimPage() {
 
       <main className="mx-auto max-w-2xl px-3 py-4 sm:px-6">
         {/* Sekmeler bağımsız yüklenir; Dekontlar sekmesi rozet sayısını da günceller */}
+        {tab === "anasayfa" && <AnaSayfa onSekme={sekmeSec} onIncele={incelemeyeBasla} onSayi={setBekleyenSayisi} />}
         <div hidden={tab !== "dekontlar"}>
-          <DekontlarSekmesi onSayi={setBekleyenSayisi} />
+          <DekontlarSekmesi onSayi={setBekleyenSayisi} incelemeIstegi={incelemeIstegi} />
         </div>
         {tab === "ogretmenler" && <OgretmenlerSekmesi />}
         {tab === "stajlar" && <StajlarSekmesi userId={session.user.id as string} />}
@@ -1306,7 +1748,7 @@ export default function YonetimPage() {
         className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white"
         style={{ paddingBottom: "var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))" }}
       >
-        <div className="mx-auto grid max-w-2xl grid-cols-3">
+        <div className="mx-auto grid max-w-2xl grid-cols-4">
           {sekmeler.map((s) => {
             const aktif = tab === s.id;
             return (
@@ -1317,7 +1759,7 @@ export default function YonetimPage() {
                 aria-current={aktif ? "page" : undefined}
                 className={`relative flex flex-col items-center gap-0.5 py-2.5 text-xs font-medium ${aktif ? "text-indigo-700" : "text-slate-500"}`}
               >
-                <span className={`relative rounded-full px-5 py-1 ${aktif ? "bg-indigo-100" : ""}`}>
+                <span className={`relative rounded-full px-4 py-1 ${aktif ? "bg-indigo-100" : ""}`}>
                   {s.icon}
                   {!!s.rozet && (
                     <span className="absolute -right-0.5 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">

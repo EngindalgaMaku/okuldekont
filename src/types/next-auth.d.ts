@@ -10,6 +10,7 @@ declare module "next-auth" {
       profile?: any
       companyId?: string
       teacherId?: string
+      impersonatedBy?: string
     }
   }
 
@@ -20,6 +21,7 @@ declare module "next-auth" {
     profile?: any
     companyId?: string
     teacherId?: string
+    impersonatedBy?: string
   }
 }
 

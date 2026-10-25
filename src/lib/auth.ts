@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
 import bcrypt from "bcryptjs";
 import { recordPinAttempt, checkSecurityStatus } from "./pin-security";
+import { belirteciDogrula } from "./impersonation";
 
 export const authOptions: NextAuthOptions = {
   debug: false, // Debug tamamen kapatıldı - performans için
@@ -183,6 +184,62 @@ export const authOptions: NextAuthOptions = {
         }
       },
     }),
+    // Yöneticinin öğretmen hesabına geçmesi (belirteç /api/admin/mobil/ogretmenler/[id]/oturum'dan alınır)
+    CredentialsProvider({
+      id: "yonetici-ogretmen",
+      name: "Yönetici öğretmen oturumu",
+      credentials: { token: { label: "Token", type: "text" } },
+      async authorize(credentials) {
+        const yuk = belirteciDogrula(credentials?.token, "giris");
+        if (!yuk) return null;
+        try {
+          const [admin, teacher] = await Promise.all([
+            prisma.user.findUnique({ where: { id: yuk.adminId }, select: { role: true } }),
+            prisma.teacherProfile.findUnique({
+              where: { id: yuk.teacherId },
+              select: { id: true, name: true, surname: true },
+            }),
+          ]);
+          if (admin?.role !== "ADMIN" || !teacher) return null;
+          console.warn("AUTH: Yönetici öğretmen hesabına geçti", {
+            adminEmail: yuk.adminEmail,
+            teacherId: teacher.id,
+          });
+          return {
+            id: teacher.id,
+            email: `teacher_${teacher.id}@system.local`,
+            name: `${teacher.name} ${teacher.surname}`,
+            role: "TEACHER",
+            profile: { id: teacher.id, name: teacher.name, surname: teacher.surname },
+            impersonatedBy: yuk.adminEmail,
+          };
+        } catch (error) {
+          console.error("Yönetici öğretmen oturumu hatası:", error);
+          return null;
+        }
+      },
+    }),
+    // Öğretmen hesabından aynı yöneticinin kendi hesabına dönmesi
+    CredentialsProvider({
+      id: "yonetici-donus",
+      name: "Yönetici hesabına dönüş",
+      credentials: { token: { label: "Token", type: "text" } },
+      async authorize(credentials) {
+        const yuk = belirteciDogrula(credentials?.token, "donus");
+        if (!yuk) return null;
+        try {
+          const user = await prisma.user.findUnique({
+            where: { id: yuk.adminId },
+            select: { id: true, email: true, role: true },
+          });
+          if (!user || user.role !== "ADMIN") return null;
+          return { id: user.id, email: user.email, role: user.role };
+        } catch (error) {
+          console.error("Yönetici dönüş hatası:", error);
+          return null;
+        }
+      },
+    }),
   ],
   session: {
     strategy: "jwt" as const,
@@ -206,6 +263,8 @@ export const authOptions: NextAuthOptions = {
         token.profile = user.profile;
         token.email = user.email;
         token.name = user.name;
+        // Yönetici bir öğretmen hesabındaysa kim olduğunu oturumda taşı
+        token.impersonatedBy = user.impersonatedBy || undefined;
 
         // Company kullanıcıları için companyId'yi ekle
         if (user.role === "COMPANY") {
@@ -229,6 +288,9 @@ export const authOptions: NextAuthOptions = {
         }
         if (token.teacherId) {
           session.user.teacherId = token.teacherId;
+        }
+        if (token.impersonatedBy) {
+          session.user.impersonatedBy = token.impersonatedBy;
         }
       }
       return session;
